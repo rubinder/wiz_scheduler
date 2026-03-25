@@ -51,6 +51,18 @@ async def generate_schedule(
 
                 yield json.dumps(chunk) + "\n"
         except Exception as exc:
+            from backend.services.failure_logger import log_failure
+
+            await log_failure(
+                category="PIPELINE",
+                source="schedules.generate",
+                message=str(exc),
+                detail={
+                    "week_start_date": str(body.week_start_date),
+                    "exception_type": type(exc).__name__,
+                },
+                company_id=current_user.company_id,
+            )
             # Emit the error as a single NDJSON line so the frontend can display it
             error_result = {
                 "location_id": "",

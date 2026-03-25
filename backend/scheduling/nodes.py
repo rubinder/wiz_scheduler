@@ -136,9 +136,21 @@ async def call_llm(state: SchedulingState) -> Dict[str, Any]:
         }
     except Exception as exc:
         error_msg = f"LLM_ERROR for location {location_id}: {exc}"
+        failure_entry = {
+            "category": "SCHEDULING",
+            "severity": "error",
+            "source": "scheduling.call_llm",
+            "message": error_msg,
+            "detail": {
+                "location_id": location_id,
+                "exception_type": type(exc).__name__,
+                "exception": str(exc),
+            },
+        }
         return {
             "current_raw_response": "",
             "errors": state["errors"] + [error_msg],
+            "failure_entries": state.get("failure_entries", []) + [failure_entry],
         }
 
 
@@ -159,6 +171,25 @@ def _salvage_truncated_json(text: str) -> list | None:
     except json.JSONDecodeError:
         pass
     return None
+
+
+def _parse_error_result(
+    state: SchedulingState, location_id: str, reason: str,
+) -> Dict[str, Any]:
+    """Build a parse-error return dict with a failure entry."""
+    error_msg = f"PARSE_ERROR for location {location_id}: {reason}"
+    failure_entry = {
+        "category": "SCHEDULING",
+        "severity": "warning",
+        "source": "scheduling.parse_schedule",
+        "message": error_msg,
+        "detail": {"location_id": location_id, "reason": reason},
+    }
+    return {
+        "current_parsed_shifts": [],
+        "errors": state["errors"] + [error_msg],
+        "failure_entries": state.get("failure_entries", []) + [failure_entry],
+    }
 
 
 def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
@@ -200,11 +231,9 @@ def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
                 # JSON may be truncated — try to salvage complete objects
                 parsed = _salvage_truncated_json(match.group(0))
                 if parsed is None:
-                    return {
-                        "current_parsed_shifts": [],
-                        "errors": state["errors"]
-                        + [f"PARSE_ERROR for location {location_id}: could not extract JSON from LLM response"],
-                    }
+                    return _parse_error_result(
+                        state, location_id, "could not extract JSON from LLM response"
+                    )
         else:
             # No closing ']' found — response is likely truncated
             match_open = re.search(r"\[.*", cleaned, re.DOTALL)
@@ -216,24 +245,18 @@ def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
                         len(parsed), location_id,
                     )
                 else:
-                    return {
-                        "current_parsed_shifts": [],
-                        "errors": state["errors"]
-                        + [f"PARSE_ERROR for location {location_id}: no JSON array found in LLM response"],
-                    }
+                    return _parse_error_result(
+                        state, location_id, "no JSON array found in LLM response"
+                    )
             else:
-                return {
-                    "current_parsed_shifts": [],
-                    "errors": state["errors"]
-                    + [f"PARSE_ERROR for location {location_id}: no JSON array found in LLM response"],
-                }
+                return _parse_error_result(
+                    state, location_id, "no JSON array found in LLM response"
+                )
 
     if not isinstance(parsed, list):
-        return {
-            "current_parsed_shifts": [],
-            "errors": state["errors"]
-            + [f"PARSE_ERROR for location {location_id}: LLM response is not a JSON array"],
-        }
+        return _parse_error_result(
+            state, location_id, "LLM response is not a JSON array"
+        )
 
     shifts: List[ShiftAssignment] = []
     for item in parsed:
@@ -382,6 +405,22 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         e for e in state["errors"] if location_id in e
     ]
 
+    # Accumulate failure entry for non-ok statuses
+    new_failure_entries: List[Dict[str, Any]] = []
+    if status in ("PARSE_ERROR", "CONFLICT"):
+        new_failure_entries.append({
+            "category": "SCHEDULING",
+            "severity": "warning" if status == "CONFLICT" else "error",
+            "source": f"scheduling.emit_result.{status.lower()}",
+            "message": f"{status} for location {location_name} ({location_id})",
+            "detail": {
+                "location_id": location_id,
+                "location_name": location_name,
+                "status": status,
+                "errors": location_errors,
+            },
+        })
+
     result: LocationResult = {
         "location_id": location_id,
         "location_name": location_name,
@@ -400,4 +439,5 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         "draft_schedules": draft_schedules,
         "completed_location_ids": completed,
         "current_location_index": state["current_location_index"] + 1,
+        "failure_entries": state.get("failure_entries", []) + new_failure_entries,
     }

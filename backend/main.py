@@ -2,12 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
+from backend.middleware.failure_logging import FailureLoggingMiddleware
 from backend.routers import (
     affinities,
     auth,
     company,
     employees,
     export_schedules,
+    failure_logs,
     import_7shifts,
     locations,
     ownership_group,
@@ -20,6 +22,9 @@ from backend.routers import (
 
 def create_app() -> FastAPI:
     app = FastAPI(title="WizScheduler API", version="1.0.0")
+
+    # Failure logging middleware (must be added before CORS so it wraps the full request)
+    app.add_middleware(FailureLoggingMiddleware)
 
     # CORS middleware for development
     app.add_middleware(
@@ -44,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(schedules.router, prefix=api_prefix)
     app.include_router(import_7shifts.router, prefix=api_prefix)
     app.include_router(export_schedules.router, prefix=api_prefix)
+    app.include_router(failure_logs.router, prefix=api_prefix)
 
     # In production, serve the frontend static build
     if settings.ENV == "production":
