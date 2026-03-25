@@ -21,3 +21,9 @@ class RoleResponse(BaseModel):
     external_id: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class RoleBulkUploadResponse(BaseModel):
+    created: int
+    skipped: int
+    errors: list[str]

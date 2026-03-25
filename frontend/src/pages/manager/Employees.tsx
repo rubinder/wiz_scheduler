@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import * as rolesApi from "../../api/roles";
 import * as locationsApi from "../../api/locations";
 import * as companyApi from "../../api/company";
+import ImportModal from "../../components/shared/ImportModal";
 import type {
-  BulkUploadResponse,
   Company,
   Employee,
   Location,
@@ -22,10 +22,7 @@ export default function Employees() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [error, setError] = useState("");
-  const [uploadResult, setUploadResult] = useState<BulkUploadResponse | null>(
-    null
-  );
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -163,21 +160,10 @@ export default function Employees() {
     }
   };
 
-  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadResult(null);
-    setError("");
-    try {
-      const result = await employeesApi.bulkUploadEmployees(file);
-      setUploadResult(result);
-      await fetchData();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+  const handleImportUpload = async (file: File) => {
+    const result = await employeesApi.bulkUploadEmployees(file);
+    await fetchData();
+    return result;
   };
 
   const toggleRole = (
@@ -347,41 +333,28 @@ export default function Employees() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Employees</h1>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleBulkUpload}
-            className="hidden"
-            id="csv-upload"
-          />
-          <label
-            htmlFor="csv-upload"
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 cursor-pointer text-sm font-medium"
-          >
-            Upload CSV
-          </label>
-        </div>
+        <button
+          onClick={() => setShowImportModal(true)}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
+        >
+          Import Data
+        </button>
       </div>
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
           {error}
         </div>
       )}
-      {uploadResult && (
-        <div className="mb-4 p-3 bg-blue-50 text-blue-800 rounded text-sm">
-          <p>
-            Created: {uploadResult.created} | Skipped: {uploadResult.skipped}
-          </p>
-          {uploadResult.errors.length > 0 && (
-            <ul className="mt-2 list-disc list-inside text-sm">
-              {uploadResult.errors.map((err, i) => (
-                <li key={i}>{err}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+      {showImportModal && (
+        <ImportModal
+          title="Import Employees"
+          format={{
+            csv: `full_name,email,role_names,skill_levels,location_names\nJane Doe,jane@example.com,Barista|Cashier,3|2,Downtown|Uptown\nJohn Smith,john@example.com,Manager,5,Downtown`,
+            json: `[\n  {\n    "full_name": "Jane Doe",\n    "email": "jane@example.com",\n    "role_names": "Barista|Cashier",\n    "skill_levels": "3|2",\n    "location_names": "Downtown|Uptown"\n  },\n  {\n    "full_name": "John Smith",\n    "email": "john@example.com",\n    "role_names": "Manager",\n    "skill_levels": "5",\n    "location_names": "Downtown"\n  }\n]`,
+          }}
+          onUpload={handleImportUpload}
+          onClose={() => setShowImportModal(false)}
+        />
       )}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">

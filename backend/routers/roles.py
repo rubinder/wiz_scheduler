@@ -1,12 +1,15 @@
+import csv
+import io
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Role, User
-from backend.schemas.role import RoleCreate, RoleResponse, RoleUpdate
+from backend.schemas.role import RoleBulkUploadResponse, RoleCreate, RoleResponse, RoleUpdate
 
 router = APIRouter(prefix="/roles", tags=["roles"])
 
@@ -62,6 +65,82 @@ async def update_role(
     await db.commit()
     await db.refresh(role)
     return RoleResponse.model_validate(role)
+
+
+@router.post("/bulk-upload", response_model=RoleBulkUploadResponse)
+async def bulk_upload_roles(
+    file: UploadFile,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> RoleBulkUploadResponse:
+    """
+    Accepts a CSV or JSON file for bulk role import.
+
+    CSV columns: name, description
+    JSON format: [{"name": "...", "description": "..."}]
+
+    Duplicate role names (case-insensitive) within the company are skipped.
+    """
+    content = await file.read()
+    text = content.decode("utf-8-sig")
+
+    is_json = (
+        (file.content_type and "json" in file.content_type)
+        or (file.filename and file.filename.endswith(".json"))
+    )
+
+    if is_json:
+        try:
+            rows = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid JSON: {e}",
+            )
+        if not isinstance(rows, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="JSON must be an array of objects",
+            )
+    else:
+        reader = csv.DictReader(io.StringIO(text))
+        rows = list(reader)
+
+    # Pre-fetch existing role names for dedup
+    role_result = await db.execute(
+        select(Role.name).where(Role.company_id == current_user.company_id)
+    )
+    existing_names: set[str] = {name.lower() for name in role_result.scalars().all()}
+
+    created = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for row_num, row in enumerate(rows, start=2 if not is_json else 1):
+        name = (row.get("name") or "").strip()
+        description = (row.get("description") or "").strip() or None
+
+        if not name:
+            errors.append(f"Row {row_num}: missing name, skipped")
+            skipped += 1
+            continue
+
+        if name.lower() in existing_names:
+            errors.append(f"Row {row_num}: role '{name}' already exists, skipped")
+            skipped += 1
+            continue
+
+        role = Role(
+            company_id=current_user.company_id,
+            name=name,
+            description=description,
+        )
+        db.add(role)
+        existing_names.add(name.lower())
+        created += 1
+
+    await db.commit()
+    return RoleBulkUploadResponse(created=created, skipped=skipped, errors=errors)
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)

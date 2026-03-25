@@ -1,4 +1,4 @@
-import type { Role } from "../types";
+import type { BulkUploadResponse, Role } from "../types";
 import { apiFetch } from "./client";
 
 export function listRoles(): Promise<Role[]> {
@@ -27,4 +27,15 @@ export function updateRole(
 
 export function deleteRole(id: string): Promise<void> {
   return apiFetch<void>(`/roles/${id}`, { method: "DELETE" });
+}
+
+export async function bulkUploadRoles(
+  file: File
+): Promise<BulkUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch<BulkUploadResponse>("/roles/bulk-upload", {
+    method: "POST",
+    body: formData as unknown as BodyInit,
+  });
 }

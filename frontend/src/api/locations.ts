@@ -1,4 +1,4 @@
-import type { Location } from "../types";
+import type { BulkUploadResponse, Location } from "../types";
 import { apiFetch } from "./client";
 
 export function listLocations(): Promise<Location[]> {
@@ -36,4 +36,15 @@ export function updateLocation(
 
 export function deleteLocation(id: string): Promise<void> {
   return apiFetch<void>(`/locations/${id}`, { method: "DELETE" });
+}
+
+export async function bulkUploadLocations(
+  file: File
+): Promise<BulkUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiFetch<BulkUploadResponse>("/locations/bulk-upload", {
+    method: "POST",
+    body: formData as unknown as BodyInit,
+  });
 }

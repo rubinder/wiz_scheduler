@@ -29,3 +29,9 @@ class LocationResponse(BaseModel):
     timezone: str
 
     model_config = {"from_attributes": True}
+
+
+class LocationBulkUploadResponse(BaseModel):
+    created: int
+    skipped: int
+    errors: list[str]
