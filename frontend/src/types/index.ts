@@ -1,0 +1,209 @@
+// ── Auth ──
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  company_name: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface User {
+  id: string;
+  company_id: string;
+  email: string;
+  full_name: string | null;
+  user_role: string;
+  ownership_group_id: string | null;
+}
+
+// ── Company ──
+
+export interface Company {
+  id: string;
+  name: string;
+  slug: string;
+  ownership_group_id: string | null;
+  created_at: string;
+}
+
+// ── Ownership Group ──
+
+export interface OwnershipGroup {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface CompanySummary {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface OwnershipGroupCompaniesResponse {
+  ownership_group: OwnershipGroup;
+  companies: CompanySummary[];
+}
+
+// ── Region ──
+
+export interface Region {
+  id: string;
+  company_id: string;
+  name: string;
+  geo_bounds: Record<string, unknown> | null;
+}
+
+// ── Location ──
+
+export interface Location {
+  id: string;
+  company_id: string;
+  region_id: string;
+  name: string;
+  address: string | null;
+  geo_coord: Record<string, unknown> | null;
+  timezone: string;
+}
+
+// ── Role ──
+
+export interface Role {
+  id: string;
+  company_id: string;
+  name: string;
+  description: string | null;
+  external_id: string | null;
+}
+
+// ── Employee ──
+
+export interface Employee {
+  id: string;
+  company_id: string;
+  user_id: string | null;
+  full_name: string;
+  email: string | null;
+  location_ids: string[] | null;
+  roles: EmployeeRole[];
+  company_ids: string[];
+}
+
+export interface EmployeeRole {
+  id: string;
+  role_id: string;
+  skill_level: number;
+}
+
+export interface EmployeeMeRole {
+  role_id: string;
+  role_name: string;
+}
+
+export interface EmployeeMeLocation {
+  location_id: string;
+  location_name: string;
+}
+
+export interface EmployeeMeProfile {
+  id: string;
+  full_name: string;
+  email: string | null;
+  roles: EmployeeMeRole[];
+  locations: EmployeeMeLocation[];
+}
+
+export interface EmployeeAffinity {
+  id: string;
+  employee_id: string;
+  target_employee_id: string;
+  level: number;
+  entry_date: string;
+  expiration_date: string | null;
+}
+
+export interface EmployeeAvailability {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  year: number;
+  month: number;
+  day: number;
+  start_time: string;
+  end_time: string;
+}
+
+// ── Shift Template ──
+
+export interface ShiftTemplate {
+  id: string;
+  company_id: string;
+  location_id: string;
+  name: string;
+  weekly_schedule: Record<string, unknown>[];
+}
+
+// ── Schedule ──
+
+export interface ShiftSchedule {
+  id: string;
+  company_id: string;
+  location_id: string;
+  week_start_date: string;
+  status: string;
+  created_at: string;
+  shifts: Shift[];
+}
+
+export interface Shift {
+  id: string;
+  shift_schedule_id: string;
+  location_id: string;
+  employee_id: string;
+  role_id: string;
+  role_name: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
+// ── Scheduling streaming results ──
+
+export interface ShiftAssignment {
+  employee_id: string;
+  employee_name: string;
+  role_id: string;
+  role_name: string;
+  location_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+}
+
+export interface LocationResult {
+  location_id: string;
+  location_name: string;
+  shifts: ShiftAssignment[];
+  errors: string[];
+  status: string;
+  schedule_id?: string;
+}
+
+// ── Bulk upload ──
+
+export interface BulkUploadResponse {
+  created: number;
+  skipped: number;
+  errors: string[];
+}
