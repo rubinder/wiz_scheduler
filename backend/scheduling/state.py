@@ -1,4 +1,12 @@
-from typing import List, TypedDict
+from typing import Any, Dict, List, TypedDict
+
+
+class FailureEntry(TypedDict):
+    category: str
+    severity: str
+    source: str
+    message: str
+    detail: Dict[str, Any]
 
 
 class ShiftAssignment(TypedDict):
@@ -45,3 +53,5 @@ class SchedulingState(TypedDict):
     current_location: dict
     current_shift_template: dict
     current_employees: List[dict]
+    # Accumulated failure entries to be persisted by the router
+    failure_entries: List[FailureEntry]

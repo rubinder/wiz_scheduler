@@ -9,6 +9,7 @@ from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, Em
 from backend.models.shift_template import ShiftTemplate
 from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
+from backend.models.failure_log import FailureLog
 
 __all__ = [
     "OwnershipGroup",
@@ -27,4 +28,5 @@ __all__ = [
     "ShiftSchedule",
     "Shift",
     "TokenUsage",
+    "FailureLog",
 ]

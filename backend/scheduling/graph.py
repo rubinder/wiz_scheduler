@@ -24,7 +24,7 @@ from backend.scheduling.nodes import (
     parse_schedule,
     validate_and_update_availability,
 )
-from backend.scheduling.state import LocationResult, SchedulingState
+from backend.scheduling.state import FailureEntry, LocationResult, SchedulingState
 
 
 def _should_retry_or_emit(state: SchedulingState) -> str:
@@ -269,6 +269,7 @@ async def _load_initial_state(
         "current_location": {},
         "current_shift_template": {},
         "current_employees": [],
+        "failure_entries": [],
     }
 
     return initial_state
@@ -305,6 +306,7 @@ async def run_scheduling_pipeline(
     yielded_count = 0
     final_input_tokens = 0
     final_output_tokens = 0
+    accumulated_failures: List[Dict[str, Any]] = []
 
     # Stream through the graph execution
     async for state_update in compiled.astream(initial_state):
@@ -314,11 +316,22 @@ async def run_scheduling_pipeline(
                 if "total_input_tokens" in node_state:
                     final_input_tokens = node_state["total_input_tokens"]
                     final_output_tokens = node_state["total_output_tokens"]
+                if "failure_entries" in node_state:
+                    accumulated_failures = node_state["failure_entries"]
                 if "draft_schedules" in node_state:
                     draft_schedules = node_state["draft_schedules"]
                     while yielded_count < len(draft_schedules):
                         yield draft_schedules[yielded_count]
                         yielded_count += 1
+
+    # Persist any accumulated failure entries
+    if accumulated_failures:
+        from backend.services.failure_logger import log_failure_batch
+
+        # Attach company_id to each entry
+        for entry in accumulated_failures:
+            entry["company_id"] = company_id
+        await log_failure_batch(accumulated_failures)
 
     # Upsert token usage for the ownership group
     if final_input_tokens or final_output_tokens:
