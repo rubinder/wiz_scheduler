@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -282,9 +283,12 @@ async def bulk_upload(
     group_company_ids: list[uuid.UUID] = Depends(get_ownership_group_company_ids),
 ) -> BulkUploadResponse:
     """
-    Accepts a multipart CSV with columns:
-      full_name, email, role_names (pipe-separated), skill_levels (pipe-separated),
+    Accepts a CSV or JSON file for bulk employee import.
+
+    CSV columns: full_name, email, role_names (pipe-separated), skill_levels (pipe-separated),
       location_names (pipe-separated).
+    JSON format: [{"full_name": "...", "email": "...", "role_names": "...",
+      "skill_levels": "...", "location_names": "..."}]
 
     Role names are matched case-insensitively against the roles table.
     Location names are matched case-insensitively against the locations table.
@@ -292,7 +296,29 @@ async def bulk_upload(
     """
     content = await file.read()
     text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
+
+    # Determine format from content type or filename
+    is_json = (
+        (file.content_type and "json" in file.content_type)
+        or (file.filename and file.filename.endswith(".json"))
+    )
+
+    if is_json:
+        try:
+            rows = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid JSON: {e}",
+            )
+        if not isinstance(rows, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="JSON must be an array of objects",
+            )
+    else:
+        reader = csv.DictReader(io.StringIO(text))
+        rows = list(reader)
 
     # Pre-fetch company roles and locations for case-insensitive matching
     role_result = await db.execute(
@@ -313,7 +339,7 @@ async def bulk_upload(
     skipped = 0
     errors: list[str] = []
 
-    for row_num, row in enumerate(reader, start=2):  # start=2 because row 1 is header
+    for row_num, row in enumerate(rows, start=2 if not is_json else 1):
         full_name = (row.get("full_name") or "").strip()
         email = (row.get("email") or "").strip() or None
         raw_roles = (row.get("role_names") or "").strip()
