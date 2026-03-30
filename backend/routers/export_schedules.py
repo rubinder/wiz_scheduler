@@ -13,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
-from backend.models import Department, Employee, Location, Role, Shift, ShiftSchedule, User
+from backend.models import Department, Employee, EmployeeRole, Location, Role, Shift, ShiftSchedule, User
+from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -54,6 +55,78 @@ class Export7ShiftsResult(BaseModel):
     exported: int
     failed: int
     errors: list[str]
+
+
+async def _load_condensed_role_resolver(
+    company_id: uuid.UUID, db: AsyncSession
+) -> tuple[dict[uuid.UUID, list[uuid.UUID]], dict[uuid.UUID, Role]]:
+    """Load condensed role mappings and all roles for the company.
+
+    Returns:
+        condensed_map: condensed_role_id -> list of member role_ids
+        role_by_id: role_id -> Role ORM object
+    """
+    cr_result = await db.execute(
+        select(CondensedRoleMapping).join(CondensedRoleMapping.condensed_role).where(
+            CondensedRole.company_id == company_id
+        )
+    )
+    condensed_map: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for m in cr_result.scalars().all():
+        condensed_map.setdefault(m.condensed_role_id, []).append(m.role_id)
+
+    role_result = await db.execute(
+        select(Role).where(Role.company_id == company_id)
+    )
+    role_by_id = {r.id: r for r in role_result.scalars().all()}
+
+    return condensed_map, role_by_id
+
+
+async def _load_employee_role_ids(
+    company_id: uuid.UUID, db: AsyncSession
+) -> dict[uuid.UUID, set[uuid.UUID]]:
+    """Load employee -> set of role_ids."""
+    er_result = await db.execute(
+        select(EmployeeRole).where(EmployeeRole.company_id == company_id)
+    )
+    emp_roles: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for er in er_result.scalars().all():
+        emp_roles.setdefault(er.employee_id, set()).add(er.role_id)
+    return emp_roles
+
+
+def _resolve_role_for_employee(
+    shift_role_id: uuid.UUID,
+    employee_id: uuid.UUID,
+    condensed_map: dict[uuid.UUID, list[uuid.UUID]],
+    emp_role_ids: dict[uuid.UUID, set[uuid.UUID]],
+    role_by_id: dict[uuid.UUID, Role],
+) -> tuple[uuid.UUID, str, str | None]:
+    """Resolve a possibly-condensed role_id to the employee's actual role.
+
+    Returns (resolved_role_id, role_name, external_id).
+    """
+    # If it's a condensed role, find the member role the employee has
+    if shift_role_id in condensed_map:
+        member_ids = condensed_map[shift_role_id]
+        employee_roles = emp_role_ids.get(employee_id, set())
+        for mid in member_ids:
+            if mid in employee_roles:
+                role = role_by_id.get(mid)
+                if role:
+                    return role.id, role.name, role.external_id
+        # Fallback: use first member role if employee match not found
+        if member_ids:
+            role = role_by_id.get(member_ids[0])
+            if role:
+                return role.id, role.name, role.external_id
+
+    # Regular role
+    role = role_by_id.get(shift_role_id)
+    if role:
+        return role.id, role.name, role.external_id
+    return shift_role_id, "", None
 
 
 # ── Endpoints ──
@@ -97,6 +170,12 @@ async def list_approved_schedules(
     for emp in emp_result.scalars().all():
         emp_map[emp.id] = emp.full_name
 
+    # Load condensed role resolver
+    condensed_map, role_by_id = await _load_condensed_role_resolver(
+        current_user.company_id, db
+    )
+    emp_role_ids = await _load_employee_role_ids(current_user.company_id, db)
+
     items: list[ApprovedScheduleItem] = []
     for sched in schedules:
         shift_result = await db.execute(
@@ -104,20 +183,22 @@ async def list_approved_schedules(
         )
         shifts = shift_result.scalars().all()
 
-        shift_items = [
-            ApprovedScheduleShift(
+        shift_items: list[ApprovedScheduleShift] = []
+        for s in shifts:
+            resolved_id, resolved_name, _ = _resolve_role_for_employee(
+                s.role_id, s.employee_id, condensed_map, emp_role_ids, role_by_id,
+            )
+            shift_items.append(ApprovedScheduleShift(
                 id=str(s.id),
                 employee_id=str(s.employee_id),
                 employee_name=emp_map.get(s.employee_id, str(s.employee_id)),
-                role_id=str(s.role_id),
-                role_name=s.role_name,
+                role_id=str(resolved_id),
+                role_name=resolved_name or s.role_name,
                 date=s.date.isoformat(),
                 start_time=s.start_time.isoformat(),
                 end_time=s.end_time.isoformat(),
                 exported_at=s.exported_at.isoformat() if s.exported_at else None,
-            )
-            for s in shifts
-        ]
+            ))
 
         items.append(
             ApprovedScheduleItem(
@@ -181,14 +262,11 @@ async def export_to_7shifts(
     for loc in loc_result.scalars().all():
         loc_ext_map[loc.id] = loc.external_id
 
-    # Look up role external IDs
-    role_ids = {s.role_id for s in shifts}
-    role_result = await db.execute(
-        select(Role).where(Role.id.in_(role_ids))
+    # Load condensed role resolver for role external ID lookup
+    condensed_map, role_by_id = await _load_condensed_role_resolver(
+        current_user.company_id, db
     )
-    role_ext_map: dict[uuid.UUID, str | None] = {}
-    for role in role_result.scalars().all():
-        role_ext_map[role.id] = role.external_id
+    emp_role_ids = await _load_employee_role_ids(current_user.company_id, db)
 
     # Look up department external IDs by location
     loc_ids = {s.location_id for s in shifts}
@@ -242,9 +320,15 @@ async def export_to_7shifts(
                 failed += 1
                 continue
 
+            # Resolve condensed role to employee's actual role external_id
+            _, _, role_ext = _resolve_role_for_employee(
+                shift.role_id, shift.employee_id, condensed_map, emp_role_ids, role_by_id,
+            )
+
             payload: dict[str, object] = {
                 "user_id": int(emp_ext),
                 "location_id": int(loc_ext),
+                "role_id": int(role_ext) if role_ext else None,
                 "start": shift.start_time.isoformat(),
                 "end": shift.end_time.isoformat(),
             }
@@ -313,8 +397,17 @@ async def export_jsonl(
     loc = loc_result.scalar_one_or_none()
     loc_name = loc.name if loc else str(schedule.location_id)
 
+    # Load condensed role resolver
+    condensed_map, role_by_id = await _load_condensed_role_resolver(
+        current_user.company_id, db
+    )
+    emp_role_ids = await _load_employee_role_ids(current_user.company_id, db)
+
     lines: list[str] = []
     for s in shifts:
+        resolved_id, resolved_name, resolved_ext = _resolve_role_for_employee(
+            s.role_id, s.employee_id, condensed_map, emp_role_ids, role_by_id,
+        )
         row = {
             "shift_id": str(s.id),
             "schedule_id": str(s.shift_schedule_id),
@@ -322,8 +415,9 @@ async def export_jsonl(
             "location_name": loc_name,
             "employee_id": str(s.employee_id),
             "employee_name": emp_map.get(s.employee_id, ""),
-            "role_id": str(s.role_id),
-            "role_name": s.role_name,
+            "role_id": str(resolved_id),
+            "role_name": resolved_name or s.role_name,
+            "role_external_id": resolved_ext,
             "date": s.date.isoformat(),
             "start_time": s.start_time.isoformat(),
             "end_time": s.end_time.isoformat(),

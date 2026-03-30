@@ -17,7 +17,8 @@ export default function Roles() {
 
   const fetchRoles = useCallback(async () => {
     try {
-      setRoles(await rolesApi.listRoles());
+      const data = await rolesApi.listRoles();
+      setRoles(data.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load roles");
     }

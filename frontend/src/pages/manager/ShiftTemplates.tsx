@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as condensedRolesApi from "../../api/condensedRoles";
 import * as locationsApi from "../../api/locations";
 import * as rolesApi from "../../api/roles";
 import * as shiftTemplatesApi from "../../api/shiftTemplates";
@@ -10,12 +11,13 @@ import ShiftCalendar, {
   blocksToScheduleJson,
   scheduleJsonToBlocks,
 } from "../../components/shared/ShiftCalendar";
-import type { Location, Role, ShiftTemplate } from "../../types";
+import type { CondensedRole, Location, Role, ShiftTemplate } from "../../types";
 
 export default function ShiftTemplates() {
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [condensedRoles, setCondensedRoles] = useState<CondensedRole[]>([]);
   const [error, setError] = useState("");
 
   // Edit state
@@ -37,14 +39,16 @@ export default function ShiftTemplates() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [tmpl, locs, rls] = await Promise.all([
+      const [tmpl, locs, rls, crs] = await Promise.all([
         shiftTemplatesApi.listShiftTemplates(),
         locationsApi.listLocations(),
         rolesApi.listRoles(),
+        condensedRolesApi.listCondensedRoles(),
       ]);
       setTemplates(tmpl);
       setLocations(locs);
       setRoles(rls);
+      setCondensedRoles(crs);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     }
@@ -53,6 +57,26 @@ export default function ShiftTemplates() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Build effective role list: condensed roles replace their members, ungrouped roles stay
+  const effectiveRoles: Role[] = useMemo(() => {
+    const groupedRoleIds = new Set(
+      condensedRoles.flatMap((cr) => cr.roles.map((r) => r.role_id))
+    );
+    // Condensed roles as virtual Role objects
+    const condensed: Role[] = condensedRoles.map((cr) => ({
+      id: cr.id,
+      company_id: cr.company_id,
+      name: cr.name,
+      description: null,
+      external_id: null,
+    }));
+    // Ungrouped roles
+    const ungrouped = roles.filter((r) => !groupedRoleIds.has(r.id));
+    return [...condensed, ...ungrouped].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
+  }, [roles, condensedRoles]);
 
   const locMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -290,7 +314,7 @@ export default function ShiftTemplates() {
                   </p>
                 </div>
                 <ShiftCalendar
-                  roles={roles}
+                  roles={effectiveRoles}
                   value={addBlocks}
                   onChange={setAddBlocks}
                   days={
@@ -374,7 +398,7 @@ export default function ShiftTemplates() {
                     </div>
                   </div>
                   <ShiftCalendar
-                    roles={roles}
+                    roles={effectiveRoles}
                     value={editBlocks}
                     onChange={setEditBlocks}
                   />
@@ -434,7 +458,7 @@ export default function ShiftTemplates() {
                   </div>
                   {/* Visual summary */}
                   <ShiftCalendar
-                    roles={roles}
+                    roles={effectiveRoles}
                     value={scheduleJsonToBlocks(
                       t.weekly_schedule as Record<string, unknown>[]
                     )}

@@ -14,7 +14,9 @@ const baseManagerLinks: NavItem[] = [
   { to: "/manager/regions", label: "Regions" },
   { to: "/manager/locations", label: "Locations" },
   { to: "/manager/roles", label: "Roles" },
+  { to: "/manager/role-equivalents", label: "Role Equivalents" },
   { to: "/manager/employees", label: "Employees" },
+  { to: "/manager/employee-onboarding", label: "Employee Onboarding" },
 ];
 
 const postEmployeeManagerLinks: NavItem[] = [

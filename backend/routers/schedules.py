@@ -127,13 +127,20 @@ async def approve_schedule(
         try:
             shifts_data = json.loads(schedule.raw_llm_output)
             for s in shifts_data:
+                # Skip shifts with missing or invalid required IDs
+                try:
+                    loc_id = uuid.UUID(s["location_id"]) if isinstance(s["location_id"], str) else s["location_id"]
+                    emp_id = uuid.UUID(s["employee_id"]) if isinstance(s["employee_id"], str) else s["employee_id"]
+                    role_id = uuid.UUID(s["role_id"]) if isinstance(s["role_id"], str) else s["role_id"]
+                except (ValueError, KeyError):
+                    continue
                 shift = Shift(
                     company_id=current_user.company_id,
                     shift_schedule_id=schedule.id,
-                    location_id=uuid.UUID(s["location_id"]) if isinstance(s["location_id"], str) else s["location_id"],
-                    employee_id=uuid.UUID(s["employee_id"]) if isinstance(s["employee_id"], str) else s["employee_id"],
-                    role_id=uuid.UUID(s["role_id"]) if isinstance(s["role_id"], str) else s["role_id"],
-                    role_name=s["role_name"],
+                    location_id=loc_id,
+                    employee_id=emp_id,
+                    role_id=role_id,
+                    role_name=s.get("role_name", ""),
                     date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
                     start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
                     end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],

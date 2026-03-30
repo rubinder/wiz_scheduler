@@ -11,6 +11,10 @@ import {
   listAllAvailability,
   listEmployees,
 } from "../../api/employees";
+import {
+  importAvailabilitiesFrom7Shifts,
+  type ImportAvailabilitiesResult,
+} from "../../api/import7shifts";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import type {
   Employee,
@@ -64,18 +68,22 @@ function formatDate(y: number, m: number, d: number) {
 }
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  // Parse hours/minutes directly from the ISO string to avoid browser timezone conversion.
+  // Availability times are stored as-is from the source (location-local intent).
+  const match = iso.match(/T(\d{2}):(\d{2})/);
+  if (!match) return iso;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
 }
 
 function isAllDay(start: string, end: string): boolean {
-  const s = new Date(start);
-  const e = new Date(end);
-  return s.getHours() === 0 && s.getMinutes() === 0 && e.getHours() === 23 && e.getMinutes() === 59;
+  const sMatch = start.match(/T(\d{2}):(\d{2})/);
+  const eMatch = end.match(/T(\d{2}):(\d{2})/);
+  if (!sMatch || !eMatch) return false;
+  return sMatch[1] === "00" && sMatch[2] === "00" && eMatch[1] === "23" && eMatch[2] === "59";
 }
 
 // ── Main component ──
@@ -104,6 +112,21 @@ export default function EmployeeAssociation() {
     start_time: "00:00",
     end_time: "23:59",
   });
+
+  // 7shifts availability import state
+  const [showImport7Shifts, setShowImport7Shifts] = useState(false);
+  const [import7Token, setImport7Token] = useState("");
+  const [import7Start, setImport7Start] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [import7End, setImport7End] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  });
+  const [importing7Shifts, setImporting7Shifts] = useState(false);
+  const [import7Result, setImport7Result] =
+    useState<ImportAvailabilitiesResult | null>(null);
 
   // Week selector: generate weeks from 4 weeks back to 8 weeks ahead
   const weekOptions = useMemo(() => {
@@ -289,6 +312,49 @@ export default function EmployeeAssociation() {
     }
   };
 
+  // 7shifts import date constraints
+  const import7MinDate = useMemo(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    return monday.toISOString().split("T")[0];
+  }, []);
+
+  const import7MaxDate = useMemo(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset + 9 * 7); // 8 weeks ahead end
+    return monday.toISOString().split("T")[0];
+  }, []);
+
+  const handleImport7Shifts = async () => {
+    if (!import7Token || !import7Start || !import7End) return;
+    setImporting7Shifts(true);
+    setError(null);
+    setImport7Result(null);
+    try {
+      const result = await importAvailabilitiesFrom7Shifts(
+        import7Token,
+        import7Start,
+        import7End
+      );
+      setImport7Result(result);
+      await loadAvailability(selectedWeek);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to import availabilities from 7shifts"
+      );
+    } finally {
+      setImporting7Shifts(false);
+    }
+  };
+
   // Group availability by employee
   const availByEmployee = useMemo(() => {
     const map = new Map<string, EmployeeAvailability[]>();
@@ -338,6 +404,12 @@ export default function EmployeeAssociation() {
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           Manage employee availability and scheduling affinities.
+          Affinity values: <strong>1</strong> = must work together,{" "}
+          <strong>0.5</strong> = nice to have together,{" "}
+          <strong>-1</strong> = cannot work together,{" "}
+          <strong>-0.5 / -0.7</strong> = prefer not to work together (use
+          instead of -1 when you have no option but to occasionally schedule
+          them together).
         </p>
       </div>
 
@@ -590,14 +662,129 @@ export default function EmployeeAssociation() {
                 className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
               />
             </div>
-            <button
-              onClick={() => setAddingAvail(true)}
-              disabled={addingAvail}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
-            >
-              + Add Availability
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowImport7Shifts(!showImport7Shifts);
+                  setImport7Result(null);
+                }}
+                className={`px-4 py-2 text-sm font-medium rounded border ${
+                  showImport7Shifts
+                    ? "bg-orange-100 border-orange-300 text-orange-700"
+                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Import from 7shifts
+              </button>
+              <button
+                onClick={() => setAddingAvail(true)}
+                disabled={addingAvail}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
+              >
+                + Add Availability
+              </button>
+            </div>
           </div>
+
+          {/* 7shifts import panel */}
+          {showImport7Shifts && (
+            <div className="bg-orange-50 rounded-lg p-4 mb-4 border border-orange-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Import Availabilities from 7shifts
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Fetches employee availability from the 7shifts API for the
+                specified date range. Existing availability in that range will
+                be replaced. You can import from the current week up to 8 weeks
+                ahead.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    7shifts Access Token
+                  </label>
+                  <input
+                    type="password"
+                    value={import7Token}
+                    onChange={(e) => setImport7Token(e.target.value)}
+                    placeholder="Enter your 7shifts access token"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={import7Start}
+                    min={import7MinDate}
+                    max={import7MaxDate}
+                    onChange={(e) => setImport7Start(e.target.value)}
+                    className="border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={import7End}
+                    min={import7Start || import7MinDate}
+                    max={import7MaxDate}
+                    onChange={(e) => setImport7End(e.target.value)}
+                    className="border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={handleImport7Shifts}
+                  disabled={
+                    importing7Shifts || !import7Token || !import7Start || !import7End
+                  }
+                  className="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {importing7Shifts ? "Importing..." : "Import"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImport7Shifts(false);
+                    setImport7Result(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+              {import7Result && (
+                <div className="mt-3 p-3 bg-white rounded border border-orange-100 text-sm">
+                  <p className="font-medium text-gray-700">Import Complete</p>
+                  <ul className="mt-1 text-gray-600 space-y-0.5">
+                    <li>Created: {import7Result.created} availability windows</li>
+                    <li>Cleared: {import7Result.cleared} existing windows in range</li>
+                    {import7Result.skipped > 0 && (
+                      <li>Skipped: {import7Result.skipped} (unmatched or declined)</li>
+                    )}
+                    {import7Result.outside_range > 0 && (
+                      <li className="text-gray-400">Outside date range: {import7Result.outside_range}</li>
+                    )}
+                  </ul>
+                  {import7Result.errors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-red-600 font-medium">
+                        Errors ({import7Result.errors.length}):
+                      </p>
+                      <ul className="list-disc list-inside text-red-600 text-xs mt-1">
+                        {import7Result.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add availability form */}
           {addingAvail && (
@@ -693,9 +880,14 @@ export default function EmployeeAssociation() {
 
           {!availLoading && (
             <div className="space-y-3">
+              {filteredEmployees.filter((emp) => (availByEmployee.get(emp.id) || []).length > 0).length === 0 && (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  No employees have availability set for this week.
+                </div>
+              )}
               {filteredEmployees.map((emp) => {
                 const windows = availByEmployee.get(emp.id) || [];
-                const hasCustom = windows.length > 0;
+                if (windows.length === 0) return null;
 
                 return (
                   <div
@@ -713,20 +905,12 @@ export default function EmployeeAssociation() {
                           </span>
                         )}
                       </div>
-                      {!hasCustom && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                          Always Available
-                        </span>
-                      )}
-                      {hasCustom && (
-                        <span className="text-xs text-gray-500">
-                          {windows.length} window{windows.length !== 1 ? "s" : ""}
-                        </span>
-                      )}
+                      <span className="text-xs text-gray-500">
+                        {windows.length} window{windows.length !== 1 ? "s" : ""}
+                      </span>
                     </div>
 
-                    {hasCustom && (
-                      <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-gray-50">
                         {windows
                           .sort(
                             (a, b) =>
@@ -763,7 +947,6 @@ export default function EmployeeAssociation() {
                             </div>
                           ))}
                       </div>
-                    )}
                   </div>
                 );
               })}

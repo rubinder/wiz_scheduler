@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@media print {
+  /* Hide everything except the schedule being printed */
+  body * {
+    visibility: hidden;
+  }
+  [data-print="true"],
+  [data-print="true"] * {
+    visibility: visible;
+  }
+  [data-print="true"] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  /* Hide buttons and non-content elements inside the printed schedule */
+  [data-print="true"] button {
+    display: none;
+  }
+  /* Clean print styling */
+  [data-print="true"] table {
+    font-size: 11px;
+  }
+  [data-print="true"] .shadow {
+    box-shadow: none;
+  }
+}

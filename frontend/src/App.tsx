@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
+import AcceptInvite from "./pages/AcceptInvite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Availability from "./pages/employee/Availability";
@@ -10,9 +11,11 @@ import Dashboard from "./pages/manager/Dashboard";
 import Employees from "./pages/manager/Employees";
 import Locations from "./pages/manager/Locations";
 import Regions from "./pages/manager/Regions";
+import RoleEquivalents from "./pages/manager/RoleEquivalents";
 import Roles from "./pages/manager/Roles";
 import Schedule from "./pages/manager/Schedule";
 import EmployeeAssociation from "./pages/manager/EmployeeAssociation";
+import EmployeeOnboarding from "./pages/manager/EmployeeOnboarding";
 import ExportSchedules from "./pages/manager/ExportSchedules";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
 
@@ -60,6 +63,7 @@ export default function App() {
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedLayout />}>
@@ -70,7 +74,9 @@ export default function App() {
           <Route path="regions" element={<Regions />} />
           <Route path="locations" element={<Locations />} />
           <Route path="roles" element={<Roles />} />
+          <Route path="role-equivalents" element={<RoleEquivalents />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="employee-onboarding" element={<EmployeeOnboarding />} />
           <Route path="employee-association" element={<EmployeeAssociation />} />
           <Route path="shift-templates" element={<ShiftTemplates />} />
           <Route path="schedule" element={<Schedule />} />

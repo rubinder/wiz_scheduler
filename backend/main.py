@@ -7,10 +7,12 @@ from backend.routers import (
     affinities,
     auth,
     company,
+    condensed_roles,
     employees,
     export_schedules,
     failure_logs,
     import_7shifts,
+    invites,
     locations,
     ownership_group,
     regions,
@@ -43,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(regions.router, prefix=api_prefix)
     app.include_router(locations.router, prefix=api_prefix)
     app.include_router(roles.router, prefix=api_prefix)
+    app.include_router(condensed_roles.router, prefix=api_prefix)
     app.include_router(employees.router, prefix=api_prefix)
     app.include_router(affinities.router, prefix=api_prefix)
     app.include_router(shift_templates.router, prefix=api_prefix)
@@ -50,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(import_7shifts.router, prefix=api_prefix)
     app.include_router(export_schedules.router, prefix=api_prefix)
     app.include_router(failure_logs.router, prefix=api_prefix)
+    app.include_router(invites.router, prefix=api_prefix)
 
     # In production, serve the frontend static build
     if settings.ENV == "production":

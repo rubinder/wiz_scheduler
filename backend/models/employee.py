@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import sqlalchemy as sa
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, text
@@ -90,6 +90,28 @@ class EmployeeCompany(Base):
     __table_args__ = (
         sa.UniqueConstraint("employee_id", "company_id", name="uq_employee_company"),
     )
+
+
+class EmployeeInvite(Base):
+    __tablename__ = "employee_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.id"), nullable=False, index=True
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("employees.id"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), server_default="pending", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class EmployeeAvailability(Base):

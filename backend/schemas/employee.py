@@ -124,3 +124,47 @@ class BulkUploadResponse(BaseModel):
     created: int
     skipped: int
     errors: list[str]
+
+
+# ── Invite schemas ──
+
+
+class InviteResponse(BaseModel):
+    id: uuid.UUID
+    employee_id: uuid.UUID
+    email: str
+    token: str
+    invite_url: str
+    status: str
+    created_at: datetime
+    expires_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AcceptInviteRequest(BaseModel):
+    password: str
+
+
+class AcceptInviteResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class InviteInfoResponse(BaseModel):
+    employee_name: str
+    email: str
+    company_name: str
+
+
+class InviteStatusResponse(BaseModel):
+    id: uuid.UUID
+    employee_id: uuid.UUID
+    employee_name: str
+    email: str
+    status: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+
+    model_config = {"from_attributes": True}

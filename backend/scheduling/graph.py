@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
     Company,
+    CondensedRoleMapping,
     Employee,
     EmployeeAffinity,
     EmployeeAvailability,
@@ -22,6 +23,7 @@ from backend.scheduling.nodes import (
     emit_result,
     load_location_context,
     parse_schedule,
+    validate_schedule,
     validate_and_update_availability,
 )
 from backend.scheduling.state import FailureEntry, LocationResult, SchedulingState
@@ -60,6 +62,7 @@ def build_scheduling_graph() -> StateGraph:
     graph.add_node("build_prompt", build_prompt)
     graph.add_node("call_llm", call_llm)
     graph.add_node("parse_schedule", parse_schedule)
+    graph.add_node("validate_schedule", validate_schedule)
     graph.add_node("validate_and_update_availability", validate_and_update_availability)
     graph.add_node("emit_result", emit_result)
 
@@ -70,7 +73,8 @@ def build_scheduling_graph() -> StateGraph:
     graph.add_edge("load_location_context", "build_prompt")
     graph.add_edge("build_prompt", "call_llm")
     graph.add_edge("call_llm", "parse_schedule")
-    graph.add_edge("parse_schedule", "validate_and_update_availability")
+    graph.add_edge("parse_schedule", "validate_schedule")
+    graph.add_edge("validate_schedule", "validate_and_update_availability")
 
     # Conditional edge after validation: retry or emit
     graph.add_conditional_edges(
@@ -109,6 +113,27 @@ async def _load_initial_state(
     )
     roles_orm = role_result.scalars().all()
     role_map: Dict[str, str] = {str(r.id): r.name for r in roles_orm}
+
+    # Load condensed role mappings — build role_id -> set of equivalent role_ids
+    crm_result = await db.execute(
+        select(CondensedRoleMapping).join(
+            CondensedRoleMapping.condensed_role
+        ).where(
+            CondensedRoleMapping.condensed_role.has(company_id=company_id)
+        )
+    )
+    crm_rows = crm_result.scalars().all()
+    # Group role_ids by condensed_role_id
+    condensed_groups: Dict[str, List[str]] = {}
+    for crm in crm_rows:
+        cid = str(crm.condensed_role_id)
+        condensed_groups.setdefault(cid, []).append(str(crm.role_id))
+    # Build role_id -> set of all equivalent role_ids (including itself)
+    role_equivalents: Dict[str, set[str]] = {}
+    for group in condensed_groups.values():
+        group_set = set(group)
+        for rid in group:
+            role_equivalents.setdefault(rid, set()).update(group_set)
 
     # Load shift templates, optionally filtered by template_ids
     st_query = select(ShiftTemplate).where(ShiftTemplate.company_id == company_id)
@@ -210,10 +235,9 @@ async def _load_initial_state(
         })
 
     # Load employee availability for the relevant week
-    # Parse the week_start_date to filter availability
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    week_start = datetime.strptime(week_start_date, "%Y-%m-%d")
+    week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     week_end = week_start + timedelta(days=7)
 
     avail_result = await db.execute(
@@ -270,6 +294,7 @@ async def _load_initial_state(
         "current_shift_template": {},
         "current_employees": [],
         "failure_entries": [],
+        "role_equivalents": {k: list(v) for k, v in role_equivalents.items()},
     }
 
     return initial_state

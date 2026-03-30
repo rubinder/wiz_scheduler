@@ -1,4 +1,10 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+# Resolve .env from the repo root (one level above this file's directory)
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_ENV_FILE = _REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -11,7 +17,7 @@ class Settings(BaseSettings):
     FROM_EMAIL: str = "noreply@shiftsync.example.com"
     ENV: str = "development"
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
 
 settings = Settings()

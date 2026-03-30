@@ -20,7 +20,7 @@ async def list_roles(
     db: AsyncSession = Depends(get_db),
 ) -> list[RoleResponse]:
     result = await db.execute(
-        select(Role).where(Role.company_id == current_user.company_id)
+        select(Role).where(Role.company_id == current_user.company_id).order_by(Role.name)
     )
     roles = result.scalars().all()
     return [RoleResponse.model_validate(r) for r in roles]

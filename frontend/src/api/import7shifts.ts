@@ -18,3 +18,26 @@ export function importFrom7Shifts(
     body: JSON.stringify({ access_token: accessToken }),
   });
 }
+
+export interface ImportAvailabilitiesResult {
+  created: number;
+  skipped: number;
+  outside_range: number;
+  cleared: number;
+  errors: string[];
+}
+
+export function importAvailabilitiesFrom7Shifts(
+  accessToken: string,
+  weekStart: string,
+  weekEnd: string
+): Promise<ImportAvailabilitiesResult> {
+  return apiFetch<ImportAvailabilitiesResult>("/import/7shifts/availabilities", {
+    method: "POST",
+    body: JSON.stringify({
+      access_token: accessToken,
+      week_start: weekStart,
+      week_end: weekEnd,
+    }),
+  });
+}

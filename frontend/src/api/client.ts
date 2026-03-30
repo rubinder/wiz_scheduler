@@ -2,9 +2,11 @@ const BASE = "/api/v1";
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  data: unknown;
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -33,7 +35,9 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail || res.statusText);
+    const detail = body.detail;
+    const message = typeof detail === "string" ? detail : (detail?.message || res.statusText);
+    throw new ApiError(res.status, message, detail);
   }
 
   if (res.status === 204) {

@@ -11,7 +11,7 @@ import type { User } from "../types";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, ownershipGroupId?: string) => Promise<void>;
   register: (
     email: string,
     password: string,
@@ -50,8 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchMe]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await authApi.login({ email, password });
+    async (email: string, password: string, ownershipGroupId?: string) => {
+      const res = await authApi.login({
+        email,
+        password,
+        ...(ownershipGroupId ? { ownership_group_id: ownershipGroupId } : {}),
+      });
       localStorage.setItem("token", res.access_token);
       await fetchMe();
     },

@@ -1,4 +1,13 @@
-import type { BulkUploadResponse, Employee, EmployeeAvailability, EmployeeMeProfile } from "../types";
+import type {
+  AcceptInviteResponse,
+  BulkUploadResponse,
+  Employee,
+  EmployeeAvailability,
+  EmployeeMeProfile,
+  InviteInfoResponse,
+  InviteResponse,
+  InviteStatusResponse,
+} from "../types";
 import { apiFetch } from "./client";
 
 export function getMyProfile(): Promise<EmployeeMeProfile> {
@@ -88,4 +97,30 @@ export function deleteAvailability(id: string): Promise<void> {
   return apiFetch<void>(`/employees/availability/${id}`, {
     method: "DELETE",
   });
+}
+
+// ── Invites ──
+
+export function sendInvite(employeeId: string): Promise<InviteResponse> {
+  return apiFetch<InviteResponse>(`/employees/${employeeId}/invite`, {
+    method: "POST",
+  });
+}
+
+export function getInviteInfo(token: string): Promise<InviteInfoResponse> {
+  return apiFetch<InviteInfoResponse>(`/invites/${token}`);
+}
+
+export function acceptInvite(
+  token: string,
+  password: string
+): Promise<AcceptInviteResponse> {
+  return apiFetch<AcceptInviteResponse>(`/invites/${token}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export function listInvites(): Promise<InviteStatusResponse[]> {
+  return apiFetch<InviteStatusResponse[]>("/employees/invites");
 }

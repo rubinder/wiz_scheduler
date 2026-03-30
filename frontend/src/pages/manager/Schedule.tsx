@@ -569,6 +569,18 @@ export default function Schedule() {
     return Array.from(set).sort();
   }, [results, editedShifts]);
 
+  // Print state: which location is being printed
+  const [printLocationId, setPrintLocationId] = useState<string | null>(null);
+
+  const handlePrint = (locationId: string) => {
+    setPrintLocationId(locationId);
+    // Wait for React to render the print class, then print
+    requestAnimationFrame(() => {
+      window.print();
+      setPrintLocationId(null);
+    });
+  };
+
   const allComplete =
     !isStreaming &&
     results.length > 0 &&
@@ -787,7 +799,10 @@ export default function Schedule() {
           return (
             <div
               key={locationResult.location_id}
-              className="bg-white rounded-lg shadow"
+              className={`bg-white rounded-lg shadow ${
+                printLocationId === locationResult.location_id ? "print-target" : ""
+              }`}
+              data-print={printLocationId === locationResult.location_id ? "true" : undefined}
             >
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -799,6 +814,14 @@ export default function Schedule() {
                   {isRejected && <StatusBadge status="rejected" />}
                 </div>
                 <div className="flex items-center gap-2">
+                  {isApproved && (
+                    <button
+                      onClick={() => handlePrint(locationResult.location_id)}
+                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm font-medium print:hidden"
+                    >
+                      Print
+                    </button>
+                  )}
                   {!decided && (
                     <span className="text-xs text-gray-400 mr-2">
                       Click a shift to edit

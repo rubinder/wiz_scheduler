@@ -5,10 +5,11 @@ from backend.models.region import Region
 from backend.models.location import Location
 from backend.models.department import Department
 from backend.models.role import Role
-from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, EmployeeAvailability, EmployeeCompany
+from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeInvite
 from backend.models.shift_template import ShiftTemplate
 from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
+from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 from backend.models.failure_log import FailureLog
 
 __all__ = [
@@ -24,9 +25,12 @@ __all__ = [
     "EmployeeAffinity",
     "EmployeeAvailability",
     "EmployeeCompany",
+    "EmployeeInvite",
     "ShiftTemplate",
     "ShiftSchedule",
     "Shift",
+    "CondensedRole",
+    "CondensedRoleMapping",
     "TokenUsage",
     "FailureLog",
 ]

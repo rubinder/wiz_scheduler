@@ -13,6 +13,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    ownership_group_id: uuid.UUID | None = None
 
 
 class SwitchCompanyRequest(BaseModel):

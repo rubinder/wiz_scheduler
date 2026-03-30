@@ -18,7 +18,7 @@ class ShiftAssignment(TypedDict):
     date: str          # "YYYY-MM-DD"
     start_time: str    # ISO 8601 with tz offset
     end_time: str      # ISO 8601 with tz offset
-    status: str        # "ok" | "CONFLICT"
+    status: str        # "ok" | "CONFLICT" | "VACANT"
 
 
 class LocationResult(TypedDict, total=False):
@@ -55,3 +55,5 @@ class SchedulingState(TypedDict):
     current_employees: List[dict]
     # Accumulated failure entries to be persisted by the router
     failure_entries: List[FailureEntry]
+    # Condensed role equivalents: role_id -> list of equivalent role_ids
+    role_equivalents: Dict[str, List[str]]

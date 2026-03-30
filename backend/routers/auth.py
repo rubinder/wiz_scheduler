@@ -60,7 +60,12 @@ async def _send_welcome_email(email: str, full_name: str) -> None:
                 "from": settings.FROM_EMAIL,
                 "to": [email],
                 "subject": "Welcome to WizScheduler!",
-                "html": f"<p>Hi {full_name}, welcome to WizScheduler!</p>",
+                "html": (
+                    f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                    f"<p>Hi {full_name}, welcome to WizScheduler!</p>"
+                    f"<p>Your account has been created and you're ready to start scheduling.</p>"
+                    f"</div>"
+                ),
             }
         )
     except Exception:
@@ -72,12 +77,7 @@ async def register(
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    # Check if email already taken
-    existing = await db.execute(select(User).where(User.email == body.email))
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-
-    # Create ownership group
+    # Create ownership group (done first so we can check email uniqueness per company)
     ownership_group = OwnershipGroup(name=body.company_name)
     db.add(ownership_group)
     await db.flush()
@@ -109,17 +109,60 @@ async def register(
     return TokenResponse(access_token=token)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 async def login(
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     result = await db.execute(select(User).where(User.email == body.email))
-    user = result.scalar_one_or_none()
-    if user is None or not _verify_password(body.password, user.hashed_password):
+    users = result.scalars().all()
+
+    # Find all users whose password matches
+    matched_users: list[User] = [u for u in users if _verify_password(body.password, u.hashed_password)]
+    if not matched_users:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    token = _create_access_token(user.id, user.company_id, user.user_role)
+    # Look up ownership groups for each matched user's company
+    company_ids = list({u.company_id for u in matched_users})
+    comp_result = await db.execute(
+        select(Company).where(Company.id.in_(company_ids))
+    )
+    company_map: dict[uuid.UUID, Company] = {c.id: c for c in comp_result.scalars().all()}
+
+    # Group matched users by ownership group
+    og_ids = {company_map[u.company_id].ownership_group_id for u in matched_users if u.company_id in company_map}
+    # Remove None (companies without an ownership group)
+    og_ids.discard(None)
+
+    # If caller specified an ownership group, filter to it
+    if body.ownership_group_id is not None:
+        target_user = None
+        for u in matched_users:
+            comp = company_map.get(u.company_id)
+            if comp and comp.ownership_group_id == body.ownership_group_id:
+                target_user = u
+                break
+        if target_user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        token = _create_access_token(target_user.id, target_user.company_id, target_user.user_role)
+        return TokenResponse(access_token=token)
+
+    # If multiple ownership groups, ask the user to choose
+    if len(og_ids) > 1:
+        og_result = await db.execute(
+            select(OwnershipGroup).where(OwnershipGroup.id.in_(og_ids))
+        )
+        groups = og_result.scalars().all()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "multiple_ownership_groups",
+                "groups": [{"id": str(g.id), "name": g.name} for g in groups],
+            },
+        )
+
+    # Single ownership group (or none) — pick the first matched user
+    token = _create_access_token(matched_users[0].id, matched_users[0].company_id, matched_users[0].user_role)
     return TokenResponse(access_token=token)
 
 

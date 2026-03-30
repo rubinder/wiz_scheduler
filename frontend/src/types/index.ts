@@ -10,6 +10,7 @@ export interface RegisterRequest {
 export interface LoginRequest {
   email: string;
   password: string;
+  ownership_group_id?: string;
 }
 
 export interface TokenResponse {
@@ -84,6 +85,20 @@ export interface Role {
   name: string;
   description: string | null;
   external_id: string | null;
+}
+
+// ── Condensed Role ──
+
+export interface CondensedRoleMapping {
+  role_id: string;
+  role_name: string;
+}
+
+export interface CondensedRole {
+  id: string;
+  company_id: string;
+  name: string;
+  roles: CondensedRoleMapping[];
 }
 
 // ── Employee ──
@@ -198,6 +213,41 @@ export interface LocationResult {
   errors: string[];
   status: string;
   schedule_id?: string;
+}
+
+// ── Invites ──
+
+export interface InviteResponse {
+  id: string;
+  employee_id: string;
+  email: string;
+  token: string;
+  invite_url: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface InviteInfoResponse {
+  employee_name: string;
+  email: string;
+  company_name: string;
+}
+
+export interface AcceptInviteResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface InviteStatusResponse {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
 }
 
 // ── Bulk upload ──
