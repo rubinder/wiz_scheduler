@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Any
 
 from backend.database import async_session_factory
@@ -15,7 +14,7 @@ async def log_failure(
     source: str,
     message: str,
     detail: dict[str, Any] | None = None,
-    company_id: uuid.UUID | None = None,
+    company_id: str | None = None,
 ) -> None:
     """Persist a failure record using a standalone session.
 

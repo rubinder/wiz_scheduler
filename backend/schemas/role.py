@@ -1,5 +1,3 @@
-import uuid
-
 from pydantic import BaseModel
 
 
@@ -14,8 +12,8 @@ class RoleUpdate(BaseModel):
 
 
 class RoleResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
+    id: str
+    company_id: str
     name: str
     description: str | None
     external_id: str | None = None

@@ -1,59 +1,58 @@
-import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel
 
 
 class EmployeeRoleSchema(BaseModel):
-    role_id: uuid.UUID
+    role_id: str
     skill_level: int
 
 
 class EmployeeCreate(BaseModel):
     full_name: str
     email: str | None = None
-    user_id: uuid.UUID | None = None
-    location_ids: list[uuid.UUID] | None = None
+    user_id: str | None = None
+    location_ids: list[str] | None = None
     roles: list[EmployeeRoleSchema] | None = None
-    company_ids: list[uuid.UUID] | None = None  # additional companies to assign to
+    company_ids: list[str] | None = None  # additional companies to assign to
 
 
 class EmployeeUpdate(BaseModel):
     full_name: str | None = None
     email: str | None = None
-    user_id: uuid.UUID | None = None
-    location_ids: list[uuid.UUID] | None = None
+    user_id: str | None = None
+    location_ids: list[str] | None = None
     roles: list[EmployeeRoleSchema] | None = None
-    company_ids: list[uuid.UUID] | None = None  # update company assignments
+    company_ids: list[str] | None = None  # update company assignments
 
 
 class EmployeeRoleResponse(BaseModel):
-    id: uuid.UUID
-    role_id: uuid.UUID
+    id: str
+    role_id: str
     skill_level: int
 
     model_config = {"from_attributes": True}
 
 
 class EmployeeAffinityCreate(BaseModel):
-    employee_id: uuid.UUID
-    target_employee_id: uuid.UUID
+    employee_id: str
+    target_employee_id: str
     level: float
     entry_date: date
     expiration_date: date | None = None
 
 
 class EmployeeAffinityUpdate(BaseModel):
-    target_employee_id: uuid.UUID | None = None
+    target_employee_id: str | None = None
     level: float | None = None
     entry_date: date | None = None
     expiration_date: date | None = None
 
 
 class EmployeeAffinityResponse(BaseModel):
-    id: uuid.UUID
-    employee_id: uuid.UUID
-    target_employee_id: uuid.UUID
+    id: str
+    employee_id: str
+    target_employee_id: str
     level: float
     entry_date: date
     expiration_date: date | None
@@ -62,34 +61,34 @@ class EmployeeAffinityResponse(BaseModel):
 
 
 class EmployeeResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
-    user_id: uuid.UUID | None
+    id: str
+    company_id: str
+    user_id: str | None
     full_name: str
     email: str | None
-    location_ids: list[uuid.UUID] | None
+    location_ids: list[str] | None
     roles: list[EmployeeRoleResponse] = []
-    company_ids: list[uuid.UUID] = []
+    company_ids: list[str] = []
 
     model_config = {"from_attributes": True}
 
 
 class EmployeeMeRoleResponse(BaseModel):
-    role_id: uuid.UUID
+    role_id: str
     role_name: str
 
     model_config = {"from_attributes": True}
 
 
 class EmployeeMeLocationResponse(BaseModel):
-    location_id: uuid.UUID
+    location_id: str
     location_name: str
 
     model_config = {"from_attributes": True}
 
 
 class EmployeeMeResponse(BaseModel):
-    id: uuid.UUID
+    id: str
     full_name: str
     email: str | None
     roles: list[EmployeeMeRoleResponse] = []
@@ -99,7 +98,7 @@ class EmployeeMeResponse(BaseModel):
 
 
 class AvailabilityCreate(BaseModel):
-    employee_id: uuid.UUID
+    employee_id: str
     year: int
     month: int
     day: int
@@ -108,9 +107,9 @@ class AvailabilityCreate(BaseModel):
 
 
 class AvailabilityResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
-    employee_id: uuid.UUID
+    id: str
+    company_id: str
+    employee_id: str
     year: int
     month: int
     day: int
@@ -130,8 +129,8 @@ class BulkUploadResponse(BaseModel):
 
 
 class InviteResponse(BaseModel):
-    id: uuid.UUID
-    employee_id: uuid.UUID
+    id: str
+    employee_id: str
     email: str
     token: str
     invite_url: str
@@ -158,8 +157,8 @@ class InviteInfoResponse(BaseModel):
 
 
 class InviteStatusResponse(BaseModel):
-    id: uuid.UUID
-    employee_id: uuid.UUID
+    id: str
+    employee_id: str
     employee_name: str
     email: str
     status: str

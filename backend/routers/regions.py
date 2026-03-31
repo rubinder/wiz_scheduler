@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +40,7 @@ async def create_region(
 
 @router.put("/{region_id}", response_model=RegionResponse)
 async def update_region(
-    region_id: uuid.UUID,
+    region_id: str,
     body: RegionUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -66,7 +64,7 @@ async def update_region(
 
 @router.delete("/{region_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_region(
-    region_id: uuid.UUID,
+    region_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

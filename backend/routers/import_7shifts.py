@@ -1,6 +1,5 @@
 import logging
 import secrets
-import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -86,8 +85,8 @@ async def _fetch_all_pages(
 
 
 async def _get_or_create_import_region(
-    db: AsyncSession, company_id: uuid.UUID
-) -> uuid.UUID:
+    db: AsyncSession, company_id: str
+) -> str:
     """Get or create a default region for imported locations."""
     result = await db.execute(
         select(Region).where(
@@ -110,7 +109,7 @@ async def _get_or_create_import_region(
 
 async def _get_or_create_ownership_group(
     db: AsyncSession, company: Company, group_name: str
-) -> uuid.UUID:
+) -> str:
     """Ensure the company belongs to an ownership group; create one if needed."""
     if company.ownership_group_id is not None:
         return company.ownership_group_id
@@ -124,7 +123,7 @@ async def _get_or_create_ownership_group(
 
 async def _get_or_create_wiz_company(
     db: AsyncSession,
-    ownership_group_id: uuid.UUID,
+    ownership_group_id: str,
     ext_company_id: str,
     company_name: str,
 ) -> Company:
@@ -155,7 +154,7 @@ async def _import_single_company(
     client: httpx.AsyncClient,
     db: AsyncSession,
     headers: dict[str, str],
-    wiz_company_id: uuid.UUID,
+    wiz_company_id: str,
     ext_company_id: str,
     counts: dict[str, dict[str, int]],
     errors: list[str],
@@ -182,7 +181,7 @@ async def _import_single_company(
     }
 
     seen_loc_ext_ids: set[str] = set()
-    loc_ext_to_wiz: dict[str, uuid.UUID] = {}
+    loc_ext_to_wiz: dict[str, str] = {}
 
     for sl in seven_locations:
         if sl.get("deleted"):
@@ -328,7 +327,7 @@ async def _import_single_company(
     }
 
     seen_role_ext_ids: set[str] = set()
-    role_ext_to_wiz: dict[str, uuid.UUID] = {}
+    role_ext_to_wiz: dict[str, str] = {}
 
     for sr in seven_roles:
         ext_id = str(sr["id"])
@@ -379,8 +378,8 @@ async def _import_single_company(
     }
 
     seen_emp_ext_ids: set[str] = set()
-    # Maps company-user id (from assignments endpoint) → wiz employee UUID
-    emp_ext_to_wiz: dict[str, uuid.UUID] = {}
+    # Maps company-user id (from assignments endpoint) -> wiz employee ID
+    emp_ext_to_wiz: dict[str, str] = {}
 
     for su in seven_users:
         if not su.get("active", True):
@@ -485,7 +484,7 @@ async def _import_single_company(
 
         # Location assignments → employee.location_ids
         loc_assignments = assignments_data.get("locations", [])
-        assigned_loc_ids: list[uuid.UUID] = []
+        assigned_loc_ids: list[str] = []
         for la in loc_assignments:
             loc_ext = str(la.get("id", ""))
             wiz_loc = loc_ext_to_wiz.get(loc_ext)
@@ -750,6 +749,9 @@ def _expand_7shifts_availability(
             # Both midnight (00:00:00) means all-day availability in 7shifts
             if from_time == to_time:
                 from_time = "00:00:00"
+                to_time = "23:59:00"
+            # Midnight end time (00:00:00) means "until end of day", not start of day
+            if to_time == "00:00:00" and from_time != "00:00:00":
                 to_time = "23:59:00"
 
             results.append((day_date, str(from_time), str(to_time)))

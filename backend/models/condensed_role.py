@@ -1,19 +1,18 @@
-import uuid
-
-from sqlalchemy import ForeignKey, String, text
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
+from backend.utils.id_gen import generate_short_id
 
 
 class CondensedRole(Base):
     __tablename__ = "condensed_roles"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False, index=True
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -25,14 +24,14 @@ class CondensedRole(Base):
 class CondensedRoleMapping(Base):
     __tablename__ = "condensed_role_mappings"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    condensed_role_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("condensed_roles.id", ondelete="CASCADE"), nullable=False, index=True
+    condensed_role_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("condensed_roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
+    role_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     condensed_role: Mapped["CondensedRole"] = relationship(back_populates="mappings")

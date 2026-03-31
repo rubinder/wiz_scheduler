@@ -1,5 +1,3 @@
-import uuid
-
 from pydantic import BaseModel
 
 
@@ -13,11 +11,11 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
-    ownership_group_id: uuid.UUID | None = None
+    ownership_group_id: str | None = None
 
 
 class SwitchCompanyRequest(BaseModel):
-    company_id: uuid.UUID
+    company_id: str
 
 
 class TokenResponse(BaseModel):
@@ -26,11 +24,11 @@ class TokenResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
+    id: str
+    company_id: str
     email: str
     full_name: str | None
     user_role: str
-    ownership_group_id: uuid.UUID | None = None
+    ownership_group_id: str | None = None
 
     model_config = {"from_attributes": True}

@@ -1,10 +1,10 @@
-import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint, text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
+from backend.utils.id_gen import generate_short_id
 
 
 class TokenUsage(Base):
@@ -16,11 +16,11 @@ class TokenUsage(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    ownership_group_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("ownership_groups.id"), nullable=False
+    ownership_group_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("ownership_groups.id"), nullable=False
     )
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     month: Mapped[int] = mapped_column(Integer, nullable=False)

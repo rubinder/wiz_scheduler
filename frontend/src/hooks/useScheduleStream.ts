@@ -1,11 +1,17 @@
 import { useCallback, useRef, useState } from "react";
 import type { LocationResult } from "../types";
 
+interface GenerateOptions {
+  useLocal?: boolean;
+  strategy?: "random" | "rotation";
+  numDays?: number;
+}
+
 interface UseScheduleStreamReturn {
   results: LocationResult[];
   isStreaming: boolean;
   error: string | null;
-  generate: (weekStartDate: string, locationIds?: string[], templateIds?: string[]) => void;
+  generate: (weekStartDate: string, locationIds?: string[], templateIds?: string[], options?: GenerateOptions) => void;
   reset: () => void;
 }
 
@@ -25,7 +31,7 @@ export function useScheduleStream(): UseScheduleStreamReturn {
   }, []);
 
   const generate = useCallback(
-    (weekStartDate: string, locationIds?: string[], templateIds?: string[]) => {
+    (weekStartDate: string, locationIds?: string[], templateIds?: string[], options?: GenerateOptions) => {
       reset();
       setIsStreaming(true);
 
@@ -48,6 +54,13 @@ export function useScheduleStream(): UseScheduleStreamReturn {
       }
       if (templateIds && templateIds.length > 0) {
         body.template_ids = templateIds;
+      }
+      if (options?.useLocal) {
+        body.use_local = true;
+        body.strategy = options.strategy || "random";
+      }
+      if (options?.numDays && options.numDays !== 7) {
+        body.num_days = options.numDays;
       }
 
       fetch("/api/v1/schedules/generate", {

@@ -1,5 +1,4 @@
 import secrets
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -33,8 +32,8 @@ def _verify_password(plain: str, hashed: str) -> bool:
 
 
 def _create_access_token(
-    user_id: uuid.UUID,
-    company_id: uuid.UUID,
+    user_id: str,
+    company_id: str,
     user_role: str,
 ) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -127,7 +126,7 @@ async def login(
     comp_result = await db.execute(
         select(Company).where(Company.id.in_(company_ids))
     )
-    company_map: dict[uuid.UUID, Company] = {c.id: c for c in comp_result.scalars().all()}
+    company_map: dict[str, Company] = {c.id: c for c in comp_result.scalars().all()}
 
     # Group matched users by ownership group
     og_ids = {company_map[u.company_id].ownership_group_id for u in matched_users if u.company_id in company_map}

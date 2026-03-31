@@ -1,7 +1,6 @@
 import csv
 import io
 import json
-import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
@@ -27,8 +26,8 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 
 async def _sync_employee_roles(
     db: AsyncSession,
-    employee_id: uuid.UUID,
-    company_id: uuid.UUID,
+    employee_id: str,
+    company_id: str,
     roles: list[dict],
 ) -> None:
     """Delete existing employee roles and recreate from the provided list."""
@@ -47,9 +46,9 @@ async def _sync_employee_roles(
 
 async def _sync_employee_companies(
     db: AsyncSession,
-    employee_id: uuid.UUID,
-    company_ids: list[uuid.UUID],
-    allowed_company_ids: list[uuid.UUID],
+    employee_id: str,
+    company_ids: list[str],
+    allowed_company_ids: list[str],
 ) -> None:
     """Sync the employee_companies junction table.
 
@@ -74,8 +73,8 @@ async def _sync_employee_companies(
 
 
 async def _get_employee_company_ids(
-    db: AsyncSession, employee_id: uuid.UUID
-) -> list[uuid.UUID]:
+    db: AsyncSession, employee_id: str
+) -> list[str]:
     """Get all company IDs an employee is assigned to."""
     result = await db.execute(
         select(EmployeeCompany.company_id).where(
@@ -116,7 +115,7 @@ async def get_my_employee_profile(
     emp_roles = er_result.scalars().all()
 
     role_ids = [er.role_id for er in emp_roles]
-    role_names: dict[uuid.UUID, str] = {}
+    role_names: dict[str, str] = {}
     if role_ids:
         role_result = await db.execute(
             select(Role).where(Role.id.in_(role_ids))
@@ -165,7 +164,7 @@ async def create_employee(
     body: EmployeeCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
-    group_company_ids: list[uuid.UUID] = Depends(get_ownership_group_company_ids),
+    group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> EmployeeResponse:
     employee = Employee(
         company_id=current_user.company_id,
@@ -195,11 +194,11 @@ async def create_employee(
 
 @router.put("/{employee_id}", response_model=EmployeeResponse)
 async def update_employee(
-    employee_id: uuid.UUID,
+    employee_id: str,
     body: EmployeeUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
-    group_company_ids: list[uuid.UUID] = Depends(get_ownership_group_company_ids),
+    group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> EmployeeResponse:
     result = await db.execute(
         select(Employee).where(
@@ -233,7 +232,7 @@ async def update_employee(
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_employee(
-    employee_id: uuid.UUID,
+    employee_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -280,7 +279,7 @@ async def bulk_upload(
     file: UploadFile,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
-    group_company_ids: list[uuid.UUID] = Depends(get_ownership_group_company_ids),
+    group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> BulkUploadResponse:
     """
     Accepts a CSV or JSON file for bulk employee import.
@@ -368,7 +367,7 @@ async def bulk_upload(
         role_names = [rn.strip() for rn in raw_roles.split("|") if rn.strip()] if raw_roles else []
         skill_levels_raw = [s.strip() for s in raw_skills.split("|") if s.strip()] if raw_skills else []
 
-        resolved_roles: list[tuple[uuid.UUID, int]] = []
+        resolved_roles: list[tuple[str, int]] = []
         row_has_error = False
         for idx, rn in enumerate(role_names):
             role_obj = roles_by_name.get(rn.lower())
@@ -392,7 +391,7 @@ async def bulk_upload(
 
         # Parse locations
         location_names = [ln.strip() for ln in raw_locations.split("|") if ln.strip()] if raw_locations else []
-        resolved_location_ids: list[uuid.UUID] = []
+        resolved_location_ids: list[str] = []
         for ln in location_names:
             loc_obj = locations_by_name.get(ln.lower())
             if loc_obj is None:
@@ -467,7 +466,7 @@ async def list_all_availability(
 
 @router.get("/{employee_id}/availability", response_model=list[AvailabilityResponse])
 async def list_availability(
-    employee_id: uuid.UUID,
+    employee_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AvailabilityResponse]:
@@ -540,7 +539,7 @@ async def create_availability(
 
 @router.delete("/availability/{availability_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_availability(
-    availability_id: uuid.UUID,
+    availability_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:

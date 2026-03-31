@@ -1,14 +1,13 @@
-import uuid
 from datetime import datetime
 
 from pydantic import BaseModel
 
 
 class CompanyResponse(BaseModel):
-    id: uuid.UUID
+    id: str
     name: str
     slug: str
-    ownership_group_id: uuid.UUID | None = None
+    ownership_group_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

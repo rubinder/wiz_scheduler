@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +20,7 @@ async def _build_response(
 ) -> CondensedRoleResponse:
     """Build a CondensedRoleResponse with role names resolved."""
     role_ids = [m.role_id for m in cr.mappings]
-    role_map: dict[uuid.UUID, str] = {}
+    role_map: dict[str, str] = {}
     if role_ids:
         result = await db.execute(select(Role).where(Role.id.in_(role_ids)))
         role_map = {r.id: r.name for r in result.scalars().all()}
@@ -78,7 +76,7 @@ async def create_condensed_role(
 
 @router.put("/{condensed_role_id}", response_model=CondensedRoleResponse)
 async def update_condensed_role(
-    condensed_role_id: uuid.UUID,
+    condensed_role_id: str,
     body: CondensedRoleUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -111,7 +109,7 @@ async def update_condensed_role(
 
 @router.delete("/{condensed_role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_condensed_role(
-    condensed_role_id: uuid.UUID,
+    condensed_role_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

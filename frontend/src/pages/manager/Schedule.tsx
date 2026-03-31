@@ -5,7 +5,6 @@ import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
-import WeekPicker from "../../components/shared/WeekPicker";
 import { useScheduleStream } from "../../hooks/useScheduleStream";
 import type {
   Employee,
@@ -344,8 +343,22 @@ function getNextMonday(): string {
   return monday.toISOString().split("T")[0];
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function daysBetween(startStr: string, endStr: string): number {
+  const s = new Date(startStr + "T00:00:00");
+  const e = new Date(endStr + "T00:00:00");
+  return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
 export default function Schedule() {
-  const [weekStart, setWeekStart] = useState(getNextMonday());
+  const [startDate, setStartDate] = useState(getNextMonday());
+  const [endDate, setEndDate] = useState(addDays(getNextMonday(), 6));
+  const weekStart = startDate; // alias for compatibility
   const { results, isStreaming, error, generate, reset } =
     useScheduleStream();
   const [actionError, setActionError] = useState("");
@@ -378,6 +391,10 @@ export default function Schedule() {
     new Set()
   );
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Generation mode: "ai" (LLM) or "local" (algorithmic)
+  const [generateMode, setGenerateMode] = useState<"ai" | "local">("ai");
+  const [localStrategy, setLocalStrategy] = useState<"random" | "rotation">("rotation");
 
   // Load employees once when results arrive
   useEffect(() => {
@@ -430,7 +447,8 @@ export default function Schedule() {
     }
   }, [showTemplatePicker, templates.length, fetchTemplatesAndLocations]);
 
-  const handleGenerateClick = () => {
+  const handleGenerateClick = (mode: "ai" | "local") => {
+    setGenerateMode(mode);
     setShowTemplatePicker(true);
     setActionError("");
   };
@@ -447,7 +465,11 @@ export default function Schedule() {
     setEditedShifts({});
     setActionError("");
     employeesLoaded.current = false;
-    generate(weekStart, undefined, ids);
+    const numDays = daysBetween(startDate, endDate);
+    generate(weekStart, undefined, ids, {
+      ...(generateMode === "local" ? { useLocal: true, strategy: localStrategy } : {}),
+      numDays,
+    });
   };
 
   const toggleTemplate = (id: string) => {
@@ -607,14 +629,45 @@ export default function Schedule() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Schedule Generation</h1>
 
-      <div className="flex items-center gap-4 mb-6">
-        <WeekPicker value={weekStart} onChange={setWeekStart} />
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Start:</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStartDate(v);
+              setEndDate(addDays(v, 6));
+            }}
+            className="border border-gray-300 rounded px-3 py-2 text-sm"
+          />
+          <label className="text-sm font-medium text-gray-700">End:</label>
+          <input
+            type="date"
+            value={endDate}
+            min={startDate}
+            max={addDays(startDate, 13)}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="border border-gray-300 rounded px-3 py-2 text-sm"
+          />
+          <span className="text-xs text-gray-500">
+            ({daysBetween(startDate, endDate)} day{daysBetween(startDate, endDate) !== 1 ? "s" : ""})
+          </span>
+        </div>
         <button
-          onClick={handleGenerateClick}
+          onClick={() => handleGenerateClick("ai")}
           disabled={isStreaming}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-base"
+          className="px-5 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-sm"
         >
-          {isStreaming ? "Generating..." : "✨ Generate Schedule ✨"}
+          {isStreaming && generateMode === "ai" ? "Generating..." : "AI Generate"}
+        </button>
+        <button
+          onClick={() => handleGenerateClick("local")}
+          disabled={isStreaming}
+          className="px-5 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 font-semibold text-sm"
+        >
+          {isStreaming && generateMode === "local" ? "Generating..." : "Local Generate"}
         </button>
         {results.length > 0 && !isStreaming && (
           <button
@@ -724,6 +777,44 @@ export default function Schedule() {
                 )}
             </div>
 
+            {generateMode === "local" && (
+              <div className="px-6 py-3 border-t bg-emerald-50">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Strategy
+                </label>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="strategy"
+                      value="rotation"
+                      checked={localStrategy === "rotation"}
+                      onChange={() => setLocalStrategy("rotation")}
+                      className="text-emerald-600"
+                    />
+                    <div>
+                      <span className="text-sm font-medium">Rotation</span>
+                      <p className="text-xs text-gray-500">Distributes shifts evenly across employees</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="strategy"
+                      value="random"
+                      checked={localStrategy === "random"}
+                      onChange={() => setLocalStrategy("random")}
+                      className="text-emerald-600"
+                    />
+                    <div>
+                      <span className="text-sm font-medium">Random</span>
+                      <p className="text-xs text-gray-500">Randomly picks from eligible employees</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center px-6 py-4 border-t bg-gray-50 rounded-b-lg">
               <span className="text-xs text-gray-500">
                 {selectedTemplateIds.size} of {templates.length} selected
@@ -738,9 +829,13 @@ export default function Schedule() {
                 <button
                   onClick={handleConfirmGenerate}
                   disabled={selectedTemplateIds.size === 0}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+                  className={`px-4 py-2 text-white rounded disabled:opacity-50 text-sm font-medium ${
+                    generateMode === "local"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
                 >
-                  Generate for {selectedTemplateIds.size} Template
+                  {generateMode === "local" ? "Generate Locally" : "Generate with AI"} for {selectedTemplateIds.size} Template
                   {selectedTemplateIds.size !== 1 ? "s" : ""}
                 </button>
               </div>

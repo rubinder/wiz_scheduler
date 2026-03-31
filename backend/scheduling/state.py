@@ -57,3 +57,5 @@ class SchedulingState(TypedDict):
     failure_entries: List[FailureEntry]
     # Condensed role equivalents: role_id -> list of equivalent role_ids
     role_equivalents: Dict[str, List[str]]
+    # Number of days to schedule (default 7)
+    num_days: int

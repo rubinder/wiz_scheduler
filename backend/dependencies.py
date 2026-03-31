@@ -1,4 +1,3 @@
-import uuid
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
@@ -33,7 +32,7 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -51,7 +50,7 @@ async def require_manager(
 async def get_ownership_group_company_ids(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[uuid.UUID]:
+) -> list[str]:
     """Return all company IDs in the current user's ownership group.
 
     If the user's company has no ownership group, returns only their own company_id.

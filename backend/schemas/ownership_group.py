@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -9,7 +8,7 @@ class OwnershipGroupCreate(BaseModel):
 
 
 class OwnershipGroupResponse(BaseModel):
-    id: uuid.UUID
+    id: str
     name: str
     created_at: datetime
 
@@ -22,7 +21,7 @@ class OwnershipGroupCompaniesResponse(BaseModel):
 
 
 class CompanySummary(BaseModel):
-    id: uuid.UUID
+    id: str
     name: str
     slug: str
 

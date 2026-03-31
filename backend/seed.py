@@ -4,11 +4,11 @@ Idempotent seed script for WizScheduler.
 Usage:
     cd backend && python seed.py
 
-Uses deterministic UUIDs (uuid5) so re-runs are safe (ON CONFLICT DO NOTHING).
+Uses deterministic string IDs so re-runs are safe (ON CONFLICT DO NOTHING).
 """
 
 import asyncio
-import uuid
+import json
 from datetime import datetime, timedelta, timezone
 
 from passlib.context import CryptContext
@@ -32,22 +32,19 @@ from backend.models import (
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Deterministic namespace for uuid5
-NS = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+# Deterministic short-string IDs for idempotent seeding
+OWNERSHIP_GROUP_ID = "owngrp01"
+COMPANY_ID = "comp0001"
+MANAGER_USER_ID = "user0001"
+EMPLOYEE_USER_ID = "user0002"
+ROLE_FLOOR_ID = "role0001"
+ROLE_LEAD_ID = "role0002"
+REGION_ID = "regn0001"
+LOCATION_ID = "locn0001"
 
-# Pre-computed deterministic IDs
-OWNERSHIP_GROUP_ID = uuid.uuid5(NS, "ownership-group-acme")
-COMPANY_ID = uuid.uuid5(NS, "acme-corp")
-MANAGER_USER_ID = uuid.uuid5(NS, "abc@example.com")
-EMPLOYEE_USER_ID = uuid.uuid5(NS, "employee1@example.com")
-ROLE_FLOOR_ID = uuid.uuid5(NS, "role-floor-associate")
-ROLE_LEAD_ID = uuid.uuid5(NS, "role-team-lead")
-REGION_ID = uuid.uuid5(NS, "region-east-coast")
-LOCATION_ID = uuid.uuid5(NS, "location-downtown-store")
+EMPLOYEE_IDS = [f"empl{str(i).zfill(4)}" for i in range(1, 8)]
 
-EMPLOYEE_IDS = [uuid.uuid5(NS, f"employee-{i}") for i in range(1, 8)]
-
-SHIFT_TEMPLATE_ID = uuid.uuid5(NS, "shift-template-weekday")
+SHIFT_TEMPLATE_ID = "shft0001"
 
 
 def _hash(password: str) -> str:
@@ -168,7 +165,7 @@ async def main() -> None:
             await db.execute(
                 text(
                     "INSERT INTO employees (id, company_id, user_id, full_name, email, location_ids) "
-                    "VALUES (:id, :company_id, :user_id, :full_name, :email, :location_ids) "
+                    "VALUES (:id, :company_id, :user_id, :full_name, :email, CAST(:location_ids AS jsonb)) "
                     "ON CONFLICT (id) DO NOTHING"
                 ),
                 {
@@ -177,12 +174,12 @@ async def main() -> None:
                     "user_id": user_id,
                     "full_name": name,
                     "email": f"{name.lower().replace(' ', '.')}@example.com",
-                    "location_ids": [LOCATION_ID],
+                    "location_ids": json.dumps([LOCATION_ID]),
                 },
             )
 
             # --- Employee-Company assignment (default: assigned to their own company) ---
-            ec_id = uuid.uuid5(NS, f"ec-{i}-{COMPANY_ID}")
+            ec_id = f"ec{str(i).zfill(6)}"
             await db.execute(
                 text(
                     "INSERT INTO employee_companies (id, employee_id, company_id) "
@@ -209,8 +206,8 @@ async def main() -> None:
             (5, ROLE_LEAD_ID, 4),
             (6, ROLE_FLOOR_ID, 3),
         ]
-        for emp_idx, role_id, skill in role_assignments:
-            er_id = uuid.uuid5(NS, f"er-{emp_idx}-{role_id}")
+        for ra_idx, (emp_idx, role_id, skill) in enumerate(role_assignments):
+            er_id = f"er{str(ra_idx).zfill(6)}"
             await db.execute(
                 text(
                     "INSERT INTO employee_roles (id, company_id, employee_id, role_id, skill_level) "
@@ -233,7 +230,7 @@ async def main() -> None:
                 {
                     "day": day,
                     "role_name": "Floor Associate",
-                    "role_id": str(ROLE_FLOOR_ID),
+                    "role_id": ROLE_FLOOR_ID,
                     "headcount": 3,
                     "start_time": "09:00",
                     "end_time": "17:00",
@@ -243,7 +240,7 @@ async def main() -> None:
                 {
                     "day": day,
                     "role_name": "Team Lead",
-                    "role_id": str(ROLE_LEAD_ID),
+                    "role_id": ROLE_LEAD_ID,
                     "headcount": 1,
                     "start_time": "09:00",
                     "end_time": "17:00",
@@ -274,7 +271,7 @@ async def main() -> None:
                 day_date = monday + timedelta(days=day_offset)
                 start_dt = day_date.replace(hour=9, minute=0, second=0, tzinfo=et_offset)
                 end_dt = day_date.replace(hour=17, minute=0, second=0, tzinfo=et_offset)
-                avail_id = uuid.uuid5(NS, f"avail-{emp_idx}-{day_offset}")
+                avail_id = f"av{emp_idx}{day_offset}".ljust(8, "0")[:8]
 
                 await db.execute(
                     text(

@@ -1,30 +1,29 @@
-import uuid
 from datetime import date, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
+from backend.utils.id_gen import generate_short_id
 
 
 class Employee(Base):
     __tablename__ = "employees"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False, index=True
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
     )
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
+    user_id: Mapped[str | None] = mapped_column(
+        String(8), ForeignKey("users.id"), nullable=True
     )
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
-    location_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
-        ARRAY(UUID(as_uuid=True)), nullable=True
+    location_ids: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True
     )
 
     external_id: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -37,17 +36,17 @@ class Employee(Base):
 class EmployeeRole(Base):
     __tablename__ = "employee_roles"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False
     )
-    employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id"), nullable=False
+    employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=False
     )
-    role_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("roles.id"), nullable=False
+    role_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("roles.id"), nullable=False
     )
     skill_level: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -57,17 +56,17 @@ class EmployeeRole(Base):
 class EmployeeAffinity(Base):
     __tablename__ = "employee_affinities"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False
     )
-    employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id"), nullable=False
+    employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=False
     )
-    target_employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id"), nullable=False
+    target_employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=False
     )
     level: Mapped[float] = mapped_column(Numeric, nullable=False)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -77,14 +76,14 @@ class EmployeeAffinity(Base):
 class EmployeeCompany(Base):
     __tablename__ = "employee_companies"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
+    employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False, index=True
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
     )
 
     __table_args__ = (
@@ -95,14 +94,14 @@ class EmployeeCompany(Base):
 class EmployeeInvite(Base):
     __tablename__ = "employee_invites"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False, index=True
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
     )
-    employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id"), nullable=False, index=True
+    employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=False, index=True
     )
     token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     email: Mapped[str] = mapped_column(String, nullable=False)
@@ -117,14 +116,14 @@ class EmployeeInvite(Base):
 class EmployeeAvailability(Base):
     __tablename__ = "employee_availability"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, server_default=text("gen_random_uuid()")
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("companies.id"), nullable=False
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False
     )
-    employee_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("employees.id"), nullable=False
+    employee_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=False
     )
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     month: Mapped[int] = mapped_column(Integer, nullable=False)

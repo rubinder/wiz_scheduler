@@ -1,13 +1,18 @@
-import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel
 
 
+from typing import Literal
+
+
 class GenerateRequest(BaseModel):
     week_start_date: date
-    location_ids: list[uuid.UUID] | None = None
-    template_ids: list[uuid.UUID] | None = None
+    location_ids: list[str] | None = None
+    template_ids: list[str] | None = None
+    use_local: bool = False
+    strategy: Literal["random", "rotation"] = "random"
+    num_days: int = 7
 
 
 class ShiftUpdate(BaseModel):
@@ -27,11 +32,11 @@ class UpdateShiftsRequest(BaseModel):
 
 
 class ShiftResponse(BaseModel):
-    id: uuid.UUID
-    shift_schedule_id: uuid.UUID
-    location_id: uuid.UUID
-    employee_id: uuid.UUID
-    role_id: uuid.UUID
+    id: str
+    shift_schedule_id: str
+    location_id: str
+    employee_id: str
+    role_id: str
     role_name: str
     date: date
     start_time: datetime
@@ -41,9 +46,9 @@ class ShiftResponse(BaseModel):
 
 
 class ShiftScheduleResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
-    location_id: uuid.UUID
+    id: str
+    company_id: str
+    location_id: str
     week_start_date: date
     status: str
     created_at: datetime

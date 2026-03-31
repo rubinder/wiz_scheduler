@@ -1,6 +1,5 @@
 import json
 import logging
-import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
@@ -48,7 +47,7 @@ class ApprovedScheduleItem(BaseModel):
 
 class Export7ShiftsRequest(BaseModel):
     access_token: str
-    shift_ids: list[uuid.UUID]
+    shift_ids: list[str]
 
 
 class Export7ShiftsResult(BaseModel):
@@ -58,8 +57,8 @@ class Export7ShiftsResult(BaseModel):
 
 
 async def _load_condensed_role_resolver(
-    company_id: uuid.UUID, db: AsyncSession
-) -> tuple[dict[uuid.UUID, list[uuid.UUID]], dict[uuid.UUID, Role]]:
+    company_id: str, db: AsyncSession
+) -> tuple[dict[str, list[str]], dict[str, Role]]:
     """Load condensed role mappings and all roles for the company.
 
     Returns:
@@ -71,7 +70,7 @@ async def _load_condensed_role_resolver(
             CondensedRole.company_id == company_id
         )
     )
-    condensed_map: dict[uuid.UUID, list[uuid.UUID]] = {}
+    condensed_map: dict[str, list[str]] = {}
     for m in cr_result.scalars().all():
         condensed_map.setdefault(m.condensed_role_id, []).append(m.role_id)
 
@@ -84,25 +83,25 @@ async def _load_condensed_role_resolver(
 
 
 async def _load_employee_role_ids(
-    company_id: uuid.UUID, db: AsyncSession
-) -> dict[uuid.UUID, set[uuid.UUID]]:
+    company_id: str, db: AsyncSession
+) -> dict[str, set[str]]:
     """Load employee -> set of role_ids."""
     er_result = await db.execute(
         select(EmployeeRole).where(EmployeeRole.company_id == company_id)
     )
-    emp_roles: dict[uuid.UUID, set[uuid.UUID]] = {}
+    emp_roles: dict[str, set[str]] = {}
     for er in er_result.scalars().all():
         emp_roles.setdefault(er.employee_id, set()).add(er.role_id)
     return emp_roles
 
 
 def _resolve_role_for_employee(
-    shift_role_id: uuid.UUID,
-    employee_id: uuid.UUID,
-    condensed_map: dict[uuid.UUID, list[uuid.UUID]],
-    emp_role_ids: dict[uuid.UUID, set[uuid.UUID]],
-    role_by_id: dict[uuid.UUID, Role],
-) -> tuple[uuid.UUID, str, str | None]:
+    shift_role_id: str,
+    employee_id: str,
+    condensed_map: dict[str, list[str]],
+    emp_role_ids: dict[str, set[str]],
+    role_by_id: dict[str, Role],
+) -> tuple[str, str, str | None]:
     """Resolve a possibly-condensed role_id to the employee's actual role.
 
     Returns (resolved_role_id, role_name, external_id).
@@ -155,7 +154,7 @@ async def list_approved_schedules(
 
     # Pre-load locations and employees
     loc_ids = {s.location_id for s in schedules}
-    loc_map: dict[uuid.UUID, str] = {}
+    loc_map: dict[str, str] = {}
     if loc_ids:
         loc_result = await db.execute(
             select(Location).where(Location.id.in_(loc_ids))
@@ -166,7 +165,7 @@ async def list_approved_schedules(
     emp_result = await db.execute(
         select(Employee).where(Employee.company_id == current_user.company_id)
     )
-    emp_map: dict[uuid.UUID, str] = {}
+    emp_map: dict[str, str] = {}
     for emp in emp_result.scalars().all():
         emp_map[emp.id] = emp.full_name
 
@@ -249,7 +248,7 @@ async def export_to_7shifts(
     emp_result = await db.execute(
         select(EmpModel).where(EmpModel.id.in_(emp_ids))
     )
-    emp_ext_map: dict[uuid.UUID, str | None] = {}
+    emp_ext_map: dict[str, str | None] = {}
     for emp in emp_result.scalars().all():
         emp_ext_map[emp.id] = emp.external_id
 
@@ -258,7 +257,7 @@ async def export_to_7shifts(
     loc_result = await db.execute(
         select(Location).where(Location.id.in_(loc_ids))
     )
-    loc_ext_map: dict[uuid.UUID, str | None] = {}
+    loc_ext_map: dict[str, str | None] = {}
     for loc in loc_result.scalars().all():
         loc_ext_map[loc.id] = loc.external_id
 
@@ -278,7 +277,7 @@ async def export_to_7shifts(
         )
     )
     # Map location_id -> first department external_id (use first available)
-    loc_dept_ext_map: dict[uuid.UUID, str] = {}
+    loc_dept_ext_map: dict[str, str] = {}
     for dept in dept_result.scalars().all():
         if dept.location_id not in loc_dept_ext_map:
             loc_dept_ext_map[dept.location_id] = dept.external_id  # type: ignore[assignment]
@@ -356,7 +355,7 @@ async def export_to_7shifts(
 
 @router.get("/jsonl/{schedule_id}")
 async def export_jsonl(
-    schedule_id: uuid.UUID,
+    schedule_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     token: str | None = None,
@@ -386,7 +385,7 @@ async def export_jsonl(
     emp_result = await db.execute(
         select(Employee).where(Employee.id.in_(emp_ids))
     )
-    emp_map: dict[uuid.UUID, str] = {}
+    emp_map: dict[str, str] = {}
     for emp in emp_result.scalars().all():
         emp_map[emp.id] = emp.full_name
 

@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +66,7 @@ async def create_affinity(
 
 @router.put("/{affinity_id}", response_model=EmployeeAffinityResponse)
 async def update_affinity(
-    affinity_id: uuid.UUID,
+    affinity_id: str,
     body: EmployeeAffinityUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -114,7 +112,7 @@ async def update_affinity(
 
 @router.delete("/{affinity_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_affinity(
-    affinity_id: uuid.UUID,
+    affinity_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

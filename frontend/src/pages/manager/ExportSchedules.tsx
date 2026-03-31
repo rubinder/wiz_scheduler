@@ -174,7 +174,9 @@ export default function ExportSchedules() {
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             View approved schedules for the current week. Export to 7Shifts or
-            download as JSONL.
+            download as JSONL. We attempt to export the user ID with the role ID
+            it is associated with in the external system (in the case where the
+            role is associated with a few roles).
           </p>
         </div>
       </div>

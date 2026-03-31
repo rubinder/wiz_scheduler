@@ -15,6 +15,7 @@ import {
   importAvailabilitiesFrom7Shifts,
   type ImportAvailabilitiesResult,
 } from "../../api/import7shifts";
+import { listRoles } from "../../api/roles";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import type {
   Employee,
@@ -168,15 +169,19 @@ export default function EmployeeAssociation() {
     return map;
   }, [employees]);
 
+  const [roleMap, setRoleMap] = useState<Map<string, string>>(new Map());
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [affinityData, employeeData] = await Promise.all([
+      const [affinityData, employeeData, rolesData] = await Promise.all([
         listAffinities(),
         listEmployees(),
+        listRoles(),
       ]);
       setAffinities(affinityData);
       setEmployees(employeeData);
+      setRoleMap(new Map(rolesData.map((r) => [r.id, r.name])));
       setError(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -902,6 +907,13 @@ export default function EmployeeAssociation() {
                         {emp.email && (
                           <span className="text-xs text-gray-400">
                             {emp.email}
+                          </span>
+                        )}
+                        {emp.roles.length > 0 && (
+                          <span className="text-xs text-gray-400">
+                            {emp.roles
+                              .map((r) => roleMap.get(r.role_id) ?? r.role_id)
+                              .join(", ")}
                           </span>
                         )}
                       </div>

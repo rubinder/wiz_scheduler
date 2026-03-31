@@ -1,10 +1,8 @@
-import uuid
-
 from pydantic import BaseModel
 
 
 class LocationCreate(BaseModel):
-    region_id: uuid.UUID
+    region_id: str
     name: str
     address: str | None = None
     geo_coord: dict | None = None
@@ -12,7 +10,7 @@ class LocationCreate(BaseModel):
 
 
 class LocationUpdate(BaseModel):
-    region_id: uuid.UUID | None = None
+    region_id: str | None = None
     name: str | None = None
     address: str | None = None
     geo_coord: dict | None = None
@@ -20,9 +18,9 @@ class LocationUpdate(BaseModel):
 
 
 class LocationResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
-    region_id: uuid.UUID
+    id: str
+    company_id: str
+    region_id: str
     name: str
     address: str | None
     geo_coord: dict | None

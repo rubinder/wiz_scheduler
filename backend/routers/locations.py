@@ -1,7 +1,6 @@
 import csv
 import io
 import json
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -48,7 +47,7 @@ async def create_location(
 
 @router.put("/{location_id}", response_model=LocationResponse)
 async def update_location(
-    location_id: uuid.UUID,
+    location_id: str,
     body: LocationUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -181,7 +180,7 @@ async def bulk_upload_locations(
 
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_location(
-    location_id: uuid.UUID,
+    location_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

@@ -4,7 +4,6 @@ Shared test fixtures for WizScheduler.
 Uses SQLite + aiosqlite as the test database so no Postgres is required.
 """
 
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
@@ -41,11 +40,13 @@ TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_o
 
 
 # ---------------------------------------------------------------------------
-# UUID helper — SQLite has no gen_random_uuid(); we supply IDs explicitly.
+# ID helper — SQLite has no gen_random_id(); we supply IDs explicitly.
 # ---------------------------------------------------------------------------
 
-def _uuid() -> uuid.UUID:
-    return uuid.uuid4()
+from backend.utils.id_gen import generate_short_id
+
+def _id() -> str:
+    return generate_short_id()
 
 
 # ---------------------------------------------------------------------------
@@ -86,20 +87,20 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 # Deterministic IDs for fixtures
 # ---------------------------------------------------------------------------
 
-COMPANY_ID = _uuid()
-COMPANY2_ID = _uuid()
-REGION_ID = _uuid()
-LOCATION_ID = _uuid()
-ROLE_FLOOR_ID = _uuid()
-ROLE_LEAD_ID = _uuid()
-MANAGER_USER_ID = _uuid()
-EMPLOYEE_USER_ID = _uuid()
-EMPLOYEE1_ID = _uuid()
-EMPLOYEE2_ID = _uuid()
-SHIFT_TEMPLATE_ID = _uuid()
+COMPANY_ID = _id()
+COMPANY2_ID = _id()
+REGION_ID = _id()
+LOCATION_ID = _id()
+ROLE_FLOOR_ID = _id()
+ROLE_LEAD_ID = _id()
+MANAGER_USER_ID = _id()
+EMPLOYEE_USER_ID = _id()
+EMPLOYEE1_ID = _id()
+EMPLOYEE2_ID = _id()
+SHIFT_TEMPLATE_ID = _id()
 
 
-def _make_token(user_id: uuid.UUID, company_id: uuid.UUID, role: str) -> str:
+def _make_token(user_id: str, company_id: str, role: str) -> str:
     """Create a JWT identical to what the auth router produces."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=60)
     payload = {
@@ -218,10 +219,10 @@ async def seed_employees(
 
     # Assign roles
     er1 = EmployeeRole(
-        id=_uuid(), company_id=COMPANY_ID, employee_id=EMPLOYEE1_ID, role_id=ROLE_FLOOR_ID, skill_level=3
+        id=_id(), company_id=COMPANY_ID, employee_id=EMPLOYEE1_ID, role_id=ROLE_FLOOR_ID, skill_level=3
     )
     er2 = EmployeeRole(
-        id=_uuid(), company_id=COMPANY_ID, employee_id=EMPLOYEE2_ID, role_id=ROLE_LEAD_ID, skill_level=2
+        id=_id(), company_id=COMPANY_ID, employee_id=EMPLOYEE2_ID, role_id=ROLE_LEAD_ID, skill_level=2
     )
     db_session.add_all([er1, er2])
     await db_session.commit()

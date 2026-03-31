@@ -17,6 +17,7 @@ from backend.models import (
     ShiftTemplate,
     TokenUsage,
 )
+from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.nodes import (
     build_prompt,
     call_llm,
@@ -53,15 +54,22 @@ def _should_continue_or_end(state: SchedulingState) -> str:
     return END
 
 
-def build_scheduling_graph() -> StateGraph:
-    """Construct the LangGraph state graph for the scheduling pipeline."""
+def build_scheduling_graph(
+    use_local: bool = False,
+    strategy: Strategy = "random",
+) -> StateGraph:
+    """Construct the LangGraph state graph for the scheduling pipeline.
+
+    Args:
+        use_local: If True, use the local algorithmic scheduler instead of
+            the LLM.  Skips prompt building and LLM call entirely.
+        strategy: Scheduling strategy for the local scheduler ("random" or
+            "rotation").  Ignored when *use_local* is False.
+    """
     graph = StateGraph(SchedulingState)
 
     # Add nodes
     graph.add_node("load_location_context", load_location_context)
-    graph.add_node("build_prompt", build_prompt)
-    graph.add_node("call_llm", call_llm)
-    graph.add_node("parse_schedule", parse_schedule)
     graph.add_node("validate_schedule", validate_schedule)
     graph.add_node("validate_and_update_availability", validate_and_update_availability)
     graph.add_node("emit_result", emit_result)
@@ -69,22 +77,39 @@ def build_scheduling_graph() -> StateGraph:
     # Set entry point
     graph.set_entry_point("load_location_context")
 
-    # Linear edges
-    graph.add_edge("load_location_context", "build_prompt")
-    graph.add_edge("build_prompt", "call_llm")
-    graph.add_edge("call_llm", "parse_schedule")
-    graph.add_edge("parse_schedule", "validate_schedule")
+    if use_local:
+        # Local scheduler: load context -> local_schedule -> validate
+        def _local_schedule_node(state: SchedulingState) -> Dict[str, Any]:
+            return local_schedule(state, strategy=strategy)
+
+        graph.add_node("local_schedule", _local_schedule_node)
+        graph.add_edge("load_location_context", "local_schedule")
+        graph.add_edge("local_schedule", "validate_schedule")
+    else:
+        # LLM path: load context -> prompt -> llm -> parse -> validate
+        graph.add_node("build_prompt", build_prompt)
+        graph.add_node("call_llm", call_llm)
+        graph.add_node("parse_schedule", parse_schedule)
+        graph.add_edge("load_location_context", "build_prompt")
+        graph.add_edge("build_prompt", "call_llm")
+        graph.add_edge("call_llm", "parse_schedule")
+        graph.add_edge("parse_schedule", "validate_schedule")
+
     graph.add_edge("validate_schedule", "validate_and_update_availability")
 
     # Conditional edge after validation: retry or emit
-    graph.add_conditional_edges(
-        "validate_and_update_availability",
-        _should_retry_or_emit,
-        {
-            "build_prompt": "build_prompt",
-            "emit_result": "emit_result",
-        },
-    )
+    if use_local:
+        # Local scheduler doesn't retry — go straight to emit
+        graph.add_edge("validate_and_update_availability", "emit_result")
+    else:
+        graph.add_conditional_edges(
+            "validate_and_update_availability",
+            _should_retry_or_emit,
+            {
+                "build_prompt": "build_prompt",
+                "emit_result": "emit_result",
+            },
+        )
 
     # Conditional edge after emit: next location or END
     graph.add_conditional_edges(
@@ -104,6 +129,7 @@ async def _load_initial_state(
     week_start_date: str,
     db: AsyncSession,
     template_ids: List[str] | None = None,
+    num_days: int = 7,
 ) -> Dict[str, Any]:
     """Query the database to build the initial SchedulingState."""
 
@@ -113,6 +139,16 @@ async def _load_initial_state(
     )
     roles_orm = role_result.scalars().all()
     role_map: Dict[str, str] = {str(r.id): r.name for r in roles_orm}
+
+    # Load condensed roles for name lookup and mappings
+    from backend.models.condensed_role import CondensedRole as CondensedRoleModel
+    cr_result = await db.execute(
+        select(CondensedRoleModel).where(CondensedRoleModel.company_id == company_id)
+    )
+    condensed_roles_orm = cr_result.scalars().all()
+    condensed_role_name_map: Dict[str, str] = {
+        str(cr.id): cr.name for cr in condensed_roles_orm
+    }
 
     # Load condensed role mappings — build role_id -> set of equivalent role_ids
     crm_result = await db.execute(
@@ -134,6 +170,16 @@ async def _load_initial_state(
         group_set = set(group)
         for rid in group:
             role_equivalents.setdefault(rid, set()).update(group_set)
+
+    # Build member_role_id -> list of condensed_role_ids the role belongs to
+    role_to_condensed: Dict[str, List[str]] = {}
+    for cid, member_ids in condensed_groups.items():
+        for rid in member_ids:
+            role_to_condensed.setdefault(rid, []).append(cid)
+
+    # Merge condensed role names into role_map so shift template slots
+    # that reference condensed role IDs resolve to a name
+    role_map.update(condensed_role_name_map)
 
     # Load shift templates, optionally filtered by template_ids
     st_query = select(ShiftTemplate).where(ShiftTemplate.company_id == company_id)
@@ -238,7 +284,7 @@ async def _load_initial_state(
     from datetime import datetime, timedelta, timezone
 
     week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    week_end = week_start + timedelta(days=7)
+    week_end = week_start + timedelta(days=num_days)
 
     avail_result = await db.execute(
         select(EmployeeAvailability).where(
@@ -253,21 +299,61 @@ async def _load_initial_state(
         eid = str(av.employee_id)
         if eid not in emp_avail_map:
             emp_avail_map[eid] = []
+
+        start_dt = av.start_time
+        end_dt = av.end_time
+
+        # Fix midnight end times: if end <= start, the end_time was stored as
+        # 00:00:00 on the same date (meaning "end of day"), so bump it to 23:59.
+        if start_dt and end_dt and end_dt <= start_dt:
+            end_dt = start_dt.replace(hour=23, minute=59, second=0, microsecond=0)
+
         emp_avail_map[eid].append({
-            "start": av.start_time.isoformat() if hasattr(av.start_time, "isoformat") else str(av.start_time),
-            "end": av.end_time.isoformat() if hasattr(av.end_time, "isoformat") else str(av.end_time),
+            "start": start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt),
+            "end": end_dt.isoformat() if hasattr(end_dt, "isoformat") else str(end_dt),
         })
 
-    # Build employee dicts
+    # Employees with NO availability records are treated as "always available".
+    # Generate a full-day window for each day of the week so the LLM and
+    # validator treat them identically to explicitly-available employees.
+    all_emp_ids = {str(emp.id) for emp in employees_orm}
+    emps_with_avail = set(emp_avail_map.keys())
+    for eid in all_emp_ids - emps_with_avail:
+        emp_avail_map[eid] = []
+        for day_offset in range(num_days):
+            day_start = week_start + timedelta(days=day_offset)
+            day_end = day_start.replace(hour=23, minute=59, second=59)
+            emp_avail_map[eid].append({
+                "start": day_start.isoformat(),
+                "end": day_end.isoformat(),
+            })
+
+    # Build employee dicts, expanding roles to include condensed roles
     employees: List[Dict[str, Any]] = []
     for emp in employees_orm:
         eid = str(emp.id)
+        direct_roles = emp_roles_map.get(eid, [])
+
+        # Expand: for each direct role, add any condensed roles it belongs to
+        seen_role_ids: set[str] = {r["role_id"] for r in direct_roles}
+        expanded_roles = list(direct_roles)
+        for role_entry in direct_roles:
+            rid = role_entry["role_id"]
+            for cid in role_to_condensed.get(rid, []):
+                if cid not in seen_role_ids:
+                    seen_role_ids.add(cid)
+                    expanded_roles.append({
+                        "role_id": cid,
+                        "role_name": condensed_role_name_map.get(cid, ""),
+                        "skill_level": role_entry["skill_level"],
+                    })
+
         employees.append({
             "id": eid,
             "full_name": emp.full_name,
             "email": emp.email,
             "location_ids": [str(lid) for lid in (emp.location_ids or [])],
-            "roles": emp_roles_map.get(eid, []),
+            "roles": expanded_roles,
             "affinities": emp_affinities_map.get(eid, []),
             "available_windows": emp_avail_map.get(eid, []),
         })
@@ -295,6 +381,7 @@ async def _load_initial_state(
         "current_employees": [],
         "failure_entries": [],
         "role_equivalents": {k: list(v) for k, v in role_equivalents.items()},
+        "num_days": num_days,
     }
 
     return initial_state
@@ -305,6 +392,9 @@ async def run_scheduling_pipeline(
     week_start_date: str,
     db: AsyncSession,
     template_ids: List[str] | None = None,
+    use_local: bool = False,
+    strategy: Strategy = "random",
+    num_days: int = 7,
 ) -> AsyncGenerator[LocationResult, None]:
     """Run the scheduling pipeline and yield LocationResult dicts as they're produced.
 
@@ -313,18 +403,24 @@ async def run_scheduling_pipeline(
         week_start_date: Start date of the week in "YYYY-MM-DD" format.
         db: An active async database session.
         template_ids: Optional list of shift template UUIDs to generate for.
+        use_local: If True, use the local algorithmic scheduler instead of
+            the LLM.
+        strategy: Scheduling strategy for the local scheduler ("random" or
+            "rotation").
+        num_days: Number of days to schedule starting from week_start_date.
 
     Yields:
         LocationResult dicts, one per location, as each location completes.
     """
     initial_state = await _load_initial_state(
-        company_id, week_start_date, db, template_ids=template_ids
+        company_id, week_start_date, db, template_ids=template_ids,
+        num_days=num_days,
     )
 
     if not initial_state["locations"]:
         return
 
-    graph = build_scheduling_graph()
+    graph = build_scheduling_graph(use_local=use_local, strategy=strategy)
     compiled = graph.compile()
 
     # Track how many results we've already yielded

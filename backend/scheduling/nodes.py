@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -8,6 +9,8 @@ import anthropic
 from backend.config import settings
 from backend.scheduling.prompts import build_schedule_prompt
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
+
+logger = logging.getLogger(__name__)
 
 
 def _filter_employees_for_location(
@@ -63,17 +66,64 @@ def load_location_context(state: SchedulingState) -> Dict[str, Any]:
     """Load context for the current location: filter employees and availability."""
     location = state["locations"][state["current_location_index"]]
     location_id = str(location["id"])
+    location_name = location.get("name", location_id)
     shift_template = state["shift_templates"].get(location_id, {})
 
-    # Filter employees for this location
-    location_employees = _filter_employees_for_location(
-        state["employees"], location_id
+    # Collect role names required by this location's shift template
+    required_role_names: set[str] = set()
+    weekly_schedule = shift_template.get("weekly_schedule", {})
+    for slots in weekly_schedule.values():
+        for slot in slots:
+            rname = slot.get("role_name", "")
+            if rname:
+                required_role_names.add(rname)
+
+    logger.warning(
+        "[SCHED-TRACE] load_location_context: location=%s required_roles=%s",
+        location_name, required_role_names,
     )
 
-    # Filter each employee's availability against the draft
+    # Filter employees for this location
+    all_location_employees = _filter_employees_for_location(
+        state["employees"], location_id
+    )
+    logger.warning(
+        "[SCHED-TRACE]   employees at location: %d (names: %s)",
+        len(all_location_employees),
+        [e.get("full_name", "") for e in all_location_employees],
+    )
+
+    # Further filter to only employees who have at least one required role
+    location_employees = all_location_employees
+    if required_role_names:
+        role_relevant: List[Dict[str, Any]] = []
+        for emp in all_location_employees:
+            emp_roles = {r.get("role_name", "") for r in emp.get("roles", [])}
+            matched = emp_roles & required_role_names
+            if matched:
+                role_relevant.append(emp)
+            else:
+                logger.warning(
+                    "[SCHED-TRACE]   FILTERED OUT %s — roles %s don't match required %s",
+                    emp.get("full_name", ""), emp_roles, required_role_names,
+                )
+        location_employees = role_relevant
+
+    logger.warning(
+        "[SCHED-TRACE]   role-relevant employees: %d", len(location_employees),
+    )
+
+    # Log each employee's availability window count
     for emp in location_employees:
+        windows_before = len(emp.get("available_windows", []))
         emp["available_windows"] = _filter_availability_against_draft(
             emp, state["availability_draft"]
+        )
+        windows_after = len(emp["available_windows"])
+        emp_roles = [r.get("role_name", "") for r in emp.get("roles", [])]
+        logger.warning(
+            "[SCHED-TRACE]   employee %s: roles=%s, avail_windows=%d (was %d before draft filter)",
+            emp.get("full_name", ""), emp_roles, windows_after, windows_before,
         )
 
     return {
@@ -101,6 +151,12 @@ def build_prompt(state: SchedulingState) -> Dict[str, Any]:
         employees=employees,
         week_start_date=state["week_start_date"],
         conflict_notes=conflict_notes,
+        num_days=state.get("num_days", 7),
+    )
+    logger.warning(
+        "[SCHED-TRACE] build_prompt: location=%s prompt_length=%d chars\n"
+        "--- PROMPT START ---\n%s\n--- PROMPT END ---",
+        location.get("name", ""), len(prompt), prompt,
     )
     return {"current_prompt": prompt}
 
@@ -170,15 +226,17 @@ async def call_llm(state: SchedulingState) -> Dict[str, Any]:
         message = None
         for attempt in range(max_retries):
             try:
-                message = await client.messages.create(
+                # Use streaming to avoid SDK timeout on long requests
+                async with client.messages.stream(
                     model="claude-sonnet-4-20250514",
-                    max_tokens=16384,
+                    max_tokens=64000,
                     tools=[SHIFT_SCHEDULE_TOOL],
                     tool_choice={"type": "tool", "name": "submit_schedule"},
                     messages=[
                         {"role": "user", "content": state["current_prompt"]},
                     ],
-                )
+                ) as stream:
+                    message = await stream.get_final_message()
                 break
             except anthropic.APIStatusError as api_err:
                 if api_err.status_code in (429, 529) and attempt < max_retries - 1:
@@ -186,15 +244,33 @@ async def call_llm(state: SchedulingState) -> Dict[str, Any]:
                     continue
                 raise
 
-        # Extract the tool use input — guaranteed to be valid JSON matching our schema
+        # Check if output was truncated
+        stop_reason = message.stop_reason if message else "unknown"
+        input_tokens = message.usage.input_tokens if message.usage else 0
+        output_tokens = message.usage.output_tokens if message.usage else 0
+        logger.warning(
+            "[SCHED-TRACE] call_llm: location=%s stop_reason=%s input_tokens=%d output_tokens=%d",
+            location.get("name", location_id), stop_reason, input_tokens, output_tokens,
+        )
+        if stop_reason == "max_tokens":
+            logger.warning(
+                "[SCHED-TRACE] WARNING: LLM output was TRUNCATED (hit max_tokens). "
+                "Schedule will be incomplete — expect VACANT shifts.",
+            )
+
+        # Extract the tool use input
         raw_response = ""
         for block in message.content:
             if block.type == "tool_use" and block.name == "submit_schedule":
                 raw_response = json.dumps(block.input.get("shifts", []))
                 break
 
-        input_tokens = message.usage.input_tokens if message.usage else 0
-        output_tokens = message.usage.output_tokens if message.usage else 0
+        if not raw_response:
+            logger.warning(
+                "[SCHED-TRACE] call_llm: no submit_schedule tool_use found in response. "
+                "Content blocks: %s",
+                [(b.type, getattr(b, 'name', None)) for b in message.content] if message else "none",
+            )
 
         return {
             "current_raw_response": raw_response,
@@ -285,10 +361,21 @@ def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
             "failure_entries": state.get("failure_entries", []) + [failure_entry],
         }
 
+    logger.warning(
+        "[SCHED-TRACE] parse_schedule: location=%s role_name_to_id=%s LLM returned %d shifts",
+        location.get("name", location_id), role_name_to_id, len(parsed),
+    )
+
     shifts: List[ShiftAssignment] = []
     for item in parsed:
         role_name = item.get("role_name", "")
         role_id = role_name_to_id.get(role_name, "")
+
+        if not role_id:
+            logger.warning(
+                "[SCHED-TRACE]   parse: role_name=%r NOT FOUND in template role_name_to_id — role_id will be empty",
+                role_name,
+            )
 
         shift: ShiftAssignment = {
             "employee_id": str(item.get("employee_id", "")),
@@ -302,6 +389,11 @@ def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
             "status": "ok",
         }
         shifts.append(shift)
+        logger.warning(
+            "[SCHED-TRACE]   parsed shift: %s -> %s on %s %s-%s (role_id=%s)",
+            shift["employee_name"], shift["role_name"], shift["date"],
+            shift["start_time"], shift["end_time"], shift["role_id"],
+        )
 
     return {"current_parsed_shifts": shifts}
 
@@ -316,13 +408,11 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
     4. All required template slots are covered
     Marks invalid shifts with status="VALIDATION_ERROR" and logs warnings.
     """
-    import logging
     from datetime import timedelta
-
-    logger = logging.getLogger(__name__)
 
     shifts: List[ShiftAssignment] = list(state["current_parsed_shifts"])
     if not shifts:
+        logger.warning("[SCHED-TRACE] validate_schedule: no shifts to validate")
         return {}
 
     location = state["current_location"]
@@ -335,19 +425,60 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
     emp_by_id: Dict[str, Dict[str, Any]] = {str(e["id"]): e for e in employees}
     role_equivalents: Dict[str, List[str]] = state.get("role_equivalents", {})
 
-    # Expand employee role_ids with condensed role equivalents
+    # Build a complete role_id equivalence map that includes:
+    #   - condensed role member mappings (role_equivalents)
+    #   - same-name duplicate role IDs within the company
+    # This lets us match a shift's role_id against any equivalent employee role_id.
+    all_role_names: Dict[str, str] = {}  # role_id -> role_name
+    name_to_ids: Dict[str, set[str]] = {}  # role_name -> set of role_ids
+    for emp in employees:
+        for r in emp.get("roles", []):
+            rid = r.get("role_id", "")
+            rname = r.get("role_name", "")
+            if rid and rname:
+                all_role_names[rid] = rname
+                name_to_ids.setdefault(rname, set()).add(rid)
+    # Also include role_ids from the shift template
+    for slots in shift_template.get("weekly_schedule", {}).values():
+        for slot in slots:
+            rid = slot.get("role_id", "")
+            rname = slot.get("role_name", "")
+            if rid and rname:
+                all_role_names[rid] = rname
+                name_to_ids.setdefault(rname, set()).add(rid)
+
+    # Build full equivalence: merge condensed role groups + same-name duplicates
+    full_equivalents: Dict[str, set[str]] = {}
+    # Start with condensed role equivalents
+    for rid, equiv_set in role_equivalents.items():
+        full_equivalents.setdefault(rid, set()).update(equiv_set)
+    # Add same-name duplicates (e.g., two "Runner" IDs in the same company)
+    for rname, ids in name_to_ids.items():
+        if len(ids) > 1:
+            for rid in ids:
+                full_equivalents.setdefault(rid, set()).update(ids)
+
+    # Expand employee role_ids using full equivalents
     emp_role_ids_by_id: Dict[str, set[str]] = {}
+    emp_role_names_by_id: Dict[str, set[str]] = {}
     for emp in employees:
         eid = str(emp["id"])
         direct_ids = {r["role_id"] for r in emp.get("roles", [])}
         expanded_ids = set(direct_ids)
         for rid in direct_ids:
-            expanded_ids.update(role_equivalents.get(rid, []))
+            expanded_ids.update(full_equivalents.get(rid, set()))
         emp_role_ids_by_id[eid] = expanded_ids
+        emp_role_names_by_id[eid] = {r.get("role_name", "") for r in emp.get("roles", [])}
+
+    logger.warning(
+        "[SCHED-TRACE] validate_schedule: location=%s, %d shifts to validate, %d known employees",
+        location.get("name", location_id), len(shifts), len(emp_by_id),
+    )
 
     # Parse week boundaries
+    num_days = state.get("num_days", 7)
     week_start = datetime.strptime(week_start_date, "%Y-%m-%d")
-    week_end = week_start + timedelta(days=7)
+    week_end = week_start + timedelta(days=num_days)
 
     warnings: List[str] = []
     failure_entries: List[Dict[str, Any]] = []
@@ -361,34 +492,53 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
         if emp_id not in emp_by_id:
             issues.append(f"unknown employee_id {emp_id}")
 
-        # 2. Role qualification check (expanded via condensed role equivalents)
-        elif shift["role_id"] and shift["role_id"] not in emp_role_ids_by_id.get(emp_id, set()):
-            issues.append(
-                f"employee {shift['employee_name']} not qualified for role {shift['role_name']}"
-            )
+        # 2. Role qualification check (expanded via condensed role equivalents).
+        #    Fall back to role name match when IDs don't match — handles
+        #    duplicate roles (same name, different IDs) in the same company.
+        elif shift["role_id"]:
+            id_match = shift["role_id"] in emp_role_ids_by_id.get(emp_id, set())
+            name_match = shift["role_name"] in emp_role_names_by_id.get(emp_id, set())
+            if not id_match and not name_match:
+                issues.append(
+                    f"employee {shift['employee_name']} not qualified for role {shift['role_name']} "
+                    f"(shift_role_id={shift['role_id']}, emp_role_names={emp_role_names_by_id.get(emp_id, set())})"
+                )
 
-        # 3. Availability window check — shift must fall within an available window
+        # 3. Availability window check — shift must fall within an available window.
+        #    Empty available_windows means "always available" (no restrictions set).
+        #    Availability windows are stored as local times tagged as UTC, so we
+        #    compare using naive date + HH:MM (matching the prompt builder logic)
+        #    rather than absolute UTC timestamps.
         if emp_id in emp_by_id and not issues:
             emp_windows = emp_by_id[emp_id].get("available_windows", [])
-            if not emp_windows:
-                issues.append(
-                    f"employee {shift['employee_name']} has no availability"
-                )
-            else:
+            if emp_windows:
                 try:
                     shift_start = datetime.fromisoformat(shift["start_time"])
                     shift_end = datetime.fromisoformat(shift["end_time"])
+                    shift_date_str = shift["date"]
+                    shift_start_hm = shift_start.strftime("%H:%M")
+                    shift_end_hm = shift_end.strftime("%H:%M")
                     covered = False
                     for w in emp_windows:
                         w_start = datetime.fromisoformat(w["start"])
                         w_end = datetime.fromisoformat(w["end"])
-                        if w_start <= shift_start and w_end >= shift_end:
+                        w_date_str = w_start.strftime("%Y-%m-%d")
+                        if w_date_str != shift_date_str:
+                            continue
+                        w_start_hm = w_start.strftime("%H:%M")
+                        w_end_hm = w_end.strftime("%H:%M")
+                        if w_start_hm <= shift_start_hm and w_end_hm >= shift_end_hm:
                             covered = True
                             break
                     if not covered:
+                        # Log detailed window comparison for debugging
+                        window_details = [
+                            f"[{w['start']} to {w['end']}]" for w in emp_windows
+                        ]
                         issues.append(
                             f"employee {shift['employee_name']} not available "
-                            f"{shift['start_time']}-{shift['end_time']}"
+                            f"{shift['start_time']}-{shift['end_time']} "
+                            f"(windows: {', '.join(window_details)})"
                         )
                 except (ValueError, TypeError):
                     pass  # time format issues caught in next check
@@ -402,7 +552,7 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
         except (ValueError, TypeError):
             issues.append(f"invalid start/end time format")
 
-        # 4. Date within week check
+        # 5. Date within week check
         try:
             shift_date = datetime.strptime(shift["date"], "%Y-%m-%d")
             if shift_date < week_start or shift_date >= week_end:
@@ -416,18 +566,34 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
             warnings.append(
                 f"Dropped shift {shift['employee_name']} on {shift['date']} {shift['role_name']}: {detail}"
             )
-            logger.warning("Validation error for location %s: %s", location_id, detail)
+            logger.warning(
+                "[SCHED-TRACE] DROPPED shift: %s -> %s on %s (%s-%s) REASON: %s",
+                shift["employee_name"], shift["role_name"], shift["date"],
+                shift["start_time"], shift["end_time"], detail,
+            )
         else:
             valid_shifts.append(shift)
+            logger.warning(
+                "[SCHED-TRACE] VALID shift: %s -> %s on %s (%s-%s)",
+                shift["employee_name"], shift["role_name"], shift["date"],
+                shift["start_time"], shift["end_time"],
+            )
 
+    logger.warning(
+        "[SCHED-TRACE] validate_schedule: %d valid, %d dropped out of %d total",
+        len(valid_shifts), len(state["current_parsed_shifts"]) - len(valid_shifts),
+        len(state["current_parsed_shifts"]),
+    )
     shifts = valid_shifts
 
-    # 5. Template coverage check — inject VACANT placeholders for unfilled slots
+    # 6. Template coverage check — inject VACANT placeholders for unfilled slots
     weekly_schedule = shift_template.get("weekly_schedule", {})
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    start_weekday = week_start.weekday()  # 0=Mon, 1=Tue, ...
     day_to_date: Dict[str, str] = {}
     date_to_day: Dict[str, str] = {}
-    for i, day_name in enumerate(day_names):
+    for i in range(num_days):
+        day_name = day_names[(start_weekday + i) % 7]
         d = week_start + timedelta(days=i)
         d_str = d.strftime("%Y-%m-%d")
         day_to_date[day_name] = d_str
@@ -479,6 +645,12 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                         "status": "VACANT",
                     }
                     shifts.append(vacant_shift)
+                logger.warning(
+                    "[SCHED-TRACE] VACANT: %s %s needs %d, filled %d, creating %d vacant "
+                    "(assigned_counts key=(%s, %s), all keys=%s)",
+                    day, role_name, headcount, filled, shortage,
+                    day, role_name, list(assigned_counts.keys()),
+                )
                 warnings.append(
                     f"Staffing shortage: {day} {role_name} needs {headcount}, filled {filled} ({shortage} vacant)"
                 )

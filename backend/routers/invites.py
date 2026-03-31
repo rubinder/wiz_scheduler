@@ -1,6 +1,5 @@
 import logging
 import secrets
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -30,8 +29,8 @@ INVITE_EXPIRE_DAYS = 7
 
 
 def _create_access_token(
-    user_id: uuid.UUID,
-    company_id: uuid.UUID,
+    user_id: str,
+    company_id: str,
     user_role: str,
 ) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -81,7 +80,7 @@ async def _send_invite_email(email: str, employee_name: str, invite_url: str, gr
 
 @router.post("/employees/{employee_id}/invite", response_model=InviteResponse)
 async def create_invite(
-    employee_id: uuid.UUID,
+    employee_id: str,
     request: Request,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),

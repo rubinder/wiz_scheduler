@@ -1,5 +1,4 @@
 import traceback
-import uuid
 
 from fastapi import Request, Response
 from jose import jwt
@@ -9,7 +8,7 @@ from backend.config import settings
 from backend.services.failure_logger import log_failure
 
 
-def _extract_company_id(request: Request) -> uuid.UUID | None:
+def _extract_company_id(request: Request) -> str | None:
     """Best-effort extraction of company_id from the Authorization header."""
     auth = request.headers.get("authorization", "")
     if not auth.startswith("Bearer "):
@@ -17,8 +16,7 @@ def _extract_company_id(request: Request) -> uuid.UUID | None:
     token = auth[7:]
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        cid = payload.get("company_id")
-        return uuid.UUID(cid) if cid else None
+        return payload.get("company_id")
     except Exception:
         return None
 

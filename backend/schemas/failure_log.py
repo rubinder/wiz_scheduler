@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 from typing import Any
 
@@ -6,8 +5,8 @@ from pydantic import BaseModel
 
 
 class FailureLogResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID | None
+    id: str
+    company_id: str | None
     category: str
     severity: str
     source: str

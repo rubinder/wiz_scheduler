@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +45,7 @@ async def create_shift_template(
 
 @router.put("/{template_id}", response_model=ShiftTemplateResponse)
 async def update_shift_template(
-    template_id: uuid.UUID,
+    template_id: str,
     body: ShiftTemplateUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -74,7 +72,7 @@ async def update_shift_template(
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shift_template(
-    template_id: uuid.UUID,
+    template_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

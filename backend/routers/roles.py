@@ -1,7 +1,6 @@
 import csv
 import io
 import json
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -45,7 +44,7 @@ async def create_role(
 
 @router.put("/{role_id}", response_model=RoleResponse)
 async def update_role(
-    role_id: uuid.UUID,
+    role_id: str,
     body: RoleUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -145,7 +144,7 @@ async def bulk_upload_roles(
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role(
-    role_id: uuid.UUID,
+    role_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:

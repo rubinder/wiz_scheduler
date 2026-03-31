@@ -671,7 +671,7 @@ ENV=development     # set to "production" to serve frontend from ./static
 ---
 
 ## Features Checklist
-- p[]
+- []
 - [ ] JWT auth — register, login, `get_current_user`, `require_manager` dependency
 - [ ] Company-level multi-tenancy enforced on every SQLAlchemy query via `company_id`
 - [ ] Manager CRUD for: company, regions, locations, roles, employees, shift templates

@@ -1,28 +1,26 @@
-import uuid
-
 from pydantic import BaseModel
 
 
 class CondensedRoleCreate(BaseModel):
     name: str
-    role_ids: list[uuid.UUID]
+    role_ids: list[str]
 
 
 class CondensedRoleUpdate(BaseModel):
     name: str | None = None
-    role_ids: list[uuid.UUID] | None = None
+    role_ids: list[str] | None = None
 
 
 class CondensedRoleMappingResponse(BaseModel):
-    role_id: uuid.UUID
+    role_id: str
     role_name: str
 
     model_config = {"from_attributes": True}
 
 
 class CondensedRoleResponse(BaseModel):
-    id: uuid.UUID
-    company_id: uuid.UUID
+    id: str
+    company_id: str
     name: str
     roles: list[CondensedRoleMappingResponse]
 

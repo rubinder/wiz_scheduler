@@ -1,17 +1,107 @@
 import json
-import uuid
+import logging
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Shift, ShiftSchedule, User
+from backend.models.employee import EmployeeAvailability
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
+from backend.utils.id_gen import generate_short_id
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+
+
+async def _subtract_availability_for_shifts(
+    db: AsyncSession,
+    company_id: str,
+    shifts_data: list[dict],
+) -> None:
+    """Remove scheduled hours from employee availability windows.
+
+    For each shift, find the availability window that covers it on the same
+    day.  Delete that window and insert replacement windows for any remaining
+    time before/after the shift.
+
+    Availability is stored as local times tagged as UTC, so comparisons use
+    HH:MM on matching dates (consistent with the scheduling pipeline).
+    """
+    for s in shifts_data:
+        emp_id = s.get("employee_id", "")
+        if not emp_id or emp_id == "VACANT":
+            continue
+
+        try:
+            shift_start = datetime.fromisoformat(s["start_time"])
+            shift_end = datetime.fromisoformat(s["end_time"])
+            shift_date = date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"]
+        except (ValueError, KeyError):
+            continue
+
+        shift_start_hm = shift_start.strftime("%H:%M")
+        shift_end_hm = shift_end.strftime("%H:%M")
+
+        # Find availability windows for this employee on the shift date
+        avail_result = await db.execute(
+            select(EmployeeAvailability).where(
+                EmployeeAvailability.employee_id == emp_id,
+                EmployeeAvailability.year == shift_date.year,
+                EmployeeAvailability.month == shift_date.month,
+                EmployeeAvailability.day == shift_date.day,
+            )
+        )
+        avail_rows = avail_result.scalars().all()
+
+        for avail in avail_rows:
+            w_start_hm = avail.start_time.strftime("%H:%M")
+            w_end_hm = avail.end_time.strftime("%H:%M")
+
+            # Check if this window covers (overlaps with) the shift
+            if w_start_hm >= shift_end_hm or w_end_hm <= shift_start_hm:
+                continue  # no overlap
+
+            # This window overlaps — delete it and create remnants
+            await db.delete(avail)
+
+            # Remnant before the shift: window_start .. shift_start
+            if w_start_hm < shift_start_hm:
+                before = EmployeeAvailability(
+                    id=generate_short_id(),
+                    company_id=avail.company_id,
+                    employee_id=emp_id,
+                    year=avail.year,
+                    month=avail.month,
+                    day=avail.day,
+                    start_time=avail.start_time,
+                    end_time=avail.start_time.replace(
+                        hour=shift_start.hour, minute=shift_start.minute, second=0,
+                    ),
+                )
+                db.add(before)
+
+            # Remnant after the shift: shift_end .. window_end
+            if w_end_hm > shift_end_hm:
+                after = EmployeeAvailability(
+                    id=generate_short_id(),
+                    company_id=avail.company_id,
+                    employee_id=emp_id,
+                    year=avail.year,
+                    month=avail.month,
+                    day=avail.day,
+                    start_time=avail.start_time.replace(
+                        hour=shift_end.hour, minute=shift_end.minute, second=0,
+                    ),
+                    end_time=avail.end_time,
+                )
+                db.add(after)
+
+    await db.flush()
 
 
 @router.post("/generate")
@@ -33,6 +123,9 @@ async def generate_schedule(
                 week_start_date=str(body.week_start_date),
                 db=db,
                 template_ids=template_ids,
+                use_local=body.use_local,
+                strategy=body.strategy,
+                num_days=body.num_days,
             ):
                 # Persist a ShiftSchedule row so approve/reject have a record to find
                 loc_id = chunk.get("location_id", "")
@@ -78,7 +171,7 @@ async def generate_schedule(
 
 @router.put("/{schedule_id}/shifts")
 async def update_shifts(
-    schedule_id: uuid.UUID,
+    schedule_id: str,
     body: UpdateShiftsRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
@@ -103,7 +196,7 @@ async def update_shifts(
 
 @router.post("/{schedule_id}/approve", response_model=ShiftScheduleResponse)
 async def approve_schedule(
-    schedule_id: uuid.UUID,
+    schedule_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> ShiftScheduleResponse:
@@ -125,14 +218,50 @@ async def approve_schedule(
     # Create Shift records from the stored raw_llm_output
     if schedule.raw_llm_output:
         try:
+            # Build set of valid role IDs and condensed-role -> member-role mapping
+            from backend.models import Role
+            from backend.models.condensed_role import CondensedRoleMapping
+            role_result = await db.execute(
+                select(Role.id).where(Role.company_id == current_user.company_id)
+            )
+            valid_role_ids: set[str] = {str(r) for r in role_result.scalars().all()}
+
+            crm_result = await db.execute(
+                select(CondensedRoleMapping).join(
+                    CondensedRoleMapping.condensed_role
+                ).where(
+                    CondensedRoleMapping.condensed_role.has(company_id=current_user.company_id)
+                )
+            )
+            # Map condensed_role_id -> first member role_id
+            condensed_to_role: dict[str, str] = {}
+            for crm in crm_result.scalars().all():
+                cid = str(crm.condensed_role_id)
+                if cid not in condensed_to_role:
+                    condensed_to_role[cid] = str(crm.role_id)
+
             shifts_data = json.loads(schedule.raw_llm_output)
             for s in shifts_data:
-                # Skip shifts with missing or invalid required IDs
+                # Skip VACANT placeholders and non-ok shifts
+                if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                    continue
+                # Skip shifts with missing required IDs
                 try:
-                    loc_id = uuid.UUID(s["location_id"]) if isinstance(s["location_id"], str) else s["location_id"]
-                    emp_id = uuid.UUID(s["employee_id"]) if isinstance(s["employee_id"], str) else s["employee_id"]
-                    role_id = uuid.UUID(s["role_id"]) if isinstance(s["role_id"], str) else s["role_id"]
-                except (ValueError, KeyError):
+                    loc_id = s["location_id"]
+                    emp_id = s["employee_id"]
+                    role_id = s["role_id"]
+                except KeyError:
+                    continue
+                if not role_id:
+                    continue
+                # Resolve condensed role IDs to a real role ID
+                if role_id not in valid_role_ids:
+                    role_id = condensed_to_role.get(role_id, role_id)
+                if role_id not in valid_role_ids:
+                    logger.warning(
+                        "Skipping shift with unknown role_id %s (role_name=%s)",
+                        role_id, s.get("role_name", ""),
+                    )
                     continue
                 shift = Shift(
                     company_id=current_user.company_id,
@@ -152,6 +281,13 @@ async def approve_schedule(
                 detail=f"Failed to parse schedule data: {exc}",
             )
 
+        # Subtract consumed hours from employee availability.
+        # For each approved shift, find the overlapping availability window
+        # and split it around the shift (removing only the scheduled hours).
+        await _subtract_availability_for_shifts(
+            db, current_user.company_id, shifts_data,
+        )
+
     await db.commit()
     await db.refresh(schedule)
 
@@ -168,7 +304,7 @@ async def approve_schedule(
 
 @router.post("/{schedule_id}/reject", response_model=ShiftScheduleResponse)
 async def reject_schedule(
-    schedule_id: uuid.UUID,
+    schedule_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> ShiftScheduleResponse:
