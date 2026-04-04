@@ -131,6 +131,31 @@ def _resolve_role_for_employee(
 # ── Endpoints ──
 
 
+@router.get("/approved-dates", response_model=list[str])
+async def list_approved_dates(
+    anchor: date | None = None,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> list[str]:
+    """Return distinct week_start_dates with approved schedules within ±31 days of anchor."""
+    if anchor is None:
+        anchor = date.today()
+    range_start = anchor - timedelta(days=31)
+    range_end = anchor + timedelta(days=31)
+
+    result = await db.execute(
+        select(ShiftSchedule.week_start_date)
+        .where(
+            ShiftSchedule.company_id == current_user.company_id,
+            ShiftSchedule.status == "approved",
+            ShiftSchedule.week_start_date >= range_start,
+            ShiftSchedule.week_start_date <= range_end,
+        )
+        .distinct()
+    )
+    return sorted(d.isoformat() for d in result.scalars().all())
+
+
 @router.get("/approved-schedules", response_model=list[ApprovedScheduleItem])
 async def list_approved_schedules(
     week_start_date: date | None = None,

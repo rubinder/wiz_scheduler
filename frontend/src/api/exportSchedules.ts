@@ -35,6 +35,11 @@ export function listApprovedSchedules(
   return apiFetch<ApprovedScheduleItem[]>(`/export/approved-schedules${qs}`);
 }
 
+export function listApprovedDates(anchor?: string): Promise<string[]> {
+  const qs = anchor ? `?anchor=${anchor}` : "";
+  return apiFetch<string[]>(`/export/approved-dates${qs}`);
+}
+
 export function exportTo7Shifts(
   accessToken: string,
   shiftIds: string[]

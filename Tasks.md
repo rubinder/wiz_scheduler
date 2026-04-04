@@ -733,3 +733,29 @@ The generated `README.md` must include:
 - Do not install new dependencies without updating `backend/requirements.txt` or `frontend/package.json`, per `CLAUDE.md`.
 - Use type hints extensively in all Python code, per `CLAUDE.md`.
 - Use functional components and hooks in all React code, per `CLAUDE.md`.
+
+---
+
+## AWS Deployment Tasks
+
+### Critical (must fix before deploying)
+
+- [x] Rotate leaked API keys (Anthropic, Resend) and confirm `.env` is in `.gitignore`
+- [x] Replace default `SECRET_KEY` with a strong random value; source from AWS Secrets Manager
+- [x] Restrict CORS `allow_origins` to actual production domain (currently `["*"]`)
+
+### Missing infrastructure
+
+- [x] Add health check endpoint (`GET /health`) for ALB/ECS health probes
+- [x] Add `HEALTHCHECK` directive to Dockerfile
+- [x] Add non-root user to Dockerfile
+- [x] Add security headers middleware (X-Frame-Options, CSP, X-Content-Type-Options, etc.)
+- [x] Create Infrastructure as Code (Terraform or CDK) for ECS Fargate, RDS, ALB, Secrets Manager
+- [x] Set up CI/CD pipeline (GitHub Actions) for automated build, test, and deploy
+
+### Needs improvement
+
+- [x] Configure multi-worker uvicorn (`--workers`) or use Gunicorn as process manager
+- [x] Tune SQLAlchemy connection pool (`pool_size`, `max_overflow`)
+- [x] Add structured JSON logging for CloudWatch integration
+- [x] Move seed script out of container startup path (run as one-time operation)

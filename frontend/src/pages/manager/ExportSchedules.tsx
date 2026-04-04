@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ApprovedScheduleItem,
   type Export7ShiftsResult,
   exportTo7Shifts,
+  listApprovedDates,
   listApprovedSchedules,
 } from "../../api/exportSchedules";
 
-function getCurrentMonday(): string {
-  const today = new Date();
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
-  return monday.toISOString().split("T")[0];
+function toDateStr(d: Date): string {
+  return d.toISOString().split("T")[0];
 }
 
 function formatTime(t: string): string {
@@ -33,8 +29,32 @@ function getDayLabel(dateStr: string): string {
   );
 }
 
+/** Build the calendar grid for a given month (year, monthIndex 0-based). */
+function buildMonthGrid(year: number, month: number): (string | null)[][] {
+  const firstDay = new Date(year, month, 1);
+  // Monday=0 .. Sunday=6
+  const startDow = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const weeks: (string | null)[][] = [];
+  let week: (string | null)[] = Array(startDow).fill(null);
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    week.push(toDateStr(new Date(year, month, day)));
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  return weeks;
+}
+
 export default function ExportSchedules() {
-  const [weekStart, setWeekStart] = useState(getCurrentMonday());
+  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
   const [schedules, setSchedules] = useState<ApprovedScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +71,47 @@ export default function ExportSchedules() {
   // Selection state
   const [selectedShifts, setSelectedShifts] = useState<Set<string>>(new Set());
 
+  // Calendar dropdown state
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [viewYear, setViewYear] = useState(
+    () => new Date(selectedDate + "T00:00:00").getFullYear()
+  );
+  const [viewMonth, setViewMonth] = useState(
+    () => new Date(selectedDate + "T00:00:00").getMonth()
+  );
+
+  // Dates that have approved schedules (shown as orange dots on the calendar)
+  const [approvedDates, setApprovedDates] = useState<Set<string>>(new Set());
+
+  const loadApprovedDates = useCallback(async (anchor: string) => {
+    try {
+      const dates = await listApprovedDates(anchor);
+      setApprovedDates(new Set(dates));
+    } catch {
+      // Non-critical — dots just won't show
+    }
+  }, []);
+
+  // Close calendar on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        calendarRef.current &&
+        !calendarRef.current.contains(e.target as Node)
+      ) {
+        setCalendarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listApprovedSchedules(weekStart);
+      const data = await listApprovedSchedules(selectedDate);
       setSchedules(data);
       setSelectedShifts(new Set());
     } catch (err: unknown) {
@@ -67,7 +123,13 @@ export default function ExportSchedules() {
 
   useEffect(() => {
     loadData();
-  }, [weekStart]);
+  }, [selectedDate]);
+
+  // Load approved dates whenever the visible calendar month changes
+  useEffect(() => {
+    const anchor = toDateStr(new Date(viewYear, viewMonth, 15));
+    loadApprovedDates(anchor);
+  }, [viewYear, viewMonth, loadApprovedDates]);
 
   const allShifts = useMemo(
     () => schedules.flatMap((s) => s.shifts),
@@ -173,30 +235,128 @@ export default function ExportSchedules() {
             Export Approved Schedules
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            View approved schedules for the current week. Export to 7Shifts or
-            download as JSONL. We attempt to export the user ID with the role ID
-            it is associated with in the external system (in the case where the
-            role is associated with a few roles).
+            View approved schedules for the selected date. Export to 7Shifts or
+            download as JSONL. Days with an orange dot on the calendar have
+            approved schedules — click any day to view its schedules. We
+            attempt to export the user ID with the role ID it is associated with
+            in the external system (in the case where the role is associated
+            with a few roles).
           </p>
         </div>
       </div>
 
-      {/* Week picker */}
+      {/* Week picker with custom calendar dropdown */}
       <div className="flex items-center gap-4 mb-6">
         <label className="text-sm font-medium text-gray-700">
           Week starting:
         </label>
-        <input
-          type="date"
-          value={weekStart}
-          onChange={(e) => setWeekStart(e.target.value)}
-          className="border rounded px-3 py-1.5 text-sm"
-        />
+        <div className="relative" ref={calendarRef}>
+          <button
+            onClick={() => {
+              const d = new Date(selectedDate + "T00:00:00");
+              setViewYear(d.getFullYear());
+              setViewMonth(d.getMonth());
+              setCalendarOpen((prev) => !prev);
+            }}
+            className="border rounded px-3 py-1.5 text-sm bg-white hover:bg-gray-50 min-w-[160px] text-left"
+          >
+            {getDayLabel(selectedDate)}
+          </button>
+
+          {calendarOpen && (
+            <div className="absolute z-50 mt-1 bg-white rounded-lg shadow-lg border p-3 w-[280px]">
+              {/* Month/year nav */}
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  onClick={() => {
+                    if (viewMonth === 0) {
+                      setViewMonth(11);
+                      setViewYear((y) => y - 1);
+                    } else {
+                      setViewMonth((m) => m - 1);
+                    }
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                >
+                  &larr;
+                </button>
+                <span className="text-sm font-semibold text-gray-800">
+                  {new Date(viewYear, viewMonth).toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+                <button
+                  onClick={() => {
+                    if (viewMonth === 11) {
+                      setViewMonth(0);
+                      setViewYear((y) => y + 1);
+                    } else {
+                      setViewMonth((m) => m + 1);
+                    }
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                >
+                  &rarr;
+                </button>
+              </div>
+
+              {/* Day-of-week headers */}
+              <div className="grid grid-cols-7 mb-1">
+                {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+                  <div
+                    key={d}
+                    className="text-center text-[10px] font-medium text-gray-400 py-1"
+                  >
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              {buildMonthGrid(viewYear, viewMonth).map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7">
+                  {week.map((day, di) => {
+                    if (!day) {
+                      return <div key={`empty-${di}`} className="h-9" />;
+                    }
+
+                    const todayStr = toDateStr(new Date());
+                    const isToday = day === todayStr;
+                    const isSelected = day === selectedDate;
+                    const hasApproved = approvedDates.has(day);
+
+                    let cellStyle = "hover:bg-gray-100 text-gray-700";
+                    if (isSelected) {
+                      cellStyle = "bg-indigo-600 text-white font-semibold";
+                    }
+
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => {
+                          setSelectedDate(day);
+                          setCalendarOpen(false);
+                        }}
+                        className={`relative flex flex-col items-center justify-center h-9 rounded text-sm transition-colors ${cellStyle} ${isToday ? "ring-2 ring-indigo-400" : ""}`}
+                      >
+                        <span>{new Date(day + "T00:00:00").getDate()}</span>
+                        {hasApproved && (
+                          <span className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-orange-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button
-          onClick={() => setWeekStart(getCurrentMonday())}
+          onClick={() => setSelectedDate(toDateStr(new Date()))}
           className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
         >
-          This Week
+          Today
         </button>
       </div>
 
