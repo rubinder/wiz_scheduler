@@ -9,6 +9,8 @@ import {
   blocksToScheduleJson,
   scheduleJsonToBlocks,
 } from "../../components/shared/ShiftCalendar";
+import DemoGuard from "../../components/shared/DemoGuard";
+import { useLanguage } from "../../i18n/LanguageContext";
 import type { CondensedRole, Location, Role, ShiftTemplate } from "../../types";
 
 // ── types ──
@@ -46,14 +48,14 @@ function isOvernight(start: string, end: string): boolean {
 
 // ── Color palette for roles ──
 const ROLE_COLORS = [
-  "bg-blue-100 text-blue-800 border-blue-300",
-  "bg-emerald-100 text-emerald-800 border-emerald-300",
-  "bg-purple-100 text-purple-800 border-purple-300",
-  "bg-orange-100 text-orange-800 border-orange-300",
-  "bg-pink-100 text-pink-800 border-pink-300",
-  "bg-cyan-100 text-cyan-800 border-cyan-300",
-  "bg-yellow-100 text-yellow-800 border-yellow-300",
-  "bg-red-100 text-red-800 border-red-300",
+  "bg-blue-500/15 text-blue-300 border-blue-400/20",
+  "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
+  "bg-purple-500/15 text-purple-300 border-purple-400/20",
+  "bg-orange-500/15 text-orange-300 border-orange-400/20",
+  "bg-pink-500/15 text-pink-300 border-pink-400/20",
+  "bg-cyan-500/15 text-cyan-300 border-cyan-400/20",
+  "bg-yellow-500/15 text-yellow-300 border-yellow-400/20",
+  "bg-red-500/15 text-red-300 border-red-400/20",
 ];
 
 // ── Shift List Component ──
@@ -73,6 +75,8 @@ function ShiftList({
   onDelete?: (id: string) => void;
   readonly?: boolean;
 }) {
+  const { t } = useLanguage();
+
   // Only show days that have shifts
   const daysWithShifts = days.filter((day) =>
     shifts.some((s) => s.day === day)
@@ -80,7 +84,7 @@ function ShiftList({
 
   if (shifts.length === 0) {
     return (
-      <p className="text-sm text-gray-400 italic py-2">No shifts added yet.</p>
+      <p className="text-sm text-gray-500 italic py-2">{t.shiftTemplates.noShiftsYet}</p>
     );
   }
 
@@ -92,14 +96,14 @@ function ShiftList({
         const rolesInDay = [...new Set(dayShifts.map((s) => s.role_name))];
 
         return (
-          <div key={day} className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-              <span className="text-sm font-semibold text-gray-700">{day}</span>
-              <span className="text-xs text-gray-400 ml-2">
-                {dayShifts.length} shift{dayShifts.length !== 1 ? "s" : ""}
+          <div key={day} className="border border-white/[0.08] rounded-lg overflow-hidden">
+            <div className="bg-white/[0.04] px-4 py-2 border-b border-white/[0.08]">
+              <span className="text-sm font-semibold text-gray-300">{day}</span>
+              <span className="text-xs text-gray-500 ml-2">
+                {dayShifts.length} {dayShifts.length !== 1 ? t.common.shifts : t.common.shift}
               </span>
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-white/[0.06]">
               {rolesInDay.map((roleName) => {
                 const roleShifts = dayShifts.filter((s) => s.role_name === roleName);
                 const colorClass = roleColorMap.get(roleShifts[0]?.role_id ?? "") ?? ROLE_COLORS[0];
@@ -107,17 +111,17 @@ function ShiftList({
                 return roleShifts.map((shift) => (
                   <div
                     key={shift.id}
-                    className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50"
+                    className="flex items-center gap-3 px-4 py-2 hover:bg-white/[0.03]"
                   >
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}
                     >
                       {shift.role_name}
                     </span>
-                    <span className="text-sm text-gray-700 font-medium">
+                    <span className="text-sm text-gray-300 font-medium">
                       {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                       {isOvernight(shift.start_time, shift.end_time) && (
-                        <span className="text-xs text-amber-600 ml-1">(+1 day)</span>
+                        <span className="text-xs text-amber-400 ml-1">(+1 {t.common.day})</span>
                       )}
                     </span>
                     <span className="text-xs text-gray-500">
@@ -127,15 +131,15 @@ function ShiftList({
                       <div className="ml-auto flex gap-2">
                         <button
                           onClick={() => onEdit?.(shift)}
-                          className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                          className="text-purple-400 hover:text-purple-300 text-xs font-medium"
                         >
-                          Edit
+                          {t.common.edit}
                         </button>
                         <button
                           onClick={() => onDelete?.(shift.id)}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
+                          className="text-red-400 hover:text-red-300 text-xs font-medium"
                         >
-                          Remove
+                          {t.common.remove}
                         </button>
                       </div>
                     )}
@@ -165,6 +169,7 @@ function ShiftForm({
   onSave: (shift: ShiftEntry) => void;
   onCancel: () => void;
 }) {
+  const { t } = useLanguage();
   const [day, setDay] = useState(initial?.day ?? days[0] ?? "Monday");
   const [roleId, setRoleId] = useState(initial?.role_id ?? "");
   const [startTime, setStartTime] = useState(initial?.start_time ?? "09:00");
@@ -187,14 +192,14 @@ function ShiftForm({
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+    <div className="glass-card p-4 border border-white/[0.08]">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Day</label>
+          <label className="glass-label-sm">{t.common.day}</label>
           <select
             value={day}
             onChange={(e) => setDay(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="glass-input w-full"
           >
             {days.map((d) => (
               <option key={d} value={d}>{d}</option>
@@ -202,68 +207,68 @@ function ShiftForm({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+          <label className="glass-label-sm">{t.common.role}</label>
           <select
             value={roleId}
             onChange={(e) => setRoleId(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="glass-input w-full"
           >
-            <option value="">-- select role --</option>
+            <option value="">{t.shiftTemplates.selectRole}</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Headcount</label>
+          <label className="glass-label-sm">{t.shiftTemplates.headcount}</label>
           <input
             type="number"
             min={1}
             max={50}
             value={headcount}
             onChange={(e) => setHeadcount(Number(e.target.value))}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="glass-input w-full"
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 mt-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
+          <label className="glass-label-sm">{t.common.startTime}</label>
           <input
             type="time"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="glass-input w-full"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            End Time
+          <label className="glass-label-sm">
+            {t.common.endTime}
             {isOvernight(startTime, endTime) && (
-              <span className="text-amber-600 ml-1">(next day)</span>
+              <span className="text-amber-400 ml-1">{t.shiftTemplates.nextDay}</span>
             )}
           </label>
           <input
             type="time"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            className="glass-input w-full"
           />
         </div>
       </div>
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-3">
         <button
           onClick={handleSubmit}
           disabled={!roleId}
-          className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+          className="glass-btn-primary disabled:opacity-50"
         >
-          {initial ? "Update Shift" : "Add Shift"}
+          {initial ? t.shiftTemplates.updateShift : t.shiftTemplates.addShiftBtn}
         </button>
         <button
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+          className="glass-btn-secondary"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </div>
@@ -285,6 +290,7 @@ function ShiftEditor({
   mode: "weekday-weekend" | "every-day";
   onExpandToEveryDay?: () => void;
 }) {
+  const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [editingShift, setEditingShift] = useState<ShiftEntry | null>(null);
 
@@ -318,26 +324,26 @@ function ShiftEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-gray-700">
-          Weekly Schedule
-          <span className="ml-2 text-xs font-normal text-gray-400">
-            ({mode === "weekday-weekend" ? "Weekday / Weekend" : "Every Day"})
+        <span className="text-sm font-medium text-gray-300">
+          {t.shiftTemplates.weeklySchedule}
+          <span className="ml-2 text-xs font-normal text-gray-500">
+            ({mode === "weekday-weekend" ? t.shiftTemplates.weekdayWeekendMode : t.shiftTemplates.everyDayMode})
           </span>
         </span>
         {mode === "weekday-weekend" && onExpandToEveryDay && (
           <button
             onClick={onExpandToEveryDay}
-            className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 text-xs font-medium"
+            className="px-3 py-1.5 bg-purple-500/15 text-purple-300 rounded hover:bg-purple-500/25 text-xs font-medium transition-colors"
           >
-            Expand to Every Day
+            {t.shiftTemplates.expandToEveryDay}
           </button>
         )}
         {!showForm && !editingShift && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-medium"
+            className="glass-btn-success px-3 py-1.5 text-xs"
           >
-            + Add Shift
+            {t.shiftTemplates.addShift}
           </button>
         )}
       </div>
@@ -420,6 +426,7 @@ function blocksToEntries(
 }
 
 export default function ShiftTemplates() {
+  const { t } = useLanguage();
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -570,54 +577,56 @@ export default function ShiftTemplates() {
   return (
     <div>
       <div className="relative flex items-center mb-6">
-        <h1 className="text-2xl font-bold">Shift Templates</h1>
+        <h1 className="text-2xl font-bold text-white">{t.shiftTemplates.title}</h1>
         {!showAdd && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="ml-6 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm font-medium"
-          >
-            + Add Template
-          </button>
+          <DemoGuard>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="glass-btn-primary ml-6"
+            >
+              {t.shiftTemplates.addTemplate}
+            </button>
+          </DemoGuard>
         )}
       </div>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
           <button
             onClick={() => setError("")}
-            className="ml-2 text-red-500 hover:text-red-700"
+            className="ml-2 text-red-400 hover:text-red-300"
           >
-            dismiss
+            {t.common.dismiss}
           </button>
         </div>
       )}
 
       {/* Add form */}
       {showAdd && (
-        <div className="bg-green-50 rounded-lg shadow p-6 mb-6 space-y-4">
-          <h2 className="text-lg font-semibold">New Shift Template</h2>
+        <div className="bg-emerald-500/[0.07] backdrop-blur-xl border border-emerald-400/[0.12] rounded-xl p-6 mb-6 space-y-4">
+          <h2 className="text-lg font-semibold text-white">{t.shiftTemplates.newTemplate}</h2>
 
           {/* Step 1: Choose mode */}
           {addMode === "choose" && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">Choose a schedule layout:</p>
+              <p className="text-sm text-gray-400">{t.shiftTemplates.chooseLayout}</p>
               <div className="flex gap-4 max-w-[600px]">
                 <button
                   onClick={() => setAddMode("weekday-weekend")}
-                  className="flex-1 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-indigo-400 transition-colors text-left"
+                  className="flex-1 p-4 bg-white/[0.05] border-2 border-white/[0.08] rounded-xl hover:border-purple-400/30 transition-colors text-left"
                 >
-                  <div className="font-semibold text-gray-800 mb-1">Weekday &amp; Weekend</div>
+                  <div className="font-semibold text-white mb-1">{t.shiftTemplates.weekdayWeekend}</div>
                   <p className="text-xs text-gray-500">
-                    Define shifts for weekdays and weekends separately. Can expand to every day later.
+                    {t.shiftTemplates.weekdayWeekendDesc}
                   </p>
                 </button>
                 <button
                   onClick={() => setAddMode("every-day")}
-                  className="flex-1 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-indigo-400 transition-colors text-left"
+                  className="flex-1 p-4 bg-white/[0.05] border-2 border-white/[0.08] rounded-xl hover:border-purple-400/30 transition-colors text-left"
                 >
-                  <div className="font-semibold text-gray-800 mb-1">Every Day</div>
+                  <div className="font-semibold text-white mb-1">{t.shiftTemplates.everyDay}</div>
                   <p className="text-xs text-gray-500">
-                    Define shifts individually for each day of the week (Mon-Sun).
+                    {t.shiftTemplates.everyDayDesc}
                   </p>
                 </button>
               </div>
@@ -627,9 +636,9 @@ export default function ShiftTemplates() {
                   setAddMode("choose");
                   setAddShifts([]);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                className="glass-btn-secondary"
               >
-                Cancel
+                {t.common.cancel}
               </button>
             </div>
           )}
@@ -639,23 +648,23 @@ export default function ShiftTemplates() {
             <>
               <div className="flex gap-4 flex-wrap">
                 <div style={{ maxWidth: 450 }} className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <label className="glass-label-sm">{t.common.name}</label>
                   <input
                     type="text"
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                    placeholder="e.g. Weekday Standard"
+                    className="glass-input w-full"
+                    placeholder={t.shiftTemplates.namePlaceholder}
                   />
                 </div>
                 <div style={{ maxWidth: 500 }} className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <label className="glass-label-sm">{t.common.location}</label>
                   <select
                     value={addLocationId}
                     onChange={(e) => setAddLocationId(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    className="glass-input w-full"
                   >
-                    <option value="">-- select --</option>
+                    <option value="">{t.common.select}</option>
                     {locations.map((l) => (
                       <option key={l.id} value={l.id}>{l.name}</option>
                     ))}
@@ -674,9 +683,9 @@ export default function ShiftTemplates() {
               <div className="flex gap-2">
                 <button
                   onClick={handleAdd}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
+                  className="glass-btn-success"
                 >
-                  Create
+                  {t.common.create}
                 </button>
                 <button
                   onClick={() => {
@@ -686,9 +695,9 @@ export default function ShiftTemplates() {
                     setAddName("");
                     setAddLocationId("");
                   }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                  className="glass-btn-secondary"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
             </>
@@ -698,33 +707,33 @@ export default function ShiftTemplates() {
 
       {/* Templates list */}
       <div className="space-y-4">
-        {templates.map((t) => {
-          const isEditing = editingId === t.id;
+        {templates.map((tmpl) => {
+          const isEditing = editingId === tmpl.id;
           const displayShifts = blocksToEntries(
-            scheduleJsonToBlocks(t.weekly_schedule as Record<string, unknown>[])
+            scheduleJsonToBlocks(tmpl.weekly_schedule as Record<string, unknown>[])
           );
 
           return (
-            <div key={t.id} className="bg-white rounded-lg shadow p-6">
+            <div key={tmpl.id} className="glass-card p-6">
               {isEditing ? (
                 <div className="space-y-4">
                   <div className="flex gap-4 flex-wrap">
                     <div style={{ maxWidth: 450 }} className="flex-1 min-w-[200px]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <label className="glass-label-sm">{t.common.name}</label>
                       <input
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        className="glass-input w-full"
                       />
                     </div>
                     <div style={{ maxWidth: 500 }} className="flex-1 min-w-[200px]">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                      <label className="glass-label-sm">{t.common.location}</label>
                       <input
                         type="text"
                         disabled
                         value={locMap.get(editLocationId) ?? editLocationId}
-                        className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-500"
+                        className="w-full bg-white/[0.03] text-gray-500 border-white/[0.06] border rounded px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
@@ -739,15 +748,15 @@ export default function ShiftTemplates() {
                   <div className="flex gap-2">
                     <button
                       onClick={saveEdit}
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
+                      className="glass-btn-success"
                     >
-                      Save
+                      {t.common.save}
                     </button>
                     <button
                       onClick={cancelEdit}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                      className="glass-btn-secondary"
                     >
-                      Cancel
+                      {t.common.cancel}
                     </button>
                   </div>
                 </div>
@@ -755,24 +764,28 @@ export default function ShiftTemplates() {
                 <div>
                   <div className="flex items-center mb-3 gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold">{t.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        Location: {locMap.get(t.location_id) ?? t.location_id}
+                      <h3 className="text-lg font-semibold text-white">{tmpl.name}</h3>
+                      <p className="text-sm text-gray-400">
+                        {t.shiftTemplates.locationLabel} {locMap.get(tmpl.location_id) ?? tmpl.location_id}
                       </p>
                     </div>
                     <div className="flex gap-2 ml-auto">
-                      <button
-                        onClick={() => startEdit(t)}
-                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(t.id)}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
-                      >
-                        Delete
-                      </button>
+                      <DemoGuard>
+                        <button
+                          onClick={() => startEdit(tmpl)}
+                          className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                        >
+                          {t.common.edit}
+                        </button>
+                      </DemoGuard>
+                      <DemoGuard>
+                        <button
+                          onClick={() => handleDelete(tmpl.id)}
+                          className="text-red-400 hover:text-red-300 text-sm font-medium"
+                        >
+                          {t.common.delete}
+                        </button>
+                      </DemoGuard>
                     </div>
                   </div>
                   <ShiftDisplay shifts={displayShifts} />
@@ -783,7 +796,7 @@ export default function ShiftTemplates() {
         })}
         {templates.length === 0 && !showAdd && (
           <p className="text-gray-500 text-sm">
-            No shift templates yet. Create one above.
+            {t.shiftTemplates.noTemplatesYet}
           </p>
         )}
       </div>

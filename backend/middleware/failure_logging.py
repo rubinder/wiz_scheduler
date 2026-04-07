@@ -37,7 +37,6 @@ class FailureLoggingMiddleware(BaseHTTPMiddleware):
                 detail={
                     "method": request.method,
                     "path": request.url.path,
-                    "query": str(request.url.query),
                     "traceback": traceback.format_exc(),
                 },
                 company_id=company_id,
@@ -53,7 +52,6 @@ class FailureLoggingMiddleware(BaseHTTPMiddleware):
                 detail={
                     "method": request.method,
                     "path": request.url.path,
-                    "query": str(request.url.query),
                     "status_code": response.status_code,
                 },
                 company_id=company_id,

@@ -1,7 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
+import { googleAuth, googleLink } from "../api/googleAuth";
+import LanguageSelector from "../components/shared/LanguageSelector";
 import { useAuth } from "../hooks/useAuth";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useLanguage } from "../i18n/LanguageContext";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, config: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
 
 interface OwnershipGroupOption {
   id: string;
@@ -10,6 +27,8 @@ interface OwnershipGroupOption {
 
 export default function Login() {
   const { login } = useAuth();
+  const { t } = useLanguage();
+  useDocumentTitle("Sign In");
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +39,57 @@ export default function Login() {
   const [ownershipGroups, setOwnershipGroups] = useState<
     OwnershipGroupOption[] | null
   >(null);
+
+  // Google link flow state
+  const [googleLinkState, setGoogleLinkState] = useState<{
+    idToken: string;
+    email: string;
+    googleName: string;
+  } | null>(null);
+  const [linkPassword, setLinkPassword] = useState("");
+
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  const handleGoogleCallback = async (response: { credential: string }) => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await googleAuth(response.credential);
+      if (result.access_token) {
+        localStorage.setItem("token", result.access_token);
+        window.location.href = "/manager/dashboard";
+      } else if (result.link_required) {
+        setGoogleLinkState({
+          idToken: response.credential,
+          email: result.email || "",
+          googleName: result.google_name || "",
+        });
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google?.accounts?.id) return;
+
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCallback,
+    });
+
+    if (googleBtnRef.current) {
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "filled_black",
+        size: "large",
+        width: "100%",
+        text: "signin_with",
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,25 +132,47 @@ export default function Login() {
     }
   };
 
+  const handleGoogleLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleLinkState) return;
+    setError("");
+    setLoading(true);
+    try {
+      const result = await googleLink(
+        googleLinkState.idToken,
+        googleLinkState.email,
+        linkPassword,
+      );
+      localStorage.setItem("token", result.access_token);
+      window.location.href = "/manager/dashboard";
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to link account");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6 flex items-center justify-center gap-2">
-          Sign in to Wiz Scheduler <img src="/favicon.svg" alt="" className="w-8 h-8 inline" />
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="glass-card p-8 w-full max-w-md">
+        <div className="flex justify-end mb-4">
+          <LanguageSelector />
+        </div>
+        <h1 className="text-2xl font-bold text-center mb-6 text-white flex items-center justify-center gap-2">
+          {t.login.title} <img src="/favicon.svg" alt="" className="w-8 h-8 inline" />
         </h1>
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+          <div className="glass-alert-error mb-4">
             {error}
           </div>
         )}
 
         {/* Ownership group selection */}
-        {ownershipGroups && (
+        {ownershipGroups && !googleLinkState && (
           <div className="mb-4">
-            <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-              <p className="text-sm font-medium text-gray-700 mb-3">
-                Your account is associated with multiple organizations. Please
-                select which one to sign in to:
+            <div className="p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
+              <p className="text-sm font-medium text-gray-300 mb-3">
+                {t.login.multiOrgPrompt}
               </p>
               <div className="space-y-2">
                 {ownershipGroups.map((group) => (
@@ -88,9 +180,9 @@ export default function Login() {
                     key={group.id}
                     onClick={() => handleSelectGroup(group.id)}
                     disabled={loading}
-                    className="w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                    className="w-full text-left px-4 py-3 bg-white/[0.05] border border-white/[0.08] rounded-lg hover:border-purple-400/40 hover:bg-white/[0.08] transition-colors disabled:opacity-50"
                   >
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-gray-300">
                       {group.name}
                     </span>
                   </button>
@@ -98,59 +190,108 @@ export default function Login() {
               </div>
               <button
                 onClick={() => setOwnershipGroups(null)}
-                className="mt-3 text-xs text-gray-500 hover:text-gray-700"
+                className="mt-3 text-xs text-gray-500 hover:text-gray-400"
               >
-                Back to login
+                {t.login.backToLogin}
               </button>
             </div>
           </div>
         )}
 
-        {/* Login form — hidden when choosing ownership group */}
-        {!ownershipGroups && (
+        {/* Google account linking dialog */}
+        {googleLinkState && (
+          <div className="space-y-4">
+            <div className="p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
+              <p className="text-sm text-gray-300">
+                {t.login.googleLinkPrompt.replace("{email}", googleLinkState.email)}
+              </p>
+            </div>
+            <form onSubmit={handleGoogleLink} className="space-y-4">
+              <div>
+                <label className="glass-label">{t.common.email}</label>
+                <input
+                  type="email"
+                  value={googleLinkState.email}
+                  disabled
+                  className="glass-input w-full bg-white/[0.03] text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="glass-label">{t.common.password}</label>
+                <input
+                  type="password"
+                  required
+                  value={linkPassword}
+                  onChange={(e) => setLinkPassword(e.target.value)}
+                  className="glass-input w-full"
+                  placeholder={t.login.enterPasswordToLink}
+                />
+              </div>
+              <button type="submit" disabled={loading} className="glass-btn-primary w-full">
+                {loading ? t.login.linking : t.login.linkAndSignIn}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setGoogleLinkState(null); setLinkPassword(""); }}
+                className="glass-btn-secondary w-full"
+              >
+                {t.login.backToLogin}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Login form — hidden when choosing ownership group or linking Google */}
+        {!ownershipGroups && !googleLinkState && (
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="glass-label">
+                  {t.common.email}
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="glass-input w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                <label className="glass-label">
+                  {t.common.password}
                 </label>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  className="glass-input w-full"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                className="glass-btn-primary w-full"
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? t.login.signingIn : t.login.signIn}
               </button>
             </form>
-            <p className="mt-4 text-center text-sm text-gray-600">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-indigo-600 hover:underline">
-                Register
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 border-t border-white/[0.08]" />
+              <span className="text-xs text-gray-500">{t.login.orContinueWith}</span>
+              <div className="flex-1 border-t border-white/[0.08]" />
+            </div>
+            <div ref={googleBtnRef} className="w-full flex justify-center" />
+            <p className="mt-4 text-center text-sm text-gray-400">
+              {t.login.noAccount}{" "}
+              <Link to="/register" className="text-purple-400 hover:text-purple-300">
+                {t.login.register}
               </Link>
             </p>
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="mt-6 p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Demo Credentials
+                {t.login.demoCredentials}
               </p>
               <button
                 type="button"
@@ -158,9 +299,9 @@ export default function Login() {
                   setEmail("abc@example.com");
                   setPassword("example");
                 }}
-                className="w-full text-left text-sm text-gray-700 hover:bg-gray-100 rounded p-2 transition-colors"
+                className="w-full text-left text-sm text-gray-300 hover:bg-white/[0.06] rounded p-2 transition-colors"
               >
-                <span className="font-medium">Manager:</span> abc@example.com / example
+                <span className="font-medium">{t.login.manager}:</span> abc@example.com / example
               </button>
               <button
                 type="button"
@@ -168,13 +309,26 @@ export default function Login() {
                   setEmail("employee1@example.com");
                   setPassword("example");
                 }}
-                className="w-full text-left text-sm text-gray-700 hover:bg-gray-100 rounded p-2 transition-colors"
+                className="w-full text-left text-sm text-gray-300 hover:bg-white/[0.06] rounded p-2 transition-colors"
               >
-                <span className="font-medium">Employee:</span> employee1@example.com / example
+                <span className="font-medium">{t.login.employeeLabel}:</span> employee1@example.com / example
               </button>
             </div>
           </>
         )}
+        <div className="mt-4 pt-4 border-t border-white/[0.06] text-center text-xs text-gray-500 space-x-2">
+          <Link to="/privacy-policy" className="text-purple-400 hover:text-purple-300">
+            {t.gdpr.privacyPolicy}
+          </Link>
+          <span>|</span>
+          <Link to="/terms" className="text-purple-400 hover:text-purple-300">
+            {t.gdpr.termsOfService}
+          </Link>
+          <span>|</span>
+          <Link to="/dpa" className="text-purple-400 hover:text-purple-300">
+            {t.gdpr.dpa}
+          </Link>
+        </div>
       </div>
     </div>
   );

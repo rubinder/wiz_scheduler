@@ -2,36 +2,40 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { listEmployees } from "../../api/employees";
 import { useAuth } from "../../hooks/useAuth";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: string;
 }
 
 const baseManagerLinks: NavItem[] = [
-  { to: "/manager/dashboard", label: "Dashboard" },
-  { to: "/manager/company", label: "Company" },
-  { to: "/manager/regions", label: "Regions" },
-  { to: "/manager/locations", label: "Locations" },
-  { to: "/manager/roles", label: "Roles" },
-  { to: "/manager/role-equivalents", label: "Role Equivalents" },
-  { to: "/manager/employees", label: "Employees" },
-  { to: "/manager/employee-onboarding", label: "Employee Onboarding" },
+  { to: "/manager/dashboard", labelKey: "dashboard" },
+  { to: "/manager/company", labelKey: "company" },
+  { to: "/manager/regions", labelKey: "regions" },
+  { to: "/manager/locations", labelKey: "locations" },
+  { to: "/manager/roles", labelKey: "roles" },
+  { to: "/manager/role-equivalents", labelKey: "roleEquivalents" },
+  { to: "/manager/employees", labelKey: "employees" },
+  { to: "/manager/employee-onboarding", labelKey: "employeeOnboarding" },
 ];
 
 const postEmployeeManagerLinks: NavItem[] = [
-  { to: "/manager/employee-association", label: "Employee Availability & Association" },
-  { to: "/manager/shift-templates", label: "Shift Templates" },
-  { to: "/manager/schedule", label: "Schedule" },
-  { to: "/manager/export-schedules", label: "Export Approved Schedules" },
+  { to: "/manager/employee-association", labelKey: "employeeAssociation" },
+  { to: "/manager/shift-templates", labelKey: "shiftTemplates" },
+  { to: "/manager/schedule", labelKey: "schedule" },
+  { to: "/manager/export-schedules", labelKey: "exportSchedules" },
+  { to: "/manager/data-privacy", labelKey: "dataPrivacy" },
 ];
 
 const employeeLinks: NavItem[] = [
-  { to: "/employee/availability", label: "My Availability" },
+  { to: "/employee/availability", labelKey: "myAvailability" },
+  { to: "/employee/data-privacy", labelKey: "dataPrivacy" },
 ];
 
 export default function Sidebar() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const isManager = user?.user_role === "manager";
   const [hasEmployees, setHasEmployees] = useState(false);
 
@@ -49,9 +53,9 @@ export default function Sidebar() {
     : employeeLinks;
 
   return (
-    <aside className="w-64 bg-gray-900 text-white min-h-screen flex flex-col">
-      <div className="p-5 border-b border-gray-700">
-        <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">Wiz Scheduler <img src="/favicon.svg" alt="" className="w-7 h-7" /></h1>
+    <aside className="w-64 bg-white/[0.03] backdrop-blur-2xl border-r border-white/[0.06] text-white min-h-screen flex flex-col">
+      <div className="p-5 border-b border-white/[0.06]">
+        <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">{t.common.appName} <img src="/favicon.svg" alt="" className="w-7 h-7" /></h1>
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {links.map((link) => (
@@ -59,19 +63,19 @@ export default function Sidebar() {
             key={link.to}
             to={link.to}
             className={({ isActive }) =>
-              `block px-3 py-2 rounded text-sm font-medium transition-colors ${
+              `block px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                  ? "bg-purple-600/40 text-white border border-purple-400/20 shadow-lg shadow-purple-900/20"
+                  : "text-gray-400 hover:bg-white/[0.06] hover:text-white"
               }`
             }
           >
-            {link.label}
+            {t.nav[link.labelKey as keyof typeof t.nav]}
           </NavLink>
         ))}
       </nav>
       {user && (
-        <div className="p-4 border-t border-gray-700 text-sm text-gray-400">
+        <div className="p-4 border-t border-white/[0.06] text-sm text-gray-500">
           {user.full_name ?? user.email}
         </div>
       )}

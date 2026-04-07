@@ -74,7 +74,27 @@ resource "aws_lb_target_group" "app" {
 }
 
 # -----------------------------------------------------------------------------
-# HTTP Listener (add HTTPS listener when certificate is available)
+# HTTPS Listener (when domain/certificate is configured)
+# -----------------------------------------------------------------------------
+
+resource "aws_lb_listener" "https" {
+  count             = var.domain_name != "" ? 1 : 0
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.main[0].certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+
+  tags = { Name = "${var.app_name}-https-listener" }
+}
+
+# -----------------------------------------------------------------------------
+# HTTP Listener — redirects to HTTPS when domain is set, otherwise forwards
 # -----------------------------------------------------------------------------
 
 resource "aws_lb_listener" "http" {
@@ -83,8 +103,20 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    type = var.domain_name != "" ? "redirect" : "forward"
+
+    # Forward (no domain)
+    target_group_arn = var.domain_name == "" ? aws_lb_target_group.app.arn : null
+
+    # Redirect to HTTPS (with domain)
+    dynamic "redirect" {
+      for_each = var.domain_name != "" ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
   }
 
   tags = { Name = "${var.app_name}-http-listener" }

@@ -88,9 +88,9 @@ def load_location_context(state: SchedulingState) -> Dict[str, Any]:
         state["employees"], location_id
     )
     logger.warning(
-        "[SCHED-TRACE]   employees at location: %d (names: %s)",
+        "[SCHED-TRACE]   employees at location: %d (ids: %s)",
         len(all_location_employees),
-        [e.get("full_name", "") for e in all_location_employees],
+        [e.get("id", "") for e in all_location_employees],
     )
 
     # Further filter to only employees who have at least one required role
@@ -105,7 +105,7 @@ def load_location_context(state: SchedulingState) -> Dict[str, Any]:
             else:
                 logger.warning(
                     "[SCHED-TRACE]   FILTERED OUT %s — roles %s don't match required %s",
-                    emp.get("full_name", ""), emp_roles, required_role_names,
+                    emp.get("id", ""), emp_roles, required_role_names,
                 )
         location_employees = role_relevant
 
@@ -123,7 +123,7 @@ def load_location_context(state: SchedulingState) -> Dict[str, Any]:
         emp_roles = [r.get("role_name", "") for r in emp.get("roles", [])]
         logger.warning(
             "[SCHED-TRACE]   employee %s: roles=%s, avail_windows=%d (was %d before draft filter)",
-            emp.get("full_name", ""), emp_roles, windows_after, windows_before,
+            emp.get("id", ""), emp_roles, windows_after, windows_before,
         )
 
     return {
@@ -154,9 +154,8 @@ def build_prompt(state: SchedulingState) -> Dict[str, Any]:
         num_days=state.get("num_days", 7),
     )
     logger.warning(
-        "[SCHED-TRACE] build_prompt: location=%s prompt_length=%d chars\n"
-        "--- PROMPT START ---\n%s\n--- PROMPT END ---",
-        location.get("name", ""), len(prompt), prompt,
+        "[SCHED-TRACE] build_prompt: location=%s prompt_length=%d chars",
+        location.get("name", ""), len(prompt),
     )
     return {"current_prompt": prompt}
 
@@ -177,10 +176,6 @@ SHIFT_SCHEDULE_TOOL: Dict[str, Any] = {
                             "type": "string",
                             "description": "UUID of the employee.",
                         },
-                        "employee_name": {
-                            "type": "string",
-                            "description": "Full name of the employee.",
-                        },
                         "role_name": {
                             "type": "string",
                             "description": "Role name from the shift template.",
@@ -200,7 +195,6 @@ SHIFT_SCHEDULE_TOOL: Dict[str, Any] = {
                     },
                     "required": [
                         "employee_id",
-                        "employee_name",
                         "role_name",
                         "date",
                         "start_time",
@@ -391,7 +385,7 @@ def parse_schedule(state: SchedulingState) -> Dict[str, Any]:
         shifts.append(shift)
         logger.warning(
             "[SCHED-TRACE]   parsed shift: %s -> %s on %s %s-%s (role_id=%s)",
-            shift["employee_name"], shift["role_name"], shift["date"],
+            shift["employee_id"], shift["role_name"], shift["date"],
             shift["start_time"], shift["end_time"], shift["role_id"],
         )
 
@@ -423,6 +417,13 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
 
     # Build lookup maps
     emp_by_id: Dict[str, Dict[str, Any]] = {str(e["id"]): e for e in employees}
+
+    # Resolve real employee names from IDs (LLM receives pseudonymized names)
+    for shift in shifts:
+        eid = shift.get("employee_id", "")
+        emp = emp_by_id.get(eid)
+        if emp:
+            shift["employee_name"] = emp.get("full_name", shift.get("employee_name", ""))
     role_equivalents: Dict[str, List[str]] = state.get("role_equivalents", {})
 
     # Build a complete role_id equivalence map that includes:
@@ -500,7 +501,7 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
             name_match = shift["role_name"] in emp_role_names_by_id.get(emp_id, set())
             if not id_match and not name_match:
                 issues.append(
-                    f"employee {shift['employee_name']} not qualified for role {shift['role_name']} "
+                    f"employee {shift['employee_id']} not qualified for role {shift['role_name']} "
                     f"(shift_role_id={shift['role_id']}, emp_role_names={emp_role_names_by_id.get(emp_id, set())})"
                 )
 
@@ -536,7 +537,7 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                             f"[{w['start']} to {w['end']}]" for w in emp_windows
                         ]
                         issues.append(
-                            f"employee {shift['employee_name']} not available "
+                            f"employee {shift['employee_id']} not available "
                             f"{shift['start_time']}-{shift['end_time']} "
                             f"(windows: {', '.join(window_details)})"
                         )
@@ -564,18 +565,18 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
             # Drop invalid shifts — unfilled slots will become VACANT in step 5
             detail = "; ".join(issues)
             warnings.append(
-                f"Dropped shift {shift['employee_name']} on {shift['date']} {shift['role_name']}: {detail}"
+                f"Dropped shift {shift['employee_id']} on {shift['date']} {shift['role_name']}: {detail}"
             )
             logger.warning(
                 "[SCHED-TRACE] DROPPED shift: %s -> %s on %s (%s-%s) REASON: %s",
-                shift["employee_name"], shift["role_name"], shift["date"],
+                shift["employee_id"], shift["role_name"], shift["date"],
                 shift["start_time"], shift["end_time"], detail,
             )
         else:
             valid_shifts.append(shift)
             logger.warning(
                 "[SCHED-TRACE] VALID shift: %s -> %s on %s (%s-%s)",
-                shift["employee_name"], shift["role_name"], shift["date"],
+                shift["employee_id"], shift["role_name"], shift["date"],
                 shift["start_time"], shift["end_time"],
             )
 
@@ -719,7 +720,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                 window["start"], window["end"],
             ):
                 conflicts_found.append(
-                    f"Employee {shift['employee_name']} ({emp_id}) has overlapping "
+                    f"Employee {emp_id} has overlapping "
                     f"shift on {shift['date']} {shift['start_time']}-{shift['end_time']} "
                     f"with existing window {window['start']}-{window['end']}"
                 )

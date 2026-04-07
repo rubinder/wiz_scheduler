@@ -5,6 +5,9 @@ export interface RegisterRequest {
   password: string;
   full_name: string;
   company_name: string;
+  privacy_accepted?: boolean;
+  terms_accepted?: boolean;
+  stripe_session_id?: string;
 }
 
 export interface LoginRequest {
@@ -25,6 +28,7 @@ export interface User {
   full_name: string | null;
   user_role: string;
   ownership_group_id: string | null;
+  is_demo: boolean;
 }
 
 // ── Company ──

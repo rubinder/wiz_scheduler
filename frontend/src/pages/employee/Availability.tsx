@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
+import { useLanguage } from "../../i18n/LanguageContext";
 import type { EmployeeAvailability, EmployeeMeProfile } from "../../types";
 
 export default function Availability() {
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<EmployeeMeProfile | null>(null);
   const [availability, setAvailability] = useState<EmployeeAvailability[]>([]);
   const [error, setError] = useState("");
@@ -88,8 +90,8 @@ export default function Availability() {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">My Availability</h1>
-        <p className="text-gray-500">Loading...</p>
+        <h1 className="text-2xl font-bold text-white mb-4">{t.availability.title}</h1>
+        <p className="text-gray-400">{t.common.loading}</p>
       </div>
     );
   }
@@ -97,10 +99,9 @@ export default function Availability() {
   if (!profile) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">My Availability</h1>
-        <p className="text-gray-500">
-          No employee profile found for your account. Please contact your
-          manager.
+        <h1 className="text-2xl font-bold text-white mb-4">{t.availability.title}</h1>
+        <p className="text-gray-400">
+          {t.availability.noProfile}
         </p>
       </div>
     );
@@ -108,24 +109,24 @@ export default function Availability() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">My Availability</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">{t.availability.title}</h1>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
 
       {(profile.roles.length > 0 || profile.locations.length > 0) && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="glass-card p-6 mb-6">
           {profile.roles.length > 0 && (
             <div className="mb-4">
-              <h2 className="text-lg font-semibold mb-3">Your Assigned Roles</h2>
+              <h2 className="text-lg font-semibold text-white mb-3">{t.availability.assignedRoles}</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.roles.map((r) => (
                   <span
                     key={r.role_id}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-500/15 text-purple-300 border border-purple-400/20"
                   >
                     {r.role_name}
                   </span>
@@ -135,12 +136,12 @@ export default function Availability() {
           )}
           {profile.locations.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-3">Your Locations</h2>
+              <h2 className="text-lg font-semibold text-white mb-3">{t.availability.yourLocations}</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.locations.map((l) => (
                   <span
                     key={l.location_id}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
                   >
                     {l.location_name}
                   </span>
@@ -151,91 +152,91 @@ export default function Availability() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Add Availability Window</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Select the days and hours you are available to work.
+      <div className="glass-card p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">{t.availability.addWindow}</h2>
+        <p className="text-sm text-gray-400 mb-4">
+          {t.availability.addWindowDesc}
         </p>
         <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date
+            <label className="glass-label">
+              {t.common.date}
             </label>
             <input
               type="date"
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
+              className="glass-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Time
+            <label className="glass-label">
+              {t.common.startTime}
             </label>
             <input
               type="time"
               required
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
+              className="glass-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              End Time
+            <label className="glass-label">
+              {t.common.endTime}
             </label>
             <input
               type="time"
               required
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2 text-sm"
+              className="glass-input"
             />
           </div>
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+            className="glass-btn-primary disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Add"}
+            {saving ? t.common.saving : t.common.add}
           </button>
         </form>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="glass-card">
+        <table className="glass-table">
+          <thead className="bg-white/[0.04]">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Date
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                {t.common.date}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Start
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                {t.common.start}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                End
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                {t.common.end}
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Actions
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">
+                {t.common.actions}
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-white/[0.06]">
             {availability.map((a) => (
-              <tr key={a.id}>
-                <td className="px-4 py-2 text-sm">
+              <tr key={a.id} className="hover:bg-white/[0.03]">
+                <td className="px-4 py-2 text-sm text-gray-200">
                   {a.year}-{String(a.month).padStart(2, "0")}-
                   {String(a.day).padStart(2, "0")}
                 </td>
-                <td className="px-4 py-2 text-sm">{a.start_time}</td>
-                <td className="px-4 py-2 text-sm">{a.end_time}</td>
+                <td className="px-4 py-2 text-sm text-gray-200">{a.start_time}</td>
+                <td className="px-4 py-2 text-sm text-gray-200">{a.end_time}</td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => handleDelete(a.id)}
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    className="text-red-400 hover:text-red-300 text-sm font-medium"
                   >
-                    Delete
+                    {t.common.delete}
                   </button>
                 </td>
               </tr>
@@ -246,7 +247,7 @@ export default function Availability() {
                   colSpan={4}
                   className="px-4 py-6 text-center text-gray-500 text-sm"
                 >
-                  No availability windows set. Add one above.
+                  {t.availability.noWindows}
                 </td>
               </tr>
             )}

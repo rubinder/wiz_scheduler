@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { useLanguage } from "../../i18n/LanguageContext";
+import DemoGuard from "./DemoGuard";
 
 export interface Column {
   key: string;
@@ -22,6 +24,7 @@ export default function DataTable({
   onDelete,
   onCreate,
 }: DataTableProps) {
+  const { t } = useLanguage();
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<string, unknown>>({});
   const [showAddRow, setShowAddRow] = useState(false);
@@ -71,19 +74,19 @@ export default function DataTable({
     if (!isEditing) {
       if (col.type === "select" && col.options) {
         const opt = col.options.find((o) => o.value === value);
-        return <span className="text-sm">{opt?.label ?? String(value ?? "")}</span>;
+        return <span className="text-sm text-gray-200">{opt?.label ?? String(value ?? "")}</span>;
       }
-      return <span className="text-sm">{String(value ?? "")}</span>;
+      return <span className="text-sm text-gray-200">{String(value ?? "")}</span>;
     }
 
     if (col.type === "select" && col.options) {
       return (
         <select
-          className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+          className="w-full glass-input-sm"
           value={String(value ?? "")}
           onChange={(e) => onChange(col.key, e.target.value)}
         >
-          <option value="">-- select --</option>
+          <option value="">{t.common.select}</option>
           {col.options.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -96,7 +99,7 @@ export default function DataTable({
     return (
       <input
         type={col.type === "date" ? "date" : "text"}
-        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+        className="w-full glass-input-sm"
         value={String(value ?? "")}
         onChange={(e) => onChange(col.key, e.target.value)}
       />
@@ -105,27 +108,27 @@ export default function DataTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <table className="min-w-full glass-table">
+        <thead className="bg-white/[0.04]">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
               >
                 {col.label}
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+              {t.common.actions}
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="divide-y divide-white/[0.06]">
           {data.map((row, idx) => {
             const isEditing = editingRow === idx;
             return (
-              <tr key={idx} className={isEditing ? "bg-blue-50" : ""}>
+              <tr key={idx} className={isEditing ? "bg-purple-500/10" : ""}>
                 {columns.map((col) => (
                   <td key={col.key} className="px-4 py-2">
                     {renderCell(
@@ -140,34 +143,40 @@ export default function DataTable({
                 <td className="px-4 py-2 text-right space-x-2">
                   {isEditing ? (
                     <>
-                      <button
-                        onClick={saveEdit}
-                        className="text-green-600 hover:text-green-800 text-sm font-medium"
-                      >
-                        Save
-                      </button>
+                      <DemoGuard>
+                        <button
+                          onClick={saveEdit}
+                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                        >
+                          {t.common.save}
+                        </button>
+                      </DemoGuard>
                       <button
                         onClick={cancelEdit}
-                        className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                        className="text-gray-400 hover:text-gray-300 text-sm font-medium"
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={() => startEdit(idx)}
-                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                      >
-                        Edit
-                      </button>
-                      {onDelete && (
+                      <DemoGuard>
                         <button
-                          onClick={() => onDelete(idx)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          onClick={() => startEdit(idx)}
+                          className="text-purple-400 hover:text-purple-300 text-sm font-medium"
                         >
-                          Delete
+                          {t.common.edit}
                         </button>
+                      </DemoGuard>
+                      {onDelete && (
+                        <DemoGuard>
+                          <button
+                            onClick={() => onDelete(idx)}
+                            className="text-red-400 hover:text-red-300 text-sm font-medium"
+                          >
+                            {t.common.delete}
+                          </button>
+                        </DemoGuard>
                       )}
                     </>
                   )}
@@ -178,11 +187,11 @@ export default function DataTable({
 
           {/* Add new row */}
           {showAddRow && (
-            <tr className="bg-green-50">
+            <tr className="bg-emerald-500/10">
               {columns.map((col) => (
                 <td key={col.key} className="px-4 py-2">
                   {col.type === "readonly" ? (
-                    <span className="text-gray-400 text-sm italic">auto</span>
+                    <span className="text-gray-500 text-sm italic">{t.common.auto}</span>
                   ) : (
                     renderCell(col, addValues[col.key], true, (key, val) =>
                       setAddValues((prev) => ({ ...prev, [key]: val }))
@@ -193,18 +202,18 @@ export default function DataTable({
               <td className="px-4 py-2 text-right space-x-2">
                 <button
                   onClick={handleAdd}
-                  className="text-green-600 hover:text-green-800 text-sm font-medium"
+                  className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
                 >
-                  Add
+                  {t.common.add}
                 </button>
                 <button
                   onClick={() => {
                     setShowAddRow(false);
                     setAddValues({});
                   }}
-                  className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                  className="text-gray-400 hover:text-gray-300 text-sm font-medium"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </td>
             </tr>
@@ -214,12 +223,14 @@ export default function DataTable({
 
       {onCreate && !showAddRow && (
         <div className="mt-3">
-          <button
-            onClick={() => setShowAddRow(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
-          >
-            + Add Row
-          </button>
+          <DemoGuard>
+            <button
+              onClick={() => setShowAddRow(true)}
+              className="glass-btn-primary px-4 py-2 text-sm"
+            >
+              {t.dataTable.addRow}
+            </button>
+          </DemoGuard>
         </div>
       )}
     </div>

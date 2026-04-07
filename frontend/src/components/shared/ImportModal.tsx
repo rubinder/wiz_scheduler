@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 interface FormatExample {
   csv: string;
@@ -13,6 +14,7 @@ interface ImportModalProps {
 }
 
 export default function ImportModal({ title, format, onUpload, onClose }: ImportModalProps) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<"csv" | "json">("csv");
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
@@ -39,40 +41,40 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="glass-modal-overlay">
+      <div className="glass-modal w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+          <h2 className="text-lg font-semibold text-gray-200">{title}</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
 
         {/* Tab selector */}
         <div className="px-6 pt-4">
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          <div className="flex gap-1 bg-white/[0.05] rounded-lg p-1 w-fit">
             <button
               onClick={() => setTab("csv")}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === "csv" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                tab === "csv" ? "bg-white/[0.1] shadow text-white" : "text-gray-400 hover:text-gray-200"
               }`}
             >
-              CSV
+              {t.importModal.csv}
             </button>
             <button
               onClick={() => setTab("json")}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === "json" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                tab === "json" ? "bg-white/[0.1] shadow text-white" : "text-gray-400 hover:text-gray-200"
               }`}
             >
-              JSON
+              {t.importModal.json}
             </button>
           </div>
         </div>
 
         {/* Format preview */}
         <div className="px-6 py-4">
-          <p className="text-sm text-gray-600 mb-2">Expected format:</p>
-          <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-700 overflow-x-auto whitespace-pre">
+          <p className="text-sm text-gray-400 mb-2">{t.importModal.expectedFormat}</p>
+          <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-4 text-xs text-gray-400 overflow-x-auto whitespace-pre">
             {tab === "csv" ? format.csv : format.json}
           </pre>
         </div>
@@ -91,23 +93,23 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
             htmlFor="import-file-input"
             className={`inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium cursor-pointer transition-colors ${
               uploading
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
+                ? "bg-white/10 text-gray-500 cursor-not-allowed"
+                : "glass-btn-primary"
             }`}
           >
-            {uploading ? "Uploading..." : `Choose ${tab.toUpperCase()} File`}
+            {uploading ? t.importModal.uploading : `${t.importModal.chooseFile} ${tab.toUpperCase()} ${t.importModal.file}`}
           </label>
         </div>
 
         {/* Result / Error */}
         {error && (
-          <div className="mx-6 mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+          <div className="mx-6 mb-4 glass-alert-error">
             {error}
           </div>
         )}
         {result && (
-          <div className="mx-6 mb-4 p-3 bg-blue-50 text-blue-800 rounded text-sm">
-            <p>Created: {result.created} | Skipped: {result.skipped}</p>
+          <div className="mx-6 mb-4 p-3 bg-blue-500/10 border border-blue-400/20 text-blue-300 rounded text-sm">
+            <p>{t.importModal.createdCount} {result.created} | {t.importModal.skippedCount} {result.skipped}</p>
             {result.errors.length > 0 && (
               <ul className="mt-2 list-disc list-inside text-sm">
                 {result.errors.map((err, i) => (
@@ -119,12 +121,12 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
         )}
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-4 border-t">
+        <div className="flex justify-end px-6 py-4 border-t border-white/[0.08]">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm font-medium"
+            className="glass-btn-secondary px-4 py-2 text-sm font-medium"
           >
-            {result ? "Done" : "Cancel"}
+            {result ? t.common.done : t.common.cancel}
           </button>
         </div>
       </div>

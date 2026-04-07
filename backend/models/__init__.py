@@ -11,6 +11,8 @@ from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 from backend.models.failure_log import FailureLog
+from backend.models.employee_role_minutes import EmployeeRoleMinutes
+from backend.models.consent import UserConsent
 
 __all__ = [
     "OwnershipGroup",
@@ -33,4 +35,6 @@ __all__ = [
     "CondensedRoleMapping",
     "TokenUsage",
     "FailureLog",
+    "EmployeeRoleMinutes",
+    "UserConsent",
 ]

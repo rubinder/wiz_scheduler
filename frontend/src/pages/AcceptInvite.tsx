@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { acceptInvite, getInviteInfo } from "../api/employees";
 import type { InviteInfoResponse } from "../types";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export default function AcceptInvite() {
+  useDocumentTitle("Accept Invite");
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [info, setInfo] = useState<InviteInfoResponse | null>(null);
   const [password, setPassword] = useState("");
@@ -17,13 +21,13 @@ export default function AcceptInvite() {
 
   useEffect(() => {
     if (!token) {
-      setError("No invite token provided.");
+      setError(t.acceptInvite.noToken);
       setLoading(false);
       return;
     }
     getInviteInfo(token)
       .then(setInfo)
-      .catch((err) => setError(err instanceof Error ? err.message : "Invalid or expired invite link."))
+      .catch((err) => setError(err instanceof Error ? err.message : t.acceptInvite.invalidOrExpired))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -32,11 +36,11 @@ export default function AcceptInvite() {
     setError("");
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t.acceptInvite.passwordMin);
       return;
     }
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t.acceptInvite.passwordMismatch);
       return;
     }
     if (!token) return;
@@ -49,7 +53,7 @@ export default function AcceptInvite() {
       // Force a full reload so useAuth picks up the new token
       window.location.reload();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create account.");
+      setError(err instanceof Error ? err.message : t.acceptInvite.failedCreate);
     } finally {
       setSubmitting(false);
     }
@@ -57,23 +61,23 @@ export default function AcceptInvite() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">{t.common.loading}</div>
       </div>
     );
   }
 
   if (!info) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="w-full max-w-md bg-white rounded-lg shadow p-8 text-center">
-          <h1 className="text-xl font-bold text-red-600 mb-2">Invalid Invite</h1>
-          <p className="text-gray-600">{error || "This invite link is invalid or has expired."}</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="glass-card w-full max-w-md p-8 text-center">
+          <h1 className="text-xl font-bold text-red-400 mb-2">{t.acceptInvite.invalidInvite}</h1>
+          <p className="text-gray-400">{error || t.acceptInvite.invalidInviteDesc}</p>
           <a
             href="/login"
-            className="mt-4 inline-block text-indigo-600 hover:underline text-sm"
+            className="mt-4 inline-block text-purple-400 hover:text-purple-300 text-sm"
           >
-            Go to Login
+            {t.acceptInvite.goToLogin}
           </a>
         </div>
       </div>
@@ -81,71 +85,71 @@ export default function AcceptInvite() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-lg shadow p-8">
-        <h1 className="text-2xl font-bold mb-1">Set Up Your Account</h1>
-        <p className="text-sm text-gray-500 mb-6">
-          Welcome to <strong>{info.company_name}</strong>, {info.employee_name}!
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="glass-card w-full max-w-md p-8">
+        <h1 className="text-2xl font-bold mb-1 text-white">{t.acceptInvite.setupTitle}</h1>
+        <p className="text-sm text-gray-400 mb-6">
+          {t.acceptInvite.welcomeTo} <strong className="text-gray-300">{info.company_name}</strong>, {info.employee_name}!
           <br />
-          Choose a password to activate your account.
+          {t.acceptInvite.choosePassword}
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+          <div className="glass-alert-error mb-4">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+            <label className="glass-label">
+              {t.common.email}
             </label>
             <input
               type="email"
               value={info.email}
               disabled
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-50 text-gray-500"
+              className="w-full border border-white/[0.06] rounded px-3 py-2 text-sm bg-white/[0.03] text-gray-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+            <label className="glass-label">
+              {t.common.password}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              placeholder="At least 6 characters"
+              className="glass-input w-full"
+              placeholder={t.acceptInvite.atLeast6}
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm Password
+            <label className="glass-label">
+              {t.acceptInvite.confirmPassword}
             </label>
             <input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              placeholder="Re-enter password"
+              className="glass-input w-full"
+              placeholder={t.acceptInvite.reenterPassword}
             />
           </div>
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-indigo-600 text-white rounded py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+            className="glass-btn-primary w-full"
           >
-            {submitting ? "Creating Account..." : "Create Account & Log In"}
+            {submitting ? t.acceptInvite.creatingAccount : t.acceptInvite.createAndLogin}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-gray-400">
-          Already have an account?{" "}
-          <a href="/login" className="text-indigo-600 hover:underline">
-            Log in
+        <p className="mt-4 text-center text-xs text-gray-500">
+          {t.acceptInvite.haveAccount}{" "}
+          <a href="/login" className="text-purple-400 hover:text-purple-300">
+            {t.acceptInvite.logIn}
           </a>
         </p>
       </div>

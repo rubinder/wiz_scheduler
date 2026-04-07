@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import { useLanguage } from "../../i18n/LanguageContext";
 import * as companyApi from "../../api/company";
 import type { Company } from "../../types";
+import LanguageSelector from "../shared/LanguageSelector";
 
 export default function TopBar() {
   const { user, logout, switchCompany } = useAuth();
+  const { t } = useLanguage();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [switching, setSwitching] = useState(false);
 
@@ -30,11 +33,9 @@ export default function TopBar() {
 
   const currentCompany = companies.find((c) => c.id === user?.company_id);
 
-  // Align controls at a fixed viewport position (sidebar=256px, target=550px from viewport)
-  // Header starts at 256px, has px-6 (24px) padding, so left = 550 - 256 = 294px from header edge
   return (
-    <header className="h-14 bg-white border-b border-gray-200 relative flex items-center px-6">
-      <h2 className="text-lg font-semibold text-gray-800">Wiz Scheduler</h2>
+    <header className="h-14 bg-white/[0.04] backdrop-blur-xl border-b border-white/[0.06] relative flex items-center px-6">
+      <h2 className="text-lg font-semibold text-gray-200">{t.common.appName}</h2>
       <div
         className="flex items-center gap-4"
         style={{ position: "absolute", left: 294 }}
@@ -44,7 +45,7 @@ export default function TopBar() {
             value={user?.company_id ?? ""}
             onChange={(e) => handleSwitch(e.target.value)}
             disabled={switching}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+            className="glass-input-sm"
           >
             {companies.map((c) => (
               <option key={c.id} value={c.id}>
@@ -54,18 +55,19 @@ export default function TopBar() {
           </select>
         )}
         {companies.length <= 1 && currentCompany && (
-          <span className="text-sm text-gray-500">{currentCompany.name}</span>
+          <span className="text-sm text-gray-400">{currentCompany.name}</span>
         )}
         {user && (
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-300">
             {user.full_name ?? user.email}
           </span>
         )}
+        <LanguageSelector />
         <button
           onClick={logout}
-          className="text-sm text-red-600 hover:text-red-800 font-medium"
+          className="text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
         >
-          Logout
+          {t.common.logout}
         </button>
       </div>
     </header>

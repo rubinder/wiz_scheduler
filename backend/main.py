@@ -8,11 +8,13 @@ from backend.middleware.failure_logging import FailureLoggingMiddleware
 from backend.routers import (
     affinities,
     auth,
+    billing,
     company,
     condensed_roles,
     employees,
     export_schedules,
     failure_logs,
+    gdpr,
     import_7shifts,
     invites,
     locations,
@@ -77,6 +79,76 @@ def create_app() -> FastAPI:
     app.include_router(export_schedules.router, prefix=api_prefix)
     app.include_router(failure_logs.router, prefix=api_prefix)
     app.include_router(invites.router, prefix=api_prefix)
+    app.include_router(gdpr.router, prefix=api_prefix)
+    app.include_router(billing.router, prefix=api_prefix)
+
+    # Load-test profile: bypass JWT signature verification.
+    # The register endpoint still works normally (creates real users/companies),
+    # but all authenticated endpoints skip crypto — they decode the JWT payload
+    # without verifying the signature and look up the user directly.
+    # Requires both LOAD_TEST=true and ENV != "production".
+    if settings.LOAD_TEST:
+        if settings.ENV == "production":
+            raise RuntimeError("LOAD_TEST must not be enabled in production")
+
+        import logging
+
+        from fastapi import Depends
+        from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+        from jose import jwt as jose_jwt
+        from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        from backend.database import async_session_factory
+        from backend.dependencies import get_current_user, get_db, require_manager, get_ownership_group_company_ids
+        from backend.models.company import Company
+        from backend.models.user import User
+
+        logger = logging.getLogger("wizscheduler.loadtest")
+        logger.warning("LOAD_TEST mode active — JWT signature verification is DISABLED")
+
+        _lt_security = HTTPBearer()
+
+        async def _lt_get_current_user(
+            credentials: HTTPAuthorizationCredentials = Depends(_lt_security),
+            db: AsyncSession = Depends(get_db),
+        ) -> User:
+            """Decode JWT without verifying signature — load test only."""
+            payload = jose_jwt.get_unverified_claims(credentials.credentials)
+            user_id = payload.get("sub")
+            if not user_id:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No sub in token")
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            if user is None:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+            return user
+
+        async def _lt_require_manager(
+            current_user: User = Depends(_lt_get_current_user),
+        ) -> User:
+            return current_user  # skip role check in load test
+
+        async def _lt_ownership_group_ids(
+            current_user: User = Depends(_lt_get_current_user),
+            db: AsyncSession = Depends(get_db),
+        ) -> list[str]:
+            result = await db.execute(
+                select(Company.ownership_group_id).where(Company.id == current_user.company_id)
+            )
+            og_id = result.scalar_one_or_none()
+            if og_id is None:
+                return [current_user.company_id]
+            result = await db.execute(
+                select(Company.id).where(Company.ownership_group_id == og_id)
+            )
+            return list(result.scalars().all())
+
+        app.dependency_overrides[get_current_user] = _lt_get_current_user
+        app.dependency_overrides[require_manager] = _lt_require_manager
+        app.dependency_overrides[get_ownership_group_company_ids] = _lt_ownership_group_ids
 
     # In production, serve the frontend static build
     if settings.ENV == "production":

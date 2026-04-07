@@ -1,7 +1,8 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import stripe
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
@@ -10,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_current_user, get_db
 from backend.models import Company, OwnershipGroup, User
+from backend.models.consent import UserConsent
+from backend.utils.privacy import mask_ip
 from backend.schemas.auth import (
+    GoogleAuthRequest,
+    GoogleAuthResponse,
+    GoogleLinkRequest,
     LoginRequest,
     RegisterRequest,
     SwitchCompanyRequest,
@@ -74,10 +80,50 @@ async def _send_welcome_email(email: str, full_name: str) -> None:
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     body: RegisterRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
+    if not body.privacy_accepted or not body.terms_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must accept the privacy policy and terms of service to register.",
+        )
+
+    # Hash password outside the DB transaction to reduce connection hold time
+    hashed_pw = _hash_password(body.password)
+    client_ip = mask_ip(request.client.host) if request.client else None
+
+    # Verify Stripe checkout session if billing is configured
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    if settings.STRIPE_SECRET_KEY and settings.STRIPE_PRICE_ID:
+        if not body.stripe_session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Billing setup is required before registration.",
+            )
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        try:
+            session = stripe.checkout.Session.retrieve(body.stripe_session_id)
+        except stripe.StripeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid billing session.",
+            )
+        if session.payment_status != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Billing payment has not been completed.",
+            )
+        stripe_customer_id = session.customer
+        stripe_subscription_id = session.subscription
+
     # Create ownership group (done first so we can check email uniqueness per company)
-    ownership_group = OwnershipGroup(name=body.company_name)
+    ownership_group = OwnershipGroup(
+        name=body.company_name,
+        stripe_customer_id=stripe_customer_id,
+        stripe_subscription_id=stripe_subscription_id,
+    )
     db.add(ownership_group)
     await db.flush()
 
@@ -94,11 +140,23 @@ async def register(
     user = User(
         company_id=company.id,
         email=body.email,
-        hashed_password=_hash_password(body.password),
+        hashed_password=hashed_pw,
         full_name=body.full_name,
         user_role="manager",
     )
     db.add(user)
+    await db.flush()
+
+    # Record GDPR consent
+    for consent_type in ("privacy_policy", "terms_of_service"):
+        db.add(UserConsent(
+            user_id=user.id,
+            company_id=company.id,
+            consent_type=consent_type,
+            version="1.0",
+            ip_address=client_ip,
+        ))
+
     await db.commit()
     await db.refresh(user)
 
@@ -206,17 +264,167 @@ async def switch_company(
     return TokenResponse(access_token=token)
 
 
+async def _verify_google_token(id_token: str) -> dict | None:
+    """Verify a Google ID token and return the payload (email, sub, name, etc).
+
+    Returns None if verification fails.
+    """
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+        # Verify issuer
+        if idinfo["iss"] not in ("accounts.google.com", "https://accounts.google.com"):
+            return None
+        return idinfo
+    except Exception:
+        return None
+
+
+@router.post("/google", response_model=GoogleAuthResponse)
+async def google_auth(
+    body: GoogleAuthRequest,
+    db: AsyncSession = Depends(get_db),
+) -> GoogleAuthResponse:
+    """Authenticate via Google SSO.
+
+    Cases:
+    1. User with this google_id exists -> log in, return token
+    2. User with matching email exists but no google_id -> return link_required=True
+    3. No user with this email -> return error (must register first or be invited)
+    """
+    idinfo = await _verify_google_token(body.id_token)
+    if not idinfo:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    google_sub = idinfo["sub"]
+    email = idinfo.get("email", "")
+    name = idinfo.get("name", "")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+
+    # Case 1: User already linked with this google_id
+    result = await db.execute(
+        select(User).where(User.google_id == google_sub)
+    )
+    user = result.scalars().first()
+    if user:
+        token = _create_access_token(user.id, user.company_id, user.user_role)
+        return GoogleAuthResponse(access_token=token)
+
+    # Case 2: User with matching email exists but no google_id
+    result = await db.execute(
+        select(User).where(User.email == email)
+    )
+    users = result.scalars().all()
+    if users:
+        return GoogleAuthResponse(
+            link_required=True,
+            email=email,
+            google_name=name,
+        )
+
+    # Case 3: No user found
+    raise HTTPException(
+        status_code=404,
+        detail="No account found with this email. Please register first or accept an invite.",
+    )
+
+
+@router.post("/google/link", response_model=TokenResponse)
+async def google_link(
+    body: GoogleLinkRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Link a Google account to an existing password-based account.
+
+    User must provide their password to verify ownership, then their
+    google_id is saved to their user record.
+    """
+    idinfo = await _verify_google_token(body.id_token)
+    if not idinfo:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    google_sub = idinfo["sub"]
+    email = idinfo.get("email", "")
+
+    if email != body.email:
+        raise HTTPException(status_code=400, detail="Email mismatch")
+
+    # Find user by email and verify password
+    result = await db.execute(
+        select(User).where(User.email == body.email)
+    )
+    users = result.scalars().all()
+    matched = [u for u in users if _verify_password(body.password, u.hashed_password)]
+
+    if not matched:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Handle multiple ownership groups (same as regular login)
+    company_ids = list({u.company_id for u in matched})
+    comp_result = await db.execute(
+        select(Company).where(Company.id.in_(company_ids))
+    )
+    company_map = {c.id: c for c in comp_result.scalars().all()}
+
+    og_ids = {company_map[u.company_id].ownership_group_id for u in matched if u.company_id in company_map}
+    og_ids.discard(None)
+
+    if body.ownership_group_id:
+        target_user = None
+        for u in matched:
+            comp = company_map.get(u.company_id)
+            if comp and comp.ownership_group_id == body.ownership_group_id:
+                target_user = u
+                break
+        if not target_user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+    elif len(og_ids) > 1:
+        # Multiple ownership groups - need disambiguation
+        og_result = await db.execute(
+            select(OwnershipGroup).where(OwnershipGroup.id.in_(og_ids))
+        )
+        groups = og_result.scalars().all()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "multiple_ownership_groups",
+                "groups": [{"id": str(g.id), "name": g.name} for g in groups],
+            },
+        )
+    else:
+        target_user = matched[0]
+
+    # Link google_id to all user records with this email
+    for u in matched:
+        u.google_id = google_sub
+    await db.commit()
+
+    token = _create_access_token(target_user.id, target_user.company_id, target_user.user_role)
+    return TokenResponse(access_token=token)
+
+
 @router.get("/me", response_model=UserResponse)
 async def me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    # Look up the ownership_group_id from the user's company
+    # Look up the ownership_group_id and slug from the user's company
     company_result = await db.execute(
-        select(Company.ownership_group_id).where(Company.id == current_user.company_id)
+        select(Company.ownership_group_id, Company.slug).where(Company.id == current_user.company_id)
     )
-    ownership_group_id = company_result.scalar_one_or_none()
+    row = company_result.one_or_none()
+    ownership_group_id = row[0] if row else None
+    company_slug = row[1] if row else None
 
     response = UserResponse.model_validate(current_user)
     response.ownership_group_id = ownership_group_id
+    response.is_demo = company_slug == "acme-corp"
     return response

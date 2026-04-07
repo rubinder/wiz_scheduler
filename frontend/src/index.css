@@ -2,8 +2,159 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-[#0a0a1a] text-gray-100;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(88, 28, 135, 0.15) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(30, 58, 138, 0.15) 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Style native inputs/selects for dark theme */
+  input[type="date"],
+  input[type="time"],
+  input[type="number"],
+  select {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/[0.07] backdrop-blur-xl border border-white/[0.08] shadow-lg shadow-black/10;
+  }
+
+  .glass-card {
+    @apply glass rounded-xl;
+  }
+
+  .glass-input {
+    @apply bg-white/[0.07] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-gray-100
+           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-400/30
+           transition-colors;
+  }
+
+  .glass-input-sm {
+    @apply glass-input px-2 py-1;
+  }
+
+  .glass-select {
+    @apply glass-input appearance-none;
+  }
+
+  .glass-btn-primary {
+    @apply px-4 py-2 bg-purple-600/80 text-white rounded-lg hover:bg-purple-500/80
+           border border-purple-400/20 shadow-lg shadow-purple-900/20
+           disabled:opacity-50 font-medium text-sm backdrop-blur-sm transition-all;
+  }
+
+  .glass-btn-secondary {
+    @apply px-4 py-2 bg-white/[0.07] text-gray-300 rounded-lg hover:bg-white/[0.12]
+           border border-white/[0.1] disabled:opacity-50 font-medium text-sm
+           backdrop-blur-sm transition-all;
+  }
+
+  .glass-btn-success {
+    @apply px-4 py-2 bg-emerald-600/80 text-white rounded-lg hover:bg-emerald-500/80
+           border border-emerald-400/20 shadow-lg shadow-emerald-900/20
+           disabled:opacity-50 font-medium text-sm backdrop-blur-sm transition-all;
+  }
+
+  .glass-btn-danger {
+    @apply px-3 py-1 bg-red-600/80 text-white rounded-lg hover:bg-red-500/80
+           border border-red-400/20 disabled:opacity-50 font-medium text-sm
+           backdrop-blur-sm transition-all;
+  }
+
+  .glass-btn-orange {
+    @apply px-4 py-2 bg-orange-600/80 text-white rounded-lg hover:bg-orange-500/80
+           border border-orange-400/20 disabled:opacity-50 font-medium text-sm
+           backdrop-blur-sm transition-all;
+  }
+
+  .glass-alert-error {
+    @apply p-3 bg-red-500/10 border border-red-400/20 text-red-300 rounded-lg text-sm backdrop-blur-sm;
+  }
+
+  .glass-alert-success {
+    @apply p-3 bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 rounded-lg text-sm backdrop-blur-sm;
+  }
+
+  .glass-alert-info {
+    @apply p-3 bg-blue-500/10 border border-blue-400/20 text-blue-300 rounded-lg text-sm backdrop-blur-sm;
+  }
+
+  .glass-alert-warning {
+    @apply p-3 bg-amber-500/10 border border-amber-400/20 text-amber-300 rounded-lg text-sm backdrop-blur-sm;
+  }
+
+  .glass-table {
+    @apply min-w-full;
+  }
+
+  .glass-table thead {
+    @apply bg-white/[0.04];
+  }
+
+  .glass-table th {
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider;
+  }
+
+  .glass-table tbody {
+    @apply divide-y divide-white/[0.06];
+  }
+
+  .glass-table td {
+    @apply px-4 py-2;
+  }
+
+  .glass-table tr:hover {
+    @apply bg-white/[0.03];
+  }
+
+  .glass-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm;
+  }
+
+  .glass-modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm;
+  }
+
+  .glass-modal {
+    @apply bg-gray-900/90 backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/40;
+  }
+
+  .glass-label {
+    @apply block text-sm font-medium text-gray-300 mb-1;
+  }
+
+  .glass-label-sm {
+    @apply block text-xs font-medium text-gray-400 mb-1;
+  }
+
+  .glass-divider {
+    @apply border-white/[0.08];
+  }
+
+  /* Scrollbar styling for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
 @media print {
-  /* Hide everything except the schedule being printed */
   body * {
     visibility: hidden;
   }
@@ -17,11 +168,9 @@
     top: 0;
     width: 100%;
   }
-  /* Hide buttons and non-content elements inside the printed schedule */
   [data-print="true"] button {
     display: none;
   }
-  /* Clean print styling */
   [data-print="true"] table {
     font-size: 11px;
   }

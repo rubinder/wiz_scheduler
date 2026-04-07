@@ -2,72 +2,74 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import Import7ShiftsModal from "../../components/shared/Import7ShiftsModal";
-
-const navCards = [
-  {
-    to: "/manager/company",
-    title: "Company",
-    desc: "View and edit company settings",
-  },
-  {
-    to: "/manager/regions",
-    title: "Regions",
-    desc: "Manage geographic regions",
-  },
-  {
-    to: "/manager/locations",
-    title: "Locations",
-    desc: "Manage store locations",
-  },
-  { to: "/manager/roles", title: "Roles", desc: "Define employee roles" },
-  {
-    to: "/manager/employees",
-    title: "Employees",
-    desc: "Manage your workforce",
-  },
-  {
-    to: "/manager/shift-templates",
-    title: "Shift Templates",
-    desc: "Configure weekly shift patterns",
-  },
-  {
-    to: "/manager/schedule",
-    title: "Schedule",
-    desc: "Generate and approve schedules",
-  },
-];
+import { useLanguage } from "../../i18n/LanguageContext";
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [showImport, setShowImport] = useState(false);
+
+  const navCards = [
+    {
+      to: "/manager/company",
+      title: t.nav.company,
+      desc: t.dashboard.companyDesc,
+    },
+    {
+      to: "/manager/regions",
+      title: t.nav.regions,
+      desc: t.dashboard.regionsDesc,
+    },
+    {
+      to: "/manager/locations",
+      title: t.nav.locations,
+      desc: t.dashboard.locationsDesc,
+    },
+    { to: "/manager/roles", title: t.nav.roles, desc: t.dashboard.rolesDesc },
+    {
+      to: "/manager/employees",
+      title: t.nav.employees,
+      desc: t.dashboard.employeesDesc,
+    },
+    {
+      to: "/manager/shift-templates",
+      title: t.nav.shiftTemplates,
+      desc: t.dashboard.shiftTemplatesDesc,
+    },
+    {
+      to: "/manager/schedule",
+      title: t.nav.schedule,
+      desc: t.dashboard.scheduleDesc,
+    },
+  ];
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold">
-          Welcome, {user?.full_name ?? "Manager"}
+        <h1 className="text-2xl font-bold text-white">
+          {t.dashboard.welcome} {user?.full_name ?? t.dashboard.manager}
         </h1>
         <button
           onClick={() => setShowImport(true)}
-          className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm font-medium"
+          className="glass-btn-orange"
         >
-          Import from 7shifts
+          {t.dashboard.importFrom7shifts}
         </button>
       </div>
-      <p className="text-gray-600 mb-8">
-        Manage your scheduling from the dashboard below.
+      <p className="text-gray-400 mb-8">
+        {t.dashboard.subtitle}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {navCards.map((card) => (
           <Link
             key={card.to}
             to={card.to}
-            className="block bg-white rounded-lg shadow hover:shadow-md transition-shadow p-6 border border-gray-200"
+            className="block glass-card p-6 hover:bg-white/[0.1] transition-all"
           >
-            <h3 className="text-lg font-semibold text-indigo-600 mb-1">
+            <h3 className="text-lg font-semibold text-purple-400 mb-1">
               {card.title}
             </h3>
-            <p className="text-sm text-gray-500">{card.desc}</p>
+            <p className="text-sm text-gray-400">{card.desc}</p>
           </Link>
         ))}
       </div>

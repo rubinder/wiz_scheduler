@@ -6,6 +6,7 @@ import {
   listApprovedDates,
   listApprovedSchedules,
 } from "../../api/exportSchedules";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 function toDateStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -54,6 +55,7 @@ function buildMonthGrid(year: number, month: number): (string | null)[][] {
 }
 
 export default function ExportSchedules() {
+  const { t } = useLanguage();
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
   const [schedules, setSchedules] = useState<ApprovedScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,7 +224,7 @@ export default function ExportSchedules() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
-        Loading...
+        {t.common.loading}
       </div>
     );
   }
@@ -231,24 +233,19 @@ export default function ExportSchedules() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Export Approved Schedules
+          <h1 className="text-2xl font-bold text-white">
+            {t.exportSchedules.title}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            View approved schedules for the selected date. Export to 7Shifts or
-            download as JSONL. Days with an orange dot on the calendar have
-            approved schedules — click any day to view its schedules. We
-            attempt to export the user ID with the role ID it is associated with
-            in the external system (in the case where the role is associated
-            with a few roles).
+          <p className="mt-1 text-sm text-gray-400">
+            {t.exportSchedules.description}
           </p>
         </div>
       </div>
 
       {/* Week picker with custom calendar dropdown */}
       <div className="flex items-center gap-4 mb-6">
-        <label className="text-sm font-medium text-gray-700">
-          Week starting:
+        <label className="text-sm font-medium text-gray-400">
+          {t.exportSchedules.weekStarting}
         </label>
         <div className="relative" ref={calendarRef}>
           <button
@@ -258,13 +255,13 @@ export default function ExportSchedules() {
               setViewMonth(d.getMonth());
               setCalendarOpen((prev) => !prev);
             }}
-            className="border rounded px-3 py-1.5 text-sm bg-white hover:bg-gray-50 min-w-[160px] text-left"
+            className="glass-input-sm min-w-[160px] text-left hover:bg-white/[0.08]"
           >
             {getDayLabel(selectedDate)}
           </button>
 
           {calendarOpen && (
-            <div className="absolute z-50 mt-1 bg-white rounded-lg shadow-lg border p-3 w-[280px]">
+            <div className="absolute z-50 mt-1 glass-modal p-3 w-[280px]">
               {/* Month/year nav */}
               <div className="flex items-center justify-between mb-2">
                 <button
@@ -276,11 +273,11 @@ export default function ExportSchedules() {
                       setViewMonth((m) => m - 1);
                     }
                   }}
-                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                  className="p-1 hover:bg-white/[0.08] rounded text-gray-400"
                 >
                   &larr;
                 </button>
-                <span className="text-sm font-semibold text-gray-800">
+                <span className="text-sm font-semibold text-gray-200">
                   {new Date(viewYear, viewMonth).toLocaleDateString("en-US", {
                     month: "long",
                     year: "numeric",
@@ -295,7 +292,7 @@ export default function ExportSchedules() {
                       setViewMonth((m) => m + 1);
                     }
                   }}
-                  className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                  className="p-1 hover:bg-white/[0.08] rounded text-gray-400"
                 >
                   &rarr;
                 </button>
@@ -306,7 +303,7 @@ export default function ExportSchedules() {
                 {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
                   <div
                     key={d}
-                    className="text-center text-[10px] font-medium text-gray-400 py-1"
+                    className="text-center text-[10px] font-medium text-gray-500 py-1"
                   >
                     {d}
                   </div>
@@ -326,9 +323,9 @@ export default function ExportSchedules() {
                     const isSelected = day === selectedDate;
                     const hasApproved = approvedDates.has(day);
 
-                    let cellStyle = "hover:bg-gray-100 text-gray-700";
+                    let cellStyle = "hover:bg-white/[0.08] text-gray-300";
                     if (isSelected) {
-                      cellStyle = "bg-indigo-600 text-white font-semibold";
+                      cellStyle = "bg-purple-600 text-white font-semibold";
                     }
 
                     return (
@@ -338,11 +335,11 @@ export default function ExportSchedules() {
                           setSelectedDate(day);
                           setCalendarOpen(false);
                         }}
-                        className={`relative flex flex-col items-center justify-center h-9 rounded text-sm transition-colors ${cellStyle} ${isToday ? "ring-2 ring-indigo-400" : ""}`}
+                        className={`relative flex flex-col items-center justify-center h-9 rounded text-sm transition-colors ${cellStyle} ${isToday ? "ring-2 ring-purple-400" : ""}`}
                       >
                         <span>{new Date(day + "T00:00:00").getDate()}</span>
                         {hasApproved && (
-                          <span className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-orange-500" />
+                          <span className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-orange-400" />
                         )}
                       </button>
                     );
@@ -354,9 +351,9 @@ export default function ExportSchedules() {
         </div>
         <button
           onClick={() => setSelectedDate(toDateStr(new Date()))}
-          className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+          className="glass-btn-secondary"
         >
-          Today
+          {t.exportSchedules.today}
         </button>
       </div>
 
@@ -366,45 +363,44 @@ export default function ExportSchedules() {
           <button
             onClick={selectAllUnexported}
             disabled={unexportedShiftIds.length === 0}
-            className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 disabled:opacity-50"
+            className="glass-btn-secondary disabled:opacity-50"
           >
-            Select All Unexported ({unexportedShiftIds.length})
+            {t.exportSchedules.selectAllUnexported} ({unexportedShiftIds.length})
           </button>
           <button
             onClick={handleExportTo7Shifts}
             disabled={selectedShifts.size === 0 || exporting}
-            className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
+            className="glass-btn-primary disabled:opacity-50"
           >
             {exporting
-              ? "Exporting..."
-              : `Export to 7Shifts (${selectedShifts.size})`}
+              ? t.exportSchedules.exporting
+              : `${t.exportSchedules.exportTo7Shifts} (${selectedShifts.size})`}
           </button>
-          <span className="text-xs text-gray-400">
-            {selectedShifts.size} shift{selectedShifts.size !== 1 ? "s" : ""}{" "}
-            selected
+          <span className="text-xs text-gray-500">
+            {selectedShifts.size} {selectedShifts.size !== 1 ? t.common.shifts : t.common.shift}{" "}
+            {t.common.selected}
           </span>
         </div>
       )}
 
       {/* Messages */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
       {exportResult && (
         <div
-          className={`mb-4 p-3 rounded text-sm ${
+          className={`mb-4 ${
             exportResult.failed > 0
-              ? "bg-yellow-50 text-yellow-800"
-              : "bg-green-50 text-green-800"
+              ? "glass-alert-warning"
+              : "glass-alert-success"
           }`}
         >
           <p className="font-medium">
-            Exported {exportResult.exported} shift
-            {exportResult.exported !== 1 ? "s" : ""} to 7Shifts.
+            {t.exportSchedules.exportedCount} {exportResult.exported} {t.exportSchedules.shiftsTo7Shifts}
             {exportResult.failed > 0 &&
-              ` ${exportResult.failed} failed.`}
+              ` ${exportResult.failed} ${t.exportSchedules.failed}`}
           </p>
           {exportResult.errors.length > 0 && (
             <ul className="mt-2 list-disc list-inside text-xs">
@@ -417,10 +413,10 @@ export default function ExportSchedules() {
       )}
 
       {schedules.length === 0 && (
-        <div className="text-center py-16 text-gray-500">
-          <p className="text-lg">No approved schedules for this week.</p>
-          <p className="mt-2 text-sm">
-            Generate and approve schedules on the Schedule page first.
+        <div className="text-center py-16">
+          <p className="text-lg text-gray-400">{t.exportSchedules.noApproved}</p>
+          <p className="mt-2 text-sm text-gray-500">
+            {t.exportSchedules.noApprovedSub}
           </p>
         </div>
       )}
@@ -438,9 +434,9 @@ export default function ExportSchedules() {
           return (
             <div
               key={sched.schedule_id}
-              className="bg-white rounded-lg shadow"
+              className="glass-card"
             >
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="p-4 border-b border-white/[0.08] flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
@@ -449,64 +445,64 @@ export default function ExportSchedules() {
                       if (el) el.indeterminate = someSelected;
                     }}
                     onChange={() => toggleAllForSchedule(sched)}
-                    className="rounded border-gray-300"
+                    className="rounded border-white/20 bg-white/[0.05]"
                   />
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-lg font-semibold text-white">
                     {sched.location_name}
                   </h3>
-                  <span className="text-xs text-gray-400">
-                    Week of {sched.week_start_date}
+                  <span className="text-xs text-gray-500">
+                    {t.exportSchedules.weekOf} {sched.week_start_date}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded font-medium ${
                       sched.exported_shifts === sched.total_shifts
-                        ? "bg-green-100 text-green-800"
+                        ? "bg-emerald-500/15 text-emerald-300"
                         : sched.exported_shifts > 0
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-600"
+                          ? "bg-yellow-500/15 text-yellow-300"
+                          : "bg-white/[0.06] text-gray-400"
                     }`}
                   >
-                    {sched.exported_shifts}/{sched.total_shifts} exported
+                    {sched.exported_shifts}/{sched.total_shifts} {t.exportSchedules.exported}
                   </span>
                 </div>
                 <button
                   onClick={() => handleDownloadJsonl(sched.schedule_id)}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 font-medium"
+                  className="glass-btn-secondary px-3 py-1 text-xs"
                 >
-                  Download JSONL
+                  {t.exportSchedules.downloadJsonl}
                 </button>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full">
+                  <thead className="bg-white/[0.04]">
                     <tr>
                       <th className="px-4 py-2 w-8"></th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Employee
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                        {t.common.employee}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Role
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                        {t.common.role}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Date
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                        {t.common.date}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Time
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                        {t.exportSchedules.time}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Status
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                        {t.common.status}
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-white/[0.06]">
                     {sched.shifts.map((shift) => (
                       <tr
                         key={shift.id}
                         className={
                           shift.exported_at
-                            ? "bg-green-50/50"
-                            : "hover:bg-gray-50"
+                            ? "bg-emerald-500/[0.05]"
+                            : "hover:bg-white/[0.03]"
                         }
                       >
                         <td className="px-4 py-2">
@@ -514,32 +510,32 @@ export default function ExportSchedules() {
                             type="checkbox"
                             checked={selectedShifts.has(shift.id)}
                             onChange={() => toggleShift(shift.id)}
-                            className="rounded border-gray-300"
+                            className="rounded border-white/20 bg-white/[0.05]"
                           />
                         </td>
-                        <td className="px-4 py-2 text-sm font-medium text-gray-900">
+                        <td className="px-4 py-2 text-sm font-medium text-gray-100">
                           {shift.employee_name}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-700">
+                        <td className="px-4 py-2 text-sm text-gray-300">
                           {shift.role_name}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-700">
+                        <td className="px-4 py-2 text-sm text-gray-300">
                           {getDayLabel(shift.date)}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-700">
+                        <td className="px-4 py-2 text-sm text-gray-300">
                           {formatTime(shift.start_time)} &ndash;{" "}
                           {formatTime(shift.end_time)}
                         </td>
                         <td className="px-4 py-2 text-sm">
                           {shift.exported_at ? (
-                            <span className="inline-flex items-center gap-1 text-green-700 text-xs font-medium">
-                              <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                              Exported{" "}
+                            <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-medium">
+                              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                              {t.exportSchedules.exportedLabel}{" "}
                               {new Date(shift.exported_at).toLocaleDateString()}
                             </span>
                           ) : (
-                            <span className="text-gray-400 text-xs">
-                              Not exported
+                            <span className="text-gray-500 text-xs">
+                              {t.exportSchedules.notExported}
                             </span>
                           )}
                         </td>
@@ -555,50 +551,49 @@ export default function ExportSchedules() {
 
       {/* 7Shifts Token Modal */}
       {showTokenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold">
-                7Shifts API Token
+        <div className="glass-modal-overlay">
+          <div className="glass-modal w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+              <h3 className="text-lg font-semibold text-white">
+                {t.exportSchedules.apiTokenTitle}
               </h3>
               <button
                 onClick={() => setShowTokenModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                className="text-gray-400 hover:text-gray-200 text-xl leading-none"
               >
                 &times;
               </button>
             </div>
             <div className="px-6 py-4 space-y-4">
-              <p className="text-sm text-gray-600">
-                Enter your 7Shifts API access token to export{" "}
-                {pendingExportIds.length} shift
-                {pendingExportIds.length !== 1 ? "s" : ""}.
+              <p className="text-sm text-gray-400">
+                {t.exportSchedules.apiTokenDesc}{" "}
+                {pendingExportIds.length} {pendingExportIds.length !== 1 ? t.common.shifts : t.common.shift}.
               </p>
               <input
                 type="password"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="7Shifts access token"
-                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder={t.exportSchedules.tokenPlaceholder}
+                className="glass-input w-full"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleConfirmExport();
                 }}
               />
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-lg">
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
               <button
                 onClick={() => setShowTokenModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                className="glass-btn-secondary"
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 onClick={handleConfirmExport}
                 disabled={!token.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
+                className="glass-btn-primary disabled:opacity-50"
               >
-                Export to 7Shifts
+                {t.exportSchedules.exportTo7Shifts}
               </button>
             </div>
           </div>

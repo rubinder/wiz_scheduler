@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as companyApi from "../../api/company";
 import type { Company as CompanyType } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
+import DemoGuard from "../../components/shared/DemoGuard";
 
 export default function Company() {
+  const { t } = useLanguage();
   const [company, setCompany] = useState<CompanyType | null>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -31,7 +34,7 @@ export default function Company() {
     try {
       const updated = await companyApi.updateCompany({ name });
       setCompany(updated);
-      setSuccess("Company name updated successfully.");
+      setSuccess(t.companyPage.updateSuccess);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update company");
     } finally {
@@ -40,55 +43,57 @@ export default function Company() {
   };
 
   if (!company && !error) {
-    return <div className="text-gray-500">Loading...</div>;
+    return <div className="text-gray-400">{t.common.loading}</div>;
   }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Company Settings</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">{t.companyPage.title}</h1>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
       {success && (
-        <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">
+        <div className="glass-alert-success mb-4">
           {success}
         </div>
       )}
-      <div className="bg-white rounded-lg shadow p-6 max-w-lg">
+      <div className="glass-card p-6 max-w-lg">
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Company Name
+            <label className="glass-label">
+              {t.companyPage.companyName}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              className="glass-input w-full"
             />
           </div>
           {company && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Slug
+              <label className="glass-label">
+                {t.companyPage.slug}
               </label>
               <input
                 type="text"
                 value={company.slug}
                 disabled
-                className="w-full border border-gray-200 rounded px-3 py-2 bg-gray-50 text-gray-500"
+                className="w-full rounded px-3 py-2 bg-white/[0.03] text-gray-500 border border-white/[0.06]"
               />
             </div>
           )}
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 font-medium text-sm"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
+          <DemoGuard>
+            <button
+              type="submit"
+              disabled={saving}
+              className="glass-btn-primary"
+            >
+              {saving ? t.common.saving : t.common.save}
+            </button>
+          </DemoGuard>
         </form>
       </div>
     </div>

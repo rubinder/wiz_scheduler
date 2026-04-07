@@ -8,6 +8,18 @@ export function register(body: RegisterRequest): Promise<TokenResponse> {
   });
 }
 
+export function createCheckoutSession(
+  email: string
+): Promise<{ session_id: string; url: string }> {
+  return apiFetch<{ session_id: string; url: string }>(
+    "/billing/create-checkout-session",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }
+  );
+}
+
 export function login(body: LoginRequest): Promise<TokenResponse> {
   return apiFetch<TokenResponse>("/auth/login", {
     method: "POST",

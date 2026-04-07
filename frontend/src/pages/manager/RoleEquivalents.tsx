@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as condensedRolesApi from "../../api/condensedRoles";
 import * as rolesApi from "../../api/roles";
+import { useLanguage } from "../../i18n/LanguageContext";
+import DemoGuard from "../../components/shared/DemoGuard";
 import type { CondensedRole, Role } from "../../types";
 
 interface Suggestion {
@@ -28,6 +30,7 @@ function normalizeRoleName(name: string): string {
 }
 
 export default function RoleEquivalents() {
+  const { t } = useLanguage();
   const [condensedRoles, setCondensedRoles] = useState<CondensedRole[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState("");
@@ -118,11 +121,11 @@ export default function RoleEquivalents() {
 
   const handleSubmit = async () => {
     if (!formName.trim()) {
-      setError("Name is required");
+      setError(t.roleEquivalents.nameRequired);
       return;
     }
     if (formRoleIds.length < 2) {
-      setError("Select at least 2 roles to group");
+      setError(t.roleEquivalents.selectAtLeast2);
       return;
     }
     setError("");
@@ -158,57 +161,58 @@ export default function RoleEquivalents() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Role Equivalents</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Group roles that serve the same scheduling purpose. Employees with
-            any role in a group can fill shifts for any other role in that group.
+          <h1 className="text-2xl font-bold text-white">{t.roleEquivalents.title}</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            {t.roleEquivalents.description}
           </p>
         </div>
         {!showForm && (
-          <button
-            onClick={startCreate}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm font-medium"
-          >
-            + New Group
-          </button>
+          <DemoGuard>
+            <button
+              onClick={startCreate}
+              className="glass-btn-primary"
+            >
+              {t.roleEquivalents.newGroup}
+            </button>
+          </DemoGuard>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
 
       {/* Create / Edit form */}
       {showForm && (
-        <div className="mb-6 bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">
-            {editingId ? "Edit Group" : "Create Group"}
+        <div className="glass-card p-6 mb-6">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            {editingId ? t.roleEquivalents.editGroup : t.roleEquivalents.createGroup}
           </h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Condensed Role Name
+            <label className="glass-label">
+              {t.roleEquivalents.condensedRoleName}
             </label>
             <input
               type="text"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              placeholder="e.g. Server, Host, Line Cook"
-              className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm"
+              placeholder={t.roleEquivalents.namePlaceholder}
+              className="glass-input w-full max-w-md"
             />
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Roles in this group
-              <span className="text-gray-400 font-normal ml-1">
-                (select 2 or more)
+            <label className="glass-label mb-2">
+              {t.roleEquivalents.rolesInGroup}
+              <span className="text-gray-500 font-normal ml-1">
+                {t.roleEquivalents.selectTwoOrMore}
               </span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto border border-white/[0.08] rounded-lg p-3">
               {availableRoles.length === 0 && !formRoleIds.length && (
-                <p className="text-sm text-gray-400 col-span-full">
-                  All roles are already assigned to groups.
+                <p className="text-sm text-gray-500 col-span-full">
+                  {t.roleEquivalents.allAssigned}
                 </p>
               )}
               {roles
@@ -222,14 +226,14 @@ export default function RoleEquivalents() {
                     <button
                       key={role.id}
                       onClick={() => toggleRole(role.id)}
-                      className={`text-left px-3 py-2 rounded border text-sm transition-colors ${
+                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                         selected
-                          ? "bg-indigo-100 border-indigo-400 text-indigo-800 font-medium"
-                          : "bg-white border-gray-200 text-gray-700 hover:border-gray-400"
+                          ? "bg-purple-500/20 border-purple-400/30 text-purple-300 font-medium"
+                          : "bg-white/[0.05] border-white/[0.08] text-gray-300 hover:border-white/20"
                       }`}
                     >
                       {role.name}
-                      {role.external_id && <span className="block text-xs text-gray-400 font-normal truncate">{role.external_id}</span>}
+                      {role.external_id && <span className="block text-xs text-gray-500 font-normal truncate">{role.external_id}</span>}
                     </button>
                   );
                 })}
@@ -238,15 +242,15 @@ export default function RoleEquivalents() {
           <div className="flex gap-2">
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm font-medium"
+              className="glass-btn-primary"
             >
-              {editingId ? "Update" : "Create"}
+              {editingId ? t.common.update : t.common.create}
             </button>
             <button
               onClick={resetForm}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+              className="glass-btn-secondary"
             >
-              Cancel
+              {t.common.cancel}
             </button>
           </div>
         </div>
@@ -255,24 +259,24 @@ export default function RoleEquivalents() {
       {/* Suggestions */}
       {suggestions.length > 0 && !showForm && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Suggested Groups
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            {t.roleEquivalents.suggestedGroups}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {suggestions.map((s) => (
               <button
                 key={s.name}
                 onClick={() => applySuggestion(s)}
-                className="text-left bg-amber-50 border border-amber-200 rounded-lg p-4 hover:border-amber-400 hover:bg-amber-100 transition-colors"
+                className="text-left bg-amber-500/10 border border-amber-400/20 rounded-xl p-4 hover:border-amber-400/40 hover:bg-amber-500/15 transition-colors"
               >
-                <div className="font-semibold text-amber-900 mb-2">
+                <div className="font-semibold text-amber-300 mb-2">
                   {s.name}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {s.roles.map((r) => (
                     <span
                       key={r.id}
-                      className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs"
+                      className="inline-block px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded text-xs"
                     >
                       {r.name}
                     </span>
@@ -289,18 +293,18 @@ export default function RoleEquivalents() {
         {condensedRoles.map((cr) => (
           <div
             key={cr.id}
-            className="bg-white rounded-lg shadow p-4 flex items-start justify-between"
+            className="glass-card p-4 flex items-start justify-between"
           >
             <div>
-              <h3 className="font-semibold text-gray-900">{cr.name}</h3>
+              <h3 className="text-white font-semibold">{cr.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {cr.roles.map((r) => (
                   <span
                     key={r.role_id}
-                    className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
+                    className="inline-block px-2 py-1 bg-white/[0.06] text-gray-300 rounded text-xs font-medium"
                   >
                     {r.role_name}
-                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className="ml-1 text-gray-400 font-normal">{ext}</span> : null; })()}
+                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className="ml-1 text-gray-500 font-normal">{ext}</span> : null; })()}
                   </span>
                 ))}
               </div>
@@ -308,23 +312,22 @@ export default function RoleEquivalents() {
             <div className="flex gap-2 ml-4 shrink-0">
               <button
                 onClick={() => startEdit(cr)}
-                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                className="text-purple-400 hover:text-purple-300 text-sm font-medium"
               >
-                Edit
+                {t.common.edit}
               </button>
               <button
                 onClick={() => handleDelete(cr.id)}
-                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                className="text-red-400 hover:text-red-300 text-sm font-medium"
               >
-                Delete
+                {t.common.delete}
               </button>
             </div>
           </div>
         ))}
         {condensedRoles.length === 0 && !showForm && (
-          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-            No role equivalents configured. Create a group to let employees with
-            similar roles fill each other's shifts.
+          <div className="glass-card p-8 text-center text-gray-400">
+            {t.roleEquivalents.emptyState}
           </div>
         )}
       </div>

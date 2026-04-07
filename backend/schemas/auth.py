@@ -6,6 +6,9 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     company_name: str
+    privacy_accepted: bool = False
+    terms_accepted: bool = False
+    stripe_session_id: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -23,6 +26,26 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class GoogleAuthRequest(BaseModel):
+    id_token: str
+
+
+class GoogleLinkRequest(BaseModel):
+    id_token: str
+    email: str
+    password: str
+    ownership_group_id: str | None = None
+
+
+class GoogleAuthResponse(BaseModel):
+    """Response for Google auth - either a token (success) or a link_required hint."""
+    access_token: str | None = None
+    token_type: str = "bearer"
+    link_required: bool = False
+    email: str | None = None
+    google_name: str | None = None
+
+
 class UserResponse(BaseModel):
     id: str
     company_id: str
@@ -30,5 +53,6 @@ class UserResponse(BaseModel):
     full_name: str | None
     user_role: str
     ownership_group_id: str | None = None
+    is_demo: bool = False
 
     model_config = {"from_attributes": True}

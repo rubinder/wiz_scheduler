@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -22,6 +22,9 @@ class ShiftSchedule(Base):
     week_start_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
     raw_llm_output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    strategy: Mapped[str | None] = mapped_column(String, nullable=True)
+    strategy_param: Mapped[float | None] = mapped_column(Float, nullable=True)
+    strategy_param2: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

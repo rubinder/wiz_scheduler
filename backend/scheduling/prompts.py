@@ -133,7 +133,7 @@ def build_schedule_prompt(
                          if r.get("role_name") == role_name),
                         0,
                     )
-                    eligible.append(f'{e["full_name"]} [id={e["id"]}, skill={skill}]')
+                    eligible.append(f'{e["id"]} [skill={skill}]')
 
             eligible_str = ", ".join(eligible) if eligible else "NONE AVAILABLE"
             req_lines.append(
@@ -152,7 +152,7 @@ def build_schedule_prompt(
             aff_parts = [f'{a.get("target_id", "")}:{a.get("level", 0)}' for a in affinities]
             aff_str = f"\n  affinities: [{', '.join(aff_parts)}]"
         roster_lines.append(
-            f"- {e['full_name']} (id: {e['id']})\n"
+            f"- {e['id']}\n"
             f"  roles: [{e['_roles_display']}]\n"
             f"  available: {e['_avail_display']}{aff_str}"
         )
@@ -219,8 +219,7 @@ def build_schedule_prompt(
         f"OUTPUT FORMAT\n"
         f"=============\n"
         f"Use the submit_schedule tool. For each assignment provide:\n"
-        f"  - employee_id: UUID from the Eligible list\n"
-        f"  - employee_name: full name\n"
+        f"  - employee_id: the ID from the Eligible list\n"
         f"  - role_name: exact role name from the shift requirement\n"
         f"  - date: YYYY-MM-DD (from DATE REFERENCE)\n"
         f"  - start_time: full ISO 8601, e.g. {date_map.get('Monday', week_start_date)}T09:00:00{tz_offset}\n"
