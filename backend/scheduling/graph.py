@@ -15,7 +15,6 @@ from backend.models import (
     Location,
     Role,
     ShiftTemplate,
-    TokenUsage,
 )
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.nodes import (
@@ -57,14 +56,19 @@ def _should_continue_or_end(state: SchedulingState) -> str:
 def build_scheduling_graph(
     use_local: bool = False,
     strategy: Strategy = "random",
+    strategy_param: float = 0.5,
+    strategy_param2: float = 0.0,
 ) -> StateGraph:
     """Construct the LangGraph state graph for the scheduling pipeline.
 
     Args:
         use_local: If True, use the local algorithmic scheduler instead of
             the LLM.  Skips prompt building and LLM call entirely.
-        strategy: Scheduling strategy for the local scheduler ("random" or
-            "rotation").  Ignored when *use_local* is False.
+        strategy: Scheduling strategy for the local scheduler ("random",
+            "rotation", or "rotation_history").  Ignored when *use_local* is
+            False.
+        strategy_param: Fairness weight for rotation_history (0.0-1.0).
+            Ignored for other strategies.
     """
     graph = StateGraph(SchedulingState)
 
@@ -80,7 +84,7 @@ def build_scheduling_graph(
     if use_local:
         # Local scheduler: load context -> local_schedule -> validate
         def _local_schedule_node(state: SchedulingState) -> Dict[str, Any]:
-            return local_schedule(state, strategy=strategy)
+            return local_schedule(state, strategy=strategy, strategy_param=strategy_param, strategy_param2=strategy_param2)
 
         graph.add_node("local_schedule", _local_schedule_node)
         graph.add_edge("load_location_context", "local_schedule")
@@ -387,6 +391,50 @@ async def _load_initial_state(
     return initial_state
 
 
+async def _load_role_history_minutes(
+    db: AsyncSession,
+    company_id: str,
+    week_start_date: str,
+) -> Dict[tuple, float]:
+    """Load employee role minutes for the past 3 months.
+
+    Returns a dict of (employee_id, role_name) -> total_minutes.
+    """
+    from datetime import date as date_type
+    from backend.models.employee_role_minutes import EmployeeRoleMinutes
+
+    ref_date = date_type.fromisoformat(week_start_date)
+    # Go back ~3 months
+    three_months_ago = ref_date.replace(day=1)
+    for _ in range(3):
+        three_months_ago = (three_months_ago - timedelta(days=1)).replace(day=1)
+
+    result = await db.execute(
+        select(EmployeeRoleMinutes).where(
+            EmployeeRoleMinutes.company_id == company_id,
+            EmployeeRoleMinutes.month_start >= three_months_ago,
+        )
+    )
+    rows = result.scalars().all()
+
+    # We need role_id -> role_name mapping to key by role_name (which is what
+    # the local scheduler uses).
+    role_result = await db.execute(
+        select(Role).where(Role.company_id == company_id)
+    )
+    role_map = {str(r.id): r.name for r in role_result.scalars().all()}
+
+    history: Dict[tuple, float] = {}
+    for row in rows:
+        role_name = role_map.get(str(row.role_id), "")
+        if not role_name:
+            continue
+        key = (str(row.employee_id), role_name)
+        history[key] = history.get(key, 0.0) + row.total_minutes
+
+    return history
+
+
 async def run_scheduling_pipeline(
     company_id: str,
     week_start_date: str,
@@ -394,6 +442,8 @@ async def run_scheduling_pipeline(
     template_ids: List[str] | None = None,
     use_local: bool = False,
     strategy: Strategy = "random",
+    strategy_param: float = 0.5,
+    strategy_param2: float = 0.0,
     num_days: int = 7,
 ) -> AsyncGenerator[LocationResult, None]:
     """Run the scheduling pipeline and yield LocationResult dicts as they're produced.
@@ -405,8 +455,9 @@ async def run_scheduling_pipeline(
         template_ids: Optional list of shift template UUIDs to generate for.
         use_local: If True, use the local algorithmic scheduler instead of
             the LLM.
-        strategy: Scheduling strategy for the local scheduler ("random" or
-            "rotation").
+        strategy: Scheduling strategy for the local scheduler ("random",
+            "rotation", or "rotation_history").
+        strategy_param: Fairness weight for rotation_history (0.0-1.0).
         num_days: Number of days to schedule starting from week_start_date.
 
     Yields:
@@ -420,7 +471,13 @@ async def run_scheduling_pipeline(
     if not initial_state["locations"]:
         return
 
-    graph = build_scheduling_graph(use_local=use_local, strategy=strategy)
+    # For rotation_history strategy, load 3-month role minutes from DB
+    if use_local and strategy == "rotation_history":
+        initial_state["_role_history_minutes"] = await _load_role_history_minutes(
+            db, company_id, week_start_date,
+        )
+
+    graph = build_scheduling_graph(use_local=use_local, strategy=strategy, strategy_param=strategy_param, strategy_param2=strategy_param2)
     compiled = graph.compile()
 
     # Track how many results we've already yielded
@@ -454,53 +511,15 @@ async def run_scheduling_pipeline(
             entry["company_id"] = company_id
         await log_failure_batch(accumulated_failures)
 
-    # Upsert token usage for the ownership group
+    # Record token usage and calculate billing
     if final_input_tokens or final_output_tokens:
-        await _update_token_usage(
-            db, company_id, final_input_tokens, final_output_tokens
+        from backend.services.billing import check_and_record_usage, deduct_credits_for_overage
+
+        billing_result = await check_and_record_usage(
+            db, company_id, final_input_tokens, final_output_tokens,
         )
-
-
-async def _update_token_usage(
-    db: AsyncSession,
-    company_id: str,
-    input_tokens: int,
-    output_tokens: int,
-) -> None:
-    """Upsert the TokenUsage row for the company's ownership group and current month."""
-    result = await db.execute(
-        select(Company).where(Company.id == company_id)
-    )
-    company = result.scalar_one_or_none()
-    if not company or not company.ownership_group_id:
-        return
-
-    now = datetime.utcnow()
-    ownership_group_id = company.ownership_group_id
-
-    result = await db.execute(
-        select(TokenUsage).where(
-            TokenUsage.ownership_group_id == ownership_group_id,
-            TokenUsage.year == now.year,
-            TokenUsage.month == now.month,
-        )
-    )
-    usage = result.scalar_one_or_none()
-
-    if usage:
-        usage.input_tokens += input_tokens
-        usage.output_tokens += output_tokens
-        usage.total_tokens += input_tokens + output_tokens
-        usage.updated_at = now
-    else:
-        usage = TokenUsage(
-            ownership_group_id=ownership_group_id,
-            year=now.year,
-            month=now.month,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-        )
-        db.add(usage)
-
-    await db.flush()
+        # Deduct purchased credits for any overage
+        if billing_result.get("charged_usd", 0) > 0:
+            await deduct_credits_for_overage(
+                db, company_id, billing_result["charged_usd"],
+            )

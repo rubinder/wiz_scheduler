@@ -18,14 +18,20 @@ import EmployeeAssociation from "./pages/manager/EmployeeAssociation";
 import EmployeeOnboarding from "./pages/manager/EmployeeOnboarding";
 import ExportSchedules from "./pages/manager/ExportSchedules";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import DataProcessingAgreement from "./pages/DataProcessingAgreement";
+import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
+import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
+import Landing from "./pages/Landing";
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-gray-500">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
       </div>
     );
   }
@@ -35,7 +41,7 @@ function ProtectedLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <TopBar />
@@ -64,6 +70,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/dpa" element={<DataProcessingAgreement />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedLayout />}>
@@ -81,21 +90,23 @@ export default function App() {
           <Route path="shift-templates" element={<ShiftTemplates />} />
           <Route path="schedule" element={<Schedule />} />
           <Route path="export-schedules" element={<ExportSchedules />} />
+          <Route path="data-privacy" element={<ManagerDataPrivacy />} />
         </Route>
 
         {/* Employee routes */}
         <Route path="/employee">
           <Route path="availability" element={<Availability />} />
+          <Route path="data-privacy" element={<EmployeeDataPrivacy />} />
         </Route>
       </Route>
 
-      {/* Root redirect */}
+      {/* Landing page for unauthenticated users */}
       <Route
-        path="*"
+        path="/"
         element={
           loading ? (
-            <div className="min-h-screen flex items-center justify-center bg-gray-100">
-              <div className="text-gray-500">Loading...</div>
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-gray-400">Loading...</div>
             </div>
           ) : user ? (
             user.user_role === "manager" ? (
@@ -104,7 +115,27 @@ export default function App() {
               <Navigate to="/employee/availability" replace />
             )
           ) : (
-            <Navigate to="/login" replace />
+            <Landing />
+          )
+        }
+      />
+
+      {/* Catch-all redirect */}
+      <Route
+        path="*"
+        element={
+          loading ? (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          ) : user ? (
+            user.user_role === "manager" ? (
+              <Navigate to="/manager/dashboard" replace />
+            ) : (
+              <Navigate to="/employee/availability" replace />
+            )
+          ) : (
+            <Navigate to="/" replace />
           )
         }
       />

@@ -22,3 +22,13 @@ output "ecs_service_name" {
   description = "Name of the ECS service"
   value       = aws_ecs_service.app.name
 }
+
+output "app_url" {
+  description = "Application URL (HTTPS if domain configured, otherwise ALB DNS)"
+  value       = var.domain_name != "" ? "https://${var.domain_name}" : "http://${aws_lb.main.dns_name}"
+}
+
+output "route53_nameservers" {
+  description = "Nameservers for the Route 53 hosted zone (set these at your domain registrar)"
+  value       = var.domain_name != "" ? aws_route53_zone.main[0].name_servers : []
+}

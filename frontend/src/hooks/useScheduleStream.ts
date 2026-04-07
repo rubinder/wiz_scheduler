@@ -3,7 +3,9 @@ import type { LocationResult } from "../types";
 
 interface GenerateOptions {
   useLocal?: boolean;
-  strategy?: "random" | "rotation";
+  strategy?: "random" | "rotation" | "rotation_history" | "max_hours";
+  strategyParam?: number;
+  strategyParam2?: number;
   numDays?: number;
 }
 
@@ -58,6 +60,12 @@ export function useScheduleStream(): UseScheduleStreamReturn {
       if (options?.useLocal) {
         body.use_local = true;
         body.strategy = options.strategy || "random";
+        if (options.strategyParam !== undefined) {
+            body.strategy_param = options.strategyParam;
+        }
+        if (options.strategyParam2 !== undefined) {
+            body.strategy_param2 = options.strategyParam2;
+        }
       }
       if (options?.numDays && options.numDays !== 7) {
         body.num_days = options.numDays;

@@ -24,7 +24,7 @@ from backend.scheduling.state import SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
 
-Strategy = Literal["random", "rotation"]
+Strategy = Literal["random", "rotation", "rotation_history", "max_hours"]
 
 
 def _tz_offset_for_location(timezone_str: str) -> str:
@@ -103,7 +103,7 @@ def _build_affinity_lookup(
     return lookup
 
 
-def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dict[str, Any]:
+def local_schedule(state: SchedulingState, strategy: Strategy = "random", strategy_param: float = 0.5, strategy_param2: float = 0.0) -> Dict[str, Any]:
     """Generate shift assignments locally without calling an LLM."""
     location = state["current_location"]
     location_id = str(location.get("id", ""))
@@ -131,6 +131,10 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dic
     eligible_map = _build_eligible_map(employees, weekly_schedule, date_to_day)
     affinity_lookup = _build_affinity_lookup(employees)
 
+    # For rotation_history, the history data is pre-loaded into state by the graph node.
+    # It's a dict of (employee_id, role_name) -> total_minutes over past 3 months.
+    history_minutes: Dict[Tuple[str, str], float] = state.get("_role_history_minutes", {})
+
     # Track assignments to prevent same employee overlapping on same day
     assigned_times: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
 
@@ -140,6 +144,9 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dic
     # Track which employees are assigned to each shift window
     # (date, start_hm, end_hm) -> set of employee_ids
     shift_coworkers: Dict[Tuple[str, str, str], Set[str]] = {}
+
+    # Track accumulated hours per employee for max_hours strategy
+    employee_hours: Dict[str, float] = {}
 
     shifts: List[ShiftAssignment] = []
 
@@ -189,6 +196,13 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dic
                 chosen = _pick_employee(
                     available, role_name, role_fill_counts, strategy,
                     current_coworkers, affinity_lookup,
+                    history_minutes=history_minutes,
+                    strategy_param=strategy_param,
+                    strategy_param2=strategy_param2,
+                    employee_hours=employee_hours,
+                    shift_duration_hrs=(
+                        _shift_duration_hours(start_hm, end_hm)
+                    ),
                 )
 
                 shift: ShiftAssignment = {
@@ -208,6 +222,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dic
                 assigned_times.setdefault((eid, slot_date), []).append((start_hm, end_hm))
                 role_fill_counts[(eid, role_name)] = role_fill_counts.get((eid, role_name), 0) + 1
                 shift_coworkers.setdefault(coworker_key, set()).add(eid)
+                employee_hours[eid] = employee_hours.get(eid, 0.0) + _shift_duration_hours(start_hm, end_hm)
 
                 candidates = [c for c in candidates if c["id"] != chosen["id"]]
 
@@ -222,6 +237,17 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random") -> Dic
         "total_input_tokens": state["total_input_tokens"],
         "total_output_tokens": state["total_output_tokens"],
     }
+
+
+def _shift_duration_hours(start_hm: str, end_hm: str) -> float:
+    """Calculate shift duration in hours from HH:MM strings."""
+    sh, sm = map(int, start_hm.split(":"))
+    eh, em = map(int, end_hm.split(":"))
+    start_min = sh * 60 + sm
+    end_min = eh * 60 + em
+    if end_min <= start_min:
+        end_min += 24 * 60  # overnight shift
+    return (end_min - start_min) / 60.0
 
 
 def _filter_hard_negatives(
@@ -300,6 +326,11 @@ def _pick_employee(
     strategy: Strategy,
     current_coworkers: Set[str],
     affinity_lookup: Dict[str, List[Dict[str, Any]]],
+    history_minutes: Dict[Tuple[str, str], float] | None = None,
+    strategy_param: float = 0.5,
+    strategy_param2: float = 0.0,
+    employee_hours: Dict[str, float] | None = None,
+    shift_duration_hrs: float = 0.0,
 ) -> Dict[str, Any]:
     """Select one employee from *available* based on *strategy* and affinities.
 
@@ -341,5 +372,79 @@ def _pick_employee(
         best_score = scored[0][0]
         tied = [e for s, e in scored if s == best_score]
         return random.choice(tied)
+
+    elif strategy == "rotation_history":
+        # strategy_param: 1.0 = always pick fewest-hours, 0.0 = essentially random
+        scored: List[Tuple[float, Dict[str, Any]]] = []
+        for e in available:
+            eid = str(e["id"])
+            opp_cost = e.get("_num_required_roles", 99)
+            fills = role_fill_counts.get((eid, role_name), 0)
+            hist_mins = (history_minutes or {}).get((eid, role_name), 0.0)
+            aff = _affinity_score(eid, current_coworkers, affinity_lookup)
+            # History component: scale minutes to a reasonable range (0-1000 points)
+            # Higher minutes = higher penalty
+            history_penalty = hist_mins / 60.0  # convert to hours for scaling
+            # Blend between random (opp_cost only) and full history consideration
+            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + (history_penalty * strategy_param * 10)
+            scored.append((score, e))
+
+        scored.sort(key=lambda x: x[0])
+        if strategy_param < 0.3:
+            # Low fairness = more randomness among top candidates
+            cutoff = scored[0][0] + 50
+            pool = [e for s, e in scored if s <= cutoff]
+            return random.choice(pool)
+        else:
+            best_score = scored[0][0]
+            tied = [e for s, e in scored if s == best_score]
+            return random.choice(tied)
+
+    elif strategy == "max_hours":
+        # strategy_param = max hours (e.g. 40)
+        # strategy_param2 = strictness (1.0 = hard cap, 0.0 = no enforcement)
+        max_hrs = strategy_param if strategy_param > 0 else 40.0
+        strictness = strategy_param2
+        emp_hrs = employee_hours or {}
+
+        # At high strictness, filter out employees who would exceed the cap
+        if strictness >= 0.8:
+            capped = [
+                e for e in available
+                if emp_hrs.get(str(e["id"]), 0.0) + shift_duration_hrs <= max_hrs
+            ]
+            if capped:
+                available = capped
+            # If everyone would exceed, fall through to scoring (don't leave shift empty)
+
+        scored: List[Tuple[float, Dict[str, Any]]] = []
+        for e in available:
+            eid = str(e["id"])
+            opp_cost = e.get("_num_required_roles", 99)
+            current_hrs = emp_hrs.get(eid, 0.0)
+            projected_hrs = current_hrs + shift_duration_hrs
+            aff = _affinity_score(eid, current_coworkers, affinity_lookup)
+
+            # Penalty for being near/over the cap, scaled by strictness
+            if projected_hrs > max_hrs:
+                over_penalty = (projected_hrs - max_hrs) * strictness * 200
+            else:
+                over_penalty = 0.0
+
+            # Prefer employees with fewer hours (spread the load)
+            hours_penalty = current_hrs * strictness * 5
+
+            score = opp_cost * 100 - e.get("_skill", 0) + aff + over_penalty + hours_penalty
+            scored.append((score, e))
+
+        scored.sort(key=lambda x: x[0])
+        if strictness < 0.3:
+            cutoff = scored[0][0] + 50
+            pool = [e for s, e in scored if s <= cutoff]
+            return random.choice(pool)
+        else:
+            best_score = scored[0][0]
+            tied = [e for s, e in scored if s == best_score]
+            return random.choice(tied)
 
     return random.choice(available)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Employee } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 interface Props {
   employees: Employee[];
@@ -19,6 +20,7 @@ export default function EmployeeSearchBox({
   placeholder = "Search employees...",
   inline = false,
 }: Props) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,10 +80,10 @@ export default function EmployeeSearchBox({
     }
   };
 
-  // ~40px per item (name + email) × 3 = 120px
+  // ~40px per item (name + email) x 3 = 120px
   const listClasses = inline
-    ? "mt-1 w-full max-h-[120px] overflow-auto bg-white border rounded shadow text-sm"
-    : "absolute z-20 mt-1 w-full max-h-48 overflow-auto bg-white border rounded shadow-lg text-sm";
+    ? "mt-1 w-full max-h-[120px] overflow-auto bg-gray-900/95 backdrop-blur-xl border border-white/[0.1] rounded-lg shadow-2xl text-sm"
+    : "absolute z-20 mt-1 w-full max-h-48 overflow-auto bg-gray-900/95 backdrop-blur-xl border border-white/[0.1] rounded-lg shadow-2xl text-sm";
 
   return (
     <div ref={containerRef} className={inline ? "" : "relative"}>
@@ -92,28 +94,28 @@ export default function EmployeeSearchBox({
         onChange={(e) => handleInputChange(e.target.value)}
         onFocus={handleFocus}
         placeholder={placeholder}
-        className="w-full border rounded px-2 py-1 text-sm"
+        className="w-full glass-input-sm"
         autoComplete="off"
       />
       {open && (
         <ul className={listClasses}>
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-gray-400">No matches</li>
+            <li className="px-3 py-2 text-gray-500">{t.search.noMatches}</li>
           ) : (
             filtered.map((emp) => (
               <li
                 key={emp.id}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(emp)}
-                className={`px-3 py-2 cursor-pointer hover:bg-indigo-50 ${
+                className={`px-3 py-2 cursor-pointer hover:bg-white/[0.08] ${
                   emp.id === value
-                    ? "bg-indigo-100 text-indigo-800 font-medium"
-                    : "text-gray-800"
+                    ? "bg-purple-500/15 text-purple-300 font-medium"
+                    : "text-gray-200"
                 }`}
               >
                 <div>{emp.full_name}</div>
                 {emp.email && (
-                  <div className="text-xs text-gray-400">{emp.email}</div>
+                  <div className="text-xs text-gray-500">{emp.email}</div>
                 )}
               </li>
             ))

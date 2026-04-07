@@ -152,6 +152,14 @@ resource "aws_ecs_task_definition" "app" {
           name  = "ENVIRONMENT"
           value = var.environment
         },
+        {
+          name  = "ENV"
+          value = "production"
+        },
+        {
+          name  = "CORS_ORIGINS"
+          value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
+        },
       ]
 
       logConfiguration = {
@@ -191,7 +199,7 @@ resource "aws_ecs_service" "app" {
     container_port   = var.container_port
   }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 
   tags = { Name = "${var.app_name}-service" }
 }

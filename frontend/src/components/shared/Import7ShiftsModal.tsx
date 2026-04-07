@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { importFrom7Shifts, type ImportResult } from "../../api/import7shifts";
+import { useLanguage } from "../../i18n/LanguageContext";
+import DemoGuard from "./DemoGuard";
 
 interface Props {
   onClose: () => void;
@@ -14,15 +16,16 @@ function SyncRow({
 }) {
   return (
     <tr>
-      <td className="px-3 py-1 text-sm font-medium text-gray-700">{label}</td>
-      <td className="px-3 py-1 text-sm text-green-700">{stats.created}</td>
-      <td className="px-3 py-1 text-sm text-blue-700">{stats.updated}</td>
-      <td className="px-3 py-1 text-sm text-red-700">{stats.deleted}</td>
+      <td className="px-3 py-1 text-sm font-medium text-gray-300">{label}</td>
+      <td className="px-3 py-1 text-sm text-emerald-400">{stats.created}</td>
+      <td className="px-3 py-1 text-sm text-blue-400">{stats.updated}</td>
+      <td className="px-3 py-1 text-sm text-red-400">{stats.deleted}</td>
     </tr>
   );
 }
 
 export default function Import7ShiftsModal({ onClose }: Props) {
+  const { t } = useLanguage();
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,13 +50,13 @@ export default function Import7ShiftsModal({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold">Import from 7shifts</h2>
+    <div className="glass-modal-overlay">
+      <div className="glass-modal w-full max-w-lg mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+          <h2 className="text-lg font-semibold text-gray-200">{t.import7Shifts.title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-gray-500 hover:text-gray-300 text-xl leading-none"
           >
             &times;
           </button>
@@ -62,27 +65,25 @@ export default function Import7ShiftsModal({ onClose }: Props) {
         <div className="px-6 py-4 space-y-4">
           {!result && (
             <>
-              <p className="text-sm text-gray-600">
-                Enter your 7shifts access token to import companies, locations,
-                departments, roles, employees, and user assignments. You can
-                generate an access token in your 7shifts account under{" "}
-                <span className="font-medium">
-                  Company Settings &gt; Developer Tools
+              <p className="text-sm text-gray-400">
+                {t.import7Shifts.description}{" "}
+                <span className="font-medium text-gray-300">
+                  {t.import7Shifts.devTools}
                 </span>
                 .
               </p>
               <div>
                 <label
                   htmlFor="seven-token"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-gray-300 mb-1"
                 >
-                  Access Token
+                  {t.import7Shifts.accessToken}
                 </label>
                 <input
                   id="seven-token"
                   type="password"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Paste your 7shifts access token"
+                  className="w-full glass-input focus:ring-orange-500"
+                  placeholder={t.import7Shifts.placeholder}
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   disabled={loading}
@@ -92,51 +93,51 @@ export default function Import7ShiftsModal({ onClose }: Props) {
           )}
 
           {error && (
-            <div className="p-3 bg-red-50 text-red-700 rounded text-sm">
+            <div className="glass-alert-error">
               {error}
             </div>
           )}
 
           {loading && (
             <div className="flex items-center gap-3 py-4">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" />
-              <span className="text-sm text-gray-600">
-                Importing data from 7shifts... This may take a moment.
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
+              <span className="text-sm text-gray-400">
+                {t.import7Shifts.importingData}
               </span>
             </div>
           )}
 
           {result && (
             <div className="space-y-3">
-              <div className="p-3 bg-green-50 text-green-800 rounded text-sm font-medium">
-                Import completed successfully
+              <div className="glass-alert-success">
+                {t.import7Shifts.importSuccess}
               </div>
               <table className="w-full text-left">
                 <thead>
                   <tr className="text-xs text-gray-500 uppercase">
-                    <th className="px-3 py-1">Entity</th>
-                    <th className="px-3 py-1">Created</th>
-                    <th className="px-3 py-1">Updated</th>
-                    <th className="px-3 py-1">Deleted</th>
+                    <th className="px-3 py-1">{t.import7Shifts.entity}</th>
+                    <th className="px-3 py-1">{t.import7Shifts.created}</th>
+                    <th className="px-3 py-1">{t.import7Shifts.updated}</th>
+                    <th className="px-3 py-1">{t.import7Shifts.deleted}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <SyncRow label="Companies" stats={result.companies} />
-                  <SyncRow label="Locations" stats={result.locations} />
-                  <SyncRow label="Departments" stats={result.departments} />
-                  <SyncRow label="Roles" stats={result.roles} />
-                  <SyncRow label="Employees" stats={result.employees} />
+                  <SyncRow label={t.common.companies} stats={result.companies} />
+                  <SyncRow label={t.common.locations} stats={result.locations} />
+                  <SyncRow label={t.import7Shifts.departments} stats={result.departments} />
+                  <SyncRow label={t.common.roles} stats={result.roles} />
+                  <SyncRow label={t.common.employees} stats={result.employees} />
                   <SyncRow
-                    label="User Assignments"
+                    label={t.import7Shifts.userAssignments}
                     stats={result.user_assignments}
                   />
                 </tbody>
               </table>
 
               {result.errors.length > 0 && (
-                <div className="p-3 bg-yellow-50 rounded text-sm">
-                  <p className="font-medium text-yellow-800 mb-1">Warnings:</p>
-                  <ul className="list-disc list-inside text-yellow-700 space-y-0.5">
+                <div className="glass-alert-warning">
+                  <p className="font-medium mb-1">{t.common.warnings}:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
                     {result.errors.map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
@@ -147,30 +148,32 @@ export default function Import7ShiftsModal({ onClose }: Props) {
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-lg">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
           {result ? (
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm font-medium"
+              className="glass-btn-primary px-4 py-2 text-sm font-medium"
             >
-              Done
+              {t.common.done}
             </button>
           ) : (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                className="glass-btn-secondary px-4 py-2 text-sm font-medium"
                 disabled={loading}
               >
-                Cancel
+                {t.common.cancel}
               </button>
-              <button
-                onClick={handleImport}
-                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm font-medium disabled:opacity-50"
-                disabled={loading || !token.trim()}
-              >
-                {loading ? "Importing..." : "Import"}
-              </button>
+              <DemoGuard>
+                <button
+                  onClick={handleImport}
+                  className="glass-btn-orange px-4 py-2 text-sm font-medium disabled:opacity-50"
+                  disabled={loading || !token.trim()}
+                >
+                  {loading ? t.common.loading : t.common.import}
+                </button>
+              </DemoGuard>
             </>
           )}
         </div>

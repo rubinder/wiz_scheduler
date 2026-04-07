@@ -11,7 +11,9 @@ class GenerateRequest(BaseModel):
     location_ids: list[str] | None = None
     template_ids: list[str] | None = None
     use_local: bool = False
-    strategy: Literal["random", "rotation"] = "random"
+    strategy: Literal["random", "rotation", "rotation_history", "max_hours"] = "random"
+    strategy_param: float | None = None
+    strategy_param2: float | None = None
     num_days: int = 7
 
 
@@ -51,6 +53,9 @@ class ShiftScheduleResponse(BaseModel):
     location_id: str
     week_start_date: date
     status: str
+    strategy: str | None = None
+    strategy_param: float | None = None
+    strategy_param2: float | None = None
     created_at: datetime
     shifts: list[ShiftResponse] = []
 

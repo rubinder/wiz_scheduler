@@ -4,9 +4,12 @@ import {
   listInvites,
   sendInvite,
 } from "../../api/employees";
+import DemoGuard from "../../components/shared/DemoGuard";
+import { useLanguage } from "../../i18n/LanguageContext";
 import type { Employee, InviteStatusResponse } from "../../types";
 
 export default function EmployeeOnboarding() {
+  const { t } = useLanguage();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [invites, setInvites] = useState<InviteStatusResponse[]>([]);
   const [error, setError] = useState("");
@@ -62,15 +65,20 @@ export default function EmployeeOnboarding() {
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      active: "bg-green-100 text-green-700",
-      pending: "bg-yellow-100 text-yellow-700",
-      "needs invite": "bg-gray-100 text-gray-600",
+      active: "bg-emerald-500/15 text-emerald-300",
+      pending: "bg-yellow-500/15 text-yellow-300",
+      "needs invite": "bg-white/[0.06] text-gray-400",
+    };
+    const labelMap: Record<string, string> = {
+      active: t.onboarding.statusActive,
+      pending: t.onboarding.statusPending,
+      "needs invite": t.onboarding.statusNeedsInvite,
     };
     return (
       <span
         className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? styles["needs invite"]}`}
       >
-        {status}
+        {labelMap[status] ?? status}
       </span>
     );
   };
@@ -78,54 +86,50 @@ export default function EmployeeOnboarding() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Employee Onboarding</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Send invite links to imported employees so they can create a login and
-          manage their own availability.
+        <h1 className="text-2xl font-bold text-white">{t.onboarding.title}</h1>
+        <p className="mt-1 text-sm text-gray-400">
+          {t.onboarding.subtitle}
         </p>
       </div>
 
       {/* How it works */}
-      <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <h2 className="text-sm font-semibold text-blue-800 mb-2">
-          How onboarding works
+      <div className="mb-6 rounded-xl border border-blue-400/20 bg-blue-500/10 p-4">
+        <h2 className="text-sm font-semibold text-blue-300 mb-2">
+          {t.onboarding.howItWorks}
         </h2>
-        <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+        <ol className="list-decimal list-inside text-sm text-blue-300/80 space-y-1">
           <li>
-            Import or manually create employees on the{" "}
+            {t.onboarding.step1prefix}{" "}
             <a
               href="/manager/employees"
               className="underline font-medium"
             >
-              Employees
+              {t.onboarding.step1link}
             </a>{" "}
-            page (make sure each has an email).
+            {t.onboarding.step1suffix}
           </li>
           <li>
-            Click <strong>Send Invite</strong> below to generate a unique login
-            link. The link is copied to your clipboard automatically.
+            {t.onboarding.step2prefix} <strong>{t.onboarding.step2bold}</strong> {t.onboarding.step2suffix}
           </li>
           <li>
-            Share the link with the employee. They set a password, and can then
-            log in to manage their availability.
+            {t.onboarding.step3}
           </li>
         </ol>
-        <p className="mt-2 text-xs text-blue-600">
-          Invite links expire after 7 days. You can re-send at any time to
-          generate a fresh link.
+        <p className="mt-2 text-xs text-blue-400/60">
+          {t.onboarding.expireNote}
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
 
       {copiedLink && (
-        <div className="mb-4 p-3 bg-green-50 text-green-700 rounded text-sm">
-          Invite link copied to clipboard!
-          <span className="block mt-1 text-xs text-green-600 break-all font-mono">
+        <div className="glass-alert-success mb-4">
+          {t.onboarding.inviteCopied}
+          <span className="block mt-1 text-xs break-all font-mono opacity-80">
             {copiedLink}
           </span>
         </div>
@@ -133,23 +137,25 @@ export default function EmployeeOnboarding() {
 
       {/* Needs Invite */}
       <Section
-        title="Needs Invite"
+        title={t.onboarding.needsInvite}
         count={needsInvite.length}
-        emptyMessage="All employees have been invited or onboarded."
+        emptyMessage={t.onboarding.allInvitedOrOnboarded}
       >
         {needsInvite.map((emp) => (
           <EmployeeRow key={emp.id} employee={emp} status="needs invite" statusBadge={statusBadge}>
             {emp.email ? (
-              <button
-                onClick={() => handleInvite(emp.id)}
-                disabled={sendingId === emp.id}
-                className="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {sendingId === emp.id ? "Sending..." : "Send Invite"}
-              </button>
+              <DemoGuard>
+                <button
+                  onClick={() => handleInvite(emp.id)}
+                  disabled={sendingId === emp.id}
+                  className="glass-btn-primary px-3 py-1 text-sm disabled:opacity-50"
+                >
+                  {sendingId === emp.id ? t.onboarding.sending : t.onboarding.sendInvite}
+                </button>
+              </DemoGuard>
             ) : (
-              <span className="text-xs text-gray-400 italic">
-                No email — add one on the Employees page
+              <span className="text-xs text-gray-500 italic">
+                {t.onboarding.noEmail}
               </span>
             )}
           </EmployeeRow>
@@ -158,9 +164,9 @@ export default function EmployeeOnboarding() {
 
       {/* Pending */}
       <Section
-        title="Invite Sent (Pending)"
+        title={t.onboarding.inviteSentPending}
         count={pendingInvite.length}
-        emptyMessage="No pending invites."
+        emptyMessage={t.onboarding.noPending}
       >
         {pendingInvite.map((emp) => {
           const inv = inviteStatusFor(emp.id);
@@ -168,18 +174,20 @@ export default function EmployeeOnboarding() {
             <EmployeeRow key={emp.id} employee={emp} status="pending" statusBadge={statusBadge}>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">
-                  Expires{" "}
+                  {t.onboarding.expires}{" "}
                   {inv
                     ? new Date(inv.expires_at).toLocaleDateString()
                     : ""}
                 </span>
-                <button
-                  onClick={() => handleInvite(emp.id)}
-                  disabled={sendingId === emp.id}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 disabled:opacity-50"
-                >
-                  {sendingId === emp.id ? "Sending..." : "Re-send"}
-                </button>
+                <DemoGuard>
+                  <button
+                    onClick={() => handleInvite(emp.id)}
+                    disabled={sendingId === emp.id}
+                    className="glass-btn-secondary px-3 py-1 text-sm disabled:opacity-50"
+                  >
+                    {sendingId === emp.id ? t.onboarding.sending : t.onboarding.resend}
+                  </button>
+                </DemoGuard>
               </div>
             </EmployeeRow>
           );
@@ -188,13 +196,13 @@ export default function EmployeeOnboarding() {
 
       {/* Onboarded */}
       <Section
-        title="Onboarded"
+        title={t.onboarding.onboarded}
         count={onboarded.length}
-        emptyMessage="No employees have completed onboarding yet."
+        emptyMessage={t.onboarding.noOnboarded}
       >
         {onboarded.map((emp) => (
           <EmployeeRow key={emp.id} employee={emp} status="active" statusBadge={statusBadge}>
-            <span className="text-xs text-green-600">Can log in</span>
+            <span className="text-xs text-emerald-400">{t.onboarding.canLogIn}</span>
           </EmployeeRow>
         ))}
       </Section>
@@ -215,13 +223,13 @@ function Section({
 }) {
   return (
     <div className="mb-6">
-      <h2 className="text-lg font-semibold mb-2">
+      <h2 className="text-lg font-semibold text-white mb-2">
         {title}{" "}
-        <span className="text-sm font-normal text-gray-500">({count})</span>
+        <span className="text-sm font-normal text-gray-400">({count})</span>
       </h2>
-      <div className="bg-white rounded-lg shadow divide-y divide-gray-200">
+      <div className="glass-card divide-y divide-white/[0.06]">
         {count === 0 ? (
-          <div className="px-4 py-3 text-sm text-gray-400 italic">
+          <div className="px-4 py-3 text-sm text-gray-500 italic">
             {emptyMessage}
           </div>
         ) : (
@@ -247,7 +255,7 @@ function EmployeeRow({
     <div className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-3">
         <div>
-          <div className="text-sm font-medium">{employee.full_name}</div>
+          <div className="text-sm font-medium text-gray-200">{employee.full_name}</div>
           <div className="text-xs text-gray-500">
             {employee.email ?? "No email"}
           </div>

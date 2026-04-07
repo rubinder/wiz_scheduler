@@ -3,9 +3,12 @@ import * as locationsApi from "../../api/locations";
 import * as regionsApi from "../../api/regions";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import ImportModal from "../../components/shared/ImportModal";
+import DemoGuard from "../../components/shared/DemoGuard";
 import type { Location, Region } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 export default function Locations() {
+  const { t } = useLanguage();
   const [locations, setLocations] = useState<Location[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
@@ -89,22 +92,24 @@ export default function Locations() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Locations</h1>
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
-        >
-          Import Data
-        </button>
+        <h1 className="text-2xl font-bold text-white">{t.locationsPage.title}</h1>
+        <DemoGuard>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="glass-btn-success"
+          >
+            {t.locationsPage.importData}
+          </button>
+        </DemoGuard>
       </div>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
       {showImportModal && (
         <ImportModal
-          title="Import Locations"
+          title={t.locationsPage.importTitle}
           format={{
             csv: `name,region_name,address,timezone\nDowntown Branch,East Region,123 Main St,America/New_York\nUptown Branch,West Region,456 Oak Ave,America/Los_Angeles`,
             json: `[\n  {\n    "name": "Downtown Branch",\n    "region_name": "East Region",\n    "address": "123 Main St",\n    "timezone": "America/New_York"\n  },\n  {\n    "name": "Uptown Branch",\n    "region_name": "West Region",\n    "address": "456 Oak Ave",\n    "timezone": "America/Los_Angeles"\n  }\n]`,
@@ -113,7 +118,7 @@ export default function Locations() {
           onClose={() => setShowImportModal(false)}
         />
       )}
-      <div className="bg-white rounded-lg shadow">
+      <div className="glass-card">
         <DataTable
           columns={columns}
           data={locations as unknown as Record<string, unknown>[]}

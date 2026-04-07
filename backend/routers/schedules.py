@@ -2,13 +2,15 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Shift, ShiftSchedule, User
+from backend.models.consent import UserConsent
+from backend.utils.privacy import mask_ip
 from backend.models.employee import EmployeeAvailability
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
 from backend.utils.id_gen import generate_short_id
@@ -104,19 +106,75 @@ async def _subtract_availability_for_shifts(
     await db.flush()
 
 
+@router.get("/ai-credits")
+async def get_ai_credits(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Check AI credit status for the current ownership group."""
+    from backend.services.billing import check_ai_credits
+
+    return await check_ai_credits(db, str(current_user.company_id))
+
+
+@router.get("/schedule-quota")
+async def get_schedule_quota(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Check schedule generation quota for the current ownership group."""
+    from backend.services.billing import check_schedule_quota
+
+    return await check_schedule_quota(db, str(current_user.company_id))
+
+
 @router.post("/generate")
 async def generate_schedule(
     body: GenerateRequest,
+    request: Request,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     from backend.scheduling.graph import run_scheduling_pipeline
+
+    # Pre-generation schedule quota check (both AI and local modes)
+    from backend.services.billing import check_schedule_quota
+
+    quota_status = await check_schedule_quota(db, str(current_user.company_id))
+    if not quota_status["can_generate"]:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Schedule quota exhausted. Please purchase additional credits to continue.",
+        )
+
+    # Pre-generation credit check for AI mode
+    if not body.use_local:
+        from backend.services.billing import check_ai_credits
+
+        credit_status = await check_ai_credits(db, str(current_user.company_id))
+        if not credit_status["can_generate"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="AI credits exhausted. Please purchase additional credits to continue.",
+            )
 
     template_ids = (
         [str(tid) for tid in body.template_ids] if body.template_ids else None
     )
 
     async def event_stream():
+        # Record consent for AI data processing
+        if not body.use_local:
+            client_ip = mask_ip(request.client.host) if request.client else None
+            db.add(UserConsent(
+                user_id=current_user.id,
+                company_id=current_user.company_id,
+                consent_type="data_processing_ai",
+                version="1.0",
+                ip_address=client_ip,
+            ))
+            await db.flush()
+
         try:
             async for chunk in run_scheduling_pipeline(
                 company_id=str(current_user.company_id),
@@ -125,6 +183,8 @@ async def generate_schedule(
                 template_ids=template_ids,
                 use_local=body.use_local,
                 strategy=body.strategy,
+                strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
+                strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
                 num_days=body.num_days,
             ):
                 # Persist a ShiftSchedule row so approve/reject have a record to find
@@ -136,10 +196,18 @@ async def generate_schedule(
                         week_start_date=body.week_start_date,
                         status="draft",
                         raw_llm_output=json.dumps(chunk.get("shifts", [])),
+                        strategy=body.strategy if body.use_local else "ai",
+                        strategy_param=body.strategy_param,
+                        strategy_param2=body.strategy_param2,
                     )
                     db.add(sched)
                     await db.flush()
                     chunk["schedule_id"] = str(sched.id)
+
+                    # Deduct credits if over schedule free tier
+                    from backend.services.billing import deduct_credits_for_schedule_overage
+                    await deduct_credits_for_schedule_overage(db, str(current_user.company_id))
+
                     await db.commit()
 
                 yield json.dumps(chunk) + "\n"
@@ -287,6 +355,49 @@ async def approve_schedule(
         await _subtract_availability_for_shifts(
             db, current_user.company_id, shifts_data,
         )
+
+        # Accumulate worked minutes into employee_role_minutes for history tracking
+        from backend.models.employee_role_minutes import EmployeeRoleMinutes
+
+        for s in shifts_data:
+            if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                continue
+            try:
+                emp_id = s["employee_id"]
+                role_id_val = s["role_id"]
+                shift_start = datetime.fromisoformat(s["start_time"])
+                shift_end = datetime.fromisoformat(s["end_time"])
+                minutes = (shift_end - shift_start).total_seconds() / 60.0
+                shift_date = date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"]
+                month_start = shift_date.replace(day=1)
+
+                # Resolve condensed role IDs to a real role ID
+                if role_id_val not in valid_role_ids:
+                    role_id_val = condensed_to_role.get(role_id_val, role_id_val)
+                if role_id_val not in valid_role_ids:
+                    continue
+
+                existing = await db.execute(
+                    select(EmployeeRoleMinutes).where(
+                        EmployeeRoleMinutes.company_id == current_user.company_id,
+                        EmployeeRoleMinutes.employee_id == emp_id,
+                        EmployeeRoleMinutes.role_id == role_id_val,
+                        EmployeeRoleMinutes.month_start == month_start,
+                    )
+                )
+                record = existing.scalar_one_or_none()
+                if record:
+                    record.total_minutes += minutes
+                else:
+                    db.add(EmployeeRoleMinutes(
+                        company_id=current_user.company_id,
+                        employee_id=emp_id,
+                        role_id=role_id_val,
+                        month_start=month_start,
+                        total_minutes=minutes,
+                    ))
+            except (KeyError, ValueError):
+                continue
 
     await db.commit()
     await db.refresh(schedule)

@@ -62,6 +62,16 @@ variable "health_check_path" {
 
 # --- RDS ---
 
+# --- DNS / HTTPS ---
+
+variable "domain_name" {
+  description = "Root domain name (e.g. wizscheduler.com). Leave empty to skip DNS/HTTPS setup."
+  type        = string
+  default     = ""
+}
+
+# --- RDS ---
+
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string

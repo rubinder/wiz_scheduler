@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import * as regionsApi from "../../api/regions";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import type { Region } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 const columns: Column[] = [
   { key: "name", label: "Name", type: "text" },
 ];
 
 export default function Regions() {
+  const { t } = useLanguage();
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
 
@@ -54,13 +56,13 @@ export default function Regions() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Regions</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">{t.regions.title}</h1>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
-      <div className="bg-white rounded-lg shadow">
+      <div className="glass-card">
         <DataTable
           columns={columns}
           data={regions as unknown as Record<string, unknown>[]}

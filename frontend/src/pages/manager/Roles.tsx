@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import * as rolesApi from "../../api/roles";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import ImportModal from "../../components/shared/ImportModal";
+import DemoGuard from "../../components/shared/DemoGuard";
 import type { Role } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 const columns: Column[] = [
   { key: "name", label: "Name", type: "text" },
@@ -11,6 +13,7 @@ const columns: Column[] = [
 ];
 
 export default function Roles() {
+  const { t } = useLanguage();
   const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
@@ -70,22 +73,24 @@ export default function Roles() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Roles</h1>
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
-        >
-          Import Data
-        </button>
+        <h1 className="text-2xl font-bold text-white">{t.rolesPage.title}</h1>
+        <DemoGuard>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="glass-btn-success"
+          >
+            {t.rolesPage.importData}
+          </button>
+        </DemoGuard>
       </div>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
       {showImportModal && (
         <ImportModal
-          title="Import Roles"
+          title={t.rolesPage.importTitle}
           format={{
             csv: `name,description\nBarista,Prepares coffee and espresso drinks\nCashier,Handles register and payments\nShift Lead,Supervises team during shifts`,
             json: `[\n  {\n    "name": "Barista",\n    "description": "Prepares coffee and espresso drinks"\n  },\n  {\n    "name": "Cashier",\n    "description": "Handles register and payments"\n  },\n  {\n    "name": "Shift Lead",\n    "description": "Supervises team during shifts"\n  }\n]`,
@@ -94,7 +99,7 @@ export default function Roles() {
           onClose={() => setShowImportModal(false)}
         />
       )}
-      <div className="bg-white rounded-lg shadow">
+      <div className="glass-card">
         <DataTable
           columns={columns}
           data={roles as unknown as Record<string, unknown>[]}

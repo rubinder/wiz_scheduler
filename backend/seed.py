@@ -41,10 +41,12 @@ ROLE_FLOOR_ID = "role0001"
 ROLE_LEAD_ID = "role0002"
 REGION_ID = "regn0001"
 LOCATION_ID = "locn0001"
+LOCATION_ID_2 = "locn0002"
 
-EMPLOYEE_IDS = [f"empl{str(i).zfill(4)}" for i in range(1, 8)]
+EMPLOYEE_IDS = [f"empl{str(i).zfill(4)}" for i in range(1, 18)]
 
 SHIFT_TEMPLATE_ID = "shft0001"
+SHIFT_TEMPLATE_ID_2 = "shft0002"
 
 
 def _hash(password: str) -> str:
@@ -150,6 +152,22 @@ async def main() -> None:
             },
         )
 
+        # --- Location 2 ---
+        await db.execute(
+            text(
+                "INSERT INTO locations (id, company_id, region_id, name, timezone) "
+                "VALUES (:id, :company_id, :region_id, :name, :timezone) "
+                "ON CONFLICT (id) DO NOTHING"
+            ),
+            {
+                "id": LOCATION_ID_2,
+                "company_id": COMPANY_ID,
+                "region_id": REGION_ID,
+                "name": "Uptown Store",
+                "timezone": "America/New_York",
+            },
+        )
+
         # --- Employees ---
         employee_names = [
             "Alice Johnson",
@@ -159,6 +177,16 @@ async def main() -> None:
             "Eve Martinez",
             "Frank Brown",
             "Grace Lee",
+            "Hannah Kim",
+            "Isaac Torres",
+            "Julia Chen",
+            "Kevin Patel",
+            "Laura Nguyen",
+            "Marcus Wright",
+            "Nina Rodriguez",
+            "Oscar Yamamoto",
+            "Paula Singh",
+            "Quinn Murphy",
         ]
         for i, (eid, name) in enumerate(zip(EMPLOYEE_IDS, employee_names)):
             user_id = EMPLOYEE_USER_ID if i == 0 else None
@@ -174,7 +202,7 @@ async def main() -> None:
                     "user_id": user_id,
                     "full_name": name,
                     "email": f"{name.lower().replace(' ', '.')}@example.com",
-                    "location_ids": json.dumps([LOCATION_ID]),
+                    "location_ids": json.dumps([LOCATION_ID, LOCATION_ID_2]),
                 },
             )
 
@@ -205,6 +233,21 @@ async def main() -> None:
             (4, ROLE_FLOOR_ID, 1),
             (5, ROLE_LEAD_ID, 4),
             (6, ROLE_FLOOR_ID, 3),
+            (7, ROLE_FLOOR_ID, 3),
+            (7, ROLE_LEAD_ID, 2),
+            (8, ROLE_FLOOR_ID, 2),
+            (9, ROLE_FLOOR_ID, 4),
+            (9, ROLE_LEAD_ID, 3),
+            (10, ROLE_FLOOR_ID, 2),
+            (11, ROLE_FLOOR_ID, 3),
+            (11, ROLE_LEAD_ID, 2),
+            (12, ROLE_FLOOR_ID, 1),
+            (13, ROLE_FLOOR_ID, 4),
+            (13, ROLE_LEAD_ID, 4),
+            (14, ROLE_FLOOR_ID, 3),
+            (15, ROLE_FLOOR_ID, 2),
+            (15, ROLE_LEAD_ID, 1),
+            (16, ROLE_FLOOR_ID, 3),
         ]
         for ra_idx, (emp_idx, role_id, skill) in enumerate(role_assignments):
             er_id = f"er{str(ra_idx).zfill(6)}"
@@ -262,7 +305,23 @@ async def main() -> None:
             },
         )
 
-        # --- Availability (current week, Mon-Fri, 9am-5pm ET for all 7 employees) ---
+        # --- Shift Template 2 (Uptown Store, same schedule) ---
+        await db.execute(
+            text(
+                "INSERT INTO shift_templates (id, company_id, location_id, name, weekly_schedule) "
+                "VALUES (:id, :company_id, :location_id, :name, CAST(:weekly_schedule AS jsonb)) "
+                "ON CONFLICT (id) DO NOTHING"
+            ),
+            {
+                "id": SHIFT_TEMPLATE_ID_2,
+                "company_id": COMPANY_ID,
+                "location_id": LOCATION_ID_2,
+                "name": "Weekday Standard",
+                "weekly_schedule": str(weekly_schedule).replace("'", '"'),
+            },
+        )
+
+        # --- Availability (current week, Mon-Fri, 9am-5pm ET for all employees) ---
         monday = _current_week_monday()
         et_offset = timezone(timedelta(hours=-5))  # EST (simplified)
 

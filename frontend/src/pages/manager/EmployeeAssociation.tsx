@@ -16,13 +16,14 @@ import {
   type ImportAvailabilitiesResult,
 } from "../../api/import7shifts";
 import { listRoles } from "../../api/roles";
+import DemoGuard from "../../components/shared/DemoGuard";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
+import { useLanguage } from "../../i18n/LanguageContext";
 import type {
   Employee,
   EmployeeAffinity,
   EmployeeAvailability,
 } from "../../types";
-
 // ── Tab types ──
 
 type Tab = "affinities" | "availability";
@@ -38,28 +39,33 @@ interface EditingRow {
   expiration_date: string;
 }
 
-const LEVEL_OPTIONS = [
-  { value: "1", label: "1.0 — Must schedule together" },
-  { value: "0.5", label: "0.5 — Prefer together" },
-  { value: "0", label: "0.0 — Neutral" },
-  { value: "-0.5", label: "-0.5 — Prefer apart" },
-  { value: "-1", label: "-1.0 — Must not schedule together" },
-];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Translations = any;
 
-const getLevelLabel = (level: number): string => {
-  if (level >= 1) return "Must together";
-  if (level > 0) return "Prefer together";
-  if (level === 0) return "Neutral";
-  if (level > -1) return "Prefer apart";
-  return "Must not together";
-};
+function getLevelOptions(t: Translations) {
+  return [
+    { value: "1", label: t.association.levelMustTogether },
+    { value: "0.5", label: t.association.levelPreferTogether },
+    { value: "0", label: t.association.levelNeutral },
+    { value: "-0.5", label: t.association.levelPreferApart },
+    { value: "-1", label: t.association.levelMustNotTogether },
+  ];
+}
+
+function getLevelLabel(level: number, t: Translations): string {
+  if (level >= 1) return t.association.labelMustTogether;
+  if (level > 0) return t.association.labelPreferTogether;
+  if (level === 0) return t.association.labelNeutral;
+  if (level > -1) return t.association.labelPreferApart;
+  return t.association.labelMustNotTogether;
+}
 
 const getLevelColor = (level: number): string => {
-  if (level >= 1) return "bg-green-100 text-green-800";
-  if (level > 0) return "bg-green-50 text-green-700";
-  if (level === 0) return "bg-gray-100 text-gray-700";
-  if (level > -1) return "bg-orange-100 text-orange-700";
-  return "bg-red-100 text-red-800";
+  if (level >= 1) return "bg-emerald-500/15 text-emerald-300";
+  if (level > 0) return "bg-emerald-500/10 text-emerald-400";
+  if (level === 0) return "bg-white/[0.06] text-gray-400";
+  if (level > -1) return "bg-orange-500/15 text-orange-300";
+  return "bg-red-500/15 text-red-300";
 };
 
 // ── Availability tab helpers ──
@@ -90,6 +96,7 @@ function isAllDay(start: string, end: string): boolean {
 // ── Main component ──
 
 export default function EmployeeAssociation() {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("availability");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,11 +154,11 @@ export default function EmployeeAssociation() {
       const value = monday.toISOString().split("T")[0];
       const monLabel = monday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const sunLabel = sunday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const prefix = i === 0 ? "This Week: " : "";
+      const prefix = i === 0 ? `${t.association.weekLabel} ` : "";
       weeks.push({ value, label: `${prefix}${monLabel} – ${sunLabel}` });
     }
     return weeks;
-  }, []);
+  }, [t]);
 
   const [selectedWeek, setSelectedWeek] = useState(() => {
     // Default to this week's Monday
@@ -273,7 +280,7 @@ export default function EmployeeAssociation() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this association?")) return;
+    if (!confirm(t.association.deleteConfirm)) return;
     try {
       await deleteAffinity(id);
       await loadData();
@@ -380,12 +387,14 @@ export default function EmployeeAssociation() {
     });
   }, [employees, availFilter]);
 
+  const levelOptions = useMemo(() => getLevelOptions(t), [t]);
+
   // ── Render ──
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
-        Loading...
+        {t.common.loading}
       </div>
     );
   }
@@ -393,9 +402,9 @@ export default function EmployeeAssociation() {
   if (employees.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500">
-        <p className="text-lg">No employees found.</p>
+        <p className="text-lg">{t.association.noEmployees}</p>
         <p className="mt-2">
-          Add employees first before creating associations.
+          {t.association.addEmployeesFirst}
         </p>
       </div>
     );
@@ -404,46 +413,44 @@ export default function EmployeeAssociation() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Employee Availability &amp; Association
+        <h1 className="text-2xl font-bold text-white">
+          {t.association.title}
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage employee availability and scheduling affinities.
-          Affinity values: <strong>1</strong> = must work together,{" "}
-          <strong>0.5</strong> = nice to have together,{" "}
-          <strong>-1</strong> = cannot work together,{" "}
-          <strong>-0.5 / -0.7</strong> = prefer not to work together (use
-          instead of -1 when you have no option but to occasionally schedule
-          them together).
+        <p className="mt-1 text-sm text-gray-400">
+          {t.association.description}{" "}
+          {t.association.affinityExplanation} <strong className="text-gray-200">1</strong> {t.association.mustTogether}{" "}
+          <strong className="text-gray-200">0.5</strong> {t.association.preferTogether}{" "}
+          <strong className="text-gray-200">-1</strong> {t.association.cannotTogether}{" "}
+          <strong className="text-gray-200">-0.5 / -0.7</strong> {t.association.preferApart}
         </p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-gray-200 mb-6">
+      <div className="flex border-b border-white/[0.08] mb-6">
         <button
           onClick={() => setTab("availability")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "availability"
-              ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-purple-400 text-purple-400"
+              : "border-transparent text-gray-500 hover:text-gray-300 hover:border-white/20"
           }`}
         >
-          Availability
+          {t.association.tabAvailability}
         </button>
         <button
           onClick={() => setTab("affinities")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "affinities"
-              ? "border-indigo-600 text-indigo-600"
-              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              ? "border-purple-400 text-purple-400"
+              : "border-transparent text-gray-500 hover:text-gray-300 hover:border-white/20"
           }`}
         >
-          Affinities
+          {t.association.tabAffinities}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
@@ -455,39 +462,39 @@ export default function EmployeeAssociation() {
             <button
               onClick={startAdding}
               disabled={editing !== null}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
+              className="glass-btn-primary disabled:opacity-50"
             >
-              + Add Association
+              {t.association.addAssociation}
             </button>
           </div>
 
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="glass-card overflow-hidden">
+            <table className="glass-table">
+              <thead className="bg-white/[0.04]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Employee
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                    {t.common.employee}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Target Employee
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                    {t.association.targetEmployee}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Affinity Level
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                    {t.association.affinityLevel}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Entry Date
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                    {t.association.entryDate}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Expiration Date
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                    {t.association.expirationDate}
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                    Actions
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">
+                    {t.common.actions}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-white/[0.06]">
                 {editing && (
-                  <tr className="bg-indigo-50 align-top">
+                  <tr className="bg-purple-500/10 align-top">
                     <td className="px-4 py-4">
                       <EmployeeSearchBox
                         employees={employees}
@@ -500,7 +507,7 @@ export default function EmployeeAssociation() {
                             ? [editing.target_employee_id]
                             : []
                         }
-                        placeholder="Type to search..."
+                        placeholder={t.association.typeToSearch}
                         inline
                       />
                     </td>
@@ -514,7 +521,7 @@ export default function EmployeeAssociation() {
                         excludeIds={
                           editing.employee_id ? [editing.employee_id] : []
                         }
-                        placeholder="Type to search..."
+                        placeholder={t.association.typeToSearch}
                         inline
                       />
                     </td>
@@ -524,9 +531,9 @@ export default function EmployeeAssociation() {
                         onChange={(e) =>
                           setEditing({ ...editing, level: e.target.value })
                         }
-                        className="w-full border rounded px-2 py-1 text-sm"
+                        className="glass-input-sm w-full"
                       >
-                        {LEVEL_OPTIONS.map((opt) => (
+                        {levelOptions.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
@@ -540,7 +547,7 @@ export default function EmployeeAssociation() {
                         onChange={(e) =>
                           setEditing({ ...editing, entry_date: e.target.value })
                         }
-                        className="w-full border rounded px-2 py-1 text-sm"
+                        className="glass-input-sm w-full"
                       />
                     </td>
                     <td className="px-4 py-4">
@@ -553,7 +560,7 @@ export default function EmployeeAssociation() {
                             expiration_date: e.target.value,
                           })
                         }
-                        className="w-full border rounded px-2 py-1 text-sm"
+                        className="glass-input-sm w-full"
                         placeholder="Optional"
                       />
                     </td>
@@ -566,15 +573,15 @@ export default function EmployeeAssociation() {
                           !editing.target_employee_id ||
                           !editing.entry_date
                         }
-                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                        className="glass-btn-success px-3 py-1 text-xs disabled:opacity-50"
                       >
-                        {saving ? "Saving..." : "Save"}
+                        {saving ? t.common.saving : t.common.save}
                       </button>
                       <button
                         onClick={cancelEditing}
-                        className="px-3 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
+                        className="glass-btn-secondary px-3 py-1 text-xs"
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                     </td>
                   </tr>
@@ -584,21 +591,21 @@ export default function EmployeeAssociation() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="px-4 py-8 text-center text-gray-400 text-sm"
+                      className="px-4 py-8 text-center text-gray-500 text-sm"
                     >
-                      No associations yet. Click &quot;+ Add Association&quot;
-                      to create one.
+                      {t.association.noAssociations} &quot;{t.association.addAssociation}&quot;
+                      {" "}{t.association.toCreateOne}
                     </td>
                   </tr>
                 )}
 
                 {affinities.map((a) =>
                   editing?.id === a.id ? null : (
-                    <tr key={a.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-5 text-sm text-gray-900">
+                    <tr key={a.id} className="hover:bg-white/[0.03]">
+                      <td className="px-4 py-5 text-sm text-gray-200">
                         {employeeMap.get(a.employee_id) ?? a.employee_id}
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-900">
+                      <td className="px-4 py-5 text-sm text-gray-200">
                         {employeeMap.get(a.target_employee_id) ??
                           a.target_employee_id}
                       </td>
@@ -606,31 +613,31 @@ export default function EmployeeAssociation() {
                         <span
                           className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getLevelColor(a.level)}`}
                         >
-                          {a.level} — {getLevelLabel(a.level)}
+                          {a.level} — {getLevelLabel(a.level, t)}
                         </span>
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-700">
+                      <td className="px-4 py-5 text-sm text-gray-300">
                         {a.entry_date}
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-700">
+                      <td className="px-4 py-5 text-sm text-gray-300">
                         {a.expiration_date ?? (
-                          <span className="text-gray-400">None</span>
+                          <span className="text-gray-500">{t.common.none}</span>
                         )}
                       </td>
                       <td className="px-4 py-5 text-right space-x-2">
                         <button
                           onClick={() => startEditing(a)}
                           disabled={editing !== null}
-                          className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs rounded hover:bg-indigo-200 disabled:opacity-50"
+                          className="px-3 py-1 bg-purple-500/15 text-purple-300 text-xs rounded hover:bg-purple-500/25 disabled:opacity-50"
                         >
-                          Edit
+                          {t.common.edit}
                         </button>
                         <button
                           onClick={() => handleDelete(a.id)}
                           disabled={editing !== null}
-                          className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 disabled:opacity-50"
+                          className="px-3 py-1 bg-red-500/15 text-red-300 text-xs rounded hover:bg-red-500/25 disabled:opacity-50"
                         >
-                          Delete
+                          {t.common.delete}
                         </button>
                       </td>
                     </tr>
@@ -647,11 +654,11 @@ export default function EmployeeAssociation() {
         <div>
           <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-gray-700">Week:</label>
+              <label className="text-sm font-medium text-gray-400">{t.association.weekLabel}</label>
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 text-sm"
+                className="glass-input"
               >
                 {weekOptions.map((w) => (
                   <option key={w.value} value={w.value}>
@@ -661,64 +668,65 @@ export default function EmployeeAssociation() {
               </select>
               <input
                 type="text"
-                placeholder="Filter by name..."
+                placeholder={t.association.filterPlaceholder}
                 value={availFilter}
                 onChange={(e) => setAvailFilter(e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
+                className="glass-input w-48"
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setShowImport7Shifts(!showImport7Shifts);
-                  setImport7Result(null);
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded border ${
-                  showImport7Shifts
-                    ? "bg-orange-100 border-orange-300 text-orange-700"
-                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Import from 7shifts
-              </button>
-              <button
-                onClick={() => setAddingAvail(true)}
-                disabled={addingAvail}
-                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
-              >
-                + Add Availability
-              </button>
+              <DemoGuard>
+                <button
+                  onClick={() => {
+                    setShowImport7Shifts(!showImport7Shifts);
+                    setImport7Result(null);
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded border ${
+                    showImport7Shifts
+                      ? "bg-orange-500/15 border-orange-400/20 text-orange-300"
+                      : "glass-btn-secondary border"
+                  }`}
+                >
+                  {t.association.importFrom7shifts}
+                </button>
+              </DemoGuard>
+              <DemoGuard>
+                <button
+                  onClick={() => setAddingAvail(true)}
+                  disabled={addingAvail}
+                  className="glass-btn-primary disabled:opacity-50"
+                >
+                  {t.association.addAvailability}
+                </button>
+              </DemoGuard>
             </div>
           </div>
 
           {/* 7shifts import panel */}
           {showImport7Shifts && (
-            <div className="bg-orange-50 rounded-lg p-4 mb-4 border border-orange-200">
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">
-                Import Availabilities from 7shifts
+            <div className="bg-orange-500/[0.07] backdrop-blur-xl border border-orange-400/[0.12] rounded-xl p-4 mb-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-1">
+                {t.association.import7shiftsTitle}
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                Fetches employee availability from the 7shifts API for the
-                specified date range. Existing availability in that range will
-                be replaced. You can import from the current week up to 8 weeks
-                ahead.
+                {t.association.import7shiftsDesc}
               </p>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    7shifts Access Token
+                  <label className="glass-label-sm">
+                    {t.association.accessToken7shifts}
                   </label>
                   <input
                     type="password"
                     value={import7Token}
                     onChange={(e) => setImport7Token(e.target.value)}
-                    placeholder="Enter your 7shifts access token"
-                    className="w-full border rounded px-3 py-2 text-sm"
+                    placeholder={t.association.accessTokenPlaceholder}
+                    className="glass-input w-full"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    From
+                  <label className="glass-label-sm">
+                    {t.association.from}
                   </label>
                   <input
                     type="date"
@@ -726,12 +734,12 @@ export default function EmployeeAssociation() {
                     min={import7MinDate}
                     max={import7MaxDate}
                     onChange={(e) => setImport7Start(e.target.value)}
-                    className="border rounded px-3 py-2 text-sm"
+                    className="glass-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    To
+                  <label className="glass-label-sm">
+                    {t.association.to}
                   </label>
                   <input
                     type="date"
@@ -739,7 +747,7 @@ export default function EmployeeAssociation() {
                     min={import7Start || import7MinDate}
                     max={import7MaxDate}
                     onChange={(e) => setImport7End(e.target.value)}
-                    className="border rounded px-3 py-2 text-sm"
+                    className="glass-input"
                   />
                 </div>
                 <button
@@ -747,39 +755,39 @@ export default function EmployeeAssociation() {
                   disabled={
                     importing7Shifts || !import7Token || !import7Start || !import7End
                   }
-                  className="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700 disabled:opacity-50"
+                  className="glass-btn-orange disabled:opacity-50"
                 >
-                  {importing7Shifts ? "Importing..." : "Import"}
+                  {importing7Shifts ? t.association.importing : t.common.import}
                 </button>
                 <button
                   onClick={() => {
                     setShowImport7Shifts(false);
                     setImport7Result(null);
                   }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                  className="glass-btn-secondary"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
               {import7Result && (
-                <div className="mt-3 p-3 bg-white rounded border border-orange-100 text-sm">
-                  <p className="font-medium text-gray-700">Import Complete</p>
-                  <ul className="mt-1 text-gray-600 space-y-0.5">
-                    <li>Created: {import7Result.created} availability windows</li>
-                    <li>Cleared: {import7Result.cleared} existing windows in range</li>
+                <div className="mt-3 glass-card border border-orange-400/10 p-3 text-sm">
+                  <p className="font-medium text-gray-300">{t.association.importComplete}</p>
+                  <ul className="mt-1 text-gray-300 space-y-0.5">
+                    <li>{t.association.created} {import7Result.created} {t.association.availWindows}</li>
+                    <li>{t.association.cleared} {import7Result.cleared} {t.association.existingWindows}</li>
                     {import7Result.skipped > 0 && (
-                      <li>Skipped: {import7Result.skipped} (unmatched or declined)</li>
+                      <li>{t.association.skipped} {import7Result.skipped} {t.association.unmatchedOrDeclined}</li>
                     )}
                     {import7Result.outside_range > 0 && (
-                      <li className="text-gray-400">Outside date range: {import7Result.outside_range}</li>
+                      <li className="text-gray-500">{t.association.outsideDateRange} {import7Result.outside_range}</li>
                     )}
                   </ul>
                   {import7Result.errors.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-red-600 font-medium">
-                        Errors ({import7Result.errors.length}):
+                      <p className="text-red-400 font-medium">
+                        {t.common.errors} ({import7Result.errors.length}):
                       </p>
-                      <ul className="list-disc list-inside text-red-600 text-xs mt-1">
+                      <ul className="list-disc list-inside text-red-400 text-xs mt-1">
                         {import7Result.errors.map((err, i) => (
                           <li key={i}>{err}</li>
                         ))}
@@ -793,14 +801,14 @@ export default function EmployeeAssociation() {
 
           {/* Add availability form */}
           {addingAvail && (
-            <div className="bg-indigo-50 rounded-lg p-4 mb-4 border border-indigo-200">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                Add Availability Window
+            <div className="bg-purple-500/[0.07] backdrop-blur-xl border border-purple-400/[0.12] rounded-xl p-4 mb-4">
+              <h3 className="text-sm font-semibold text-gray-200 mb-3">
+                {t.association.addAvailWindow}
               </h3>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-56">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Employee
+                  <label className="glass-label-sm">
+                    {t.common.employee}
                   </label>
                   <EmployeeSearchBox
                     employees={employees}
@@ -808,13 +816,13 @@ export default function EmployeeAssociation() {
                     onChange={(id) =>
                       setAvailForm((f) => ({ ...f, employee_id: id }))
                     }
-                    placeholder="Search employee..."
+                    placeholder={t.association.searchEmployee}
                     inline
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Date
+                  <label className="glass-label-sm">
+                    {t.common.date}
                   </label>
                   <input
                     type="date"
@@ -822,12 +830,12 @@ export default function EmployeeAssociation() {
                     onChange={(e) =>
                       setAvailForm((f) => ({ ...f, date: e.target.value }))
                     }
-                    className="border rounded px-3 py-2 text-sm"
+                    className="glass-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Start
+                  <label className="glass-label-sm">
+                    {t.common.start}
                   </label>
                   <input
                     type="time"
@@ -838,12 +846,12 @@ export default function EmployeeAssociation() {
                         start_time: e.target.value,
                       }))
                     }
-                    className="border rounded px-3 py-2 text-sm"
+                    className="glass-input"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    End
+                  <label className="glass-label-sm">
+                    {t.common.end}
                   </label>
                   <input
                     type="time"
@@ -854,7 +862,7 @@ export default function EmployeeAssociation() {
                         end_time: e.target.value,
                       }))
                     }
-                    className="border rounded px-3 py-2 text-sm"
+                    className="glass-input"
                   />
                 </div>
                 <button
@@ -862,32 +870,32 @@ export default function EmployeeAssociation() {
                   disabled={
                     saving || !availForm.employee_id || !availForm.date
                   }
-                  className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                  className="glass-btn-success disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Add"}
+                  {saving ? t.common.saving : t.common.add}
                 </button>
                 <button
                   onClick={() => setAddingAvail(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                  className="glass-btn-secondary"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
             </div>
           )}
 
           {availLoading && (
-            <div className="flex items-center gap-3 py-8 justify-center text-gray-500">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-              Loading availability...
+            <div className="flex items-center gap-3 py-8 justify-center text-gray-400">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+              {t.association.loadingAvailability}
             </div>
           )}
 
           {!availLoading && (
             <div className="space-y-3">
               {filteredEmployees.filter((emp) => (availByEmployee.get(emp.id) || []).length > 0).length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  No employees have availability set for this week.
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  {t.association.noAvailThisWeek}
                 </div>
               )}
               {filteredEmployees.map((emp) => {
@@ -897,20 +905,20 @@ export default function EmployeeAssociation() {
                 return (
                   <div
                     key={emp.id}
-                    className="bg-white shadow rounded-lg overflow-hidden"
+                    className="glass-card overflow-hidden"
                   >
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-800">
+                        <span className="text-sm font-semibold text-gray-200">
                           {emp.full_name}
                         </span>
                         {emp.email && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-500">
                             {emp.email}
                           </span>
                         )}
                         {emp.roles.length > 0 && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-500">
                             {emp.roles
                               .map((r) => roleMap.get(r.role_id) ?? r.role_id)
                               .join(", ")}
@@ -918,11 +926,11 @@ export default function EmployeeAssociation() {
                         )}
                       </div>
                       <span className="text-xs text-gray-500">
-                        {windows.length} window{windows.length !== 1 ? "s" : ""}
+                        {windows.length} {windows.length !== 1 ? t.association.windows : t.association.window}
                       </span>
                     </div>
 
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-white/[0.04]">
                         {windows
                           .sort(
                             (a, b) =>
@@ -936,15 +944,15 @@ export default function EmployeeAssociation() {
                               className="px-4 py-2 flex items-center justify-between text-sm"
                             >
                               <div className="flex items-center gap-4">
-                                <span className="text-gray-700 font-medium w-28">
+                                <span className="text-gray-300 font-medium w-28">
                                   {formatDate(w.year, w.month, w.day)}
                                 </span>
                                 {isAllDay(w.start_time, w.end_time) ? (
-                                  <span className="text-green-600 text-xs font-medium">
-                                    All Day
+                                  <span className="text-emerald-400 text-xs font-medium">
+                                    {t.association.allDay}
                                   </span>
                                 ) : (
-                                  <span className="text-gray-600">
+                                  <span className="text-gray-400">
                                     {formatTime(w.start_time)} &ndash;{" "}
                                     {formatTime(w.end_time)}
                                   </span>
@@ -952,9 +960,9 @@ export default function EmployeeAssociation() {
                               </div>
                               <button
                                 onClick={() => handleDeleteAvailability(w.id)}
-                                className="text-red-500 hover:text-red-700 text-xs font-medium"
+                                className="text-red-400 hover:text-red-300 text-xs font-medium"
                               >
-                                Remove
+                                {t.common.remove}
                               </button>
                             </div>
                           ))}

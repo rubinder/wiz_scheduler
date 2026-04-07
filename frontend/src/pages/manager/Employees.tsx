@@ -3,6 +3,7 @@ import * as employeesApi from "../../api/employees";
 import * as rolesApi from "../../api/roles";
 import * as locationsApi from "../../api/locations";
 import * as companyApi from "../../api/company";
+import DemoGuard from "../../components/shared/DemoGuard";
 import ImportModal from "../../components/shared/ImportModal";
 import type {
   Company,
@@ -10,6 +11,7 @@ import type {
   Location,
   Role,
 } from "../../types";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 interface RoleAssignment {
   role_id: string;
@@ -17,6 +19,7 @@ interface RoleAssignment {
 }
 
 export default function Employees() {
+  const { t } = useLanguage();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -198,12 +201,12 @@ export default function Employees() {
         const assigned = assignedRoles.find((r) => r.role_id === role.id);
         return (
           <div key={role.id} className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-sm cursor-pointer">
+            <label className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer">
               <input
                 type="checkbox"
                 checked={!!assigned}
                 onChange={() => onChange(toggleRole(assignedRoles, role.id))}
-                className="rounded border-gray-300"
+                className="rounded border-white/20 bg-white/[0.05]"
               />
               {role.name}
             </label>
@@ -219,11 +222,11 @@ export default function Employees() {
                     )
                   )
                 }
-                className="border border-gray-300 rounded px-1 py-0.5 text-xs"
+                className="glass-input-sm text-xs"
               >
                 {[1, 2, 3, 4, 5].map((l) => (
                   <option key={l} value={l}>
-                    Skill {l}
+                    {t.employeesPage.skill} {l}
                   </option>
                 ))}
               </select>
@@ -242,13 +245,13 @@ export default function Employees() {
       {locations.map((loc) => (
         <label
           key={loc.id}
-          className="flex items-center gap-1 text-sm cursor-pointer"
+          className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer"
         >
           <input
             type="checkbox"
             checked={selectedIds.includes(loc.id)}
             onChange={() => onChange(toggleId(selectedIds, loc.id))}
-            className="rounded border-gray-300"
+            className="rounded border-white/20 bg-white/[0.05]"
           />
           {loc.name}
         </label>
@@ -264,13 +267,13 @@ export default function Employees() {
       {companies.map((comp) => (
         <label
           key={comp.id}
-          className="flex items-center gap-1 text-sm cursor-pointer"
+          className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer"
         >
           <input
             type="checkbox"
             checked={selectedIds.includes(comp.id)}
             onChange={() => onChange(toggleId(selectedIds, comp.id))}
-            className="rounded border-gray-300"
+            className="rounded border-white/20 bg-white/[0.05]"
           />
           {comp.name}
         </label>
@@ -281,15 +284,15 @@ export default function Employees() {
   const renderRoleBadges = (empRoles: Employee["roles"]) => (
     <div className="flex flex-wrap gap-1">
       {empRoles.length === 0 && (
-        <span className="text-gray-400 text-xs italic">No roles</span>
+        <span className="text-gray-500 text-xs italic">{t.employeesPage.noRoles}</span>
       )}
       {empRoles.map((r) => (
         <span
           key={r.role_id}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-400/20"
         >
           {roleName(r.role_id)}
-          <span className="text-indigo-400">L{r.skill_level}</span>
+          <span className="text-purple-500">L{r.skill_level}</span>
         </span>
       ))}
     </div>
@@ -298,12 +301,12 @@ export default function Employees() {
   const renderLocationBadges = (locIds: string[] | null) => (
     <div className="flex flex-wrap gap-1">
       {(!locIds || locIds.length === 0) && (
-        <span className="text-gray-400 text-xs italic">None</span>
+        <span className="text-gray-500 text-xs italic">{t.common.none}</span>
       )}
       {locIds?.map((id) => (
         <span
           key={id}
-          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700"
+          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
         >
           {locationName(id)}
         </span>
@@ -314,12 +317,12 @@ export default function Employees() {
   const renderCompanyBadges = (compIds: string[]) => (
     <div className="flex flex-wrap gap-1">
       {compIds.length === 0 && (
-        <span className="text-gray-400 text-xs italic">None</span>
+        <span className="text-gray-500 text-xs italic">{t.common.none}</span>
       )}
       {compIds.map((id) => (
         <span
           key={id}
-          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"
+          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-400/20"
         >
           {companyName(id)}
         </span>
@@ -332,22 +335,24 @@ export default function Employees() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Employees</h1>
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
-        >
-          Import Data
-        </button>
+        <h1 className="text-2xl font-bold text-white">{t.employeesPage.title}</h1>
+        <DemoGuard>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="glass-btn-success"
+          >
+            {t.employeesPage.importData}
+          </button>
+        </DemoGuard>
       </div>
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+        <div className="glass-alert-error mb-4">
           {error}
         </div>
       )}
       {showImportModal && (
         <ImportModal
-          title="Import Employees"
+          title={t.employeesPage.importTitle}
           format={{
             csv: `full_name,email,role_names,skill_levels,location_names\nJane Doe,jane@example.com,Barista|Cashier,3|2,Downtown|Uptown\nJohn Smith,john@example.com,Manager,5,Downtown`,
             json: `[\n  {\n    "full_name": "Jane Doe",\n    "email": "jane@example.com",\n    "role_names": "Barista|Cashier",\n    "skill_levels": "3|2",\n    "location_names": "Downtown|Uptown"\n  },\n  {\n    "full_name": "John Smith",\n    "email": "john@example.com",\n    "role_names": "Manager",\n    "skill_levels": "5",\n    "location_names": "Downtown"\n  }\n]`,
@@ -356,42 +361,42 @@ export default function Employees() {
           onClose={() => setShowImportModal(false)}
         />
       )}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="glass-card overflow-x-auto">
+        <table className="min-w-full divide-y divide-white/[0.06]">
+          <thead className="bg-white/[0.04]">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Full Name
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                {t.employeesPage.fullName}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Email
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                {t.common.email}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Locations
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                {t.common.locations}
               </th>
               {hasMultipleCompanies && (
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Companies
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  {t.common.companies}
                 </th>
               )}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Roles
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                {t.common.roles}
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                {t.common.actions}
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-white/[0.06]">
             {employees.map((emp) => {
               const isEditing = editingId === emp.id;
               return (
-                <tr key={emp.id} className={isEditing ? "bg-blue-50" : ""}>
+                <tr key={emp.id} className={isEditing ? "bg-purple-500/10" : ""}>
                   <td className="px-4 py-2">
                     {isEditing ? (
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="glass-input-sm w-full"
                         value={editValues.full_name}
                         onChange={(e) =>
                           setEditValues((v) => ({
@@ -401,14 +406,14 @@ export default function Employees() {
                         }
                       />
                     ) : (
-                      <span className="text-sm">{emp.full_name}</span>
+                      <span className="text-sm text-gray-200">{emp.full_name}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
                     {isEditing ? (
                       <input
                         type="text"
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="glass-input-sm w-full"
                         value={editValues.email}
                         onChange={(e) =>
                           setEditValues((v) => ({
@@ -418,7 +423,7 @@ export default function Employees() {
                         }
                       />
                     ) : (
-                      <span className="text-sm">{emp.email ?? ""}</span>
+                      <span className="text-sm text-gray-200">{emp.email ?? ""}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -449,31 +454,35 @@ export default function Employees() {
                       <>
                         <button
                           onClick={handleSave}
-                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
                         >
-                          Save
+                          {t.common.save}
                         </button>
                         <button
                           onClick={cancelEdit}
-                          className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                          className="text-gray-400 hover:text-gray-300 text-sm font-medium"
                         >
-                          Cancel
+                          {t.common.cancel}
                         </button>
                       </>
                     ) : (
                       <>
-                        <button
-                          onClick={() => startEdit(emp)}
-                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(emp.id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
+                        <DemoGuard>
+                          <button
+                            onClick={() => startEdit(emp)}
+                            className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                          >
+                            {t.common.edit}
+                          </button>
+                        </DemoGuard>
+                        <DemoGuard>
+                          <button
+                            onClick={() => handleDelete(emp.id)}
+                            className="text-red-400 hover:text-red-300 text-sm font-medium"
+                          >
+                            {t.common.delete}
+                          </button>
+                        </DemoGuard>
                       </>
                     )}
                   </td>
@@ -483,12 +492,12 @@ export default function Employees() {
 
             {/* Add new row */}
             {showAddRow && (
-              <tr className="bg-green-50">
+              <tr className="bg-emerald-500/10">
                 <td className="px-4 py-2">
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                    placeholder="Full Name"
+                    className="glass-input-sm w-full"
+                    placeholder={t.employeesPage.fullName}
                     value={addValues.full_name}
                     onChange={(e) =>
                       setAddValues((v) => ({
@@ -501,8 +510,8 @@ export default function Employees() {
                 <td className="px-4 py-2">
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                    placeholder="Email"
+                    className="glass-input-sm w-full"
+                    placeholder={t.common.email}
                     value={addValues.email}
                     onChange={(e) =>
                       setAddValues((v) => ({ ...v, email: e.target.value }))
@@ -529,9 +538,9 @@ export default function Employees() {
                 <td className="px-4 py-2 text-right space-x-2">
                   <button
                     onClick={handleCreate}
-                    className="text-green-600 hover:text-green-800 text-sm font-medium"
+                    className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
                   >
-                    Add
+                    {t.common.add}
                   </button>
                   <button
                     onClick={() => {
@@ -544,9 +553,9 @@ export default function Employees() {
                         company_ids: [],
                       });
                     }}
-                    className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                    className="text-gray-400 hover:text-gray-300 text-sm font-medium"
                   >
-                    Cancel
+                    {t.common.cancel}
                   </button>
                 </td>
               </tr>
@@ -556,12 +565,14 @@ export default function Employees() {
 
         {!showAddRow && (
           <div className="mt-3 mb-3 ml-3">
-            <button
-              onClick={() => setShowAddRow(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
-            >
-              + Add Row
-            </button>
+            <DemoGuard>
+              <button
+                onClick={() => setShowAddRow(true)}
+                className="glass-btn-primary"
+              >
+                {t.employeesPage.addRow}
+              </button>
+            </DemoGuard>
           </div>
         )}
       </div>

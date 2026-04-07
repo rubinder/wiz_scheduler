@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -32,6 +32,12 @@ class TokenUsage(Base):
     )
     total_tokens: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0")
+    )
+    cost_usd: Mapped[float] = mapped_column(
+        Float, nullable=False, server_default=text("0")
+    )
+    charged_usd: Mapped[float] = mapped_column(
+        Float, nullable=False, server_default=text("0")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")

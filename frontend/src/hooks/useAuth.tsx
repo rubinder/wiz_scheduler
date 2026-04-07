@@ -16,7 +16,10 @@ interface AuthContextValue {
     email: string,
     password: string,
     fullName: string,
-    companyName: string
+    companyName: string,
+    privacyAccepted?: boolean,
+    termsAccepted?: boolean,
+    stripeSessionId?: string
   ) => Promise<void>;
   logout: () => void;
   switchCompany: (companyId: string) => Promise<void>;
@@ -67,13 +70,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string,
       password: string,
       fullName: string,
-      companyName: string
+      companyName: string,
+      privacyAccepted?: boolean,
+      termsAccepted?: boolean,
+      stripeSessionId?: string
     ) => {
       const res = await authApi.register({
         email,
         password,
         full_name: fullName,
         company_name: companyName,
+        privacy_accepted: privacyAccepted,
+        terms_accepted: termsAccepted,
+        stripe_session_id: stripeSessionId,
       });
       localStorage.setItem("token", res.access_token);
       await fetchMe();

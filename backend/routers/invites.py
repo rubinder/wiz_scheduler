@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
+from backend.models.consent import UserConsent
+from backend.utils.privacy import mask_ip
 from backend.schemas.employee import (
     AcceptInviteRequest,
     AcceptInviteResponse,
@@ -46,13 +48,13 @@ def _create_access_token(
 async def _send_invite_email(email: str, employee_name: str, invite_url: str, group_name: str) -> None:
     """Send invite email via Resend if API key is configured."""
     if not settings.RESEND_API_KEY:
-        logger.info("RESEND_API_KEY not set — skipping invite email to %s", email)
+        logger.info("RESEND_API_KEY not set — skipping invite email to %s", email[:3] + "***")
         return
     try:
         import resend
 
         resend.api_key = settings.RESEND_API_KEY
-        logger.info("Sending invite email to %s (from %s)", email, settings.FROM_EMAIL)
+        logger.info("Sending invite email to %s (from %s)", email[:3] + "***", settings.FROM_EMAIL)
         result = resend.Emails.send(
             {
                 "from": settings.FROM_EMAIL,
@@ -73,9 +75,9 @@ async def _send_invite_email(email: str, employee_name: str, invite_url: str, gr
                 ),
             }
         )
-        logger.info("Invite email sent to %s — result: %s", email, result)
+        logger.info("Invite email sent to %s — result: %s", email[:3] + "***", result)
     except Exception:
-        logger.exception("Failed to send invite email to %s", email)
+        logger.exception("Failed to send invite email to %s", email[:3] + "***")
 
 
 @router.post("/employees/{employee_id}/invite", response_model=InviteResponse)
@@ -214,6 +216,7 @@ async def get_invite_info(
 async def accept_invite(
     token: str,
     body: AcceptInviteRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> AcceptInviteResponse:
     """Public endpoint — employee sets password, User account is created."""
@@ -256,6 +259,17 @@ async def accept_invite(
     )
     db.add(user)
     await db.flush()
+
+    # Record GDPR consent for the new employee user
+    client_ip = mask_ip(request.client.host) if request.client else None
+    for consent_type in ("privacy_policy", "terms_of_service"):
+        db.add(UserConsent(
+            user_id=user.id,
+            company_id=invite.company_id,
+            consent_type=consent_type,
+            version="1.0",
+            ip_address=client_ip,
+        ))
 
     # Link employee to user
     employee.user_id = user.id

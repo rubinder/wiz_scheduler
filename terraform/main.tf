@@ -8,7 +8,10 @@ terraform {
     }
   }
 
-  # Uncomment and configure for remote state:
+  # Remote state — uncomment AFTER running `terraform apply` once so the S3
+  # bucket and DynamoDB table from state.tf exist, then run:
+  #   terraform init -migrate-state
+  #
   # backend "s3" {
   #   bucket         = "wizscheduler-tfstate"
   #   key            = "terraform.tfstate"
