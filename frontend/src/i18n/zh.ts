@@ -548,7 +548,7 @@ const zh = {
     complianceTitle: "隐私与合规",
     complianceDesc: "基于 GDPR 合规理念构建。您的数据，您做主。",
     ctaTitle: "准备好简化排班了吗？",
-    ctaDesc: "加入每周节省数小时的数千名经理。免费开始，仅在增长时付费。",
+    ctaDesc: "加入每周节省数小时的数千名经理。",
     ctaBtn: "创建账户",
     featAITitle: "AI 排班生成",
     featAIDesc: "Claude AI 分析可用性、技能和团队动态，在数秒内创建最优排班。",

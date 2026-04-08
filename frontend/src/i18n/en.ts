@@ -549,7 +549,7 @@ const en = {
     complianceTitle: "Privacy & Compliance",
     complianceDesc: "Built with GDPR compliance in mind. Your data, your control.",
     ctaTitle: "Ready to Simplify Scheduling?",
-    ctaDesc: "Join thousands of managers saving hours every week. Free to start, pay only as you grow.",
+    ctaDesc: "Join thousands of managers saving hours every week.",
     ctaBtn: "Create Account",
     // Features
     featAITitle: "AI Schedule Generation",

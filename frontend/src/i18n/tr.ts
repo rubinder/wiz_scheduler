@@ -548,7 +548,7 @@ const trLang = {
     complianceTitle: "Gizlilik ve Uyumluluk",
     complianceDesc: "GDPR uyumluluğu göz önünde bulundurularak geliştirildi. Verileriniz, kontrolünüz.",
     ctaTitle: "Planlamayı Basitleştirmeye Hazır mısınız?",
-    ctaDesc: "Her hafta saatlerce tasarruf eden binlerce yöneticiye katılın. Ücretsiz başlayın, yalnızca büyüdüğünüzde ödeyin.",
+    ctaDesc: "Her hafta saatlerce tasarruf eden binlerce yöneticiye katılın.",
     ctaBtn: "Hesap Oluşturun",
     featAITitle: "AI Program Oluşturma",
     featAIDesc: "Claude AI müsaitlik, beceriler ve ekip dinamiklerini analiz ederek saniyeler içinde optimal programlar oluşturur.",

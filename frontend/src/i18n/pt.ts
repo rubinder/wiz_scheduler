@@ -548,7 +548,7 @@ const pt = {
     complianceTitle: "Privacidade e conformidade",
     complianceDesc: "Construído com conformidade GDPR em mente. Seus dados, seu controle.",
     ctaTitle: "Pronto para simplificar o agendamento?",
-    ctaDesc: "Junte-se a milhares de gestores que economizam horas toda semana. Grátis para começar, pague apenas ao crescer.",
+    ctaDesc: "Junte-se a milhares de gestores que economizam horas toda semana.",
     ctaBtn: "Criar conta",
     featAITitle: "Geração de escalas com AI",
     featAIDesc: "Claude AI analisa disponibilidade, habilidades e dinâmica da equipe para criar escalas ótimas em segundos.",

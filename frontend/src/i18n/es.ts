@@ -548,7 +548,7 @@ const es = {
     complianceTitle: "Privacidad y cumplimiento",
     complianceDesc: "Diseñado con el cumplimiento de GDPR en mente. Tus datos, tu control.",
     ctaTitle: "¿Listo para simplificar la programación?",
-    ctaDesc: "Únete a miles de gerentes que ahorran horas cada semana. Comienza gratis, paga solo cuando crezcas.",
+    ctaDesc: "Únete a miles de gerentes que ahorran horas cada semana.",
     ctaBtn: "Crear cuenta",
     featAITitle: "Generación de horarios con AI",
     featAIDesc: "Claude AI analiza disponibilidad, habilidades y dinámica del equipo para crear horarios óptimos en segundos.",

@@ -548,7 +548,7 @@ const fr = {
     complianceTitle: "Confidentialité et conformité",
     complianceDesc: "Conçu dans le respect du GDPR. Vos données, votre contrôle.",
     ctaTitle: "Prêt à simplifier la planification ?",
-    ctaDesc: "Rejoignez des milliers de managers qui gagnent des heures chaque semaine. Gratuit pour commencer, payez uniquement en grandissant.",
+    ctaDesc: "Rejoignez des milliers de managers qui gagnent des heures chaque semaine.",
     ctaBtn: "Créer un compte",
     featAITitle: "Génération de plannings par AI",
     featAIDesc: "Claude AI analyse les disponibilités, compétences et dynamiques d'équipe pour créer des plannings optimaux en quelques secondes.",
