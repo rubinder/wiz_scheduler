@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as condensedRolesApi from "../../api/condensedRoles";
 import * as rolesApi from "../../api/roles";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, action } from "../../theme";
 import DemoGuard from "../../components/shared/DemoGuard";
 import type { CondensedRole, Role } from "../../types";
 
@@ -161,8 +162,8 @@ export default function RoleEquivalents() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">{t.roleEquivalents.title}</h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <h1 className={`text-2xl font-bold ${text.heading}`}>{t.roleEquivalents.title}</h1>
+          <p className={`text-sm ${text.muted} mt-1`}>
             {t.roleEquivalents.description}
           </p>
         </div>
@@ -187,7 +188,7 @@ export default function RoleEquivalents() {
       {/* Create / Edit form */}
       {showForm && (
         <div className="glass-card p-6 mb-6">
-          <h2 className="text-lg font-semibold text-white mb-4">
+          <h2 className={`text-lg font-semibold ${text.heading} mb-4`}>
             {editingId ? t.roleEquivalents.editGroup : t.roleEquivalents.createGroup}
           </h2>
           <div className="mb-4">
@@ -205,13 +206,13 @@ export default function RoleEquivalents() {
           <div className="mb-4">
             <label className="glass-label mb-2">
               {t.roleEquivalents.rolesInGroup}
-              <span className="text-gray-500 font-normal ml-1">
+              <span className={`${text.muted} font-normal ml-1`}>
                 {t.roleEquivalents.selectTwoOrMore}
               </span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto border border-white/[0.08] rounded-lg p-3">
+            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto border ${border.default} rounded-lg p-3`}>
               {availableRoles.length === 0 && !formRoleIds.length && (
-                <p className="text-sm text-gray-500 col-span-full">
+                <p className={`text-sm ${text.muted} col-span-full`}>
                   {t.roleEquivalents.allAssigned}
                 </p>
               )}
@@ -228,12 +229,12 @@ export default function RoleEquivalents() {
                       onClick={() => toggleRole(role.id)}
                       className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                         selected
-                          ? "bg-purple-500/20 border-purple-400/30 text-purple-300 font-medium"
-                          : "bg-white/[0.05] border-white/[0.08] text-gray-300 hover:border-white/20"
+                          ? "bg-accent/15 border-accent/30 text-accent-dark font-medium"
+                          : `bg-white/50 ${border.default} ${text.secondary} hover:border-sage/30`
                       }`}
                     >
                       {role.name}
-                      {role.external_id && <span className="block text-xs text-gray-500 font-normal truncate">{role.external_id}</span>}
+                      {role.external_id && <span className={`block text-xs ${text.muted} font-normal truncate`}>{role.external_id}</span>}
                     </button>
                   );
                 })}
@@ -259,7 +260,7 @@ export default function RoleEquivalents() {
       {/* Suggestions */}
       {suggestions.length > 0 && !showForm && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          <h2 className={`text-sm font-semibold ${text.muted} uppercase tracking-wide mb-3`}>
             {t.roleEquivalents.suggestedGroups}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -267,16 +268,16 @@ export default function RoleEquivalents() {
               <button
                 key={s.name}
                 onClick={() => applySuggestion(s)}
-                className="text-left bg-amber-500/10 border border-amber-400/20 rounded-xl p-4 hover:border-amber-400/40 hover:bg-amber-500/15 transition-colors"
+                className="text-left bg-amber-50 border border-amber-200 rounded-xl p-4 hover:border-amber-300 hover:bg-amber-100 transition-colors"
               >
-                <div className="font-semibold text-amber-300 mb-2">
+                <div className="font-semibold text-amber-700 mb-2">
                   {s.name}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {s.roles.map((r) => (
                     <span
                       key={r.id}
-                      className="inline-block px-2 py-0.5 bg-amber-500/15 text-amber-300 rounded text-xs"
+                      className="inline-block px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs"
                     >
                       {r.name}
                     </span>
@@ -296,15 +297,15 @@ export default function RoleEquivalents() {
             className="glass-card p-4 flex items-start justify-between"
           >
             <div>
-              <h3 className="text-white font-semibold">{cr.name}</h3>
+              <h3 className={`${text.heading} font-semibold`}>{cr.name}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {cr.roles.map((r) => (
                   <span
                     key={r.role_id}
-                    className="inline-block px-2 py-1 bg-white/[0.06] text-gray-300 rounded text-xs font-medium"
+                    className={`inline-block px-2 py-1 ${bg.tableHeader} ${text.secondary} rounded text-xs font-medium`}
                   >
                     {r.role_name}
-                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className="ml-1 text-gray-500 font-normal">{ext}</span> : null; })()}
+                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className={`ml-1 ${text.muted} font-normal`}>{ext}</span> : null; })()}
                   </span>
                 ))}
               </div>
@@ -312,13 +313,13 @@ export default function RoleEquivalents() {
             <div className="flex gap-2 ml-4 shrink-0">
               <button
                 onClick={() => startEdit(cr)}
-                className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                className={action.edit}
               >
                 {t.common.edit}
               </button>
               <button
                 onClick={() => handleDelete(cr.id)}
-                className="text-red-400 hover:text-red-300 text-sm font-medium"
+                className={action.delete}
               >
                 {t.common.delete}
               </button>
@@ -326,7 +327,7 @@ export default function RoleEquivalents() {
           </div>
         ))}
         {condensedRoles.length === 0 && !showForm && (
-          <div className="glass-card p-8 text-center text-gray-400">
+          <div className={`glass-card p-8 text-center ${text.muted}`}>
             {t.roleEquivalents.emptyState}
           </div>
         )}

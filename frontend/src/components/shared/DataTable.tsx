@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import DemoGuard from "./DemoGuard";
+import { text, bg, border, action } from "../../theme";
 
 export interface Column {
   key: string;
@@ -67,16 +68,16 @@ export default function DataTable({
   ) => {
     if (col.type === "readonly") {
       return (
-        <span className="text-gray-500 text-sm">{String(value ?? "")}</span>
+        <span className={`${text.muted} text-sm`}>{String(value ?? "")}</span>
       );
     }
 
     if (!isEditing) {
       if (col.type === "select" && col.options) {
         const opt = col.options.find((o) => o.value === value);
-        return <span className="text-sm text-gray-200">{opt?.label ?? String(value ?? "")}</span>;
+        return <span className={`text-sm ${text.body}`}>{opt?.label ?? String(value ?? "")}</span>;
       }
-      return <span className="text-sm text-gray-200">{String(value ?? "")}</span>;
+      return <span className={`text-sm ${text.body}`}>{String(value ?? "")}</span>;
     }
 
     if (col.type === "select" && col.options) {
@@ -109,26 +110,26 @@ export default function DataTable({
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full glass-table">
-        <thead className="bg-white/[0.04]">
+        <thead className={bg.tableHeader}>
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
+                className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
               >
                 {col.label}
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+            <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase tracking-wider`}>
               {t.common.actions}
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-white/[0.06]">
+        <tbody className={`divide-y ${border.divider}`}>
           {data.map((row, idx) => {
             const isEditing = editingRow === idx;
             return (
-              <tr key={idx} className={isEditing ? "bg-purple-500/10" : ""}>
+              <tr key={idx} className={isEditing ? bg.editingRow : ""}>
                 {columns.map((col) => (
                   <td key={col.key} className="px-4 py-2">
                     {renderCell(
@@ -146,14 +147,14 @@ export default function DataTable({
                       <DemoGuard>
                         <button
                           onClick={saveEdit}
-                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                          className={action.save}
                         >
                           {t.common.save}
                         </button>
                       </DemoGuard>
                       <button
                         onClick={cancelEdit}
-                        className="text-gray-400 hover:text-gray-300 text-sm font-medium"
+                        className={action.cancel}
                       >
                         {t.common.cancel}
                       </button>
@@ -163,7 +164,7 @@ export default function DataTable({
                       <DemoGuard>
                         <button
                           onClick={() => startEdit(idx)}
-                          className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                          className={action.edit}
                         >
                           {t.common.edit}
                         </button>
@@ -172,7 +173,7 @@ export default function DataTable({
                         <DemoGuard>
                           <button
                             onClick={() => onDelete(idx)}
-                            className="text-red-400 hover:text-red-300 text-sm font-medium"
+                            className={action.delete}
                           >
                             {t.common.delete}
                           </button>
@@ -187,11 +188,11 @@ export default function DataTable({
 
           {/* Add new row */}
           {showAddRow && (
-            <tr className="bg-emerald-500/10">
+            <tr className={bg.addRow}>
               {columns.map((col) => (
                 <td key={col.key} className="px-4 py-2">
                   {col.type === "readonly" ? (
-                    <span className="text-gray-500 text-sm italic">{t.common.auto}</span>
+                    <span className={`${text.muted} text-sm italic`}>{t.common.auto}</span>
                   ) : (
                     renderCell(col, addValues[col.key], true, (key, val) =>
                       setAddValues((prev) => ({ ...prev, [key]: val }))
@@ -202,7 +203,7 @@ export default function DataTable({
               <td className="px-4 py-2 text-right space-x-2">
                 <button
                   onClick={handleAdd}
-                  className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                  className={action.save}
                 >
                   {t.common.add}
                 </button>
@@ -211,7 +212,7 @@ export default function DataTable({
                     setShowAddRow(false);
                     setAddValues({});
                   }}
-                  className="text-gray-400 hover:text-gray-300 text-sm font-medium"
+                  className={action.cancel}
                 >
                   {t.common.cancel}
                 </button>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border } from "../../theme";
 
 interface FormatExample {
   csv: string;
@@ -44,18 +45,18 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
     <div className="glass-modal-overlay">
       <div className="glass-modal w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-          <h2 className="text-lg font-semibold text-gray-200">{title}</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">&times;</button>
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+          <h2 className={`text-lg font-semibold ${text.body}`}>{title}</h2>
+          <button onClick={onClose} className={`${text.muted} hover:text-gray-300 text-xl leading-none`}>&times;</button>
         </div>
 
         {/* Tab selector */}
         <div className="px-6 pt-4">
-          <div className="flex gap-1 bg-white/[0.05] rounded-lg p-1 w-fit">
+          <div className={`flex gap-1 ${bg.section} rounded-lg p-1 w-fit`}>
             <button
               onClick={() => setTab("csv")}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === "csv" ? "bg-white/[0.1] shadow text-white" : "text-gray-400 hover:text-gray-200"
+                tab === "csv" ? `bg-sage/25 shadow ${text.heading}` : `${text.muted} hover:${text.body}`
               }`}
             >
               {t.importModal.csv}
@@ -63,7 +64,7 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
             <button
               onClick={() => setTab("json")}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === "json" ? "bg-white/[0.1] shadow text-white" : "text-gray-400 hover:text-gray-200"
+                tab === "json" ? `bg-sage/25 shadow ${text.heading}` : `${text.muted} hover:${text.body}`
               }`}
             >
               {t.importModal.json}
@@ -73,8 +74,8 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
 
         {/* Format preview */}
         <div className="px-6 py-4">
-          <p className="text-sm text-gray-400 mb-2">{t.importModal.expectedFormat}</p>
-          <pre className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-4 text-xs text-gray-400 overflow-x-auto whitespace-pre">
+          <p className={`text-sm ${text.muted} mb-2`}>{t.importModal.expectedFormat}</p>
+          <pre className={`${bg.tableHeader} border ${border.default} rounded-lg p-4 text-xs ${text.muted} overflow-x-auto whitespace-pre`}>
             {tab === "csv" ? format.csv : format.json}
           </pre>
         </div>
@@ -93,7 +94,7 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
             htmlFor="import-file-input"
             className={`inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium cursor-pointer transition-colors ${
               uploading
-                ? "bg-white/10 text-gray-500 cursor-not-allowed"
+                ? `bg-sage/20 ${text.muted} cursor-not-allowed`
                 : "glass-btn-primary"
             }`}
           >
@@ -108,7 +109,7 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
           </div>
         )}
         {result && (
-          <div className="mx-6 mb-4 p-3 bg-blue-500/10 border border-blue-400/20 text-blue-300 rounded text-sm">
+          <div className="mx-6 mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded text-sm">
             <p>{t.importModal.createdCount} {result.created} | {t.importModal.skippedCount} {result.skipped}</p>
             {result.errors.length > 0 && (
               <ul className="mt-2 list-disc list-inside text-sm">
@@ -121,7 +122,7 @@ export default function ImportModal({ title, format, onUpload, onClose }: Import
         )}
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-4 border-t border-white/[0.08]">
+        <div className={`flex justify-end px-6 py-4 border-t ${border.default}`}>
           <button
             onClick={onClose}
             className="glass-btn-secondary px-4 py-2 text-sm font-medium"

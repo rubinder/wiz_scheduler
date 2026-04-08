@@ -4,25 +4,25 @@
 
 @layer base {
   body {
-    @apply bg-[#0a0a1a] text-gray-100;
+    @apply bg-cream text-gray-800;
     background-image:
-      radial-gradient(ellipse at 20% 50%, rgba(88, 28, 135, 0.15) 0%, transparent 60%),
-      radial-gradient(ellipse at 80% 20%, rgba(30, 58, 138, 0.15) 0%, transparent 60%);
+      radial-gradient(ellipse at 20% 50%, rgba(168, 181, 160, 0.25) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(168, 181, 160, 0.2) 0%, transparent 60%);
     background-attachment: fixed;
   }
 
-  /* Style native inputs/selects for dark theme */
+  /* Style native inputs/selects for light theme */
   input[type="date"],
   input[type="time"],
   input[type="number"],
   select {
-    color-scheme: dark;
+    color-scheme: light;
   }
 }
 
 @layer components {
   .glass {
-    @apply bg-white/[0.07] backdrop-blur-xl border border-white/[0.08] shadow-lg shadow-black/10;
+    @apply bg-white/60 backdrop-blur-xl border border-sage/30 shadow-lg shadow-sage/10;
   }
 
   .glass-card {
@@ -30,8 +30,8 @@
   }
 
   .glass-input {
-    @apply bg-white/[0.07] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-gray-100
-           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-400/30
+    @apply bg-white/70 border border-sage/30 rounded-lg px-3 py-2 text-sm text-gray-800
+           placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/30
            transition-colors;
   }
 
@@ -44,49 +44,49 @@
   }
 
   .glass-btn-primary {
-    @apply px-4 py-2 bg-purple-600/80 text-white rounded-lg hover:bg-purple-500/80
-           border border-purple-400/20 shadow-lg shadow-purple-900/20
+    @apply px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-light
+           border border-accent-dark/20 shadow-lg shadow-accent/20
            disabled:opacity-50 font-medium text-sm backdrop-blur-sm transition-all;
   }
 
   .glass-btn-secondary {
-    @apply px-4 py-2 bg-white/[0.07] text-gray-300 rounded-lg hover:bg-white/[0.12]
-           border border-white/[0.1] disabled:opacity-50 font-medium text-sm
+    @apply px-4 py-2 bg-white/50 text-gray-700 rounded-lg hover:bg-white/70
+           border border-sage/25 disabled:opacity-50 font-medium text-sm
            backdrop-blur-sm transition-all;
   }
 
   .glass-btn-success {
-    @apply px-4 py-2 bg-emerald-600/80 text-white rounded-lg hover:bg-emerald-500/80
-           border border-emerald-400/20 shadow-lg shadow-emerald-900/20
+    @apply px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500
+           border border-emerald-700/20 shadow-lg shadow-emerald-600/20
            disabled:opacity-50 font-medium text-sm backdrop-blur-sm transition-all;
   }
 
   .glass-btn-danger {
-    @apply px-3 py-1 bg-red-600/80 text-white rounded-lg hover:bg-red-500/80
-           border border-red-400/20 disabled:opacity-50 font-medium text-sm
+    @apply px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-500
+           border border-red-700/20 disabled:opacity-50 font-medium text-sm
            backdrop-blur-sm transition-all;
   }
 
   .glass-btn-orange {
-    @apply px-4 py-2 bg-orange-600/80 text-white rounded-lg hover:bg-orange-500/80
-           border border-orange-400/20 disabled:opacity-50 font-medium text-sm
+    @apply px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500
+           border border-orange-700/20 disabled:opacity-50 font-medium text-sm
            backdrop-blur-sm transition-all;
   }
 
   .glass-alert-error {
-    @apply p-3 bg-red-500/10 border border-red-400/20 text-red-300 rounded-lg text-sm backdrop-blur-sm;
+    @apply p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm backdrop-blur-sm;
   }
 
   .glass-alert-success {
-    @apply p-3 bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 rounded-lg text-sm backdrop-blur-sm;
+    @apply p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm backdrop-blur-sm;
   }
 
   .glass-alert-info {
-    @apply p-3 bg-blue-500/10 border border-blue-400/20 text-blue-300 rounded-lg text-sm backdrop-blur-sm;
+    @apply p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm backdrop-blur-sm;
   }
 
   .glass-alert-warning {
-    @apply p-3 bg-amber-500/10 border border-amber-400/20 text-amber-300 rounded-lg text-sm backdrop-blur-sm;
+    @apply p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm backdrop-blur-sm;
   }
 
   .glass-table {
@@ -94,15 +94,15 @@
   }
 
   .glass-table thead {
-    @apply bg-white/[0.04];
+    @apply bg-sage/10;
   }
 
   .glass-table th {
-    @apply px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider;
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
   }
 
   .glass-table tbody {
-    @apply divide-y divide-white/[0.06];
+    @apply divide-y divide-sage/15;
   }
 
   .glass-table td {
@@ -110,7 +110,7 @@
   }
 
   .glass-table tr:hover {
-    @apply bg-white/[0.03];
+    @apply bg-sage/[0.07];
   }
 
   .glass-badge {
@@ -118,26 +118,26 @@
   }
 
   .glass-modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm;
   }
 
   .glass-modal {
-    @apply bg-gray-900/90 backdrop-blur-2xl border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/40;
+    @apply bg-cream/95 backdrop-blur-2xl border border-sage/25 rounded-2xl shadow-2xl shadow-black/15;
   }
 
   .glass-label {
-    @apply block text-sm font-medium text-gray-300 mb-1;
+    @apply block text-sm font-medium text-gray-700 mb-1;
   }
 
   .glass-label-sm {
-    @apply block text-xs font-medium text-gray-400 mb-1;
+    @apply block text-xs font-medium text-gray-500 mb-1;
   }
 
   .glass-divider {
-    @apply border-white/[0.08];
+    @apply border-sage/20;
   }
 
-  /* Scrollbar styling for dark theme */
+  /* Scrollbar styling for light theme */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -146,11 +146,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(168, 181, 160, 0.35);
     border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(168, 181, 160, 0.5);
   }
 }
 

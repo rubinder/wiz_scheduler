@@ -3,6 +3,7 @@ import * as regionsApi from "../../api/regions";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import type { Region } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text } from "../../theme";
 
 const columns: Column[] = [
   { key: "name", label: "Name", type: "text" },
@@ -56,7 +57,7 @@ export default function Regions() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">{t.regions.title}</h1>
+      <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.regions.title}</h1>
       {error && (
         <div className="glass-alert-error mb-4">
           {error}

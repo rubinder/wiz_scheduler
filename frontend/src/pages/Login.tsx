@@ -6,6 +6,7 @@ import LanguageSelector from "../components/shared/LanguageSelector";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
+import { text, bg, border, action } from "../theme";
 
 declare global {
   interface Window {
@@ -158,7 +159,7 @@ export default function Login() {
         <div className="flex justify-end mb-4">
           <LanguageSelector />
         </div>
-        <h1 className="text-2xl font-bold text-center mb-6 text-white flex items-center justify-center gap-2">
+        <h1 className={`text-2xl font-bold text-center mb-6 ${text.heading} flex items-center justify-center gap-2`}>
           {t.login.title} <img src="/favicon.svg" alt="" className="w-8 h-8 inline" />
         </h1>
         {error && (
@@ -170,8 +171,8 @@ export default function Login() {
         {/* Ownership group selection */}
         {ownershipGroups && !googleLinkState && (
           <div className="mb-4">
-            <div className="p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
-              <p className="text-sm font-medium text-gray-300 mb-3">
+            <div className={`p-4 ${bg.section} rounded-xl border ${border.default}`}>
+              <p className={`text-sm font-medium ${text.secondary} mb-3`}>
                 {t.login.multiOrgPrompt}
               </p>
               <div className="space-y-2">
@@ -180,9 +181,9 @@ export default function Login() {
                     key={group.id}
                     onClick={() => handleSelectGroup(group.id)}
                     disabled={loading}
-                    className="w-full text-left px-4 py-3 bg-white/[0.05] border border-white/[0.08] rounded-lg hover:border-purple-400/40 hover:bg-white/[0.08] transition-colors disabled:opacity-50"
+                    className={`w-full text-left px-4 py-3 ${bg.section} border ${border.default} rounded-lg hover:border-accent/40 ${bg.interactiveHover} transition-colors disabled:opacity-50`}
                   >
-                    <span className="text-sm font-medium text-gray-300">
+                    <span className={`text-sm font-medium ${text.secondary}`}>
                       {group.name}
                     </span>
                   </button>
@@ -190,7 +191,7 @@ export default function Login() {
               </div>
               <button
                 onClick={() => setOwnershipGroups(null)}
-                className="mt-3 text-xs text-gray-500 hover:text-gray-400"
+                className={`mt-3 text-xs ${text.muted} hover:${text.muted}`}
               >
                 {t.login.backToLogin}
               </button>
@@ -201,8 +202,8 @@ export default function Login() {
         {/* Google account linking dialog */}
         {googleLinkState && (
           <div className="space-y-4">
-            <div className="p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
-              <p className="text-sm text-gray-300">
+            <div className={`p-4 ${bg.section} rounded-xl border ${border.default}`}>
+              <p className={`text-sm ${text.secondary}`}>
                 {t.login.googleLinkPrompt.replace("{email}", googleLinkState.email)}
               </p>
             </div>
@@ -213,7 +214,7 @@ export default function Login() {
                   type="email"
                   value={googleLinkState.email}
                   disabled
-                  className="glass-input w-full bg-white/[0.03] text-gray-500"
+                  className={`glass-input w-full ${bg.sectionSubtle} ${text.muted}`}
                 />
               </div>
               <div>
@@ -278,19 +279,19 @@ export default function Login() {
               </button>
             </form>
             <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 border-t border-white/[0.08]" />
-              <span className="text-xs text-gray-500">{t.login.orContinueWith}</span>
-              <div className="flex-1 border-t border-white/[0.08]" />
+              <div className={`flex-1 border-t ${border.default}`} />
+              <span className={`text-xs ${text.muted}`}>{t.login.orContinueWith}</span>
+              <div className={`flex-1 border-t ${border.default}`} />
             </div>
             <div ref={googleBtnRef} className="w-full flex justify-center" />
-            <p className="mt-4 text-center text-sm text-gray-400">
+            <p className={`mt-4 text-center text-sm ${text.muted}`}>
               {t.login.noAccount}{" "}
-              <Link to="/register" className="text-purple-400 hover:text-purple-300">
+              <Link to="/register" className={action.link}>
                 {t.login.register}
               </Link>
             </p>
-            <div className="mt-6 p-4 bg-white/[0.05] rounded-xl border border-white/[0.08]">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <div className={`mt-6 p-4 ${bg.section} rounded-xl border ${border.default}`}>
+              <p className={`text-xs font-semibold ${text.muted} uppercase tracking-wide mb-2`}>
                 {t.login.demoCredentials}
               </p>
               <button
@@ -299,7 +300,7 @@ export default function Login() {
                   setEmail("abc@example.com");
                   setPassword("example");
                 }}
-                className="w-full text-left text-sm text-gray-300 hover:bg-white/[0.06] rounded p-2 transition-colors"
+                className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
               >
                 <span className="font-medium">{t.login.manager}:</span> abc@example.com / example
               </button>
@@ -309,23 +310,23 @@ export default function Login() {
                   setEmail("employee1@example.com");
                   setPassword("example");
                 }}
-                className="w-full text-left text-sm text-gray-300 hover:bg-white/[0.06] rounded p-2 transition-colors"
+                className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
               >
                 <span className="font-medium">{t.login.employeeLabel}:</span> employee1@example.com / example
               </button>
             </div>
           </>
         )}
-        <div className="mt-4 pt-4 border-t border-white/[0.06] text-center text-xs text-gray-500 space-x-2">
-          <Link to="/privacy-policy" className="text-purple-400 hover:text-purple-300">
+        <div className={`mt-4 pt-4 border-t ${border.default} text-center text-xs ${text.muted} space-x-2`}>
+          <Link to="/privacy-policy" className={action.link}>
             {t.gdpr.privacyPolicy}
           </Link>
           <span>|</span>
-          <Link to="/terms" className="text-purple-400 hover:text-purple-300">
+          <Link to="/terms" className={action.link}>
             {t.gdpr.termsOfService}
           </Link>
           <span>|</span>
-          <Link to="/dpa" className="text-purple-400 hover:text-purple-300">
+          <Link to="/dpa" className={action.link}>
             {t.gdpr.dpa}
           </Link>
         </div>

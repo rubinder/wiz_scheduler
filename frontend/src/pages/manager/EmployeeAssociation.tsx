@@ -24,6 +24,7 @@ import type {
   EmployeeAffinity,
   EmployeeAvailability,
 } from "../../types";
+import { text, bg, border, tab as tabClass, spinner as spinnerClass } from "../../theme";
 // ── Tab types ──
 
 type Tab = "affinities" | "availability";
@@ -63,7 +64,7 @@ function getLevelLabel(level: number, t: Translations): string {
 const getLevelColor = (level: number): string => {
   if (level >= 1) return "bg-emerald-500/15 text-emerald-300";
   if (level > 0) return "bg-emerald-500/10 text-emerald-400";
-  if (level === 0) return "bg-white/[0.06] text-gray-400";
+  if (level === 0) return "bg-sage/[0.07] text-gray-500";
   if (level > -1) return "bg-orange-500/15 text-orange-300";
   return "bg-red-500/15 text-red-300";
 };
@@ -393,7 +394,7 @@ export default function EmployeeAssociation() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div className={`flex items-center justify-center h-64 ${text.muted}`}>
         {t.common.loading}
       </div>
     );
@@ -401,7 +402,7 @@ export default function EmployeeAssociation() {
 
   if (employees.length === 0) {
     return (
-      <div className="text-center py-16 text-gray-500">
+      <div className={`text-center py-16 ${text.muted}`}>
         <p className="text-lg">{t.association.noEmployees}</p>
         <p className="mt-2">
           {t.association.addEmployeesFirst}
@@ -413,26 +414,26 @@ export default function EmployeeAssociation() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className={`text-2xl font-bold ${text.heading}`}>
           {t.association.title}
         </h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <p className={`mt-1 text-sm ${text.muted}`}>
           {t.association.description}{" "}
-          {t.association.affinityExplanation} <strong className="text-gray-200">1</strong> {t.association.mustTogether}{" "}
-          <strong className="text-gray-200">0.5</strong> {t.association.preferTogether}{" "}
-          <strong className="text-gray-200">-1</strong> {t.association.cannotTogether}{" "}
-          <strong className="text-gray-200">-0.5 / -0.7</strong> {t.association.preferApart}
+          {t.association.affinityExplanation} <strong className={text.body}>1</strong> {t.association.mustTogether}{" "}
+          <strong className={text.body}>0.5</strong> {t.association.preferTogether}{" "}
+          <strong className={text.body}>-1</strong> {t.association.cannotTogether}{" "}
+          <strong className={text.body}>-0.5 / -0.7</strong> {t.association.preferApart}
         </p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-white/[0.08] mb-6">
+      <div className={`flex border-b ${border.default} mb-6`}>
         <button
           onClick={() => setTab("availability")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "availability"
-              ? "border-purple-400 text-purple-400"
-              : "border-transparent text-gray-500 hover:text-gray-300 hover:border-white/20"
+              ? tabClass.active
+              : `${tabClass.inactive} hover:text-gray-600 hover:border-sage/30`
           }`}
         >
           {t.association.tabAvailability}
@@ -441,8 +442,8 @@ export default function EmployeeAssociation() {
           onClick={() => setTab("affinities")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === "affinities"
-              ? "border-purple-400 text-purple-400"
-              : "border-transparent text-gray-500 hover:text-gray-300 hover:border-white/20"
+              ? tabClass.active
+              : `${tabClass.inactive} hover:text-gray-600 hover:border-sage/30`
           }`}
         >
           {t.association.tabAffinities}
@@ -470,31 +471,31 @@ export default function EmployeeAssociation() {
 
           <div className="glass-card overflow-hidden">
             <table className="glass-table">
-              <thead className="bg-white/[0.04]">
+              <thead className={bg.tableHeader}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                     {t.common.employee}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                     {t.association.targetEmployee}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                     {t.association.affinityLevel}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                     {t.association.entryDate}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                     {t.association.expirationDate}
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase`}>
                     {t.common.actions}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.06]">
+              <tbody className={`divide-y ${border.divider}`}>
                 {editing && (
-                  <tr className="bg-purple-500/10 align-top">
+                  <tr className={`${bg.editingRow} align-top`}>
                     <td className="px-4 py-4">
                       <EmployeeSearchBox
                         employees={employees}
@@ -591,7 +592,7 @@ export default function EmployeeAssociation() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="px-4 py-8 text-center text-gray-500 text-sm"
+                      className={`px-4 py-8 text-center ${text.muted} text-sm`}
                     >
                       {t.association.noAssociations} &quot;{t.association.addAssociation}&quot;
                       {" "}{t.association.toCreateOne}
@@ -601,11 +602,11 @@ export default function EmployeeAssociation() {
 
                 {affinities.map((a) =>
                   editing?.id === a.id ? null : (
-                    <tr key={a.id} className="hover:bg-white/[0.03]">
-                      <td className="px-4 py-5 text-sm text-gray-200">
+                    <tr key={a.id} className="hover:bg-sage/[0.05]">
+                      <td className={`px-4 py-5 text-sm ${text.body}`}>
                         {employeeMap.get(a.employee_id) ?? a.employee_id}
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-200">
+                      <td className={`px-4 py-5 text-sm ${text.body}`}>
                         {employeeMap.get(a.target_employee_id) ??
                           a.target_employee_id}
                       </td>
@@ -616,10 +617,10 @@ export default function EmployeeAssociation() {
                           {a.level} — {getLevelLabel(a.level, t)}
                         </span>
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-300">
+                      <td className={`px-4 py-5 text-sm ${text.secondary}`}>
                         {a.entry_date}
                       </td>
-                      <td className="px-4 py-5 text-sm text-gray-300">
+                      <td className={`px-4 py-5 text-sm ${text.secondary}`}>
                         {a.expiration_date ?? (
                           <span className="text-gray-500">{t.common.none}</span>
                         )}
@@ -628,7 +629,7 @@ export default function EmployeeAssociation() {
                         <button
                           onClick={() => startEditing(a)}
                           disabled={editing !== null}
-                          className="px-3 py-1 bg-purple-500/15 text-purple-300 text-xs rounded hover:bg-purple-500/25 disabled:opacity-50"
+                          className="px-3 py-1 bg-accent/10 text-accent-dark text-xs rounded hover:bg-accent/20 disabled:opacity-50"
                         >
                           {t.common.edit}
                         </button>
@@ -654,7 +655,7 @@ export default function EmployeeAssociation() {
         <div>
           <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-gray-400">{t.association.weekLabel}</label>
+              <label className={`text-sm font-medium ${text.muted}`}>{t.association.weekLabel}</label>
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
@@ -705,10 +706,10 @@ export default function EmployeeAssociation() {
           {/* 7shifts import panel */}
           {showImport7Shifts && (
             <div className="bg-orange-500/[0.07] backdrop-blur-xl border border-orange-400/[0.12] rounded-xl p-4 mb-4">
-              <h3 className="text-sm font-semibold text-gray-200 mb-1">
+              <h3 className={`text-sm font-semibold ${text.body} mb-1`}>
                 {t.association.import7shiftsTitle}
               </h3>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className={`text-xs ${text.muted} mb-3`}>
                 {t.association.import7shiftsDesc}
               </p>
               <div className="flex flex-wrap items-end gap-3">
@@ -771,8 +772,8 @@ export default function EmployeeAssociation() {
               </div>
               {import7Result && (
                 <div className="mt-3 glass-card border border-orange-400/10 p-3 text-sm">
-                  <p className="font-medium text-gray-300">{t.association.importComplete}</p>
-                  <ul className="mt-1 text-gray-300 space-y-0.5">
+                  <p className={`font-medium ${text.secondary}`}>{t.association.importComplete}</p>
+                  <ul className={`mt-1 ${text.secondary} space-y-0.5`}>
                     <li>{t.association.created} {import7Result.created} {t.association.availWindows}</li>
                     <li>{t.association.cleared} {import7Result.cleared} {t.association.existingWindows}</li>
                     {import7Result.skipped > 0 && (
@@ -801,8 +802,8 @@ export default function EmployeeAssociation() {
 
           {/* Add availability form */}
           {addingAvail && (
-            <div className="bg-purple-500/[0.07] backdrop-blur-xl border border-purple-400/[0.12] rounded-xl p-4 mb-4">
-              <h3 className="text-sm font-semibold text-gray-200 mb-3">
+            <div className={`${bg.accentPanel} rounded-xl p-4 mb-4`}>
+              <h3 className={`text-sm font-semibold ${text.body} mb-3`}>
                 {t.association.addAvailWindow}
               </h3>
               <div className="flex flex-wrap items-end gap-3">
@@ -885,8 +886,8 @@ export default function EmployeeAssociation() {
           )}
 
           {availLoading && (
-            <div className="flex items-center gap-3 py-8 justify-center text-gray-400">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+            <div className={`flex items-center gap-3 py-8 justify-center ${text.muted}`}>
+              <div className={`h-5 w-5 animate-spin rounded-full border-2 ${spinnerClass}`} />
               {t.association.loadingAvailability}
             </div>
           )}
@@ -894,7 +895,7 @@ export default function EmployeeAssociation() {
           {!availLoading && (
             <div className="space-y-3">
               {filteredEmployees.filter((emp) => (availByEmployee.get(emp.id) || []).length > 0).length === 0 && (
-                <div className="text-center py-8 text-gray-500 text-sm">
+                <div className={`text-center py-8 ${text.muted} text-sm`}>
                   {t.association.noAvailThisWeek}
                 </div>
               )}
@@ -907,30 +908,30 @@ export default function EmployeeAssociation() {
                     key={emp.id}
                     className="glass-card overflow-hidden"
                   >
-                    <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+                    <div className={`px-4 py-3 border-b ${border.subtle} flex items-center justify-between`}>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-200">
+                        <span className={`text-sm font-semibold ${text.body}`}>
                           {emp.full_name}
                         </span>
                         {emp.email && (
-                          <span className="text-xs text-gray-500">
+                          <span className={`text-xs ${text.muted}`}>
                             {emp.email}
                           </span>
                         )}
                         {emp.roles.length > 0 && (
-                          <span className="text-xs text-gray-500">
+                          <span className={`text-xs ${text.muted}`}>
                             {emp.roles
                               .map((r) => roleMap.get(r.role_id) ?? r.role_id)
                               .join(", ")}
                           </span>
                         )}
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className={`text-xs ${text.muted}`}>
                         {windows.length} {windows.length !== 1 ? t.association.windows : t.association.window}
                       </span>
                     </div>
 
-                    <div className="divide-y divide-white/[0.04]">
+                    <div className="divide-y divide-sage/10">
                         {windows
                           .sort(
                             (a, b) =>
@@ -944,7 +945,7 @@ export default function EmployeeAssociation() {
                               className="px-4 py-2 flex items-center justify-between text-sm"
                             >
                               <div className="flex items-center gap-4">
-                                <span className="text-gray-300 font-medium w-28">
+                                <span className={`${text.secondary} font-medium w-28`}>
                                   {formatDate(w.year, w.month, w.day)}
                                 </span>
                                 {isAllDay(w.start_time, w.end_time) ? (
@@ -952,7 +953,7 @@ export default function EmployeeAssociation() {
                                     {t.association.allDay}
                                   </span>
                                 ) : (
-                                  <span className="text-gray-400">
+                                  <span className="text-gray-500">
                                     {formatTime(w.start_time)} &ndash;{" "}
                                     {formatTime(w.end_time)}
                                   </span>

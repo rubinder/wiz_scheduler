@@ -3,6 +3,7 @@ import * as companyApi from "../../api/company";
 import type { Company as CompanyType } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import DemoGuard from "../../components/shared/DemoGuard";
+import { text, border, bg } from "../../theme";
 
 export default function Company() {
   const { t } = useLanguage();
@@ -43,12 +44,12 @@ export default function Company() {
   };
 
   if (!company && !error) {
-    return <div className="text-gray-400">{t.common.loading}</div>;
+    return <div className={text.muted}>{t.common.loading}</div>;
   }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">{t.companyPage.title}</h1>
+      <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.companyPage.title}</h1>
       {error && (
         <div className="glass-alert-error mb-4">
           {error}
@@ -81,7 +82,7 @@ export default function Company() {
                 type="text"
                 value={company.slug}
                 disabled
-                className="w-full rounded px-3 py-2 bg-white/[0.03] text-gray-500 border border-white/[0.06]"
+                className={`w-full rounded px-3 py-2 ${bg.sectionSubtle} ${text.muted} border ${border.subtle}`}
               />
             </div>
           )}

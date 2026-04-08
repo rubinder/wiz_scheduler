@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { importFrom7Shifts, type ImportResult } from "../../api/import7shifts";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border } from "../../theme";
 import DemoGuard from "./DemoGuard";
 
 interface Props {
@@ -16,7 +17,7 @@ function SyncRow({
 }) {
   return (
     <tr>
-      <td className="px-3 py-1 text-sm font-medium text-gray-300">{label}</td>
+      <td className={`px-3 py-1 text-sm font-medium ${text.secondary}`}>{label}</td>
       <td className="px-3 py-1 text-sm text-emerald-400">{stats.created}</td>
       <td className="px-3 py-1 text-sm text-blue-400">{stats.updated}</td>
       <td className="px-3 py-1 text-sm text-red-400">{stats.deleted}</td>
@@ -52,11 +53,11 @@ export default function Import7ShiftsModal({ onClose }: Props) {
   return (
     <div className="glass-modal-overlay">
       <div className="glass-modal w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-          <h2 className="text-lg font-semibold text-gray-200">{t.import7Shifts.title}</h2>
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+          <h2 className={`text-lg font-semibold ${text.body}`}>{t.import7Shifts.title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 text-xl leading-none"
+            className={`${text.muted} hover:${text.secondary} text-xl leading-none`}
           >
             &times;
           </button>
@@ -65,9 +66,9 @@ export default function Import7ShiftsModal({ onClose }: Props) {
         <div className="px-6 py-4 space-y-4">
           {!result && (
             <>
-              <p className="text-sm text-gray-400">
+              <p className={`text-sm ${text.muted}`}>
                 {t.import7Shifts.description}{" "}
-                <span className="font-medium text-gray-300">
+                <span className={`font-medium ${text.secondary}`}>
                   {t.import7Shifts.devTools}
                 </span>
                 .
@@ -75,7 +76,7 @@ export default function Import7ShiftsModal({ onClose }: Props) {
               <div>
                 <label
                   htmlFor="seven-token"
-                  className="block text-sm font-medium text-gray-300 mb-1"
+                  className={`block text-sm font-medium ${text.secondary} mb-1`}
                 >
                   {t.import7Shifts.accessToken}
                 </label>
@@ -101,7 +102,7 @@ export default function Import7ShiftsModal({ onClose }: Props) {
           {loading && (
             <div className="flex items-center gap-3 py-4">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-              <span className="text-sm text-gray-400">
+              <span className={`text-sm ${text.muted}`}>
                 {t.import7Shifts.importingData}
               </span>
             </div>
@@ -114,7 +115,7 @@ export default function Import7ShiftsModal({ onClose }: Props) {
               </div>
               <table className="w-full text-left">
                 <thead>
-                  <tr className="text-xs text-gray-500 uppercase">
+                  <tr className={`text-xs ${text.muted} uppercase`}>
                     <th className="px-3 py-1">{t.import7Shifts.entity}</th>
                     <th className="px-3 py-1">{t.import7Shifts.created}</th>
                     <th className="px-3 py-1">{t.import7Shifts.updated}</th>
@@ -148,7 +149,7 @@ export default function Import7ShiftsModal({ onClose }: Props) {
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
+        <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
           {result ? (
             <button
               onClick={onClose}

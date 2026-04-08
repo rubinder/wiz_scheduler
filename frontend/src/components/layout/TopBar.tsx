@@ -4,6 +4,7 @@ import { useLanguage } from "../../i18n/LanguageContext";
 import * as companyApi from "../../api/company";
 import type { Company } from "../../types";
 import LanguageSelector from "../shared/LanguageSelector";
+import { text, bg, border } from "../../theme";
 
 export default function TopBar() {
   const { user, logout, switchCompany } = useAuth();
@@ -34,8 +35,8 @@ export default function TopBar() {
   const currentCompany = companies.find((c) => c.id === user?.company_id);
 
   return (
-    <header className="h-14 bg-white/[0.04] backdrop-blur-xl border-b border-white/[0.06] relative flex items-center px-6">
-      <h2 className="text-lg font-semibold text-gray-200">{t.common.appName}</h2>
+    <header className={`h-14 ${bg.topbar} border-b ${border.default} relative flex items-center px-6`}>
+      <h2 className={`text-lg font-semibold ${text.primary}`}>{t.common.appName}</h2>
       <div
         className="flex items-center gap-4"
         style={{ position: "absolute", left: 294 }}
@@ -55,10 +56,10 @@ export default function TopBar() {
           </select>
         )}
         {companies.length <= 1 && currentCompany && (
-          <span className="text-sm text-gray-400">{currentCompany.name}</span>
+          <span className={`text-sm ${text.muted}`}>{currentCompany.name}</span>
         )}
         {user && (
-          <span className="text-sm text-gray-300">
+          <span className={`text-sm ${text.secondary}`}>
             {user.full_name ?? user.email}
           </span>
         )}
