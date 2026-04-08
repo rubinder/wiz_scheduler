@@ -548,7 +548,7 @@ const vi = {
     complianceTitle: "Quyền riêng tư & tuân thủ",
     complianceDesc: "Được xây dựng với ý thức tuân thủ GDPR. Dữ liệu của bạn, quyền kiểm soát của bạn.",
     ctaTitle: "Sẵn sàng đơn giản hóa lập lịch?",
-    ctaDesc: "Tham gia cùng hàng ngàn quản lý tiết kiệm hàng giờ mỗi tuần. Bắt đầu miễn phí, chỉ trả khi phát triển.",
+    ctaDesc: "Tham gia cùng hàng ngàn quản lý tiết kiệm hàng giờ mỗi tuần.",
     ctaBtn: "Tạo tài khoản",
     featAITitle: "Tạo lịch bằng AI",
     featAIDesc: "Claude AI phân tích khả dụng, kỹ năng và động lực nhóm để tạo lịch tối ưu trong vài giây.",

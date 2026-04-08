@@ -425,6 +425,7 @@ export default function Landing() {
             <Link to="/terms" className="hover:text-gray-300">{t.gdpr.termsOfService}</Link>
             <Link to="/dpa" className="hover:text-gray-300">{t.gdpr.dpa}</Link>
           </div>
+          <div className="text-xs text-gray-500">Suggestival LLC</div>
         </div>
       </footer>
     </div>

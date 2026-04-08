@@ -548,7 +548,7 @@ const de = {
     complianceTitle: "Datenschutz & Compliance",
     complianceDesc: "Mit Blick auf GDPR-Konformität entwickelt. Ihre Daten, Ihre Kontrolle.",
     ctaTitle: "Bereit, die Planung zu vereinfachen?",
-    ctaDesc: "Schließen Sie sich Tausenden von Managern an, die jede Woche Stunden sparen. Kostenlos starten, erst bei Wachstum zahlen.",
+    ctaDesc: "Schließen Sie sich Tausenden von Managern an, die jede Woche Stunden sparen.",
     ctaBtn: "Konto erstellen",
     featAITitle: "AI-Dienstplanerstellung",
     featAIDesc: "Claude AI analysiert Verfügbarkeiten, Fähigkeiten und Teamdynamik, um in Sekunden optimale Dienstpläne zu erstellen.",

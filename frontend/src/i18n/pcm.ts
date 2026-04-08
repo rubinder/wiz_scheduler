@@ -548,7 +548,7 @@ const pcm = {
     complianceTitle: "Privacy & Compliance",
     complianceDesc: "Dem build am wit GDPR compliance for mind. Your data, your control.",
     ctaTitle: "Ready to Make Scheduling Easy?",
-    ctaDesc: "Join thousands of managers wey dey save hours every week. Free to start, pay only wen you grow.",
+    ctaDesc: "Join thousands of managers wey dey save hours every week.",
     ctaBtn: "Create Account",
     featAITitle: "AI Schedule Generation",
     featAIDesc: "Claude AI dey analyze availability, skills, and team dynamics to create optimal schedules for seconds.",

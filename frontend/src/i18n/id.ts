@@ -548,7 +548,7 @@ const ind = {
     complianceTitle: "Privasi & Kepatuhan",
     complianceDesc: "Dibangun dengan memperhatikan kepatuhan GDPR. Data Anda, kendali Anda.",
     ctaTitle: "Siap Menyederhanakan Penjadwalan?",
-    ctaDesc: "Bergabunglah dengan ribuan manajer yang menghemat berjam-jam setiap minggu. Gratis untuk memulai, bayar hanya saat berkembang.",
+    ctaDesc: "Bergabunglah dengan ribuan manajer yang menghemat berjam-jam setiap minggu.",
     ctaBtn: "Buat Akun",
     featAITitle: "Pembuatan Jadwal AI",
     featAIDesc: "Claude AI menganalisis ketersediaan, keterampilan, dan dinamika tim untuk membuat jadwal optimal dalam hitungan detik.",
