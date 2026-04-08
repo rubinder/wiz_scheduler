@@ -6,6 +6,7 @@ import ImportModal from "../../components/shared/ImportModal";
 import DemoGuard from "../../components/shared/DemoGuard";
 import type { Location, Region } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text } from "../../theme";
 
 export default function Locations() {
   const { t } = useLanguage();
@@ -92,7 +93,7 @@ export default function Locations() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">{t.locationsPage.title}</h1>
+        <h1 className={`text-2xl font-bold ${text.heading}`}>{t.locationsPage.title}</h1>
         <DemoGuard>
           <button
             onClick={() => setShowImportModal(true)}

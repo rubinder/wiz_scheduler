@@ -5,6 +5,7 @@ import ImportModal from "../../components/shared/ImportModal";
 import DemoGuard from "../../components/shared/DemoGuard";
 import type { Role } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text } from "../../theme";
 
 const columns: Column[] = [
   { key: "name", label: "Name", type: "text" },
@@ -73,7 +74,7 @@ export default function Roles() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">{t.rolesPage.title}</h1>
+        <h1 className={`text-2xl font-bold ${text.heading}`}>{t.rolesPage.title}</h1>
         <DemoGuard>
           <button
             onClick={() => setShowImportModal(true)}

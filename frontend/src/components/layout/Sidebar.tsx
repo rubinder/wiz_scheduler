@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { listEmployees } from "../../api/employees";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, nav } from "../../theme";
 
 interface NavItem {
   to: string;
@@ -53,8 +54,8 @@ export default function Sidebar() {
     : employeeLinks;
 
   return (
-    <aside className="w-64 bg-white/[0.03] backdrop-blur-2xl border-r border-white/[0.06] text-white min-h-screen flex flex-col">
-      <div className="p-5 border-b border-white/[0.06]">
+    <aside className={`w-64 ${bg.sidebar} border-r ${border.default} ${text.primary} min-h-screen flex flex-col`}>
+      <div className={`p-5 border-b ${border.default}`}>
         <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">{t.common.appName} <img src="/favicon.svg" alt="" className="w-7 h-7" /></h1>
       </div>
       <nav className="flex-1 p-4 space-y-1">
@@ -65,8 +66,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `block px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-purple-600/40 text-white border border-purple-400/20 shadow-lg shadow-purple-900/20"
-                  : "text-gray-400 hover:bg-white/[0.06] hover:text-white"
+                  ? nav.active
+                  : nav.inactive
               }`
             }
           >
@@ -75,7 +76,7 @@ export default function Sidebar() {
         ))}
       </nav>
       {user && (
-        <div className="p-4 border-t border-white/[0.06] text-sm text-gray-500">
+        <div className={`p-4 border-t ${border.default} text-sm ${text.muted}`}>
           {user.full_name ?? user.email}
         </div>
       )}

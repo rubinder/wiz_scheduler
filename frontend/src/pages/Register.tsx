@@ -4,6 +4,7 @@ import { createCheckoutSession } from "../api/auth";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
+import { text, border, action } from "../theme";
 
 export default function Register() {
   const { register } = useAuth();
@@ -102,7 +103,7 @@ export default function Register() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="glass-card p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6 text-white">
+        <h1 className={`text-2xl font-bold text-center mb-6 ${text.heading}`}>
           {t.register.title}
         </h1>
         {error && (
@@ -160,12 +161,12 @@ export default function Register() {
             />
           </div>
           <div className="space-y-2">
-            <label className="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={privacyAccepted}
                 onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-1 accent-purple-500"
+                className="mt-1 accent-[#9e6934]"
               />
               <span>
                 {t.gdpr.acceptPrivacy}{" "}
@@ -173,18 +174,18 @@ export default function Register() {
                   href="/privacy-policy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300"
+                  className={action.link}
                 >
                   {t.gdpr.privacyPolicy}
                 </a>
               </span>
             </label>
-            <label className="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="mt-1 accent-purple-500"
+                className="mt-1 accent-[#9e6934]"
               />
               <span>
                 {t.gdpr.acceptTerms}{" "}
@@ -192,7 +193,7 @@ export default function Register() {
                   href="/terms"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300"
+                  className={action.link}
                 >
                   {t.gdpr.termsOfService}
                 </a>
@@ -201,20 +202,20 @@ export default function Register() {
           </div>
 
           {/* Billing section */}
-          <div className="border border-white/10 rounded-lg p-4 space-y-3">
+          <div className={`border ${border.default} rounded-lg p-4 space-y-3`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-300">
+              <span className={`text-sm font-medium ${text.secondary}`}>
                 {t.register.billing}
               </span>
               {billingComplete ? (
-                <span className="text-xs font-medium text-green-400 flex items-center gap-1">
+                <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   {t.register.billingComplete}
                 </span>
               ) : (
-                <span className="text-xs text-gray-500">
+                <span className={`text-xs ${text.muted}`}>
                   {t.register.billingRequired}
                 </span>
               )}
@@ -239,12 +240,12 @@ export default function Register() {
             {loading ? t.register.creatingAccount : t.register.registerBtn}
           </button>
         </form>
-        <p className="mt-3 text-center text-xs text-gray-500">
+        <p className={`mt-3 text-center text-xs ${text.muted}`}>
           {t.register.googleLinkNote}
         </p>
-        <p className="mt-4 text-center text-sm text-gray-400">
+        <p className={`mt-4 text-center text-sm ${text.muted}`}>
           {t.register.haveAccount}{" "}
-          <Link to="/login" className="text-purple-400 hover:text-purple-300">
+          <Link to="/login" className={action.link}>
             {t.register.signIn}
           </Link>
         </p>

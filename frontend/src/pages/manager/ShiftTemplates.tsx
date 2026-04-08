@@ -11,6 +11,7 @@ import {
 } from "../../components/shared/ShiftCalendar";
 import DemoGuard from "../../components/shared/DemoGuard";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, action, roleColorsLight } from "../../theme";
 import type { CondensedRole, Location, Role, ShiftTemplate } from "../../types";
 
 // ── types ──
@@ -47,16 +48,7 @@ function isOvernight(start: string, end: string): boolean {
 }
 
 // ── Color palette for roles ──
-const ROLE_COLORS = [
-  "bg-blue-500/15 text-blue-300 border-blue-400/20",
-  "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
-  "bg-purple-500/15 text-purple-300 border-purple-400/20",
-  "bg-orange-500/15 text-orange-300 border-orange-400/20",
-  "bg-pink-500/15 text-pink-300 border-pink-400/20",
-  "bg-cyan-500/15 text-cyan-300 border-cyan-400/20",
-  "bg-yellow-500/15 text-yellow-300 border-yellow-400/20",
-  "bg-red-500/15 text-red-300 border-red-400/20",
-];
+const ROLE_COLORS = roleColorsLight;
 
 // ── Shift List Component ──
 
@@ -84,7 +76,7 @@ function ShiftList({
 
   if (shifts.length === 0) {
     return (
-      <p className="text-sm text-gray-500 italic py-2">{t.shiftTemplates.noShiftsYet}</p>
+      <p className={`text-sm ${text.muted} italic py-2`}>{t.shiftTemplates.noShiftsYet}</p>
     );
   }
 
@@ -96,14 +88,14 @@ function ShiftList({
         const rolesInDay = [...new Set(dayShifts.map((s) => s.role_name))];
 
         return (
-          <div key={day} className="border border-white/[0.08] rounded-lg overflow-hidden">
-            <div className="bg-white/[0.04] px-4 py-2 border-b border-white/[0.08]">
-              <span className="text-sm font-semibold text-gray-300">{day}</span>
-              <span className="text-xs text-gray-500 ml-2">
+          <div key={day} className={`border ${border.default} rounded-lg overflow-hidden`}>
+            <div className={`${bg.tableHeader} px-4 py-2 border-b ${border.default}`}>
+              <span className="text-sm font-semibold text-gray-600">{day}</span>
+              <span className={`text-xs ${text.muted} ml-2`}>
                 {dayShifts.length} {dayShifts.length !== 1 ? t.common.shifts : t.common.shift}
               </span>
             </div>
-            <div className="divide-y divide-white/[0.06]">
+            <div className={`divide-y ${border.divider}`}>
               {rolesInDay.map((roleName) => {
                 const roleShifts = dayShifts.filter((s) => s.role_name === roleName);
                 const colorClass = roleColorMap.get(roleShifts[0]?.role_id ?? "") ?? ROLE_COLORS[0];
@@ -111,33 +103,33 @@ function ShiftList({
                 return roleShifts.map((shift) => (
                   <div
                     key={shift.id}
-                    className="flex items-center gap-3 px-4 py-2 hover:bg-white/[0.03]"
+                    className={`flex items-center gap-3 px-4 py-2 ${bg.rowHover}`}
                   >
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${colorClass}`}
                     >
                       {shift.role_name}
                     </span>
-                    <span className="text-sm text-gray-300 font-medium">
+                    <span className="text-sm text-gray-600 font-medium">
                       {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                       {isOvernight(shift.start_time, shift.end_time) && (
                         <span className="text-xs text-amber-400 ml-1">(+1 {t.common.day})</span>
                       )}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className={`text-xs ${text.muted}`}>
                       x{shift.headcount}
                     </span>
                     {!readonly && (
                       <div className="ml-auto flex gap-2">
                         <button
                           onClick={() => onEdit?.(shift)}
-                          className="text-purple-400 hover:text-purple-300 text-xs font-medium"
+                          className={action.edit}
                         >
                           {t.common.edit}
                         </button>
                         <button
                           onClick={() => onDelete?.(shift.id)}
-                          className="text-red-400 hover:text-red-300 text-xs font-medium"
+                          className={action.delete}
                         >
                           {t.common.remove}
                         </button>
@@ -192,7 +184,7 @@ function ShiftForm({
   };
 
   return (
-    <div className="glass-card p-4 border border-white/[0.08]">
+    <div className={`glass-card p-4 border ${border.default}`}>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <label className="glass-label-sm">{t.common.day}</label>
@@ -324,7 +316,7 @@ function ShiftEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-gray-300">
+        <span className={`text-sm font-medium ${text.secondary}`}>
           {t.shiftTemplates.weeklySchedule}
           <span className="ml-2 text-xs font-normal text-gray-500">
             ({mode === "weekday-weekend" ? t.shiftTemplates.weekdayWeekendMode : t.shiftTemplates.everyDayMode})
@@ -333,7 +325,7 @@ function ShiftEditor({
         {mode === "weekday-weekend" && onExpandToEveryDay && (
           <button
             onClick={onExpandToEveryDay}
-            className="px-3 py-1.5 bg-purple-500/15 text-purple-300 rounded hover:bg-purple-500/25 text-xs font-medium transition-colors"
+            className="px-3 py-1.5 bg-accent/10 text-accent-dark rounded hover:bg-accent/20 text-xs font-medium transition-colors"
           >
             {t.shiftTemplates.expandToEveryDay}
           </button>
@@ -577,7 +569,7 @@ export default function ShiftTemplates() {
   return (
     <div>
       <div className="relative flex items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">{t.shiftTemplates.title}</h1>
+        <h1 className={`text-2xl font-bold ${text.heading}`}>{t.shiftTemplates.title}</h1>
         {!showAdd && (
           <DemoGuard>
             <button
@@ -603,29 +595,29 @@ export default function ShiftTemplates() {
 
       {/* Add form */}
       {showAdd && (
-        <div className="bg-emerald-500/[0.07] backdrop-blur-xl border border-emerald-400/[0.12] rounded-xl p-6 mb-6 space-y-4">
-          <h2 className="text-lg font-semibold text-white">{t.shiftTemplates.newTemplate}</h2>
+        <div className={`${bg.addForm} rounded-xl p-6 mb-6 space-y-4`}>
+          <h2 className={`text-lg font-semibold ${text.heading}`}>{t.shiftTemplates.newTemplate}</h2>
 
           {/* Step 1: Choose mode */}
           {addMode === "choose" && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-400">{t.shiftTemplates.chooseLayout}</p>
+              <p className={`text-sm ${text.muted}`}>{t.shiftTemplates.chooseLayout}</p>
               <div className="flex gap-4 max-w-[600px]">
                 <button
                   onClick={() => setAddMode("weekday-weekend")}
-                  className="flex-1 p-4 bg-white/[0.05] border-2 border-white/[0.08] rounded-xl hover:border-purple-400/30 transition-colors text-left"
+                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-left`}
                 >
-                  <div className="font-semibold text-white mb-1">{t.shiftTemplates.weekdayWeekend}</div>
-                  <p className="text-xs text-gray-500">
+                  <div className="font-semibold text-gray-900 mb-1">{t.shiftTemplates.weekdayWeekend}</div>
+                  <p className={`text-xs ${text.muted}`}>
                     {t.shiftTemplates.weekdayWeekendDesc}
                   </p>
                 </button>
                 <button
                   onClick={() => setAddMode("every-day")}
-                  className="flex-1 p-4 bg-white/[0.05] border-2 border-white/[0.08] rounded-xl hover:border-purple-400/30 transition-colors text-left"
+                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-left`}
                 >
-                  <div className="font-semibold text-white mb-1">{t.shiftTemplates.everyDay}</div>
-                  <p className="text-xs text-gray-500">
+                  <div className="font-semibold text-gray-900 mb-1">{t.shiftTemplates.everyDay}</div>
+                  <p className={`text-xs ${text.muted}`}>
                     {t.shiftTemplates.everyDayDesc}
                   </p>
                 </button>
@@ -733,7 +725,7 @@ export default function ShiftTemplates() {
                         type="text"
                         disabled
                         value={locMap.get(editLocationId) ?? editLocationId}
-                        className="w-full bg-white/[0.03] text-gray-500 border-white/[0.06] border rounded px-3 py-2 text-sm"
+                        className={`w-full bg-sage/[0.05] ${text.muted} ${border.subtle} border rounded px-3 py-2 text-sm`}
                       />
                     </div>
                   </div>
@@ -764,8 +756,8 @@ export default function ShiftTemplates() {
                 <div>
                   <div className="flex items-center mb-3 gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">{tmpl.name}</h3>
-                      <p className="text-sm text-gray-400">
+                      <h3 className={`text-lg font-semibold ${text.heading}`}>{tmpl.name}</h3>
+                      <p className={`text-sm ${text.muted}`}>
                         {t.shiftTemplates.locationLabel} {locMap.get(tmpl.location_id) ?? tmpl.location_id}
                       </p>
                     </div>
@@ -773,7 +765,7 @@ export default function ShiftTemplates() {
                       <DemoGuard>
                         <button
                           onClick={() => startEdit(tmpl)}
-                          className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                          className={action.edit}
                         >
                           {t.common.edit}
                         </button>
@@ -781,7 +773,7 @@ export default function ShiftTemplates() {
                       <DemoGuard>
                         <button
                           onClick={() => handleDelete(tmpl.id)}
-                          className="text-red-400 hover:text-red-300 text-sm font-medium"
+                          className={action.delete}
                         >
                           {t.common.delete}
                         </button>

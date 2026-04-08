@@ -7,6 +7,7 @@ import {
   listApprovedSchedules,
 } from "../../api/exportSchedules";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, calendarToday } from "../../theme";
 
 function toDateStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -223,7 +224,7 @@ export default function ExportSchedules() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div className={`flex items-center justify-center h-64 ${text.muted}`}>
         {t.common.loading}
       </div>
     );
@@ -233,10 +234,10 @@ export default function ExportSchedules() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className={`text-2xl font-bold ${text.heading}`}>
             {t.exportSchedules.title}
           </h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className={`mt-1 text-sm ${text.muted}`}>
             {t.exportSchedules.description}
           </p>
         </div>
@@ -244,7 +245,7 @@ export default function ExportSchedules() {
 
       {/* Week picker with custom calendar dropdown */}
       <div className="flex items-center gap-4 mb-6">
-        <label className="text-sm font-medium text-gray-400">
+        <label className={`text-sm font-medium ${text.muted}`}>
           {t.exportSchedules.weekStarting}
         </label>
         <div className="relative" ref={calendarRef}>
@@ -255,7 +256,7 @@ export default function ExportSchedules() {
               setViewMonth(d.getMonth());
               setCalendarOpen((prev) => !prev);
             }}
-            className="glass-input-sm min-w-[160px] text-left hover:bg-white/[0.08]"
+            className={`glass-input-sm min-w-[160px] text-left ${bg.interactiveHover}`}
           >
             {getDayLabel(selectedDate)}
           </button>
@@ -273,11 +274,11 @@ export default function ExportSchedules() {
                       setViewMonth((m) => m - 1);
                     }
                   }}
-                  className="p-1 hover:bg-white/[0.08] rounded text-gray-400"
+                  className={`p-1 ${bg.interactiveHover} rounded ${text.muted}`}
                 >
                   &larr;
                 </button>
-                <span className="text-sm font-semibold text-gray-200">
+                <span className="text-sm font-semibold text-gray-700">
                   {new Date(viewYear, viewMonth).toLocaleDateString("en-US", {
                     month: "long",
                     year: "numeric",
@@ -292,7 +293,7 @@ export default function ExportSchedules() {
                       setViewMonth((m) => m + 1);
                     }
                   }}
-                  className="p-1 hover:bg-white/[0.08] rounded text-gray-400"
+                  className={`p-1 ${bg.interactiveHover} rounded ${text.muted}`}
                 >
                   &rarr;
                 </button>
@@ -303,7 +304,7 @@ export default function ExportSchedules() {
                 {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
                   <div
                     key={d}
-                    className="text-center text-[10px] font-medium text-gray-500 py-1"
+                    className={`text-center text-[10px] font-medium ${text.muted} py-1`}
                   >
                     {d}
                   </div>
@@ -323,9 +324,9 @@ export default function ExportSchedules() {
                     const isSelected = day === selectedDate;
                     const hasApproved = approvedDates.has(day);
 
-                    let cellStyle = "hover:bg-white/[0.08] text-gray-300";
+                    let cellStyle = `${bg.interactiveHover} ${text.secondary}`;
                     if (isSelected) {
-                      cellStyle = "bg-purple-600 text-white font-semibold";
+                      cellStyle = bg.calendarSelected;
                     }
 
                     return (
@@ -335,7 +336,7 @@ export default function ExportSchedules() {
                           setSelectedDate(day);
                           setCalendarOpen(false);
                         }}
-                        className={`relative flex flex-col items-center justify-center h-9 rounded text-sm transition-colors ${cellStyle} ${isToday ? "ring-2 ring-purple-400" : ""}`}
+                        className={`relative flex flex-col items-center justify-center h-9 rounded text-sm transition-colors ${cellStyle} ${isToday ? calendarToday : ""}`}
                       >
                         <span>{new Date(day + "T00:00:00").getDate()}</span>
                         {hasApproved && (
@@ -376,7 +377,7 @@ export default function ExportSchedules() {
               ? t.exportSchedules.exporting
               : `${t.exportSchedules.exportTo7Shifts} (${selectedShifts.size})`}
           </button>
-          <span className="text-xs text-gray-500">
+          <span className={`text-xs ${text.muted}`}>
             {selectedShifts.size} {selectedShifts.size !== 1 ? t.common.shifts : t.common.shift}{" "}
             {t.common.selected}
           </span>
@@ -414,8 +415,8 @@ export default function ExportSchedules() {
 
       {schedules.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-lg text-gray-400">{t.exportSchedules.noApproved}</p>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className={`text-lg ${text.muted}`}>{t.exportSchedules.noApproved}</p>
+          <p className={`mt-2 text-sm ${text.muted}`}>
             {t.exportSchedules.noApprovedSub}
           </p>
         </div>
@@ -436,7 +437,7 @@ export default function ExportSchedules() {
               key={sched.schedule_id}
               className="glass-card"
             >
-              <div className="p-4 border-b border-white/[0.08] flex items-center justify-between">
+              <div className={`p-4 border-b ${border.default} flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
@@ -445,21 +446,21 @@ export default function ExportSchedules() {
                       if (el) el.indeterminate = someSelected;
                     }}
                     onChange={() => toggleAllForSchedule(sched)}
-                    className="rounded border-white/20 bg-white/[0.05]"
+                    className="rounded border-sage/30 bg-white/50"
                   />
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className={`text-lg font-semibold ${text.heading}`}>
                     {sched.location_name}
                   </h3>
-                  <span className="text-xs text-gray-500">
+                  <span className={`text-xs ${text.muted}`}>
                     {t.exportSchedules.weekOf} {sched.week_start_date}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded font-medium ${
                       sched.exported_shifts === sched.total_shifts
-                        ? "bg-emerald-500/15 text-emerald-300"
+                        ? "bg-emerald-100 text-emerald-700"
                         : sched.exported_shifts > 0
-                          ? "bg-yellow-500/15 text-yellow-300"
-                          : "bg-white/[0.06] text-gray-400"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-sage/10 text-gray-500"
                     }`}
                   >
                     {sched.exported_shifts}/{sched.total_shifts} {t.exportSchedules.exported}
@@ -475,34 +476,34 @@ export default function ExportSchedules() {
 
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-white/[0.04]">
+                  <thead className={bg.tableHeader}>
                     <tr>
                       <th className="px-4 py-2 w-8"></th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.employee}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.role}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.date}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
                         {t.exportSchedules.time}
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase">
+                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.status}
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.06]">
+                  <tbody className={`divide-y ${border.divider}`}>
                     {sched.shifts.map((shift) => (
                       <tr
                         key={shift.id}
                         className={
                           shift.exported_at
-                            ? "bg-emerald-500/[0.05]"
-                            : "hover:bg-white/[0.03]"
+                            ? "bg-emerald-50"
+                            : bg.rowHover
                         }
                       >
                         <td className="px-4 py-2">
@@ -510,25 +511,25 @@ export default function ExportSchedules() {
                             type="checkbox"
                             checked={selectedShifts.has(shift.id)}
                             onChange={() => toggleShift(shift.id)}
-                            className="rounded border-white/20 bg-white/[0.05]"
+                            className="rounded border-sage/30 bg-white/50"
                           />
                         </td>
-                        <td className="px-4 py-2 text-sm font-medium text-gray-100">
+                        <td className={`px-4 py-2 text-sm font-medium ${text.primary}`}>
                           {shift.employee_name}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-300">
+                        <td className={`px-4 py-2 text-sm ${text.secondary}`}>
                           {shift.role_name}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-300">
+                        <td className={`px-4 py-2 text-sm ${text.secondary}`}>
                           {getDayLabel(shift.date)}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-300">
+                        <td className={`px-4 py-2 text-sm ${text.secondary}`}>
                           {formatTime(shift.start_time)} &ndash;{" "}
                           {formatTime(shift.end_time)}
                         </td>
                         <td className="px-4 py-2 text-sm">
                           {shift.exported_at ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-medium">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-medium">
                               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
                               {t.exportSchedules.exportedLabel}{" "}
                               {new Date(shift.exported_at).toLocaleDateString()}
@@ -553,19 +554,19 @@ export default function ExportSchedules() {
       {showTokenModal && (
         <div className="glass-modal-overlay">
           <div className="glass-modal w-full max-w-md mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-              <h3 className="text-lg font-semibold text-white">
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+              <h3 className={`text-lg font-semibold ${text.heading}`}>
                 {t.exportSchedules.apiTokenTitle}
               </h3>
               <button
                 onClick={() => setShowTokenModal(false)}
-                className="text-gray-400 hover:text-gray-200 text-xl leading-none"
+                className="text-gray-500 hover:text-gray-700 text-xl leading-none"
               >
                 &times;
               </button>
             </div>
             <div className="px-6 py-4 space-y-4">
-              <p className="text-sm text-gray-400">
+              <p className={`text-sm ${text.muted}`}>
                 {t.exportSchedules.apiTokenDesc}{" "}
                 {pendingExportIds.length} {pendingExportIds.length !== 1 ? t.common.shifts : t.common.shift}.
               </p>
@@ -581,7 +582,7 @@ export default function ExportSchedules() {
                 }}
               />
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
+            <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
               <button
                 onClick={() => setShowTokenModal(false)}
                 className="glass-btn-secondary"

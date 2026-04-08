@@ -7,6 +7,7 @@ import {
 import DemoGuard from "../../components/shared/DemoGuard";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Employee, InviteStatusResponse } from "../../types";
+import { text, bg, border } from "../../theme";
 
 export default function EmployeeOnboarding() {
   const { t } = useLanguage();
@@ -67,7 +68,7 @@ export default function EmployeeOnboarding() {
     const styles: Record<string, string> = {
       active: "bg-emerald-500/15 text-emerald-300",
       pending: "bg-yellow-500/15 text-yellow-300",
-      "needs invite": "bg-white/[0.06] text-gray-400",
+      "needs invite": `${bg.tableHeader} ${text.muted}`,
     };
     const labelMap: Record<string, string> = {
       active: t.onboarding.statusActive,
@@ -86,8 +87,8 @@ export default function EmployeeOnboarding() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">{t.onboarding.title}</h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <h1 className={`text-2xl font-bold ${text.heading}`}>{t.onboarding.title}</h1>
+        <p className={`mt-1 text-sm ${text.muted}`}>
           {t.onboarding.subtitle}
         </p>
       </div>
@@ -154,7 +155,7 @@ export default function EmployeeOnboarding() {
                 </button>
               </DemoGuard>
             ) : (
-              <span className="text-xs text-gray-500 italic">
+              <span className={`text-xs ${text.muted} italic`}>
                 {t.onboarding.noEmail}
               </span>
             )}
@@ -173,7 +174,7 @@ export default function EmployeeOnboarding() {
           return (
             <EmployeeRow key={emp.id} employee={emp} status="pending" statusBadge={statusBadge}>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">
+                <span className={`text-xs ${text.muted}`}>
                   {t.onboarding.expires}{" "}
                   {inv
                     ? new Date(inv.expires_at).toLocaleDateString()
@@ -223,13 +224,13 @@ function Section({
 }) {
   return (
     <div className="mb-6">
-      <h2 className="text-lg font-semibold text-white mb-2">
+      <h2 className={`text-lg font-semibold ${text.heading} mb-2`}>
         {title}{" "}
-        <span className="text-sm font-normal text-gray-400">({count})</span>
+        <span className={`text-sm font-normal ${text.muted}`}>({count})</span>
       </h2>
-      <div className="glass-card divide-y divide-white/[0.06]">
+      <div className={`glass-card divide-y ${border.divider}`}>
         {count === 0 ? (
-          <div className="px-4 py-3 text-sm text-gray-500 italic">
+          <div className={`px-4 py-3 text-sm ${text.muted} italic`}>
             {emptyMessage}
           </div>
         ) : (
@@ -255,8 +256,8 @@ function EmployeeRow({
     <div className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-3">
         <div>
-          <div className="text-sm font-medium text-gray-200">{employee.full_name}</div>
-          <div className="text-xs text-gray-500">
+          <div className={`text-sm font-medium ${text.body}`}>{employee.full_name}</div>
+          <div className={`text-xs ${text.muted}`}>
             {employee.email ?? "No email"}
           </div>
         </div>

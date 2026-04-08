@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Employee } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text } from "../../theme";
 
 interface Props {
   employees: Employee[];
@@ -82,8 +83,8 @@ export default function EmployeeSearchBox({
 
   // ~40px per item (name + email) x 3 = 120px
   const listClasses = inline
-    ? "mt-1 w-full max-h-[120px] overflow-auto bg-gray-900/95 backdrop-blur-xl border border-white/[0.1] rounded-lg shadow-2xl text-sm"
-    : "absolute z-20 mt-1 w-full max-h-48 overflow-auto bg-gray-900/95 backdrop-blur-xl border border-white/[0.1] rounded-lg shadow-2xl text-sm";
+    ? "mt-1 w-full max-h-[120px] overflow-auto bg-cream/95 backdrop-blur-xl border border-sage/25 rounded-lg shadow-2xl text-sm"
+    : "absolute z-20 mt-1 w-full max-h-48 overflow-auto bg-cream/95 backdrop-blur-xl border border-sage/25 rounded-lg shadow-2xl text-sm";
 
   return (
     <div ref={containerRef} className={inline ? "" : "relative"}>
@@ -100,7 +101,7 @@ export default function EmployeeSearchBox({
       {open && (
         <ul className={listClasses}>
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-gray-500">{t.search.noMatches}</li>
+            <li className={`px-3 py-2 ${text.muted}`}>{t.search.noMatches}</li>
           ) : (
             filtered.map((emp) => (
               <li
@@ -109,13 +110,13 @@ export default function EmployeeSearchBox({
                 onClick={() => handleSelect(emp)}
                 className={`px-3 py-2 cursor-pointer hover:bg-white/[0.08] ${
                   emp.id === value
-                    ? "bg-purple-500/15 text-purple-300 font-medium"
-                    : "text-gray-200"
+                    ? "bg-accent/10 text-accent-dark font-medium"
+                    : text.body
                 }`}
               >
                 <div>{emp.full_name}</div>
                 {emp.email && (
-                  <div className="text-xs text-gray-500">{emp.email}</div>
+                  <div className={`text-xs ${text.muted}`}>{emp.email}</div>
                 )}
               </li>
             ))

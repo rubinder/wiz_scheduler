@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /privacy-policy
+Allow: /terms
+Disallow: /manager/
+Disallow: /employee/
+Disallow: /api/
+
+Sitemap: https://wizscheduler.com/sitemap.xml

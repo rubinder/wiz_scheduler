@@ -31,9 +31,9 @@ export default function DemoGuard({ children, message }: DemoGuardProps) {
         {children}
       </div>
       {showTooltip && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-gray-900 border border-white/10 text-xs text-gray-200 whitespace-nowrap shadow-lg">
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-300 text-xs text-gray-100 whitespace-nowrap shadow-lg">
           {tooltipText}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-gray-900" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-gray-800" />
         </div>
       )}
     </div>

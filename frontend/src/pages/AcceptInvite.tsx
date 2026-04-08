@@ -4,6 +4,7 @@ import { acceptInvite, getInviteInfo } from "../api/employees";
 import type { InviteInfoResponse } from "../types";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
+import { text, border, action, bg } from "../theme";
 
 export default function AcceptInvite() {
   useDocumentTitle("Accept Invite");
@@ -62,7 +63,7 @@ export default function AcceptInvite() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">{t.common.loading}</div>
+        <div className={text.muted}>{t.common.loading}</div>
       </div>
     );
   }
@@ -72,10 +73,10 @@ export default function AcceptInvite() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="glass-card w-full max-w-md p-8 text-center">
           <h1 className="text-xl font-bold text-red-400 mb-2">{t.acceptInvite.invalidInvite}</h1>
-          <p className="text-gray-400">{error || t.acceptInvite.invalidInviteDesc}</p>
+          <p className={text.muted}>{error || t.acceptInvite.invalidInviteDesc}</p>
           <a
             href="/login"
-            className="mt-4 inline-block text-purple-400 hover:text-purple-300 text-sm"
+            className={`mt-4 inline-block ${action.link} text-sm`}
           >
             {t.acceptInvite.goToLogin}
           </a>
@@ -87,9 +88,9 @@ export default function AcceptInvite() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="glass-card w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold mb-1 text-white">{t.acceptInvite.setupTitle}</h1>
-        <p className="text-sm text-gray-400 mb-6">
-          {t.acceptInvite.welcomeTo} <strong className="text-gray-300">{info.company_name}</strong>, {info.employee_name}!
+        <h1 className={`text-2xl font-bold mb-1 ${text.heading}`}>{t.acceptInvite.setupTitle}</h1>
+        <p className={`text-sm ${text.muted} mb-6`}>
+          {t.acceptInvite.welcomeTo} <strong className={text.secondary}>{info.company_name}</strong>, {info.employee_name}!
           <br />
           {t.acceptInvite.choosePassword}
         </p>
@@ -109,7 +110,7 @@ export default function AcceptInvite() {
               type="email"
               value={info.email}
               disabled
-              className="w-full border border-white/[0.06] rounded px-3 py-2 text-sm bg-white/[0.03] text-gray-500"
+              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${text.muted}`}
             />
           </div>
           <div>
@@ -146,9 +147,9 @@ export default function AcceptInvite() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-gray-500">
+        <p className={`mt-4 text-center text-xs ${text.muted}`}>
           {t.acceptInvite.haveAccount}{" "}
-          <a href="/login" className="text-purple-400 hover:text-purple-300">
+          <a href="/login" className={action.link}>
             {t.acceptInvite.logIn}
           </a>
         </p>

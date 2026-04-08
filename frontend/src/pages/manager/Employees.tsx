@@ -12,6 +12,7 @@ import type {
   Role,
 } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, action, badge } from "../../theme";
 
 interface RoleAssignment {
   role_id: string;
@@ -201,12 +202,12 @@ export default function Employees() {
         const assigned = assignedRoles.find((r) => r.role_id === role.id);
         return (
           <div key={role.id} className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer">
+            <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={!!assigned}
                 onChange={() => onChange(toggleRole(assignedRoles, role.id))}
-                className="rounded border-white/20 bg-white/[0.05]"
+                className="rounded border-sage/30 bg-white/50"
               />
               {role.name}
             </label>
@@ -245,13 +246,13 @@ export default function Employees() {
       {locations.map((loc) => (
         <label
           key={loc.id}
-          className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer"
+          className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer"
         >
           <input
             type="checkbox"
             checked={selectedIds.includes(loc.id)}
             onChange={() => onChange(toggleId(selectedIds, loc.id))}
-            className="rounded border-white/20 bg-white/[0.05]"
+            className="rounded border-sage/30 bg-white/50"
           />
           {loc.name}
         </label>
@@ -267,13 +268,13 @@ export default function Employees() {
       {companies.map((comp) => (
         <label
           key={comp.id}
-          className="flex items-center gap-1 text-sm text-gray-200 cursor-pointer"
+          className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer"
         >
           <input
             type="checkbox"
             checked={selectedIds.includes(comp.id)}
             onChange={() => onChange(toggleId(selectedIds, comp.id))}
-            className="rounded border-white/20 bg-white/[0.05]"
+            className="rounded border-sage/30 bg-white/50"
           />
           {comp.name}
         </label>
@@ -289,10 +290,10 @@ export default function Employees() {
       {empRoles.map((r) => (
         <span
           key={r.role_id}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-300 border border-purple-400/20"
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.role}`}
         >
           {roleName(r.role_id)}
-          <span className="text-purple-500">L{r.skill_level}</span>
+          <span className={badge.roleSkill}>L{r.skill_level}</span>
         </span>
       ))}
     </div>
@@ -306,7 +307,7 @@ export default function Employees() {
       {locIds?.map((id) => (
         <span
           key={id}
-          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.location}`}
         >
           {locationName(id)}
         </span>
@@ -322,7 +323,7 @@ export default function Employees() {
       {compIds.map((id) => (
         <span
           key={id}
-          className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-400/20"
+          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.company}`}
         >
           {companyName(id)}
         </span>
@@ -335,7 +336,7 @@ export default function Employees() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">{t.employeesPage.title}</h1>
+        <h1 className={`text-2xl font-bold ${text.heading}`}>{t.employeesPage.title}</h1>
         <DemoGuard>
           <button
             onClick={() => setShowImportModal(true)}
@@ -362,36 +363,36 @@ export default function Employees() {
         />
       )}
       <div className="glass-card overflow-x-auto">
-        <table className="min-w-full divide-y divide-white/[0.06]">
-          <thead className="bg-white/[0.04]">
+        <table className={`min-w-full divide-y ${border.divider}`}>
+          <thead className={bg.tableHeader}>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.employeesPage.fullName}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.email}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.locations}
               </th>
               {hasMultipleCompanies && (
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                   {t.common.companies}
                 </th>
               )}
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.roles}
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.actions}
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.06]">
+          <tbody className={`divide-y ${border.divider}`}>
             {employees.map((emp) => {
               const isEditing = editingId === emp.id;
               return (
-                <tr key={emp.id} className={isEditing ? "bg-purple-500/10" : ""}>
+                <tr key={emp.id} className={isEditing ? bg.editingRow : ""}>
                   <td className="px-4 py-2">
                     {isEditing ? (
                       <input
@@ -406,7 +407,7 @@ export default function Employees() {
                         }
                       />
                     ) : (
-                      <span className="text-sm text-gray-200">{emp.full_name}</span>
+                      <span className={`text-sm ${text.body}`}>{emp.full_name}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -423,7 +424,7 @@ export default function Employees() {
                         }
                       />
                     ) : (
-                      <span className="text-sm text-gray-200">{emp.email ?? ""}</span>
+                      <span className={`text-sm ${text.body}`}>{emp.email ?? ""}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -454,13 +455,13 @@ export default function Employees() {
                       <>
                         <button
                           onClick={handleSave}
-                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                          className={action.save}
                         >
                           {t.common.save}
                         </button>
                         <button
                           onClick={cancelEdit}
-                          className="text-gray-400 hover:text-gray-300 text-sm font-medium"
+                          className={action.cancel}
                         >
                           {t.common.cancel}
                         </button>
@@ -470,7 +471,7 @@ export default function Employees() {
                         <DemoGuard>
                           <button
                             onClick={() => startEdit(emp)}
-                            className="text-purple-400 hover:text-purple-300 text-sm font-medium"
+                            className={action.edit}
                           >
                             {t.common.edit}
                           </button>
@@ -478,7 +479,7 @@ export default function Employees() {
                         <DemoGuard>
                           <button
                             onClick={() => handleDelete(emp.id)}
-                            className="text-red-400 hover:text-red-300 text-sm font-medium"
+                            className={action.delete}
                           >
                             {t.common.delete}
                           </button>
@@ -492,7 +493,7 @@ export default function Employees() {
 
             {/* Add new row */}
             {showAddRow && (
-              <tr className="bg-emerald-500/10">
+              <tr className={bg.addRow}>
                 <td className="px-4 py-2">
                   <input
                     type="text"
@@ -538,7 +539,7 @@ export default function Employees() {
                 <td className="px-4 py-2 text-right space-x-2">
                   <button
                     onClick={handleCreate}
-                    className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                    className={action.save}
                   >
                     {t.common.add}
                   </button>
@@ -553,7 +554,7 @@ export default function Employees() {
                         company_ids: [],
                       });
                     }}
-                    className="text-gray-400 hover:text-gray-300 text-sm font-medium"
+                    className={action.cancel}
                   >
                     {t.common.cancel}
                   </button>

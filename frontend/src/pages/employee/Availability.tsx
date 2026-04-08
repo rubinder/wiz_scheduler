@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, badge } from "../../theme";
 import type { EmployeeAvailability, EmployeeMeProfile } from "../../types";
 
 export default function Availability() {
@@ -90,8 +91,8 @@ export default function Availability() {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold text-white mb-4">{t.availability.title}</h1>
-        <p className="text-gray-400">{t.common.loading}</p>
+        <h1 className={`text-2xl font-bold ${text.heading} mb-4`}>{t.availability.title}</h1>
+        <p className={text.muted}>{t.common.loading}</p>
       </div>
     );
   }
@@ -99,8 +100,8 @@ export default function Availability() {
   if (!profile) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold text-white mb-4">{t.availability.title}</h1>
-        <p className="text-gray-400">
+        <h1 className={`text-2xl font-bold ${text.heading} mb-4`}>{t.availability.title}</h1>
+        <p className={text.muted}>
           {t.availability.noProfile}
         </p>
       </div>
@@ -109,7 +110,7 @@ export default function Availability() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">{t.availability.title}</h1>
+      <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.availability.title}</h1>
 
       {error && (
         <div className="glass-alert-error mb-4">
@@ -121,12 +122,12 @@ export default function Availability() {
         <div className="glass-card p-6 mb-6">
           {profile.roles.length > 0 && (
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-white mb-3">{t.availability.assignedRoles}</h2>
+              <h2 className={`text-lg font-semibold ${text.heading} mb-3`}>{t.availability.assignedRoles}</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.roles.map((r) => (
                   <span
                     key={r.role_id}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-500/15 text-purple-300 border border-purple-400/20"
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${badge.role}`}
                   >
                     {r.role_name}
                   </span>
@@ -136,12 +137,12 @@ export default function Availability() {
           )}
           {profile.locations.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-white mb-3">{t.availability.yourLocations}</h2>
+              <h2 className={`text-lg font-semibold ${text.heading} mb-3`}>{t.availability.yourLocations}</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.locations.map((l) => (
                   <span
                     key={l.location_id}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${badge.location}`}
                   >
                     {l.location_name}
                   </span>
@@ -153,8 +154,8 @@ export default function Availability() {
       )}
 
       <div className="glass-card p-6 mb-6">
-        <h2 className="text-lg font-semibold text-white mb-4">{t.availability.addWindow}</h2>
-        <p className="text-sm text-gray-400 mb-4">
+        <h2 className={`text-lg font-semibold ${text.heading} mb-4`}>{t.availability.addWindow}</h2>
+        <p className={`text-sm ${text.muted} mb-4`}>
           {t.availability.addWindowDesc}
         </p>
         <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-4">
@@ -206,31 +207,31 @@ export default function Availability() {
 
       <div className="glass-card">
         <table className="glass-table">
-          <thead className="bg-white/[0.04]">
+          <thead className={bg.tableHeader}>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.date}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.start}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">
+              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.end}
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">
+              <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.actions}
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.06]">
+          <tbody className={`divide-y ${border.divider}`}>
             {availability.map((a) => (
-              <tr key={a.id} className="hover:bg-white/[0.03]">
-                <td className="px-4 py-2 text-sm text-gray-200">
+              <tr key={a.id} className={bg.rowHover}>
+                <td className={`px-4 py-2 text-sm ${text.body}`}>
                   {a.year}-{String(a.month).padStart(2, "0")}-
                   {String(a.day).padStart(2, "0")}
                 </td>
-                <td className="px-4 py-2 text-sm text-gray-200">{a.start_time}</td>
-                <td className="px-4 py-2 text-sm text-gray-200">{a.end_time}</td>
+                <td className={`px-4 py-2 text-sm ${text.body}`}>{a.start_time}</td>
+                <td className={`px-4 py-2 text-sm ${text.body}`}>{a.end_time}</td>
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => handleDelete(a.id)}
@@ -245,7 +246,7 @@ export default function Availability() {
               <tr>
                 <td
                   colSpan={4}
-                  className="px-4 py-6 text-center text-gray-500 text-sm"
+                  className={`px-4 py-6 text-center ${text.muted} text-sm`}
                 >
                   {t.availability.noWindows}
                 </td>

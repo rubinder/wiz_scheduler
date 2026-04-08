@@ -11,6 +11,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
 import { useScheduleStream } from "../../hooks/useScheduleStream";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { text, bg, border, roleColorsLight, spinner as spinnerClass } from "../../theme";
 import type {
   Employee,
   Location,
@@ -59,16 +60,7 @@ function toTimeInput(t: string): string {
   return t.slice(0, 5);
 }
 
-const ROLE_COLORS = [
-  "bg-blue-500/15 border-blue-400/20 text-blue-300",
-  "bg-emerald-500/15 border-emerald-400/20 text-emerald-300",
-  "bg-purple-500/15 border-purple-400/20 text-purple-300",
-  "bg-amber-500/15 border-amber-400/20 text-amber-300",
-  "bg-rose-500/15 border-rose-400/20 text-rose-300",
-  "bg-cyan-500/15 border-cyan-400/20 text-cyan-300",
-  "bg-indigo-500/15 border-indigo-400/20 text-indigo-300",
-  "bg-orange-500/15 border-orange-400/20 text-orange-300",
-];
+const ROLE_COLORS = roleColorsLight;
 
 // ── EditShiftModal ──
 
@@ -113,11 +105,11 @@ function EditShiftModal({
   return (
     <div className="glass-modal-overlay">
       <div className="glass-modal w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-          <h3 className="text-lg font-semibold text-white">{t.schedule.editShift}</h3>
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+          <h3 className={`text-lg font-semibold ${text.heading}`}>{t.schedule.editShift}</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 text-xl leading-none"
+            className="text-gray-500 hover:text-gray-600 text-xl leading-none"
           >
             &times;
           </button>
@@ -178,12 +170,12 @@ function EditShiftModal({
             </div>
           </div>
 
-          <div className="text-sm text-gray-400">
+          <div className={`text-sm ${text.muted}`}>
             {t.common.date}: {getDayLabel(shift.date)} ({shift.date})
           </div>
         </div>
 
-        <div className="flex justify-between items-center px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
+        <div className={`flex justify-between items-center px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
           <button
             onClick={onDelete}
             className="px-3 py-2 bg-red-500/15 text-red-300 rounded-lg hover:bg-red-500/25 text-sm font-medium"
@@ -270,14 +262,14 @@ function ScheduleGrid({
     <div className="overflow-x-auto">
       <table className="min-w-full">
         <thead>
-          <tr className="bg-white/[0.04]">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase sticky left-0 bg-[#0f0f23] z-10 min-w-[140px]">
+          <tr className={bg.tableHeader}>
+            <th className={`px-4 py-3 text-left text-xs font-semibold ${text.muted} uppercase sticky left-0 ${bg.stickyCol} z-10 min-w-[140px]`}>
               {t.common.role}
             </th>
             {dates.map((d) => (
               <th
                 key={d}
-                className="px-3 py-3 text-center text-xs font-semibold text-gray-400 uppercase min-w-[160px]"
+                className={`px-3 py-3 text-center text-xs font-semibold ${text.muted} uppercase min-w-[160px]`}
               >
                 {getDayLabel(d)}
               </th>
@@ -286,8 +278,8 @@ function ScheduleGrid({
         </thead>
         <tbody>
           {roles.map((role) => (
-            <tr key={role} className="border-t border-white/[0.06]">
-              <td className="px-4 py-3 text-sm font-medium text-gray-300 align-top sticky left-0 bg-[#0f0f23] z-10">
+            <tr key={role} className={`border-t ${border.subtle}`}>
+              <td className={`px-4 py-3 text-sm font-medium ${text.secondary} align-top sticky left-0 ${bg.stickyCol} z-10`}>
                 <span
                   className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${roleColorMap[role]}`}
                 >
@@ -313,7 +305,7 @@ function ScheduleGrid({
                             }
                             className={`rounded-lg border px-2.5 py-1.5 ${roleColorMap[role]} ${
                               editable
-                                ? "cursor-pointer hover:ring-2 hover:ring-purple-400/40 transition-shadow"
+                                ? "cursor-pointer hover:ring-2 hover:ring-accent/40 transition-shadow"
                                 : ""
                             }`}
                           >
@@ -708,7 +700,7 @@ export default function Schedule() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">{t.schedule.title}</h1>
+      <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.schedule.title}</h1>
 
       {/* Credit & Quota Status Banner */}
       {(creditStatus || scheduleQuota) && (
@@ -717,15 +709,15 @@ export default function Schedule() {
           {scheduleQuota && (
             <div className={`p-3 rounded-lg border text-sm flex items-center justify-between ${
               scheduleQuota.can_generate
-                ? "border-white/10 bg-white/[0.03] text-gray-400"
-                : "border-red-500/30 bg-red-500/10 text-red-300"
+                ? `${border.default} ${bg.sectionSubtle} ${text.muted}`
+                : "border-red-200 bg-red-50 text-red-700"
             }`}>
               <div className="flex items-center gap-4">
                 <span>
                   {t.schedule.schedulesUsed}: {scheduleQuota.schedules_used} / {scheduleQuota.schedules_free_tier}
                 </span>
                 {scheduleQuota.is_over_free_tier && (
-                  <span className="text-xs text-gray-500">
+                  <span className={`text-xs ${text.muted}`}>
                     ({t.schedule.scheduleFreeTierUsed})
                   </span>
                 )}
@@ -744,8 +736,8 @@ export default function Schedule() {
           {creditStatus && (
             <div className={`p-3 rounded-lg border text-sm flex items-center justify-between ${
               creditStatus.can_generate
-                ? "border-white/10 bg-white/[0.03] text-gray-400"
-                : "border-red-500/30 bg-red-500/10 text-red-300"
+                ? `${border.default} ${bg.sectionSubtle} ${text.muted}`
+                : "border-red-200 bg-red-50 text-red-700"
             }`}>
               <div className="flex items-center gap-4">
                 <span>
@@ -756,7 +748,7 @@ export default function Schedule() {
                   }
                 </span>
                 {creditStatus.is_over_free_tier && (
-                  <span className="text-xs text-gray-500">
+                  <span className={`text-xs ${text.muted}`}>
                     ({t.schedule.freeTierUsed})
                   </span>
                 )}
@@ -776,7 +768,7 @@ export default function Schedule() {
 
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-300">{t.schedule.startLabel}</label>
+          <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.startLabel}</label>
           <input
             type="date"
             value={startDate}
@@ -787,7 +779,7 @@ export default function Schedule() {
             }}
             className="glass-input"
           />
-          <label className="text-sm font-medium text-gray-300">{t.schedule.endLabel}</label>
+          <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.endLabel}</label>
           <input
             type="date"
             value={endDate}
@@ -796,7 +788,7 @@ export default function Schedule() {
             onChange={(e) => setEndDate(e.target.value)}
             className="glass-input"
           />
-          <span className="text-xs text-gray-500">
+          <span className={`text-xs ${text.muted}`}>
             ({daysBetween(startDate, endDate)} {daysBetween(startDate, endDate) !== 1 ? t.common.days : t.common.day})
           </span>
         </div>
@@ -833,34 +825,34 @@ export default function Schedule() {
       {showTemplatePicker && (
         <div className="glass-modal-overlay">
           <div className="glass-modal w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-              <h2 className="text-lg font-semibold text-white">
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+              <h2 className={`text-lg font-semibold ${text.heading}`}>
                 {t.schedule.selectTemplates}
               </h2>
               <button
                 onClick={() => setShowTemplatePicker(false)}
-                className="text-gray-500 hover:text-gray-300 text-xl leading-none"
+                className="text-gray-500 hover:text-gray-600 text-xl leading-none"
               >
                 &times;
               </button>
             </div>
 
             <div className="px-6 py-4 overflow-y-auto flex-1">
-              <p className="text-sm text-gray-400 mb-4">
+              <p className={`text-sm ${text.muted} mb-4`}>
                 {t.schedule.selectTemplatesDesc}
               </p>
 
               {loadingTemplates && (
                 <div className="flex items-center gap-3 py-4">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-                  <span className="text-sm text-gray-400">
+                  <div className={`h-5 w-5 animate-spin rounded-full border-2 ${spinnerClass}`} />
+                  <span className={`text-sm ${text.muted}`}>
                     {t.schedule.loadingTemplates}
                   </span>
                 </div>
               )}
 
               {!loadingTemplates && templates.length === 0 && (
-                <p className="text-sm text-gray-500">
+                <p className={`text-sm ${text.muted}`}>
                   {t.schedule.noTemplatesFound}
                 </p>
               )}
@@ -880,9 +872,9 @@ export default function Schedule() {
                     return (
                       <div
                         key={locId}
-                        className="mb-4 border border-white/[0.08] rounded-lg"
+                        className={`mb-4 border ${border.default} rounded-lg`}
                       >
-                        <div className="px-4 py-2 bg-white/[0.04] rounded-t-lg flex items-center gap-2">
+                        <div className={`px-4 py-2 ${bg.tableHeader} rounded-t-lg flex items-center gap-2`}>
                           <input
                             type="checkbox"
                             checked={allSelected}
@@ -890,12 +882,12 @@ export default function Schedule() {
                               if (el) el.indeterminate = someSelected;
                             }}
                             onChange={() => toggleAllForLocation(locId)}
-                            className="rounded border-white/20 bg-white/[0.05]"
+                            className="rounded border-sage/30 bg-white/50"
                           />
-                          <span className="text-sm font-semibold text-gray-300">
+                          <span className={`text-sm font-semibold ${text.secondary}`}>
                             {locationName(locId)}
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className={`text-xs ${text.muted}`}>
                             ({locTemplates.length} {locTemplates.length !== 1 ? t.schedule.templates : t.schedule.template})
                           </span>
                         </div>
@@ -903,13 +895,13 @@ export default function Schedule() {
                           {locTemplates.map((tmpl) => (
                             <label
                               key={tmpl.id}
-                              className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer py-1"
+                              className={`flex items-center gap-2 text-sm ${text.secondary} cursor-pointer py-1`}
                             >
                               <input
                                 type="checkbox"
                                 checked={selectedTemplateIds.has(tmpl.id)}
                                 onChange={() => toggleTemplate(tmpl.id)}
-                                className="rounded border-white/20 bg-white/[0.05]"
+                                className="rounded border-sage/30 bg-white/50"
                               />
                               {tmpl.name}
                             </label>
@@ -922,8 +914,8 @@ export default function Schedule() {
             </div>
 
             {generateMode === "local" && (
-              <div className="px-6 py-3 bg-emerald-500/[0.07] border-t border-white/[0.08]">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+              <div className={`px-6 py-3 bg-emerald-50 border-t ${border.default}`}>
+                <label className={`block text-sm font-medium ${text.secondary} mb-2`}>
                   {t.schedule.strategy}
                 </label>
                 <div className="flex gap-3">
@@ -937,8 +929,8 @@ export default function Schedule() {
                       className="text-emerald-400"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-300">{t.schedule.rotation}</span>
-                      <p className="text-xs text-gray-500">{t.schedule.rotationDesc}</p>
+                      <span className={`text-sm font-medium ${text.secondary}`}>{t.schedule.rotation}</span>
+                      <p className={`text-xs ${text.muted}`}>{t.schedule.rotationDesc}</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -951,8 +943,8 @@ export default function Schedule() {
                       className="text-emerald-400"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-300">{t.schedule.random}</span>
-                      <p className="text-xs text-gray-500">{t.schedule.randomDesc}</p>
+                      <span className={`text-sm font-medium ${text.secondary}`}>{t.schedule.random}</span>
+                      <p className={`text-xs ${text.muted}`}>{t.schedule.randomDesc}</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -965,8 +957,8 @@ export default function Schedule() {
                       className="text-emerald-400"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-300">{t.schedule.rotationHistory}</span>
-                      <p className="text-xs text-gray-500">{t.schedule.rotationHistoryDesc}</p>
+                      <span className={`text-sm font-medium ${text.secondary}`}>{t.schedule.rotationHistory}</span>
+                      <p className={`text-xs ${text.muted}`}>{t.schedule.rotationHistoryDesc}</p>
                     </div>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -979,15 +971,15 @@ export default function Schedule() {
                       className="text-emerald-400"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-300">{t.schedule.maxHours}</span>
-                      <p className="text-xs text-gray-500">{t.schedule.maxHoursDesc}</p>
+                      <span className={`text-sm font-medium ${text.secondary}`}>{t.schedule.maxHours}</span>
+                      <p className={`text-xs ${text.muted}`}>{t.schedule.maxHoursDesc}</p>
                     </div>
                   </label>
                 </div>
                 {localStrategy === "rotation_history" && (
-                  <div className="mt-3 pt-3 border-t border-white/[0.08]">
+                  <div className={`mt-3 pt-3 border-t ${border.default}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-gray-300">{t.schedule.fairnessWeight}</label>
+                      <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.fairnessWeight}</label>
                       <span className="text-sm font-mono text-emerald-400">{fairnessWeight.toFixed(1)}</span>
                     </div>
                     <input
@@ -999,17 +991,17 @@ export default function Schedule() {
                       onChange={(e) => setFairnessWeight(parseFloat(e.target.value))}
                       className="w-full accent-emerald-400"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className={`flex justify-between text-xs ${text.muted} mt-1`}>
                       <span>{t.schedule.moreRandom}</span>
                       <span>{t.schedule.moreFair}</span>
                     </div>
                   </div>
                 )}
                 {localStrategy === "max_hours" && (
-                  <div className="mt-3 pt-3 border-t border-white/[0.08] space-y-4">
+                  <div className={`mt-3 pt-3 border-t ${border.default} space-y-4`}>
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-300">{t.schedule.maxHoursLimit}</label>
+                        <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.maxHoursLimit}</label>
                         <span className="text-sm font-mono text-emerald-400">{maxHours}h</span>
                       </div>
                       <input
@@ -1021,14 +1013,14 @@ export default function Schedule() {
                         onChange={(e) => setMaxHours(parseInt(e.target.value))}
                         className="w-full accent-emerald-400"
                       />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <div className={`flex justify-between text-xs ${text.muted} mt-1`}>
                         <span>4h</span>
                         <span>60h</span>
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-300">{t.schedule.hourStrictness}</label>
+                        <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.hourStrictness}</label>
                         <span className="text-sm font-mono text-emerald-400">{hourStrictness.toFixed(1)}</span>
                       </div>
                       <input
@@ -1040,7 +1032,7 @@ export default function Schedule() {
                         onChange={(e) => setHourStrictness(parseFloat(e.target.value))}
                         className="w-full accent-emerald-400"
                       />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <div className={`flex justify-between text-xs ${text.muted} mt-1`}>
                         <span>{t.schedule.noEnforcement}</span>
                         <span>{t.schedule.strictEnforcement}</span>
                       </div>
@@ -1050,8 +1042,8 @@ export default function Schedule() {
               </div>
             )}
 
-            <div className="flex justify-between items-center px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
-              <span className="text-xs text-gray-500">
+            <div className={`flex justify-between items-center px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
+              <span className={`text-xs ${text.muted}`}>
                 {selectedTemplateIds.size} {t.common.of} {templates.length} {t.common.selected}
               </span>
               <div className="flex gap-3">
@@ -1102,13 +1094,13 @@ export default function Schedule() {
       )}
 
       {isStreaming && results.length === 0 && (
-        <div className="text-gray-400 text-sm">
+        <div className={`${text.muted} text-sm`}>
           {t.schedule.waitingResults}
         </div>
       )}
 
       {allComplete && (
-        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 rounded-xl text-center font-semibold">
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-center font-semibold">
           {t.schedule.allComplete}
         </div>
       )}
@@ -1133,9 +1125,9 @@ export default function Schedule() {
               }`}
               data-print={printLocationId === locationResult.location_id ? "true" : undefined}
             >
-              <div className="p-4 border-b border-white/[0.08] flex items-center justify-between">
+              <div className={`p-4 border-b ${border.default} flex items-center justify-between`}>
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className={`text-lg font-semibold ${text.heading}`}>
                     {locationResult.location_name}
                   </h3>
                   <StatusBadge status={locationResult.status} />
@@ -1152,7 +1144,7 @@ export default function Schedule() {
                     </button>
                   )}
                   {!decided && (
-                    <span className="text-xs text-gray-500 mr-2">
+                    <span className={`text-xs ${text.muted} mr-2`}>
                       {t.schedule.clickToEdit}
                     </span>
                   )}
@@ -1202,7 +1194,7 @@ export default function Schedule() {
 
               {currentShifts.length === 0 &&
                 locationResult.errors.length === 0 && (
-                  <div className="p-4 text-gray-500 text-sm">
+                  <div className={`p-4 ${text.muted} text-sm`}>
                     {t.schedule.noShiftsGenerated}
                   </div>
                 )}
@@ -1215,23 +1207,23 @@ export default function Schedule() {
       {showPurchaseModal && (
         <div className="glass-modal-overlay">
           <div className="glass-modal w-full max-w-sm mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-              <h3 className="text-lg font-semibold text-white">{t.schedule.buyAiCredits}</h3>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+              <h3 className={`text-lg font-semibold ${text.heading}`}>{t.schedule.buyAiCredits}</h3>
               <button
                 onClick={() => setShowPurchaseModal(false)}
-                className="text-gray-500 hover:text-gray-300 text-xl leading-none"
+                className="text-gray-500 hover:text-gray-600 text-xl leading-none"
               >
                 &times;
               </button>
             </div>
             <div className="px-6 py-4 space-y-4">
-              <p className="text-sm text-gray-400">
+              <p className={`text-sm ${text.muted}`}>
                 {purchaseReason === "schedules"
                   ? t.schedule.scheduleQuotaExhaustedMsg
                   : t.schedule.creditsExhaustedMsg}
               </p>
               {creditStatus && (
-                <div className="text-xs text-gray-500 space-y-1">
+                <div className={`text-xs ${text.muted} space-y-1`}>
                   <div>{t.schedule.monthlyUsage}: ${creditStatus.monthly_cost_usd.toFixed(2)}</div>
                   <div>{t.schedule.currentBalance}: ${creditStatus.purchased_credits_usd.toFixed(2)}</div>
                 </div>
@@ -1245,8 +1237,8 @@ export default function Schedule() {
                       onClick={() => setPurchaseAmount(amt)}
                       className={`px-3 py-2 rounded-lg text-sm font-medium border ${
                         purchaseAmount === amt
-                          ? "border-purple-400 bg-purple-500/20 text-purple-300"
-                          : "border-white/10 bg-white/[0.03] text-gray-400 hover:border-white/20"
+                          ? "border-accent bg-accent/15 text-accent-dark"
+                          : "border-sage/20 bg-sage/[0.05] text-gray-500 hover:border-sage/30"
                       }`}
                     >
                       ${amt}
@@ -1255,7 +1247,7 @@ export default function Schedule() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-white/[0.08] bg-white/[0.03] rounded-b-2xl">
+            <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
               <button
                 onClick={() => setShowPurchaseModal(false)}
                 className="glass-btn-secondary text-sm font-medium"
