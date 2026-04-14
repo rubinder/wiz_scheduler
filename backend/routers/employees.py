@@ -8,11 +8,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
-from backend.models import Company, Employee, EmployeeAvailability, EmployeeCompany, EmployeeRole, Location, Role, Shift, User
+from backend.models import Company, Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
 from backend.schemas.employee import (
     AvailabilityCreate,
     AvailabilityResponse,
     BulkUploadResponse,
+    DayBlackoutCreate,
+    DayBlackoutResponse,
     EmployeeCreate,
     EmployeeMeLocationResponse,
     EmployeeMeResponse,
@@ -172,6 +174,7 @@ async def create_employee(
         email=body.email,
         user_id=body.user_id,
         location_ids=body.location_ids,
+        max_hours_per_week=body.max_hours_per_week,
     )
     db.add(employee)
     await db.flush()
@@ -218,6 +221,10 @@ async def update_employee(
         employee.user_id = body.user_id
     if body.location_ids is not None:
         employee.location_ids = body.location_ids
+    # Use model_fields_set so the caller can explicitly clear the cap to null
+    # (remove the restriction) by sending {"max_hours_per_week": null}.
+    if "max_hours_per_week" in body.model_fields_set:
+        employee.max_hours_per_week = body.max_hours_per_week
 
     if body.roles is not None:
         await _sync_employee_roles(db, employee.id, current_user.company_id, body.roles)
@@ -265,10 +272,24 @@ async def delete_employee(
         delete(EmployeeAvailability).where(EmployeeAvailability.employee_id == employee_id)
     )
     await db.execute(
+        delete(EmployeeAffinity).where(
+            (EmployeeAffinity.employee_id == employee_id)
+            | (EmployeeAffinity.target_employee_id == employee_id)
+        )
+    )
+    await db.execute(
         delete(EmployeeRole).where(EmployeeRole.employee_id == employee_id)
     )
     await db.execute(
+        delete(EmployeeRoleMinutes).where(
+            EmployeeRoleMinutes.employee_id == employee_id
+        )
+    )
+    await db.execute(
         delete(EmployeeCompany).where(EmployeeCompany.employee_id == employee_id)
+    )
+    await db.execute(
+        delete(EmployeeDayBlackout).where(EmployeeDayBlackout.employee_id == employee_id)
     )
     await db.delete(employee)
     await db.commit()
@@ -564,4 +585,147 @@ async def delete_availability(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     await db.delete(avail)
+    await db.commit()
+
+
+# ── Day blackouts (recurring per-day-of-week time ranges) ──
+
+
+def _validate_hhmm(label: str, value: str) -> None:
+    if not isinstance(value, str) or len(value) != 5 or value[2] != ":":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{label} must be in HH:MM format",
+        )
+    try:
+        hh = int(value[0:2])
+        mm = int(value[3:5])
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{label} must be in HH:MM format",
+        )
+    if not (0 <= hh < 24 and 0 <= mm < 60):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{label} out of range",
+        )
+
+
+@router.get("/day-blackouts", response_model=list[DayBlackoutResponse])
+async def list_all_day_blackouts(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> list[DayBlackoutResponse]:
+    """Return every blackout across all employees for the current company."""
+    result = await db.execute(
+        select(EmployeeDayBlackout).where(
+            EmployeeDayBlackout.company_id == current_user.company_id
+        )
+    )
+    rows = result.scalars().all()
+    return [DayBlackoutResponse.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/{employee_id}/day-blackouts", response_model=list[DayBlackoutResponse]
+)
+async def list_day_blackouts(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DayBlackoutResponse]:
+    # Confirm the employee belongs to the caller's company
+    emp_result = await db.execute(
+        select(Employee).where(
+            Employee.id == employee_id,
+            Employee.company_id == current_user.company_id,
+        )
+    )
+    emp = emp_result.scalar_one_or_none()
+    if emp is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+    if current_user.user_role != "manager" and emp.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
+        )
+
+    result = await db.execute(
+        select(EmployeeDayBlackout).where(
+            EmployeeDayBlackout.employee_id == employee_id,
+            EmployeeDayBlackout.company_id == current_user.company_id,
+        )
+    )
+    return [DayBlackoutResponse.model_validate(r) for r in result.scalars().all()]
+
+
+@router.post(
+    "/day-blackouts",
+    response_model=DayBlackoutResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_day_blackout(
+    body: DayBlackoutCreate,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> DayBlackoutResponse:
+    if not (0 <= body.day_of_week <= 6):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="day_of_week must be 0-6 (0 = Monday)",
+        )
+    _validate_hhmm("start_time", body.start_time)
+    _validate_hhmm("end_time", body.end_time)
+    if body.end_time <= body.start_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_time must be after start_time",
+        )
+
+    emp_result = await db.execute(
+        select(Employee).where(
+            Employee.id == body.employee_id,
+            Employee.company_id == current_user.company_id,
+        )
+    )
+    if emp_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
+        )
+
+    row = EmployeeDayBlackout(
+        company_id=current_user.company_id,
+        employee_id=body.employee_id,
+        day_of_week=body.day_of_week,
+        start_time=body.start_time,
+        end_time=body.end_time,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return DayBlackoutResponse.model_validate(row)
+
+
+@router.delete(
+    "/day-blackouts/{blackout_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_day_blackout(
+    blackout_id: str,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        select(EmployeeDayBlackout).where(
+            EmployeeDayBlackout.id == blackout_id,
+            EmployeeDayBlackout.company_id == current_user.company_id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Blackout not found"
+        )
+    await db.delete(row)
     await db.commit()

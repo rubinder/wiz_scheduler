@@ -12,8 +12,11 @@ export default function Landing() {
     { title: t.landing.featAITitle, desc: t.landing.featAIDesc },
     { title: t.landing.featStrategiesTitle, desc: t.landing.featStrategiesDesc },
     { title: t.landing.featMultiLocTitle, desc: t.landing.featMultiLocDesc },
+    { title: t.landing.featHourCapsTitle, desc: t.landing.featHourCapsDesc },
+    { title: t.landing.featDayRulesTitle, desc: t.landing.featDayRulesDesc },
     { title: t.landing.featSelfServiceTitle, desc: t.landing.featSelfServiceDesc },
     { title: t.landing.feat7shiftsTitle, desc: t.landing.feat7shiftsDesc },
+    { title: t.landing.featDeputyTitle, desc: t.landing.featDeputyDesc },
     { title: t.landing.featGDPRTitle, desc: t.landing.featGDPRDesc },
     { title: t.landing.featAffinitiesTitle, desc: t.landing.featAffinitiesDesc },
     { title: t.landing.featRoleEquivTitle, desc: t.landing.featRoleEquivDesc },
@@ -205,7 +208,7 @@ export default function Landing() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-dark text-sm mb-4">
               {t.landing.allInOnePlan}
             </div>
-            <div className={`text-5xl font-extrabold ${text.heading} mb-2`}>$15<span className={`text-xl font-normal ${text.muted}`}> {t.landing.pricePerMonth}</span></div>
+            <div className={`text-5xl font-extrabold ${text.heading} mb-2`}>$18<span className={`text-xl font-normal ${text.muted}`}> {t.landing.pricePerMonth}</span></div>
             <p className={`${text.muted} mb-8`}>{t.landing.basePlanDesc}</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto">
               <div>
@@ -221,7 +224,7 @@ export default function Landing() {
                 <div className={`text-sm ${text.muted} mt-1`}>{t.landing.storageIncluded}</div>
               </div>
               <div>
-                <div className={`text-2xl font-bold ${text.heading}`}>33K</div>
+                <div className={`text-2xl font-bold ${text.heading}`}>1K</div>
                 <div className={`text-sm ${text.muted} mt-1`}>{t.landing.employeesIncluded}</div>
               </div>
             </div>
@@ -308,11 +311,11 @@ export default function Landing() {
               <div className="space-y-2 text-sm">
                 <div className={`flex justify-between ${text.secondary}`}>
                   <span>{t.landing.included}</span>
-                  <span className={`${text.primary} font-medium`}>33,000</span>
+                  <span className={`${text.primary} font-medium`}>1,000</span>
                 </div>
                 <div className={`border-t ${border.subtle} pt-2 flex justify-between ${text.secondary}`}>
                   <span>{t.landing.overage}</span>
-                  <span className={`${text.primary} font-medium`}>$0.20 / 33K</span>
+                  <span className={`${text.primary} font-medium`}>$1.00 / 1K</span>
                 </div>
                 <p className={`text-xs ${text.muted} pt-1`}>
                   {t.landing.employeesOverageNote}
@@ -337,7 +340,7 @@ export default function Landing() {
                   <tr className="border-b border-sage/10">
                     <td className="py-3">{t.landing.exampleBase}</td>
                     <td></td>
-                    <td className={`text-right ${text.primary} font-medium`}>$15.00</td>
+                    <td className={`text-right ${text.primary} font-medium`}>$18.00</td>
                   </tr>
                   <tr className="border-b border-sage/10">
                     <td className="py-3">{t.landing.exampleSchedules}</td>
@@ -362,7 +365,7 @@ export default function Landing() {
                   <tr>
                     <td className={`py-3 font-semibold ${text.heading}`}>{t.landing.exampleTotal}</td>
                     <td></td>
-                    <td className={`text-right ${text.heading} font-bold text-lg`}>$15.00</td>
+                    <td className={`text-right ${text.heading} font-bold text-lg`}>$20.30</td>
                   </tr>
                 </tbody>
               </table>

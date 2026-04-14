@@ -39,6 +39,16 @@ test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
+# Register SQLite-compatible replacements for PostgreSQL functions
+@event.listens_for(test_engine.sync_engine, "connect")
+def _register_sqlite_functions(dbapi_connection, connection_record):
+    """Make server_default=text("now()") and gen_random_uuid() work on SQLite."""
+    import sqlite3
+    from datetime import datetime, timezone as _tz
+
+    dbapi_connection.create_function("now", 0, lambda: datetime.now(_tz.utc).isoformat())
+
+
 # ---------------------------------------------------------------------------
 # ID helper — SQLite has no gen_random_id(); we supply IDs explicitly.
 # ---------------------------------------------------------------------------

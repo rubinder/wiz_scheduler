@@ -152,21 +152,31 @@ function ShiftForm({
   roles,
   days,
   initial,
+  defaults,
   onSave,
   onCancel,
 }: {
   roles: Role[];
   days: string[];
   initial?: ShiftEntry | null;
+  defaults?: Partial<ShiftEntry> | null;
   onSave: (shift: ShiftEntry) => void;
   onCancel: () => void;
 }) {
   const { t } = useLanguage();
-  const [day, setDay] = useState(initial?.day ?? days[0] ?? "Monday");
+  const [day, setDay] = useState(
+    initial?.day ?? defaults?.day ?? days[0] ?? "Monday"
+  );
   const [roleId, setRoleId] = useState(initial?.role_id ?? "");
-  const [startTime, setStartTime] = useState(initial?.start_time ?? "09:00");
-  const [endTime, setEndTime] = useState(initial?.end_time ?? "17:00");
-  const [headcount, setHeadcount] = useState(initial?.headcount ?? 1);
+  const [startTime, setStartTime] = useState(
+    initial?.start_time ?? defaults?.start_time ?? "09:00"
+  );
+  const [endTime, setEndTime] = useState(
+    initial?.end_time ?? defaults?.end_time ?? "17:00"
+  );
+  const [headcount, setHeadcount] = useState(
+    initial?.headcount ?? defaults?.headcount ?? 1
+  );
 
   const selectedRole = roles.find((r) => r.id === roleId);
 
@@ -355,6 +365,16 @@ function ShiftEditor({
         <ShiftForm
           roles={roles}
           days={days}
+          defaults={
+            shifts.length > 0
+              ? {
+                  day: shifts[shifts.length - 1].day,
+                  start_time: shifts[shifts.length - 1].start_time,
+                  end_time: shifts[shifts.length - 1].end_time,
+                  headcount: shifts[shifts.length - 1].headcount,
+                }
+              : null
+          }
           onSave={handleAddShift}
           onCancel={() => setShowForm(false)}
         />

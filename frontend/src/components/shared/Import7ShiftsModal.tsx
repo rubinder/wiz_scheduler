@@ -71,6 +71,15 @@ export default function Import7ShiftsModal({ onClose }: Props) {
                 <span className={`font-medium ${text.secondary}`}>
                   {t.import7Shifts.devTools}
                 </span>
+                . See{" "}
+                <a
+                  href="https://kb.7shifts.com/hc/en-us/articles/8150346086163-How-To-Generate-an-Access-Token"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-dark underline hover:text-accent"
+                >
+                  How To Generate an Access Token
+                </a>
                 .
               </p>
               <div>

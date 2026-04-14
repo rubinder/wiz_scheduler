@@ -51,6 +51,29 @@ def _time_covers(
     return False
 
 
+def _blackout_blocks(
+    blackouts: List[Dict[str, str]],
+    day_name: str,
+    slot_start: str,
+    slot_end: str,
+) -> bool:
+    """Return True if any blackout for *day_name* overlaps [slot_start, slot_end).
+
+    Blackouts are stored as {"day": "Monday", "start": "HH:MM", "end": "HH:MM"}.
+    Half-open overlap: two ranges overlap iff a.start < b.end AND b.start < a.end.
+    """
+    for bo in blackouts or []:
+        if bo.get("day") != day_name:
+            continue
+        bo_start = bo.get("start", "")
+        bo_end = bo.get("end", "")
+        if not bo_start or not bo_end:
+            continue
+        if slot_start < bo_end and bo_start < slot_end:
+            return True
+    return False
+
+
 def _format_avail_str(day_windows: Dict[str, List[Tuple[str, str]]]) -> str:
     """Format day-based availability into a readable string."""
     if not day_windows:
@@ -120,6 +143,7 @@ def build_schedule_prompt(
             end = slot.get("end_time", "??:??")
 
             # Find eligible employees: have the role AND available that day+time
+            # AND are not blocked by a per-day blackout.
             eligible: List[str] = []
             for e in emp_data:
                 if role_name not in e["_role_names"]:
@@ -127,13 +151,16 @@ def build_schedule_prompt(
                 day_ranges = e["_day_windows"].get(day, [])
                 if not day_ranges:
                     continue
-                if _time_covers(day_ranges, start, end):
-                    skill = next(
-                        (r.get("skill_level", 0) for r in e.get("roles", [])
-                         if r.get("role_name") == role_name),
-                        0,
-                    )
-                    eligible.append(f'{e["id"]} [skill={skill}]')
+                if not _time_covers(day_ranges, start, end):
+                    continue
+                if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
+                    continue
+                skill = next(
+                    (r.get("skill_level", 0) for r in e.get("roles", [])
+                     if r.get("role_name") == role_name),
+                    0,
+                )
+                eligible.append(f'{e["id"]} [skill={skill}]')
 
             eligible_str = ", ".join(eligible) if eligible else "NONE AVAILABLE"
             req_lines.append(

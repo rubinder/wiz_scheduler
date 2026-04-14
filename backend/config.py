@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     STORAGE_COST_PER_GB: float = 0.50        # $/GB/month after free tier
 
     # Employee billing
-    EMPLOYEE_FREE_TIER: int = 33_000         # free employees per ownership group
-    EMPLOYEE_COST_PER_BLOCK: float = 0.20    # $ per 33k employees after free tier
-    EMPLOYEE_BLOCK_SIZE: int = 33_000        # employees per billing block
+    EMPLOYEE_FREE_TIER: int = 1_000           # free employees per ownership group
+    EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 1k employees after free tier
+    EMPLOYEE_BLOCK_SIZE: int = 1_000         # employees per billing block
 
     # Schedule generation billing
     SCHEDULE_FREE_TIER: int = 50             # free schedules per ownership group per month
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     SCHEDULE_BLOCK_SIZE: int = 50            # schedules per billing block
 
     # Base subscription
-    BASE_MONTHLY_USD: float = 15.00          # baseline monthly charge
+    BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30
@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     RETENTION_FAILURE_LOGS_DAYS: int = 90
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
+
+    # Monitoring
+    MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval
+    MONITORING_SCHEDULING_FAILURE_WINDOW_MINUTES: int = 30   # look-back for recent failures
+    PROMETHEUS_MULTIPROC_DIR: str = "/tmp/prometheus_multiproc"
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 

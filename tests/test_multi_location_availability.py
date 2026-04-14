@@ -319,7 +319,7 @@ async def test_validate_detects_conflict_for_shared_employee():
 
     # First conflict triggers a retry
     assert result["retry_count"] == 1
-    assert "Alice" in result["conflict_notes"]
+    assert _EMP_SHARED_ID in result["conflict_notes"]
 
 
 async def test_conflict_marked_after_retry_exhausted():

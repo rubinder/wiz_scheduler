@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, text
+from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, SmallInteger, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -27,6 +27,9 @@ class Employee(Base):
     )
 
     external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Weekly hour cap. NULL means no cap.
+    max_hours_per_week: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     roles: Mapped[list["EmployeeRole"]] = relationship(
         back_populates="employee", lazy="selectin"
@@ -111,6 +114,38 @@ class EmployeeInvite(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EmployeeDayBlackout(Base):
+    """Recurring per-day-of-week time range during which an employee must not
+    be scheduled. Example: employee X must not work 20:00-22:00 on Mondays.
+
+    day_of_week follows Python's datetime.weekday() convention (0 = Monday).
+    """
+
+    __tablename__ = "employee_day_blackouts"
+    __table_args__ = (
+        CheckConstraint(
+            "day_of_week BETWEEN 0 AND 6",
+            name="ck_employee_day_blackouts_dow",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
+    )
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
+    )
+    employee_id: Mapped[str] = mapped_column(
+        String(8),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    day_of_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)  # "HH:MM"
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)    # "HH:MM"
 
 
 class EmployeeAvailability(Base):

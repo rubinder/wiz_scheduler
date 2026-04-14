@@ -5,7 +5,7 @@ from backend.models.region import Region
 from backend.models.location import Location
 from backend.models.department import Department
 from backend.models.role import Role
-from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeInvite
+from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeInvite
 from backend.models.shift_template import ShiftTemplate
 from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
@@ -13,6 +13,7 @@ from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 from backend.models.failure_log import FailureLog
 from backend.models.employee_role_minutes import EmployeeRoleMinutes
 from backend.models.consent import UserConsent
+from backend.models.storage_snapshot import StorageSnapshot
 
 __all__ = [
     "OwnershipGroup",
@@ -27,6 +28,7 @@ __all__ = [
     "EmployeeAffinity",
     "EmployeeAvailability",
     "EmployeeCompany",
+    "EmployeeDayBlackout",
     "EmployeeInvite",
     "ShiftTemplate",
     "ShiftSchedule",
@@ -37,4 +39,5 @@ __all__ = [
     "FailureLog",
     "EmployeeRoleMinutes",
     "UserConsent",
+    "StorageSnapshot",
 ]

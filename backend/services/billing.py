@@ -14,7 +14,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, TokenUsage
+from backend.models import Company, Employee, StorageSnapshot, TokenUsage
 from backend.models.ownership_group import OwnershipGroup
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,57 @@ def calculate_storage_charge(storage_gb: float) -> float:
     """
     billable_gb = max(0, storage_gb - settings.STORAGE_FREE_GB)
     return round(billable_gb * settings.STORAGE_COST_PER_GB, 4)
+
+
+async def record_storage_snapshots(db: AsyncSession) -> dict:
+    """Measure and persist today's storage usage for every ownership group.
+
+    Skips groups that already have a snapshot for today (idempotent).
+    Returns a summary dict: {"recorded": int, "skipped": int, "errors": int}.
+    """
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    og_result = await db.execute(select(OwnershipGroup.id))
+    og_ids = list(og_result.scalars().all())
+
+    recorded = 0
+    skipped = 0
+    errors = 0
+
+    for og_id in og_ids:
+        # Check if snapshot already exists for today
+        existing = await db.execute(
+            select(StorageSnapshot.id).where(
+                StorageSnapshot.ownership_group_id == og_id,
+                StorageSnapshot.snapshot_date == today,
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            skipped += 1
+            continue
+
+        try:
+            storage_gb = await calculate_storage_gb(db, og_id)
+            charged_usd = calculate_storage_charge(storage_gb)
+            snapshot = StorageSnapshot(
+                ownership_group_id=og_id,
+                snapshot_date=today,
+                measured_at=now,
+                storage_gb=round(storage_gb, 6),
+                charged_usd=round(charged_usd, 4),
+            )
+            db.add(snapshot)
+            await db.flush()
+            recorded += 1
+        except Exception as e:
+            logger.error("Failed to record storage snapshot for OG %s: %s", og_id, e)
+            errors += 1
+
+    await db.commit()
+    summary = {"recorded": recorded, "skipped": skipped, "errors": errors}
+    logger.info("Storage snapshots: %s", summary)
+    return summary
 
 
 # ---------------------------------------------------------------------------
