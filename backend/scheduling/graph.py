@@ -318,20 +318,13 @@ async def _load_initial_state(
             "end": end_dt.isoformat() if hasattr(end_dt, "isoformat") else str(end_dt),
         })
 
-    # Employees with NO availability records are treated as "always available".
-    # Generate a full-day window for each day of the week so the LLM and
-    # validator treat them identically to explicitly-available employees.
+    # Employees with NO availability records are treated as "not available".
+    # They get an empty availability list so the LLM and validator will not
+    # schedule them until explicit availability is provided.
     all_emp_ids = {str(emp.id) for emp in employees_orm}
     emps_with_avail = set(emp_avail_map.keys())
     for eid in all_emp_ids - emps_with_avail:
         emp_avail_map[eid] = []
-        for day_offset in range(num_days):
-            day_start = week_start + timedelta(days=day_offset)
-            day_end = day_start.replace(hour=23, minute=59, second=59)
-            emp_avail_map[eid].append({
-                "start": day_start.isoformat(),
-                "end": day_end.isoformat(),
-            })
 
     # Load day blackouts (recurring per-day-of-week time ranges during which
     # an employee must NOT be scheduled, e.g. "no work Mon 20:00-22:00").

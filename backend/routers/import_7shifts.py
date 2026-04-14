@@ -31,6 +31,10 @@ from backend.models import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+# Ensure INFO-level logs reach the root handler (uvicorn defaults app loggers to WARNING)
+if not logger.hasHandlers():
+    logger.addHandler(logging.StreamHandler())
 
 router = APIRouter(prefix="/import", tags=["import"])
 
@@ -690,6 +694,39 @@ class ImportAvailabilitiesResult(BaseModel):
 _DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
+def _time_str_to_minutes(t: str) -> int:
+    """Convert 'HH:MM' or 'HH:MM:SS' to minutes since midnight."""
+    parts = t.split(":")
+    return int(parts[0]) * 60 + int(parts[1])
+
+
+def _subtract_intervals(
+    positives: list[tuple[int, int]],
+    negatives: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """Subtract negative intervals from the positive list.
+
+    Each interval is (start_minute, end_minute). Returns remaining available
+    intervals after carving out every overlapping negative range. Intervals
+    that become empty are dropped; partial overlaps split the positive.
+    """
+    result = list(positives)
+    for neg_start, neg_end in negatives:
+        if neg_end <= neg_start:
+            continue
+        next_result: list[tuple[int, int]] = []
+        for pos_start, pos_end in result:
+            if neg_end <= pos_start or neg_start >= pos_end:
+                next_result.append((pos_start, pos_end))
+                continue
+            if neg_start > pos_start:
+                next_result.append((pos_start, neg_start))
+            if neg_end < pos_end:
+                next_result.append((neg_end, pos_end))
+        result = next_result
+    return result
+
+
 def _expand_7shifts_availability(
     avail: dict[str, Any],
     range_start: date,
@@ -906,11 +943,62 @@ async def import_availabilities_from_7shifts(
                     params={"repeating": "false"},
                 )
                 seven_availabilities = recurring + one_off
+                logger.info(
+                    "[7shifts-import] company=%s ext=%s availabilities=%d "
+                    "(recurring=%d one_off=%d) range=%s..%s",
+                    wiz_company.name, ext_company_id, len(seven_availabilities),
+                    len(recurring), len(one_off), range_start, range_end,
+                )
             except HTTPException as e:
                 errors.append(
                     f"Failed to fetch availabilities for company '{wiz_company.name}': {e.detail}"
                 )
                 continue
+
+            # Fetch approved time-off requests in the range. In 7shifts,
+            # temporary unavailability submitted for specific dates lives on
+            # the /time_off endpoint, NOT as an unavailable-type entry on
+            # /availabilities, so it must be queried separately.
+            try:
+                # 7shifts v2 time_off is top-level (NOT nested under /company/{id}).
+                # Overlap filter: entry overlaps [range_start, range_end] when
+                # from_date <= range_end AND to_date >= range_start.
+                seven_time_off = await _fetch_all_pages(
+                    client,
+                    f"{SEVEN_SHIFTS_BASE}/time_off",
+                    headers,
+                    params={
+                        "company_id": ext_company_id,
+                        "from_date_lte": range_end.isoformat(),
+                        "to_date_gte": range_start.isoformat(),
+                    },
+                )
+                logger.info(
+                    "[7shifts-import] company=%s time_off_records=%d",
+                    wiz_company.name, len(seven_time_off),
+                )
+                for to_entry in seven_time_off[:20]:
+                    logger.debug(
+                        "[7shifts-import] time_off: user_id=%s from=%s to=%s "
+                        "status=%r partial=%s partial_from=%s partial_to=%s category=%s",
+                        to_entry.get("user_id"),
+                        to_entry.get("from_date"),
+                        to_entry.get("to_date"),
+                        to_entry.get("status"),
+                        to_entry.get("partial"),
+                        to_entry.get("partial_from"),
+                        to_entry.get("partial_to"),
+                        to_entry.get("category"),
+                    )
+            except HTTPException as e:
+                errors.append(
+                    f"Failed to fetch time_off for company '{wiz_company.name}': {e.detail}"
+                )
+                logger.warning(
+                    "[7shifts-import] time_off fetch FAILED for company=%s: %s",
+                    wiz_company.name, e.detail,
+                )
+                seven_time_off = []
 
             # Clear existing availability in the date range for this company
             range_start_dt = datetime(
@@ -936,13 +1024,76 @@ async def import_availabilities_from_7shifts(
 
             # Track skip reasons for diagnostics
             skip_no_employee = 0
-            skip_type = 0
             skip_status = 0
             skip_no_days = 0
+            unavail_entries = 0
             unmatched_user_ids: set[str] = set()
 
+            # Two-pass accumulation: collect positive ("available") and negative
+            # ("unavailable") intervals per (employee, day). Negatives are carved
+            # out of positives before inserting rows, so a temporary
+            # unavailability overrides an overlapping recurring availability.
+            positive_slots: dict[tuple[str, date], list[tuple[int, int]]] = {}
+            negative_slots: dict[tuple[str, date], list[tuple[int, int]]] = {}
+
+            # Pre-compute per-employee "override weeks": any week for which the
+            # employee has a non-repeating availability entry. In 7shifts, a
+            # non-repeating weekly entry replaces the recurring pattern for that
+            # week — it is NOT unioned with it. We implement the override by
+            # dropping the recurring entry's contribution for those weeks.
+            override_weeks: dict[str, set[date]] = {}
+            for a in seven_availabilities:
+                if bool(a.get("repeat")):
+                    continue
+                raw_uid = str(a.get("user_id", ""))
+                emp = ext_to_employee.get(raw_uid)
+                if not emp:
+                    cu_id = user_id_to_ext.get(raw_uid)
+                    if cu_id:
+                        emp = ext_to_employee.get(cu_id)
+                if not emp:
+                    continue
+                week_str = a.get("week")
+                try:
+                    first_week = date.fromisoformat(str(week_str)[:10])
+                except (ValueError, TypeError):
+                    continue
+                week_to_str = a.get("week_to")
+                last_week = first_week
+                if week_to_str:
+                    try:
+                        last_week = date.fromisoformat(str(week_to_str)[:10])
+                    except (ValueError, TypeError):
+                        pass
+                # Normalize to Monday of the week
+                first_week = first_week - timedelta(days=first_week.weekday())
+                last_week = last_week - timedelta(days=last_week.weekday())
+                cursor = first_week
+                while cursor <= last_week:
+                    override_weeks.setdefault(emp.id, set()).add(cursor)
+                    cursor += timedelta(days=7)
+            if override_weeks:
+                logger.info(
+                    "[7shifts-import] override_weeks: %s",
+                    {k: sorted(v) for k, v in override_weeks.items()},
+                )
+
+            # Log raw availability entries for diagnostics (first 20)
+            for i, a in enumerate(seven_availabilities[:20]):
+                logger.debug(
+                    "[7shifts-import] avail[%d] user_id=%s type=%r repeat=%s "
+                    "week=%s week_to=%s "
+                    "mon=%s tue=%s wed=%s thu=%s fri=%s sat=%s sun=%s "
+                    "status=%r",
+                    i, a.get("user_id"), a.get("type"), a.get("repeat"),
+                    a.get("week"), a.get("week_to"),
+                    a.get("mon"), a.get("tue"), a.get("wed"), a.get("thu"),
+                    a.get("fri"), a.get("sat"), a.get("sun"),
+                    a.get("status"),
+                )
+
             # Process each availability entry
-            for avail in seven_availabilities:
+            for entry_idx, avail in enumerate(seven_availabilities):
                 raw_user_id = str(avail.get("user_id", ""))
                 # Try direct match (user_id), then fallback via mapping (company-user id)
                 employee = ext_to_employee.get(raw_user_id)
@@ -956,17 +1107,13 @@ async def import_availabilities_from_7shifts(
                     unmatched_user_ids.add(raw_user_id)
                     continue
 
-                # Only import "available" type entries
                 avail_type = avail.get("type", "")
-                # Accept common type values that indicate availability
-                if isinstance(avail_type, str) and avail_type.lower() in (
-                    "unavailable", "unavailability",
-                ):
-                    skipped += 1
-                    skip_type += 1
-                    continue
+                is_unavailable = (
+                    isinstance(avail_type, str)
+                    and avail_type.lower() in ("unavailable", "unavailability")
+                )
 
-                # Check status — only import approved availabilities
+                # Check status — only apply approved entries
                 avail_status = avail.get("status")
                 if isinstance(avail_status, dict):
                     status_name = avail_status.get("name", "")
@@ -981,37 +1128,205 @@ async def import_availabilities_from_7shifts(
                     continue
 
                 days = _expand_7shifts_availability(avail, range_start, range_end)
+
+                # If this is a REPEATING entry, drop days whose week is
+                # overridden by a non-repeating entry for the same employee.
+                # Non-repeating entries are authoritative for their week.
+                is_repeating = bool(avail.get("repeat"))
+                if is_repeating and employee.id in override_weeks:
+                    emp_overrides = override_weeks[employee.id]
+                    filtered: list[tuple[date, str, str]] = []
+                    dropped = 0
+                    for day_date, s_t, e_t in days:
+                        day_week = day_date - timedelta(days=day_date.weekday())
+                        if day_week in emp_overrides:
+                            dropped += 1
+                            continue
+                        filtered.append((day_date, s_t, e_t))
+                    if dropped:
+                        logger.info(
+                            "[7shifts-import] avail[%d] recurring OVERRIDDEN for %d day(s) "
+                            "emp=%s (non-repeating entry takes precedence)",
+                            entry_idx, dropped, employee.id,
+                        )
+                    days = filtered
+
                 if not days:
                     outside_range += 1
                     skip_no_days += 1
+                    logger.debug(
+                        "[7shifts-import] avail[%d] SKIP no-days-in-range "
+                        "user_id=%s type=%r repeat=%s week=%s week_to=%s",
+                        entry_idx, avail.get("user_id"), avail.get("type"),
+                        avail.get("repeat"), avail.get("week"), avail.get("week_to"),
+                    )
                     continue
+
+                target = negative_slots if is_unavailable else positive_slots
+                if is_unavailable:
+                    unavail_entries += 1
+                logger.debug(
+                    "[7shifts-import] avail[%d] ROUTE %s user_id=%s emp=%s "
+                    "type=%r repeat=%s days=%d sample=%s",
+                    entry_idx,
+                    "NEGATIVE" if is_unavailable else "POSITIVE",
+                    avail.get("user_id"), employee.id,
+                    avail.get("type"), avail.get("repeat"), len(days),
+                    days[:3],
+                )
+
                 for day_date, start_t, end_t in days:
                     try:
-                        # Parse time strings (HH:MM:SS or HH:MM)
-                        parts_s = start_t.split(":")
-                        parts_e = end_t.split(":")
-                        start_dt = datetime(
-                            day_date.year, day_date.month, day_date.day,
-                            int(parts_s[0]), int(parts_s[1]),
-                            int(parts_s[2]) if len(parts_s) > 2 else 0,
-                            tzinfo=timezone.utc,
-                        )
-                        end_dt = datetime(
-                            day_date.year, day_date.month, day_date.day,
-                            int(parts_e[0]), int(parts_e[1]),
-                            int(parts_e[2]) if len(parts_e) > 2 else 0,
-                            tzinfo=timezone.utc,
-                        )
+                        s_min = _time_str_to_minutes(start_t)
+                        e_min = _time_str_to_minutes(end_t)
                     except (ValueError, IndexError):
                         errors.append(
                             f"Invalid time format for user {raw_user_id} on {day_date}: "
                             f"{start_t} - {end_t}"
                         )
                         continue
+                    if e_min <= s_min:
+                        continue
+                    key = (employee.id, day_date)
+                    target.setdefault(key, []).append((s_min, e_min))
 
+            # Fold /time_off records into negative_slots. A time_off record
+            # covers from_date..to_date inclusive; mark each day fully
+            # unavailable (or partial window if `partial` is set).
+            time_off_carveouts = 0
+            to_skip_status = 0
+            to_skip_no_emp = 0
+            to_skip_bad_date = 0
+            to_skip_no_overlap = 0
+            for idx, to_entry in enumerate(seven_time_off):
+                # Only count approved time off. 7shifts uses status=1 for
+                # approved; dicts with a "name" field are also possible.
+                to_status = to_entry.get("status")
+                approved = False
+                if isinstance(to_status, dict):
+                    approved = to_status.get("name", "").lower() in ("approved", "accepted")
+                elif isinstance(to_status, int):
+                    # 7shifts v2 uses 2 for approved per current docs; some
+                    # older responses used 1. Accept either; we reject 0 (pending)
+                    # and 3+ (denied/cancelled) explicitly.
+                    approved = to_status in (1, 2)
+                elif isinstance(to_status, str):
+                    approved = to_status.lower() in ("approved", "accepted", "1", "2")
+                if not approved:
+                    to_skip_status += 1
+                    logger.debug(
+                        "[7shifts-import] time_off[%d] SKIP not-approved status=%r user_id=%s",
+                        idx, to_status, to_entry.get("user_id"),
+                    )
+                    continue
+
+                raw_user_id = str(to_entry.get("user_id", ""))
+                employee = ext_to_employee.get(raw_user_id)
+                if not employee:
+                    cu_id = user_id_to_ext.get(raw_user_id)
+                    if cu_id:
+                        employee = ext_to_employee.get(cu_id)
+                if not employee:
+                    to_skip_no_emp += 1
+                    logger.debug(
+                        "[7shifts-import] time_off[%d] SKIP no-match user_id=%s "
+                        "(known_ext_ids_sample=%s)",
+                        idx, raw_user_id, sorted(ext_to_employee.keys())[:5],
+                    )
+                    continue
+
+                from_raw = to_entry.get("from_date") or ""
+                to_raw = to_entry.get("to_date") or ""
+                try:
+                    from_d = date.fromisoformat(str(from_raw)[:10])
+                    to_d = date.fromisoformat(str(to_raw)[:10])
+                except (ValueError, TypeError):
+                    to_skip_bad_date += 1
+                    logger.debug(
+                        "[7shifts-import] time_off[%d] SKIP bad-date from=%r to=%r",
+                        idx, from_raw, to_raw,
+                    )
+                    continue
+
+                is_partial = bool(to_entry.get("partial"))
+                if is_partial:
+                    try:
+                        s_min = _time_str_to_minutes(
+                            str(to_entry.get("partial_from") or "00:00:00")
+                        )
+                        e_min = _time_str_to_minutes(
+                            str(to_entry.get("partial_to") or "23:59:00")
+                        )
+                    except (ValueError, IndexError):
+                        s_min, e_min = 0, 23 * 60 + 59
+                else:
+                    s_min, e_min = 0, 23 * 60 + 59
+
+                if e_min <= s_min:
+                    logger.debug(
+                        "[7shifts-import] time_off[%d] SKIP empty-window s=%d e=%d",
+                        idx, s_min, e_min,
+                    )
+                    continue
+
+                # Iterate each day within the time-off range that overlaps our window
+                day_cursor = max(from_d, range_start)
+                last_day = min(to_d, range_end)
+                if day_cursor > last_day:
+                    to_skip_no_overlap += 1
+                    logger.debug(
+                        "[7shifts-import] time_off[%d] SKIP no-overlap "
+                        "entry=%s..%s range=%s..%s",
+                        idx, from_d, to_d, range_start, range_end,
+                    )
+                    continue
+                days_added = 0
+                while day_cursor <= last_day:
+                    key = (employee.id, day_cursor)
+                    negative_slots.setdefault(key, []).append((s_min, e_min))
+                    time_off_carveouts += 1
+                    days_added += 1
+                    day_cursor += timedelta(days=1)
+                logger.debug(
+                    "[7shifts-import] time_off[%d] APPLIED user_id=%s emp=%s "
+                    "from=%s to=%s partial=%s window=%d-%d days_added=%d",
+                    idx, raw_user_id, employee.id, from_d, to_d,
+                    is_partial, s_min, e_min, days_added,
+                )
+            logger.info(
+                "[7shifts-import] time_off summary: carveouts=%d "
+                "skip_status=%d skip_no_emp=%d skip_bad_date=%d skip_no_overlap=%d",
+                time_off_carveouts, to_skip_status, to_skip_no_emp,
+                to_skip_bad_date, to_skip_no_overlap,
+            )
+
+            # Compute final available intervals = positives - negatives and insert.
+            # Keys with only negatives (no recurring pattern) are intentionally
+            # left out: the scheduler now treats "no rows" as unavailable, which
+            # is the correct behavior for an employee whose only record is time off.
+            for (emp_id, day_date), positives in positive_slots.items():
+                negatives = negative_slots.get((emp_id, day_date), [])
+                final_intervals = _subtract_intervals(positives, negatives)
+                if negatives:
+                    logger.debug(
+                        "[7shifts-import] MERGE emp=%s day=%s positives=%s "
+                        "negatives=%s -> final=%s",
+                        emp_id, day_date, positives, negatives, final_intervals,
+                    )
+                for s_min, e_min in final_intervals:
+                    start_dt = datetime(
+                        day_date.year, day_date.month, day_date.day,
+                        s_min // 60, s_min % 60, 0,
+                        tzinfo=timezone.utc,
+                    )
+                    end_dt = datetime(
+                        day_date.year, day_date.month, day_date.day,
+                        e_min // 60, e_min % 60, 0,
+                        tzinfo=timezone.utc,
+                    )
                     record = EmployeeAvailability(
                         company_id=wiz_company.id,
-                        employee_id=employee.id,
+                        employee_id=emp_id,
                         year=day_date.year,
                         month=day_date.month,
                         day=day_date.day,
@@ -1025,8 +1340,10 @@ async def import_availabilities_from_7shifts(
             skip_parts = []
             if skip_no_employee:
                 skip_parts.append(f"{skip_no_employee} unmatched employees")
-            if skip_type:
-                skip_parts.append(f"{skip_type} unavailable type")
+            if unavail_entries:
+                skip_parts.append(f"{unavail_entries} unavailability carve-outs applied")
+            if time_off_carveouts:
+                skip_parts.append(f"{time_off_carveouts} time-off day carve-outs applied")
             if skip_status:
                 skip_parts.append(f"{skip_status} declined status")
             if skip_no_days:
