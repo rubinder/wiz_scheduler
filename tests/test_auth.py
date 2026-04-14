@@ -14,6 +14,8 @@ async def test_register_creates_user_and_company(client: AsyncClient):
             "password": "secret123",
             "full_name": "New User",
             "company_name": "NewCo",
+            "privacy_accepted": True,
+            "terms_accepted": True,
         },
     )
     assert resp.status_code == 201

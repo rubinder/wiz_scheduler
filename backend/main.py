@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import JSONResponse
 
 from backend.config import settings
 from backend.logging_config import setup_logging
 from backend.middleware.failure_logging import FailureLoggingMiddleware
+from backend.middleware.metrics import MetricsMiddleware
 from backend.routers import (
     affinities,
     auth,
@@ -16,6 +18,7 @@ from backend.routers import (
     failure_logs,
     gdpr,
     import_7shifts,
+    import_deputy,
     invites,
     locations,
     ownership_group,
@@ -42,6 +45,9 @@ def create_app() -> FastAPI:
     setup_logging()
     app = FastAPI(title="WizScheduler API", version="1.0.0")
 
+    # Metrics middleware (outermost — times the entire request including all other middleware)
+    app.add_middleware(MetricsMiddleware)
+
     # Security headers middleware
     app.add_middleware(SecurityHeadersMiddleware)
 
@@ -57,10 +63,28 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Health check endpoint (outside /api/v1 prefix for ALB/ECS probes)
+    # ── Health + metrics endpoints (outside /api/v1 for infrastructure probes) ──
+
     @app.get("/health")
-    async def health_check() -> dict[str, str]:
-        return {"status": "healthy"}
+    async def health_check() -> Response:
+        """Deep health check — verifies DB connectivity, pool stats, scheduling
+        pipeline health. Returns 200 for healthy/degraded, 503 for unhealthy."""
+        from backend.services.monitoring import get_system_health
+        health = await get_system_health()
+        status_code = 200 if health["status"] != "unhealthy" else 503
+        return JSONResponse(content=health, status_code=status_code)
+
+    @app.get("/health/live")
+    async def liveness_check() -> dict[str, str]:
+        """Minimal liveness probe — always returns 200 if the process is alive.
+        Use this for ALB health checks if the deep check proves too slow."""
+        return {"status": "alive"}
+
+    @app.get("/metrics")
+    async def metrics_endpoint() -> Response:
+        """Prometheus metrics endpoint, aggregated across all workers."""
+        from backend.middleware.metrics import get_metrics, CONTENT_TYPE_LATEST
+        return Response(content=get_metrics(), media_type=CONTENT_TYPE_LATEST)
 
     # Register all routers under /api/v1
     api_prefix = "/api/v1"
@@ -76,11 +100,45 @@ def create_app() -> FastAPI:
     app.include_router(shift_templates.router, prefix=api_prefix)
     app.include_router(schedules.router, prefix=api_prefix)
     app.include_router(import_7shifts.router, prefix=api_prefix)
+    app.include_router(import_deputy.router, prefix=api_prefix)
     app.include_router(export_schedules.router, prefix=api_prefix)
     app.include_router(failure_logs.router, prefix=api_prefix)
     app.include_router(invites.router, prefix=api_prefix)
     app.include_router(gdpr.router, prefix=api_prefix)
     app.include_router(billing.router, prefix=api_prefix)
+
+    # ── Daily background task: storage snapshots ──
+    async def _daily_storage_snapshot_loop() -> None:
+        """Run storage snapshots once per day. First run happens shortly
+        after startup, then repeats every 24 hours. Idempotent per day."""
+        import asyncio
+        import logging
+
+        from backend.database import async_session_factory
+        from backend.services.billing import record_storage_snapshots
+
+        log = logging.getLogger("wizscheduler.storage_snapshot")
+
+        # Wait 30 seconds after startup to let the DB settle
+        await asyncio.sleep(30)
+
+        while True:
+            try:
+                async with async_session_factory() as db:
+                    summary = await record_storage_snapshots(db)
+                log.info("Daily storage snapshot completed: %s", summary)
+            except Exception as e:
+                log.error("Storage snapshot failed: %s", e)
+
+            # Sleep 24 hours
+            await asyncio.sleep(24 * 60 * 60)
+
+    @app.on_event("startup")
+    async def _start_background_tasks() -> None:
+        import asyncio
+        from backend.services.monitoring import run_self_check_loop
+        asyncio.create_task(_daily_storage_snapshot_loop())
+        asyncio.create_task(run_self_check_loop())
 
     # Load-test profile: bypass JWT signature verification.
     # The register endpoint still works normally (creates real users/companies),

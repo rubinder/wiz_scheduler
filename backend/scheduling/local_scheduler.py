@@ -19,7 +19,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Set, Tuple
 
-from backend.scheduling.prompts import _build_date_map, _parse_avail_by_day, _time_covers
+from backend.scheduling.prompts import _blackout_blocks, _build_date_map, _parse_avail_by_day, _time_covers
 from backend.scheduling.state import SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -78,13 +78,18 @@ def _build_eligible_map(
                 day_ranges = e["_day_windows"].get(day, [])
                 if not day_ranges:
                     continue
-                if _time_covers(day_ranges, start, end):
-                    skill = next(
-                        (r.get("skill_level", 0) for r in e.get("roles", [])
-                         if r.get("role_name") == role_name),
-                        0,
-                    )
-                    eligible.append({**e, "_skill": skill})
+                if not _time_covers(day_ranges, start, end):
+                    continue
+                # Hard per-day-of-week blackout: skip employees blocked out
+                # for any overlapping portion of this slot.
+                if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
+                    continue
+                skill = next(
+                    (r.get("skill_level", 0) for r in e.get("roles", [])
+                     if r.get("role_name") == role_name),
+                    0,
+                )
+                eligible.append({**e, "_skill": skill})
             eligible_map[(day, role_name)] = eligible
 
     return eligible_map
@@ -145,8 +150,13 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
     # (date, start_hm, end_hm) -> set of employee_ids
     shift_coworkers: Dict[Tuple[str, str, str], Set[str]] = {}
 
-    # Track accumulated hours per employee for max_hours strategy
-    employee_hours: Dict[str, float] = {}
+    # Track accumulated hours per employee for max_hours strategy and for
+    # per-employee max_hours_per_week caps. Seeded with hours already
+    # committed during this graph run at previously-processed locations so
+    # multi-location schedules respect the weekly cap holistically.
+    employee_hours: Dict[str, float] = dict(
+        state.get("employee_weekly_hours_draft", {}) or {}
+    )
 
     shifts: List[ShiftAssignment] = []
 
@@ -167,6 +177,8 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
             coworker_key = (slot_date, start_hm, end_hm)
             candidates = list(eligible_map.get((day, role_name), []))
 
+            slot_duration = _shift_duration_hours(start_hm, end_hm)
+
             for _ in range(headcount):
                 # Filter out candidates who already have an overlapping shift
                 available = []
@@ -179,6 +191,25 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     )
                     if not has_overlap:
                         available.append(c)
+
+                if not available:
+                    break
+
+                # Hard per-employee weekly hour cap. Employees with a
+                # max_hours_per_week value cannot exceed it across the
+                # whole graph run (seed value already includes prior
+                # locations). NULL / missing value = no cap.
+                within_cap = []
+                for c in available:
+                    cap = c.get("max_hours_per_week")
+                    if cap is None:
+                        within_cap.append(c)
+                        continue
+                    eid = str(c["id"])
+                    projected = employee_hours.get(eid, 0.0) + slot_duration
+                    if projected <= float(cap):
+                        within_cap.append(c)
+                available = within_cap
 
                 if not available:
                     break
@@ -200,9 +231,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     strategy_param=strategy_param,
                     strategy_param2=strategy_param2,
                     employee_hours=employee_hours,
-                    shift_duration_hrs=(
-                        _shift_duration_hours(start_hm, end_hm)
-                    ),
+                    shift_duration_hrs=slot_duration,
                 )
 
                 shift: ShiftAssignment = {
@@ -222,7 +251,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 assigned_times.setdefault((eid, slot_date), []).append((start_hm, end_hm))
                 role_fill_counts[(eid, role_name)] = role_fill_counts.get((eid, role_name), 0) + 1
                 shift_coworkers.setdefault(coworker_key, set()).add(eid)
-                employee_hours[eid] = employee_hours.get(eid, 0.0) + _shift_duration_hours(start_hm, end_hm)
+                employee_hours[eid] = employee_hours.get(eid, 0.0) + slot_duration
 
                 candidates = [c for c in candidates if c["id"] != chosen["id"]]
 
@@ -236,6 +265,11 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
         "current_raw_response": json.dumps([dict(s) for s in shifts]),
         "total_input_tokens": state["total_input_tokens"],
         "total_output_tokens": state["total_output_tokens"],
+        # Do NOT return employee_weekly_hours_draft here. The cross-location
+        # running total is folded in by validate_and_update_availability after
+        # validate_schedule runs. Returning it here would cause validate_schedule
+        # to double-count this location's hours against the per-employee cap,
+        # dropping every shift as "would exceed max_hours_per_week".
     }
 
 

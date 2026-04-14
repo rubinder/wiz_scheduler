@@ -3,6 +3,7 @@ import type {
   BulkUploadResponse,
   Employee,
   EmployeeAvailability,
+  EmployeeDayBlackout,
   EmployeeMeProfile,
   InviteInfoResponse,
   InviteResponse,
@@ -25,6 +26,7 @@ export function createEmployee(body: {
   location_ids?: string[] | null;
   roles?: { role_id: string; skill_level: number }[] | null;
   company_ids?: string[];
+  max_hours_per_week?: number | null;
 }): Promise<Employee> {
   return apiFetch<Employee>("/employees/", {
     method: "POST",
@@ -41,6 +43,7 @@ export function updateEmployee(
     location_ids?: string[] | null;
     roles?: { role_id: string; skill_level: number }[] | null;
     company_ids?: string[];
+    max_hours_per_week?: number | null;
   }
 ): Promise<Employee> {
   return apiFetch<Employee>(`/employees/${id}`, {
@@ -95,6 +98,38 @@ export function createAvailability(body: {
 
 export function deleteAvailability(id: string): Promise<void> {
   return apiFetch<void>(`/employees/availability/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ── Day blackouts (recurring per-day-of-week no-work ranges) ──
+
+export function listAllDayBlackouts(): Promise<EmployeeDayBlackout[]> {
+  return apiFetch<EmployeeDayBlackout[]>("/employees/day-blackouts");
+}
+
+export function listDayBlackouts(
+  employeeId: string
+): Promise<EmployeeDayBlackout[]> {
+  return apiFetch<EmployeeDayBlackout[]>(
+    `/employees/${employeeId}/day-blackouts`
+  );
+}
+
+export function createDayBlackout(body: {
+  employee_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}): Promise<EmployeeDayBlackout> {
+  return apiFetch<EmployeeDayBlackout>("/employees/day-blackouts", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteDayBlackout(id: string): Promise<void> {
+  return apiFetch<void>(`/employees/day-blackouts/${id}`, {
     method: "DELETE",
   });
 }

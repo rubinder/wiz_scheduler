@@ -484,6 +484,14 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
     warnings: List[str] = []
     failure_entries: List[Dict[str, Any]] = []
 
+    # Seed per-employee accumulator from prior locations processed in this
+    # run, then add hours from shifts validated in *this* location to enforce
+    # max_hours_per_week holistically.
+    prior_weekly_hours: Dict[str, float] = dict(
+        state.get("employee_weekly_hours_draft", {}) or {}
+    )
+    location_running_hours: Dict[str, float] = {}
+
     valid_shifts: List[ShiftAssignment] = []
     for shift in shifts:
         emp_id = shift["employee_id"]
@@ -506,13 +514,19 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                 )
 
         # 3. Availability window check — shift must fall within an available window.
-        #    Empty available_windows means "always available" (no restrictions set).
+        #    Employees are unavailable by default: a shift is only valid if the
+        #    employee has an explicit availability window that covers it.
         #    Availability windows are stored as local times tagged as UTC, so we
         #    compare using naive date + HH:MM (matching the prompt builder logic)
         #    rather than absolute UTC timestamps.
         if emp_id in emp_by_id and not issues:
             emp_windows = emp_by_id[emp_id].get("available_windows", [])
-            if emp_windows:
+            if not emp_windows:
+                issues.append(
+                    f"employee {shift['employee_id']} has no availability set "
+                    f"(cannot be scheduled {shift['start_time']}-{shift['end_time']})"
+                )
+            else:
                 try:
                     shift_start = datetime.fromisoformat(shift["start_time"])
                     shift_end = datetime.fromisoformat(shift["end_time"])
@@ -561,6 +575,62 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
         except (ValueError, TypeError):
             issues.append(f"invalid date format: {shift['date']}")
 
+        # 5b. Per-day-of-week blackout check — reject shifts that land inside
+        #     a recurring "do not schedule" range for this employee.
+        if emp_id in emp_by_id and not issues:
+            blackouts = emp_by_id[emp_id].get("day_blackouts", [])
+            if blackouts:
+                try:
+                    shift_start = datetime.fromisoformat(shift["start_time"])
+                    shift_end = datetime.fromisoformat(shift["end_time"])
+                    day_idx = datetime.strptime(shift["date"], "%Y-%m-%d").weekday()
+                    day_names_validator = [
+                        "Monday", "Tuesday", "Wednesday", "Thursday",
+                        "Friday", "Saturday", "Sunday",
+                    ]
+                    day_name = day_names_validator[day_idx]
+                    s_hm = shift_start.strftime("%H:%M")
+                    e_hm = shift_end.strftime("%H:%M")
+                    for bo in blackouts:
+                        if bo.get("day") != day_name:
+                            continue
+                        bo_s = bo.get("start", "")
+                        bo_e = bo.get("end", "")
+                        if not bo_s or not bo_e:
+                            continue
+                        if s_hm < bo_e and bo_s < e_hm:
+                            issues.append(
+                                f"employee {emp_id} blocked by day blackout "
+                                f"{day_name} {bo_s}-{bo_e} "
+                                f"(shift {s_hm}-{e_hm})"
+                            )
+                            break
+                except (ValueError, TypeError):
+                    pass
+
+        # 6. Per-employee weekly hour cap check. Accounts for hours already
+        #    committed at earlier locations in this graph run plus any valid
+        #    shifts already added for this same location pass.
+        if emp_id in emp_by_id and not issues:
+            cap = emp_by_id[emp_id].get("max_hours_per_week")
+            if cap is not None:
+                try:
+                    st_iso = datetime.fromisoformat(shift["start_time"])
+                    et_iso = datetime.fromisoformat(shift["end_time"])
+                    duration_hrs = max(
+                        (et_iso - st_iso).total_seconds() / 3600.0, 0.0
+                    )
+                    prior = prior_weekly_hours.get(emp_id, 0.0)
+                    running = location_running_hours.get(emp_id, 0.0)
+                    projected = prior + running + duration_hrs
+                    if projected > float(cap):
+                        issues.append(
+                            f"employee {emp_id} would exceed max_hours_per_week "
+                            f"({projected:.2f}h > {float(cap):.2f}h cap)"
+                        )
+                except (ValueError, TypeError):
+                    pass  # invalid times already caught in check 4
+
         if issues:
             # Drop invalid shifts — unfilled slots will become VACANT in step 5
             detail = "; ".join(issues)
@@ -579,6 +649,19 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                 shift["employee_id"], shift["role_name"], shift["date"],
                 shift["start_time"], shift["end_time"],
             )
+            # Update per-location running total so subsequent shifts in this
+            # same pass see the accumulated hours when checking the cap.
+            try:
+                st_iso = datetime.fromisoformat(shift["start_time"])
+                et_iso = datetime.fromisoformat(shift["end_time"])
+                duration_hrs = max(
+                    (et_iso - st_iso).total_seconds() / 3600.0, 0.0
+                )
+                location_running_hours[emp_id] = (
+                    location_running_hours.get(emp_id, 0.0) + duration_hrs
+                )
+            except (ValueError, TypeError):
+                pass
 
     logger.warning(
         "[SCHED-TRACE] validate_schedule: %d valid, %d dropped out of %d total",
@@ -699,6 +782,9 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     availability_draft: Dict[str, List[Dict[str, str]]] = dict(state["availability_draft"])
     retry_count: int = state["retry_count"]
     conflict_notes: str = state.get("conflict_notes", "")
+    weekly_hours_draft: Dict[str, float] = dict(
+        state.get("employee_weekly_hours_draft", {}) or {}
+    )
 
     # Deep copy availability_draft entries
     for k, v in availability_draft.items():
@@ -757,10 +843,22 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                         "start": shift["start_time"],
                         "end": shift["end_time"],
                     })
+                    try:
+                        st_iso = datetime.fromisoformat(shift["start_time"])
+                        et_iso = datetime.fromisoformat(shift["end_time"])
+                        duration_hrs = max(
+                            (et_iso - st_iso).total_seconds() / 3600.0, 0.0
+                        )
+                        weekly_hours_draft[emp_id] = (
+                            weekly_hours_draft.get(emp_id, 0.0) + duration_hrs
+                        )
+                    except (ValueError, TypeError):
+                        pass
 
             return {
                 "current_parsed_shifts": shifts,
                 "availability_draft": availability_draft,
+                "employee_weekly_hours_draft": weekly_hours_draft,
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
@@ -774,10 +872,24 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                 "start": shift["start_time"],
                 "end": shift["end_time"],
             })
+            # Fold committed shift hours into the running weekly total so
+            # subsequent locations respect per-employee max_hours_per_week.
+            try:
+                st_iso = datetime.fromisoformat(shift["start_time"])
+                et_iso = datetime.fromisoformat(shift["end_time"])
+                duration_hrs = max(
+                    (et_iso - st_iso).total_seconds() / 3600.0, 0.0
+                )
+                weekly_hours_draft[emp_id] = (
+                    weekly_hours_draft.get(emp_id, 0.0) + duration_hrs
+                )
+            except (ValueError, TypeError):
+                pass
 
         return {
             "current_parsed_shifts": shifts,
             "availability_draft": availability_draft,
+            "employee_weekly_hours_draft": weekly_hours_draft,
         }
 
 
@@ -800,6 +912,13 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         status = "CONFLICT"
     else:
         status = "ok"
+
+    # Increment Prometheus scheduling counter
+    try:
+        from backend.middleware.metrics import SCHEDULING_RUNS
+        SCHEDULING_RUNS.labels(status=status.lower()).inc()
+    except Exception:
+        pass  # metrics may not be available in tests
 
     # Collect location-specific errors
     location_errors = [

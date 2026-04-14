@@ -1,12 +1,11 @@
 """Tests for /api/v1/employees endpoints."""
 
 import io
-import uuid
 
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, LOCATION_ID, ROLE_FLOOR_ID
+from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, LOCATION_ID, ROLE_FLOOR_ID, _id
 
 pytestmark = pytest.mark.asyncio
 
@@ -91,13 +90,13 @@ async def test_company_isolation(client: AsyncClient, db_session, seed_employees
     from backend.models import Company, User
 
     # Create 2nd company and manager
-    company2_id = uuid.uuid4()
+    company2_id = _id()
     company2 = Company(id=company2_id, name="Other Corp", slug="other123")
     db_session.add(company2)
     await db_session.flush()
 
     pwd = CryptContext(schemes=["bcrypt"]).hash("pass2")
-    user2_id = uuid.uuid4()
+    user2_id = _id()
     user2 = User(
         id=user2_id,
         company_id=company2_id,

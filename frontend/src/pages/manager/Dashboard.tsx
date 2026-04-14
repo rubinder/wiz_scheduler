@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import Import7ShiftsModal from "../../components/shared/Import7ShiftsModal";
+import ImportDeputyModal from "../../components/shared/ImportDeputyModal";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg } from "../../theme";
 
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [showImport, setShowImport] = useState(false);
+  const [showDeputyImport, setShowDeputyImport] = useState(false);
 
   const navCards = [
     {
@@ -50,12 +52,20 @@ export default function Dashboard() {
         <h1 className={`text-2xl font-bold ${text.heading}`}>
           {t.dashboard.welcome} {user?.full_name ?? t.dashboard.manager}
         </h1>
-        <button
-          onClick={() => setShowImport(true)}
-          className="glass-btn-orange"
-        >
-          {t.dashboard.importFrom7shifts}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="glass-btn-orange"
+          >
+            {t.dashboard.importFrom7shifts}
+          </button>
+          <button
+            onClick={() => setShowDeputyImport(true)}
+            className="glass-btn-primary"
+          >
+            {t.dashboard.importFromDeputy}
+          </button>
+        </div>
       </div>
       <p className={`${text.muted} mb-8`}>
         {t.dashboard.subtitle}
@@ -77,6 +87,9 @@ export default function Dashboard() {
 
       {showImport && (
         <Import7ShiftsModal onClose={() => setShowImport(false)} />
+      )}
+      {showDeputyImport && (
+        <ImportDeputyModal onClose={() => setShowDeputyImport(false)} />
       )}
     </div>
   );

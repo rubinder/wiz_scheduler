@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
 from backend.models import User
-from backend.services.billing import get_full_billing_summary, get_ownership_group_id
+from backend.services.billing import get_full_billing_summary, get_ownership_group_id, record_storage_snapshots
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -171,3 +171,16 @@ async def get_usage(
         }
 
     return await get_full_billing_summary(db, og_id)
+
+
+@router.post("/storage-snapshots")
+async def trigger_storage_snapshots(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record today's storage usage for all ownership groups.
+
+    Idempotent — groups that already have a snapshot today are skipped.
+    Also runs automatically once per day via a background task.
+    """
+    return await record_storage_snapshots(db)

@@ -76,6 +76,20 @@ Key concept: `availability_draft` (in `SchedulingState`) is a deep copy of emplo
 
 SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. UUID primary keys with `server_default=text("gen_random_uuid()")`. `DateTime(timezone=True)` for all timestamps. Migrations via Alembic in `backend/alembic/`.
 
+## Knowledge Graph (RAG)
+
+A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as a first-pass lookup before reading files directly — it's 27x more token-efficient than scanning the full codebase.
+
+- **`graphify-out/graph.json`** — 1,160 nodes, 1,831 edges across 155 communities. Contains entities (functions, classes, models, concepts), relationships (calls, imports, references, inferred connections), and community assignments.
+- **`graphify-out/GRAPH_REPORT.md`** — audit report with god nodes, surprising connections, community summaries, and suggested questions.
+- **`graphify-out/graph.html`** — interactive browser visualization.
+
+**How to use:** When investigating how parts of the codebase connect, query the graph first via `/graphify query "<question>"`. For architecture questions, check the report's community summaries. For tracing dependencies between two concepts, use `/graphify path "ConceptA" "ConceptB"`.
+
+**Key god nodes** (most connected abstractions): `SchedulingState` (83 edges), `ShiftAssignment` (42), `LocationResult` (39), `Base` (34), `OwnershipGroup` (22), `CondensedRole` (21).
+
+**Keeping it current:** After significant code changes, run `/graphify . --update` to incrementally re-extract only changed files. Code-only changes don't need LLM calls (AST-only rebuild).
+
 ## Conventions
 
 - **Roles are never hardcoded.** No role name string literal may appear outside `seed.py`. Every role reference must come from the `roles` table.

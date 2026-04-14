@@ -18,6 +18,8 @@ const baseManagerLinks: NavItem[] = [
   { to: "/manager/roles", labelKey: "roles" },
   { to: "/manager/role-equivalents", labelKey: "roleEquivalents" },
   { to: "/manager/employees", labelKey: "employees" },
+  { to: "/manager/hour-restrictions", labelKey: "hourRestrictions" },
+  { to: "/manager/day-blackouts", labelKey: "dayBlackouts" },
   { to: "/manager/employee-onboarding", labelKey: "employeeOnboarding" },
 ];
 

@@ -59,3 +59,7 @@ class SchedulingState(TypedDict):
     role_equivalents: Dict[str, List[str]]
     # Number of days to schedule (default 7)
     num_days: int
+    # Running per-employee total hours committed across already-processed
+    # locations in this graph run. Used to enforce per-employee
+    # max_hours_per_week caps across multi-location schedules.
+    employee_weekly_hours_draft: Dict[str, float]

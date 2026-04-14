@@ -33,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # Run migrations then start with multiple workers
 # NOTE: seed.py removed from startup — run it manually as a one-time operation:
 #   docker compose exec backend python -m backend.seed
-CMD ["sh", "-c", "cd backend && alembic upgrade head && cd /app && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4"]
+CMD ["sh", "-c", "rm -rf /tmp/prometheus_multiproc && mkdir -p /tmp/prometheus_multiproc && cd backend && alembic upgrade head && cd /app && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4"]

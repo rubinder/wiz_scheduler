@@ -11,6 +11,7 @@ from backend.models import (
     Employee,
     EmployeeAffinity,
     EmployeeAvailability,
+    EmployeeDayBlackout,
     EmployeeRole,
     Location,
     Role,
@@ -332,6 +333,26 @@ async def _load_initial_state(
                 "end": day_end.isoformat(),
             })
 
+    # Load day blackouts (recurring per-day-of-week time ranges during which
+    # an employee must NOT be scheduled, e.g. "no work Mon 20:00-22:00").
+    DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    blackout_result = await db.execute(
+        select(EmployeeDayBlackout).where(
+            EmployeeDayBlackout.company_id == company_id
+        )
+    )
+    emp_blackout_map: Dict[str, List[Dict[str, str]]] = {}
+    for bo in blackout_result.scalars().all():
+        eid = str(bo.employee_id)
+        dow = int(bo.day_of_week)
+        if not (0 <= dow <= 6):
+            continue
+        emp_blackout_map.setdefault(eid, []).append({
+            "day": DAY_NAMES[dow],
+            "start": bo.start_time,
+            "end": bo.end_time,
+        })
+
     # Build employee dicts, expanding roles to include condensed roles
     employees: List[Dict[str, Any]] = []
     for emp in employees_orm:
@@ -360,6 +381,8 @@ async def _load_initial_state(
             "roles": expanded_roles,
             "affinities": emp_affinities_map.get(eid, []),
             "available_windows": emp_avail_map.get(eid, []),
+            "max_hours_per_week": emp.max_hours_per_week,
+            "day_blackouts": emp_blackout_map.get(eid, []),
         })
 
     initial_state: Dict[str, Any] = {
@@ -369,6 +392,7 @@ async def _load_initial_state(
         "shift_templates": shift_templates,
         "employees": employees,
         "availability_draft": {},
+        "employee_weekly_hours_draft": {},
         "current_location_index": 0,
         "completed_location_ids": [],
         "retry_count": 0,

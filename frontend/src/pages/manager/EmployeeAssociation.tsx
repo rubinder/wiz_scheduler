@@ -15,6 +15,10 @@ import {
   importAvailabilitiesFrom7Shifts,
   type ImportAvailabilitiesResult,
 } from "../../api/import7shifts";
+import {
+  importAvailabilitiesFromDeputy,
+  type DeputyAvailImportResult,
+} from "../../api/importDeputy";
 import { listRoles } from "../../api/roles";
 import DemoGuard from "../../components/shared/DemoGuard";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
@@ -136,6 +140,22 @@ export default function EmployeeAssociation() {
   const [importing7Shifts, setImporting7Shifts] = useState(false);
   const [import7Result, setImport7Result] =
     useState<ImportAvailabilitiesResult | null>(null);
+
+  // Deputy availability import state
+  const [showImportDeputy, setShowImportDeputy] = useState(false);
+  const [deputyToken, setDeputyToken] = useState("");
+  const [deputyBaseUrl, setDeputyBaseUrl] = useState("");
+  const [deputyStart, setDeputyStart] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [deputyEnd, setDeputyEnd] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  });
+  const [importingDeputy, setImportingDeputy] = useState(false);
+  const [deputyResult, setDeputyResult] =
+    useState<DeputyAvailImportResult | null>(null);
 
   // Week selector: generate weeks from 4 weeks back to 8 weeks ahead
   const weekOptions = useMemo(() => {
@@ -365,6 +385,31 @@ export default function EmployeeAssociation() {
       );
     } finally {
       setImporting7Shifts(false);
+    }
+  };
+
+  const handleImportDeputy = async () => {
+    if (!deputyToken || !deputyBaseUrl || !deputyStart || !deputyEnd) return;
+    setImportingDeputy(true);
+    setError(null);
+    setDeputyResult(null);
+    try {
+      const result = await importAvailabilitiesFromDeputy(
+        deputyToken,
+        deputyBaseUrl,
+        deputyStart,
+        deputyEnd
+      );
+      setDeputyResult(result);
+      await loadAvailability(selectedWeek);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to import availabilities from Deputy"
+      );
+    } finally {
+      setImportingDeputy(false);
     }
   };
 
@@ -681,6 +726,7 @@ export default function EmployeeAssociation() {
                   onClick={() => {
                     setShowImport7Shifts(!showImport7Shifts);
                     setImport7Result(null);
+                    if (!showImport7Shifts) { setShowImportDeputy(false); setDeputyResult(null); }
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded border ${
                     showImport7Shifts
@@ -689,6 +735,22 @@ export default function EmployeeAssociation() {
                   }`}
                 >
                   {t.association.importFrom7shifts}
+                </button>
+              </DemoGuard>
+              <DemoGuard>
+                <button
+                  onClick={() => {
+                    setShowImportDeputy(!showImportDeputy);
+                    setDeputyResult(null);
+                    if (!showImportDeputy) { setShowImport7Shifts(false); setImport7Result(null); }
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded border ${
+                    showImportDeputy
+                      ? "bg-blue-500/15 border-blue-400/20 text-blue-300"
+                      : "glass-btn-secondary border"
+                  }`}
+                >
+                  {t.association.importFromDeputy}
                 </button>
               </DemoGuard>
               <DemoGuard>
@@ -790,6 +852,109 @@ export default function EmployeeAssociation() {
                       </p>
                       <ul className="list-disc list-inside text-red-400 text-xs mt-1">
                         {import7Result.errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Deputy import panel */}
+          {showImportDeputy && (
+            <div className="bg-blue-500/[0.07] backdrop-blur-xl border border-blue-400/[0.12] rounded-xl p-4 mb-4">
+              <h3 className={`text-sm font-semibold ${text.body} mb-1`}>
+                {t.association.importDeputyTitle}
+              </h3>
+              <p className={`text-xs ${text.muted} mb-3`}>
+                {t.association.importDeputyDesc}
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-[180px]">
+                  <label className="glass-label-sm">
+                    {t.association.deputyUrl}
+                  </label>
+                  <input
+                    type="text"
+                    value={deputyBaseUrl}
+                    onChange={(e) => setDeputyBaseUrl(e.target.value)}
+                    placeholder="https://yourco.na.deputy.com"
+                    className="glass-input w-full"
+                  />
+                </div>
+                <div className="min-w-[180px]">
+                  <label className="glass-label-sm">
+                    {t.association.deputyAccessToken}
+                  </label>
+                  <input
+                    type="password"
+                    value={deputyToken}
+                    onChange={(e) => setDeputyToken(e.target.value)}
+                    placeholder={t.association.accessTokenPlaceholder}
+                    className="glass-input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="glass-label-sm">
+                    {t.association.from}
+                  </label>
+                  <input
+                    type="date"
+                    value={deputyStart}
+                    onChange={(e) => setDeputyStart(e.target.value)}
+                    className="glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="glass-label-sm">
+                    {t.association.to}
+                  </label>
+                  <input
+                    type="date"
+                    value={deputyEnd}
+                    min={deputyStart}
+                    onChange={(e) => setDeputyEnd(e.target.value)}
+                    className="glass-input"
+                  />
+                </div>
+                <button
+                  onClick={handleImportDeputy}
+                  disabled={
+                    importingDeputy || !deputyToken || !deputyBaseUrl || !deputyStart || !deputyEnd
+                  }
+                  className="glass-btn-primary disabled:opacity-50"
+                >
+                  {importingDeputy ? t.association.importing : t.common.import}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportDeputy(false);
+                    setDeputyResult(null);
+                  }}
+                  className="glass-btn-secondary"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+              {deputyResult && (
+                <div className="mt-3 glass-card border border-blue-400/10 p-3 text-sm">
+                  <p className={`font-medium ${text.secondary}`}>{t.association.importComplete}</p>
+                  <ul className={`mt-1 ${text.secondary} space-y-0.5`}>
+                    <li>{t.association.created} {deputyResult.created} {t.association.availWindows}</li>
+                    <li>{t.association.cleared} {deputyResult.cleared} {t.association.existingWindows}</li>
+                    {deputyResult.skipped > 0 && (
+                      <li>{t.association.skipped} {deputyResult.skipped} {t.association.deputySkippedEmployees}</li>
+                    )}
+                  </ul>
+                  {deputyResult.errors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-red-400 font-medium">
+                        {t.common.errors} ({deputyResult.errors.length}):
+                      </p>
+                      <ul className="list-disc list-inside text-red-400 text-xs mt-1">
+                        {deputyResult.errors.map((err, i) => (
                           <li key={i}>{err}</li>
                         ))}
                       </ul>

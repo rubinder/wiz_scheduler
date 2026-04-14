@@ -15,6 +15,7 @@ class EmployeeCreate(BaseModel):
     location_ids: list[str] | None = None
     roles: list[EmployeeRoleSchema] | None = None
     company_ids: list[str] | None = None  # additional companies to assign to
+    max_hours_per_week: float | None = None
 
 
 class EmployeeUpdate(BaseModel):
@@ -24,6 +25,10 @@ class EmployeeUpdate(BaseModel):
     location_ids: list[str] | None = None
     roles: list[EmployeeRoleSchema] | None = None
     company_ids: list[str] | None = None  # update company assignments
+    # Use a sentinel to distinguish "unset" from "explicitly clear to null".
+    # Pydantic v2: a field not present in the payload stays as default None;
+    # routers must send this field to mutate it (nullable means "no cap").
+    max_hours_per_week: float | None = None
 
 
 class EmployeeRoleResponse(BaseModel):
@@ -67,6 +72,7 @@ class EmployeeResponse(BaseModel):
     full_name: str
     email: str | None
     location_ids: list[str] | None
+    max_hours_per_week: float | None = None
     roles: list[EmployeeRoleResponse] = []
     company_ids: list[str] = []
 
@@ -115,6 +121,24 @@ class AvailabilityResponse(BaseModel):
     day: int
     start_time: datetime
     end_time: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DayBlackoutCreate(BaseModel):
+    employee_id: str
+    day_of_week: int          # 0 = Monday ... 6 = Sunday
+    start_time: str           # "HH:MM"
+    end_time: str             # "HH:MM"
+
+
+class DayBlackoutResponse(BaseModel):
+    id: str
+    company_id: str
+    employee_id: str
+    day_of_week: int
+    start_time: str
+    end_time: str
 
     model_config = {"from_attributes": True}
 

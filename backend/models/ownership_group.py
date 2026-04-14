@@ -21,6 +21,9 @@ class OwnershipGroup(Base):
     ai_credits_usd: Mapped[float] = mapped_column(
         Float, nullable=False, server_default=text("0")
     )
+    # Which external integration feeds data into this group (e.g. "7shifts").
+    # NULL means the group manages data manually without an integration.
+    api_integration: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

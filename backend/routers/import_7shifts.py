@@ -19,6 +19,7 @@ from backend.models import (
     EmployeeCompany,
     EmployeeInvite,
     EmployeeRole,
+    EmployeeRoleMinutes,
     Location,
     OwnershipGroup,
     Region,
@@ -357,6 +358,11 @@ async def _import_single_company(
             await db.execute(
                 delete(EmployeeRole).where(EmployeeRole.role_id == role.id)
             )
+            await db.execute(
+                delete(EmployeeRoleMinutes).where(
+                    EmployeeRoleMinutes.role_id == role.id
+                )
+            )
             await db.delete(role)
             counts["roles"]["deleted"] += 1
 
@@ -449,6 +455,11 @@ async def _import_single_company(
             )
             await db.execute(
                 delete(EmployeeRole).where(EmployeeRole.employee_id == emp.id)
+            )
+            await db.execute(
+                delete(EmployeeRoleMinutes).where(
+                    EmployeeRoleMinutes.employee_id == emp.id
+                )
             )
             await db.execute(
                 delete(EmployeeCompany).where(EmployeeCompany.employee_id == emp.id)
@@ -612,6 +623,14 @@ async def import_from_7shifts(
                 counts=counts,
                 errors=errors,
             )
+
+    # Mark this ownership group as using the 7shifts integration
+    og_result = await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == ownership_group_id)
+    )
+    og = og_result.scalar_one_or_none()
+    if og is not None and og.api_integration != "7shifts":
+        og.api_integration = "7shifts"
 
     await db.commit()
     return ImportResult(

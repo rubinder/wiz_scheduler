@@ -114,6 +114,7 @@ export interface Employee {
   full_name: string;
   email: string | null;
   location_ids: string[] | null;
+  max_hours_per_week: number | null;
   roles: EmployeeRole[];
   company_ids: string[];
 }
@@ -160,6 +161,15 @@ export interface EmployeeAvailability {
   day: number;
   start_time: string;
   end_time: string;
+}
+
+export interface EmployeeDayBlackout {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  day_of_week: number; // 0 = Monday ... 6 = Sunday
+  start_time: string;  // "HH:MM"
+  end_time: string;    // "HH:MM"
 }
 
 // ── Shift Template ──
