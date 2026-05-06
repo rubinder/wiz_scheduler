@@ -14,10 +14,10 @@ resource "aws_route53_zone" "main" {
 # -----------------------------------------------------------------------------
 
 resource "aws_acm_certificate" "main" {
-  count             = var.domain_name != "" ? 1 : 0
-  domain_name       = var.domain_name
+  count                     = var.domain_name != "" ? 1 : 0
+  domain_name               = var.domain_name
   subject_alternative_names = ["*.${var.domain_name}"]
-  validation_method = "DNS"
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true
@@ -51,13 +51,45 @@ resource "aws_acm_certificate_validation" "main" {
 }
 
 # -----------------------------------------------------------------------------
-# Route 53 A Record — points domain to ALB
+# Route 53 records
+#
+#   <apex>            → CloudFront  (browser entry point — SPA + /api/*)
+#   www.<apex>        → CloudFront  (CF Function then 301s to apex)
+#   alb.<apex>        → ALB         (origin for CloudFront's /api/* behavior;
+#                                    needs a name covered by *.<apex> SAN so
+#                                    CloudFront → ALB TLS handshake matches)
 # -----------------------------------------------------------------------------
 
 resource "aws_route53_record" "app" {
   count   = var.domain_name != "" ? 1 : 0
   zone_id = aws_route53_zone.main[0].zone_id
   name    = var.domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.frontend.domain_name
+    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "www" {
+  count   = var.domain_name != "" ? 1 : 0
+  zone_id = aws_route53_zone.main[0].zone_id
+  name    = "www.${var.domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.frontend.domain_name
+    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "alb" {
+  count   = var.domain_name != "" ? 1 : 0
+  zone_id = aws_route53_zone.main[0].zone_id
+  name    = "alb.${var.domain_name}"
   type    = "A"
 
   alias {

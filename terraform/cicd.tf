@@ -67,6 +67,39 @@ data "aws_iam_policy_document" "cicd" {
       aws_iam_role.ecs_task.arn,
     ]
   }
+
+  # S3 — sync built frontend assets
+  statement {
+    sid = "S3FrontendSync"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+    resources = [aws_s3_bucket.frontend.arn]
+  }
+
+  statement {
+    sid = "S3FrontendObjects"
+    actions = [
+      "s3:PutObject",
+      "s3:PutObjectAcl",
+      "s3:GetObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["${aws_s3_bucket.frontend.arn}/*"]
+  }
+
+  # CloudFront — invalidate after deploy
+  statement {
+    sid = "CloudFrontInvalidate"
+    actions = [
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
+      "cloudfront:ListInvalidations",
+      "cloudfront:GetDistribution",
+    ]
+    resources = [aws_cloudfront_distribution.frontend.arn]
+  }
 }
 
 resource "aws_iam_user_policy" "cicd" {

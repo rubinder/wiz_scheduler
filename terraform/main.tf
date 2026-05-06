@@ -23,7 +23,9 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-
+  # Credentials resolved via the standard AWS chain: env vars → shared
+  # credentials file → shared config profile (set AWS_PROFILE) → IMDS.
+  # No explicit `profile` so CI (env-var creds) and local dev both work.
   default_tags {
     tags = {
       project     = var.app_name
