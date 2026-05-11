@@ -157,15 +157,13 @@ export default function Landing() {
           </p>
           <div className="glass-card p-2 rounded-2xl overflow-hidden">
             <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-              <video
+              <iframe
                 className="absolute inset-0 w-full h-full rounded-xl"
-                controls
-                preload="metadata"
-                poster="/demo-poster.jpg"
-              >
-                <source src="/demo.mp4" type="video/mp4" />
-                {t.landing.demoFallback}
-              </video>
+                src="https://www.youtube.com/embed/t1FblchNbb8"
+                title={t.landing.demoTitle}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
             </div>
           </div>
           <div className="flex justify-center mt-8">
