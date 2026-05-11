@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Capture screenshots of all 15 manager pages.
 //
-// Prerequisites:
+// One-time setup (after a fresh `npm install`):
+//   cd frontend && npx playwright install chromium
+//
+// Prerequisites for each run:
 //   1. Backend running:  cd backend && uvicorn main:app --reload
 //   2. Frontend running: cd frontend && npm run dev
 //   3. Seed run:         cd backend && python seed.py
