@@ -168,6 +168,11 @@ export default function Landing() {
               </video>
             </div>
           </div>
+          <div className="flex justify-center mt-8">
+            <Link to="/features" className="glass-btn-secondary px-8 py-3 text-base">
+              {t.landing.exploreDashboard}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -425,6 +430,7 @@ export default function Landing() {
             <span>Wiz Scheduler</span>
           </div>
           <div className={`flex items-center gap-4 text-xs ${text.muted}`}>
+            <Link to="/features" className="hover:text-gray-700">{t.landing.featuresLink}</Link>
             <Link to="/privacy-policy" className="hover:text-gray-700">{t.gdpr.privacyPolicy}</Link>
             <Link to="/terms" className="hover:text-gray-700">{t.gdpr.termsOfService}</Link>
             <Link to="/dpa" className="hover:text-gray-700">{t.gdpr.dpa}</Link>
