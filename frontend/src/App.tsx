@@ -26,6 +26,7 @@ import DataProcessingAgreement from "./pages/DataProcessingAgreement";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
 import Landing from "./pages/Landing";
+import Features from "./pages/Features";
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -75,6 +76,7 @@ export default function App() {
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/dpa" element={<DataProcessingAgreement />} />
+      <Route path="/features" element={<Features />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedLayout />}>
