@@ -268,3 +268,28 @@ async def test_check_schedule_quota_within_free_tier(db_session: AsyncSession, s
     assert result["can_generate"] is True
     assert result["is_over_free_tier"] is False
     assert result["schedules_used"] == 0
+
+
+async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_og):
+    """BillingCharge inserts and reads back via SQLAlchemy."""
+    from backend.models.billing_charge import BillingCharge
+
+    charge = BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="autoreload",
+        amount_usd=10.0,
+        stripe_object_id="pi_test_123",
+        status="succeeded",
+    )
+    db_session.add(charge)
+    await db_session.commit()
+
+    from sqlalchemy import select
+    result = await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+    )
+    rows = list(result.scalars())
+    assert len(rows) == 1
+    assert rows[0].kind == "autoreload"
+    assert float(rows[0].amount_usd) == 10.0
+    assert rows[0].status == "succeeded"

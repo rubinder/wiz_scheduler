@@ -14,6 +14,7 @@ from backend.models.failure_log import FailureLog
 from backend.models.employee_role_minutes import EmployeeRoleMinutes
 from backend.models.consent import UserConsent
 from backend.models.storage_snapshot import StorageSnapshot
+from backend.models.billing_charge import BillingCharge
 
 __all__ = [
     "OwnershipGroup",
@@ -40,4 +41,5 @@ __all__ = [
     "EmployeeRoleMinutes",
     "UserConsent",
     "StorageSnapshot",
+    "BillingCharge",
 ]
