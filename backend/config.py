@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # Base subscription
     BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
 
+    # Auto-reload (real-time billing for AI + schedules)
+    AUTORELOAD_DEFAULT_ENABLED: bool = True
+    AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
+    AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
+
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30
     RETENTION_STALE_DRAFTS_DAYS: int = 7
