@@ -6,8 +6,11 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from backend.config import settings
 from backend.models import Company, Employee, TokenUsage
+from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
     add_purchased_credits,
@@ -272,8 +275,6 @@ async def test_check_schedule_quota_within_free_tier(db_session: AsyncSession, s
 
 async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_og):
     """BillingCharge inserts and reads back via SQLAlchemy."""
-    from backend.models.billing_charge import BillingCharge
-
     charge = BillingCharge(
         ownership_group_id=OG_ID,
         kind="autoreload",
@@ -284,7 +285,6 @@ async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_o
     db_session.add(charge)
     await db_session.commit()
 
-    from sqlalchemy import select
     result = await db_session.execute(
         select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
     )

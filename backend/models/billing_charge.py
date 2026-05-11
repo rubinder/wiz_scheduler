@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -23,4 +23,24 @@ class BillingCharge(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('autoreload', 'invoice_item_storage', 'invoice_item_employees')",
+            name="billing_charges_kind_check",
+        ),
+        CheckConstraint(
+            "status IN ('succeeded', 'failed', 'pending')",
+            name="billing_charges_status_check",
+        ),
+        Index(
+            "ix_billing_charges_og_kind_period",
+            "ownership_group_id", "kind", "period",
+        ),
+        Index(
+            "ix_billing_charges_og_created",
+            "ownership_group_id", "created_at",
+            postgresql_ops={"created_at": "DESC"},
+        ),
     )
