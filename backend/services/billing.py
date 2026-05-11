@@ -64,6 +64,33 @@ async def _get_company_ids_for_group(db: AsyncSession, og_id: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Stripe payment-method caching
+# ---------------------------------------------------------------------------
+
+async def cache_default_payment_method(
+    db: AsyncSession,
+    og: OwnershipGroup,
+) -> str | None:
+    """Fetch the subscription's default payment method and cache it on the OG.
+
+    Returns the payment method ID, or None if the OG has no subscription.
+    Idempotent: re-runs are safe and refresh the cached value.
+    """
+    if not og.stripe_subscription_id:
+        return None
+
+    import stripe
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    sub = stripe.Subscription.retrieve(og.stripe_subscription_id)
+    pm_id = sub.default_payment_method
+    if pm_id:
+        og.default_payment_method_id = pm_id
+        await db.flush()
+    return pm_id
+
+
+# ---------------------------------------------------------------------------
 # LLM billing
 # ---------------------------------------------------------------------------
 

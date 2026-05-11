@@ -1,6 +1,7 @@
 """Tests for backend/services/billing.py."""
 
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
@@ -293,3 +294,34 @@ async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_o
     assert rows[0].kind == "autoreload"
     assert float(rows[0].amount_usd) == 10.0
     assert rows[0].status == "succeeded"
+
+
+async def test_cache_default_payment_method_writes_pm_id(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    """cache_default_payment_method retrieves the subscription's default PM and stores it on the OG."""
+    import stripe
+
+    # Mock the OG having a Stripe subscription_id
+    seed_og.stripe_subscription_id = "sub_test_123"
+    await db_session.commit()
+
+    fake_sub = MagicMock()
+    fake_sub.default_payment_method = "pm_test_card_456"
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+
+    from backend.services.billing import cache_default_payment_method
+    pm_id = await cache_default_payment_method(db_session, seed_og)
+
+    assert pm_id == "pm_test_card_456"
+    await db_session.refresh(seed_og)
+    assert seed_og.default_payment_method_id == "pm_test_card_456"
+
+
+async def test_cache_default_payment_method_no_subscription_returns_none(
+    db_session: AsyncSession, seed_og
+):
+    """If the OG has no stripe_subscription_id, return None without calling Stripe."""
+    from backend.services.billing import cache_default_payment_method
+    result = await cache_default_payment_method(db_session, seed_og)
+    assert result is None
