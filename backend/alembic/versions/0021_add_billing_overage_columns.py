@@ -76,7 +76,8 @@ def upgrade() -> None:
     op.create_index(
         "ix_billing_charges_og_created",
         "billing_charges",
-        ["ownership_group_id", sa.text("created_at DESC")],
+        ["ownership_group_id", "created_at"],
+        postgresql_ops={"created_at": "DESC"},
     )
 
 
