@@ -108,3 +108,11 @@ variable "db_engine_version" {
   type        = string
   default     = "15.13"
 }
+
+# --- Stripe ---
+
+variable "stripe_price_id" {
+  description = "Stripe Price ID for the base subscription (e.g. price_...). Leave empty to defer until set."
+  type        = string
+  default     = "price_1TVuM9B7IPUEjgxsElcEzZhH"
+}

@@ -76,6 +76,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.secret_key.arn,
       aws_secretsmanager_secret.anthropic_api_key.arn,
       aws_secretsmanager_secret.resend_api_key.arn,
+      aws_secretsmanager_secret.stripe_secret_key.arn,
     ]
   }
 }
@@ -141,6 +142,10 @@ resource "aws_ecs_task_definition" "app" {
           name      = "RESEND_API_KEY"
           valueFrom = aws_secretsmanager_secret.resend_api_key.arn
         },
+        {
+          name      = "STRIPE_SECRET_KEY"
+          valueFrom = aws_secretsmanager_secret.stripe_secret_key.arn
+        },
       ]
 
       environment = [
@@ -159,6 +164,18 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "CORS_ORIGINS"
           value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
+        },
+        {
+          name  = "STRIPE_PRICE_ID"
+          value = var.stripe_price_id
+        },
+        {
+          name  = "STRIPE_SUCCESS_URL"
+          value = var.domain_name != "" ? "https://${var.domain_name}/register?session_id={CHECKOUT_SESSION_ID}" : ""
+        },
+        {
+          name  = "STRIPE_CANCEL_URL"
+          value = var.domain_name != "" ? "https://${var.domain_name}/register" : ""
         },
       ]
 

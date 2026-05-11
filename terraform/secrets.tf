@@ -75,3 +75,20 @@ resource "aws_secretsmanager_secret_version" "resend_api_key" {
     ignore_changes = [secret_string]
   }
 }
+
+resource "aws_secretsmanager_secret" "stripe_secret_key" {
+  name                    = "${var.app_name}/${var.environment}/STRIPE_SECRET_KEY"
+  description             = "Stripe API secret key for billing checkout sessions"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-stripe-secret-key" }
+}
+
+resource "aws_secretsmanager_secret_version" "stripe_secret_key" {
+  secret_id     = aws_secretsmanager_secret.stripe_secret_key.id
+  secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
