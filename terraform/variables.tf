@@ -87,7 +87,7 @@ variable "db_name" {
 variable "db_username" {
   description = "Master username for the RDS instance"
   type        = string
-  default     = "wizadmin"
+  default     = "wizzzadmin"
   sensitive   = true
 }
 
@@ -106,5 +106,13 @@ variable "db_allocated_storage" {
 variable "db_engine_version" {
   description = "PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.13"
+}
+
+# --- Stripe ---
+
+variable "stripe_price_id" {
+  description = "Stripe Price ID for the base subscription (e.g. price_...). Leave empty to defer until set."
+  type        = string
+  default     = "price_1TVuM9B7IPUEjgxsElcEzZhH"
 }

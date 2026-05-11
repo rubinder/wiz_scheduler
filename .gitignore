@@ -5,3 +5,21 @@ __pycache__/
 .env
 .idea/
 graphify-out/cache/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfvars
+terraform/*.tfvars.json
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/crash.log
+terraform/crash.*.log
+
+# Terraform plan files (may contain sensitive variable values)
+terraform/tfplan
+terraform/*.tfplan
+terraform/plan.out
+
+# Frontend build output (CI artifact, should not be tracked)
+frontend/dist/

@@ -1,5 +1,15 @@
 # -----------------------------------------------------------------------------
-# Secrets Manager — placeholder values, update after initial deploy
+# Secrets Manager
+#
+# - DATABASE_URL is fully managed by terraform (the connection string is
+#   derived from db_username/db_password vars + the RDS endpoint, so
+#   rotating db_password via TF_VAR_db_password updates this secret too).
+#
+# - SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY are seeded with
+#   placeholders the first time terraform runs, then expected to be
+#   set manually via the AWS Console or CLI. The lifecycle
+#   ignore_changes block on each version prevents future terraform
+#   applies from clobbering the real value.
 # -----------------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "database_url" {
@@ -11,7 +21,7 @@ resource "aws_secretsmanager_secret" "database_url" {
 }
 
 resource "aws_secretsmanager_secret_version" "database_url" {
-  secret_id = aws_secretsmanager_secret.database_url.id
+  secret_id     = aws_secretsmanager_secret.database_url.id
   secret_string = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}"
 }
 
@@ -26,6 +36,10 @@ resource "aws_secretsmanager_secret" "secret_key" {
 resource "aws_secretsmanager_secret_version" "secret_key" {
   secret_id     = aws_secretsmanager_secret.secret_key.id
   secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 resource "aws_secretsmanager_secret" "anthropic_api_key" {
@@ -39,6 +53,10 @@ resource "aws_secretsmanager_secret" "anthropic_api_key" {
 resource "aws_secretsmanager_secret_version" "anthropic_api_key" {
   secret_id     = aws_secretsmanager_secret.anthropic_api_key.id
   secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 resource "aws_secretsmanager_secret" "resend_api_key" {
@@ -52,4 +70,25 @@ resource "aws_secretsmanager_secret" "resend_api_key" {
 resource "aws_secretsmanager_secret_version" "resend_api_key" {
   secret_id     = aws_secretsmanager_secret.resend_api_key.id
   secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+resource "aws_secretsmanager_secret" "stripe_secret_key" {
+  name                    = "${var.app_name}/${var.environment}/STRIPE_SECRET_KEY"
+  description             = "Stripe API secret key for billing checkout sessions"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-stripe-secret-key" }
+}
+
+resource "aws_secretsmanager_secret_version" "stripe_secret_key" {
+  secret_id     = aws_secretsmanager_secret.stripe_secret_key.id
+  secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }

@@ -4,6 +4,14 @@ Shared test fixtures for WizScheduler.
 Uses SQLite + aiosqlite as the test database so no Postgres is required.
 """
 
+# `backend.main` imports `backend.middleware.metrics`, which initializes
+# prometheus_client in multiprocess mode using PROMETHEUS_MULTIPROC_DIR.
+# Production creates that directory in the Docker entrypoint; the test
+# runner doesn't go through Docker, so create it here before any backend
+# import touches metrics.
+import os
+os.makedirs(os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus_multiproc"), exist_ok=True)
+
 from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
 
