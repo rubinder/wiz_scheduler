@@ -496,3 +496,35 @@ async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
     assert og_with_card.ai_credits_usd > 0  # reload happened, then debit applied
     charges = list((await db_session.execute(select(BillingCharge))).scalars())
     assert any(c.kind == "autoreload" and c.status == "succeeded" for c in charges)
+
+
+async def test_deduct_credits_for_schedule_triggers_reload(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Schedule overage debit triggers auto-reload when balance is insufficient."""
+    import stripe
+    from backend.services.billing import deduct_credits_for_schedule_overage
+    from backend.models import ShiftSchedule
+
+    fake_intent = MagicMock(status="succeeded", id="pi_sched_reload")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: fake_intent)
+
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+
+    # Create > free tier schedules so overage applies
+    now = datetime.now(timezone.utc)
+    for _ in range(settings.SCHEDULE_FREE_TIER + 1):
+        db_session.add(ShiftSchedule(
+            company_id=COMPANY_ID,
+            location_id=_id(),
+            week_start_date=now.date(),
+            status="DRAFT",
+            created_at=now,
+        ))
+    await db_session.commit()
+
+    await deduct_credits_for_schedule_overage(db_session, str(COMPANY_ID))
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd > 0  # reload happened

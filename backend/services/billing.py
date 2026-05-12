@@ -461,13 +461,14 @@ async def deduct_credits_for_schedule_overage(
     per_schedule_cost = settings.SCHEDULE_COST_PER_BLOCK / settings.SCHEDULE_BLOCK_SIZE
 
     og_result = await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.id == og_id)
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
     )
     og = og_result.scalar_one_or_none()
     if not og:
         return
 
-    og.ai_credits_usd = max(0.0, round(og.ai_credits_usd - per_schedule_cost, 4))
+    await auto_reload_if_needed(db, og, cost_usd=per_schedule_cost)
+    og.ai_credits_usd = round(float(og.ai_credits_usd) - per_schedule_cost, 4)
     await db.flush()
 
 
