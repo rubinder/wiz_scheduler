@@ -561,6 +561,118 @@ async def add_purchased_credits(
 # Full billing summary
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Auto-reload (real-time billing buffer for AI + schedules)
+# ---------------------------------------------------------------------------
+
+class AutoReloadError(Exception):
+    """Charge attempt against the saved card failed (declined, SCA, etc.)."""
+
+
+class AutoReloadDisabled(Exception):
+    """OG has autoreload_enabled=False and balance is insufficient."""
+
+
+class AutoReloadBlocked(Exception):
+    """OG has a sticky autoreload_failed_at and must be manually retried."""
+
+
+async def auto_reload_if_needed(
+    db: AsyncSession,
+    og: OwnershipGroup,
+    cost_usd: float,
+) -> None:
+    """Charge the customer's saved card if needed to keep balance above threshold.
+
+    Called by debit paths (AI overage, schedule overage) BEFORE the debit is applied.
+    Raises if the customer is in a non-chargeable state — callers should propagate
+    the error as HTTP 402 to block the operation.
+
+    Side effects:
+        - On success: increments og.ai_credits_usd by autoreload_amount_usd,
+          writes a 'succeeded' BillingCharge row.
+        - On Stripe failure: sets og.autoreload_failed_at = now(),
+          writes a 'failed' BillingCharge row, then raises AutoReloadError.
+    """
+    from datetime import datetime, timezone
+    import stripe
+    from backend.config import settings
+    from backend.models.billing_charge import BillingCharge
+
+    if og.autoreload_failed_at is not None:
+        raise AutoReloadBlocked(
+            f"Billing on hold since {og.autoreload_failed_at.isoformat()}; "
+            "retry payment in the Billing UI."
+        )
+
+    threshold = float(og.autoreload_threshold_usd)
+    if float(og.ai_credits_usd) - cost_usd >= threshold:
+        return  # balance after debit will still be above threshold
+
+    if not og.autoreload_enabled:
+        raise AutoReloadDisabled(
+            "Auto-reload is disabled and the included AI/schedule quota is exhausted."
+        )
+
+    if not og.stripe_customer_id or not og.default_payment_method_id:
+        raise AutoReloadError(
+            "Customer has no payment method on file. Add a card to enable auto-reload."
+        )
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    reload_amount_usd = float(og.autoreload_amount_usd)
+
+    try:
+        intent = stripe.PaymentIntent.create(
+            customer=og.stripe_customer_id,
+            amount=int(reload_amount_usd * 100),
+            currency="usd",
+            payment_method=og.default_payment_method_id,
+            off_session=True,
+            confirm=True,
+            metadata={"og_id": og.id, "kind": "autoreload"},
+        )
+    except stripe.StripeError as e:
+        og.autoreload_failed_at = datetime.now(timezone.utc)
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind="autoreload",
+            amount_usd=reload_amount_usd,
+            stripe_object_id=None,
+            status="failed",
+            error_message=str(e),
+        ))
+        await db.flush()
+        raise AutoReloadError(str(e))
+
+    if intent.status != "succeeded":
+        og.autoreload_failed_at = datetime.now(timezone.utc)
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind="autoreload",
+            amount_usd=reload_amount_usd,
+            stripe_object_id=intent.id,
+            status="failed",
+            error_message=f"PaymentIntent status={intent.status}",
+        ))
+        await db.flush()
+        raise AutoReloadError(f"PaymentIntent status: {intent.status}")
+
+    og.ai_credits_usd = round(float(og.ai_credits_usd) + reload_amount_usd, 4)
+    db.add(BillingCharge(
+        ownership_group_id=og.id,
+        kind="autoreload",
+        amount_usd=reload_amount_usd,
+        stripe_object_id=intent.id,
+        status="succeeded",
+    ))
+    await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Full billing summary
+# ---------------------------------------------------------------------------
+
 async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
     """Compute the full billing summary for an ownership group."""
     # LLM usage

@@ -325,3 +325,133 @@ async def test_cache_default_payment_method_no_subscription_returns_none(
     from backend.services.billing import cache_default_payment_method
     result = await cache_default_payment_method(db_session, seed_og)
     assert result is None
+
+
+from unittest.mock import MagicMock, patch
+
+
+@pytest_asyncio.fixture
+async def og_with_card(db_session: AsyncSession, seed_og):
+    """OG with stripe_customer_id and a cached payment method."""
+    seed_og.stripe_customer_id = "cus_test_abc"
+    seed_og.stripe_subscription_id = "sub_test_123"
+    seed_og.default_payment_method_id = "pm_test_card_456"
+    await db_session.commit()
+    return seed_og
+
+
+async def test_auto_reload_charges_card_and_adds_to_balance(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Successful PaymentIntent should add autoreload_amount_usd to ai_credits_usd
+    and record a BillingCharge row with status='succeeded'."""
+    import stripe
+    from backend.services.billing import auto_reload_if_needed
+    from backend.models.billing_charge import BillingCharge
+    from sqlalchemy import select
+
+    fake_intent = MagicMock(status="succeeded", id="pi_test_999")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kwargs: fake_intent)
+
+    og_with_card.ai_credits_usd = 0.0
+    og_with_card.autoreload_amount_usd = 10.0
+    og_with_card.autoreload_threshold_usd = 2.0
+    await db_session.commit()
+
+    # cost > balance, so reload should fire
+    await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 10.0
+    assert og_with_card.autoreload_failed_at is None
+
+    result = await db_session.execute(select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID))
+    charges = list(result.scalars())
+    assert len(charges) == 1
+    assert charges[0].kind == "autoreload"
+    assert charges[0].status == "succeeded"
+    assert charges[0].stripe_object_id == "pi_test_999"
+
+
+async def test_auto_reload_skipped_when_balance_sufficient(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """If balance > cost + threshold, no Stripe call and no charge row."""
+    import stripe
+    from backend.services.billing import auto_reload_if_needed
+    from backend.models.billing_charge import BillingCharge
+    from sqlalchemy import select
+
+    called = {"count": 0}
+    def fake_create(**kwargs):
+        called["count"] += 1
+        return MagicMock(status="succeeded", id="pi_x")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.ai_credits_usd = 20.0
+    og_with_card.autoreload_threshold_usd = 2.0
+    await db_session.commit()
+
+    await auto_reload_if_needed(db_session, og_with_card, cost_usd=1.0)
+    assert called["count"] == 0
+
+    result = await db_session.execute(select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID))
+    assert list(result.scalars()) == []
+
+
+async def test_auto_reload_failure_sets_failed_at_and_raises(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A Stripe CardError on PaymentIntent.create should set autoreload_failed_at,
+    record a 'failed' BillingCharge, and raise."""
+    import stripe
+    from backend.services.billing import auto_reload_if_needed, AutoReloadError
+    from backend.models.billing_charge import BillingCharge
+    from sqlalchemy import select
+
+    def fake_create(**kwargs):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+
+    with pytest.raises(AutoReloadError):
+        await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+    assert og_with_card.ai_credits_usd == 0.0  # nothing added
+
+    result = await db_session.execute(select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID))
+    charges = list(result.scalars())
+    assert len(charges) == 1
+    assert charges[0].status == "failed"
+
+
+async def test_auto_reload_disabled_raises_blocked_error(
+    db_session: AsyncSession, og_with_card
+):
+    """When autoreload_enabled=False and a reload is needed, raise AutoReloadDisabled."""
+    from backend.services.billing import auto_reload_if_needed, AutoReloadDisabled
+
+    og_with_card.autoreload_enabled = False
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+
+    with pytest.raises(AutoReloadDisabled):
+        await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
+
+
+async def test_auto_reload_failed_state_raises_blocked_error(
+    db_session: AsyncSession, og_with_card
+):
+    """When autoreload_failed_at is set, every call raises AutoReloadBlocked."""
+    from backend.services.billing import auto_reload_if_needed, AutoReloadBlocked
+
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+
+    with pytest.raises(AutoReloadBlocked):
+        await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
