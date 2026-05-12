@@ -528,3 +528,25 @@ async def test_deduct_credits_for_schedule_triggers_reload(
 
     await db_session.refresh(og_with_card)
     assert og_with_card.ai_credits_usd > 0  # reload happened
+
+
+async def test_check_ai_credits_blocked_when_failed_at_set(
+    db_session: AsyncSession, og_with_card
+):
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    status = await check_ai_credits(db_session, str(COMPANY_ID))
+    assert status["can_generate"] is False
+    assert status.get("autoreload_failed") is True
+
+
+async def test_check_schedule_quota_blocked_when_failed_at_set(
+    db_session: AsyncSession, og_with_card
+):
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    status = await check_schedule_quota(db_session, str(COMPANY_ID))
+    assert status["can_generate"] is False
+    assert status.get("autoreload_failed") is True

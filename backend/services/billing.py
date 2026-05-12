@@ -412,6 +412,19 @@ async def check_schedule_quota(
             "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
         }
 
+    # Load OG to check autoreload state — blocks generation when a prior charge failed.
+    og_full = (await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))).scalar_one_or_none()
+    if og_full and og_full.autoreload_failed_at is not None:
+        return {
+            "can_generate": False,
+            "schedules_used": 0,
+            "schedules_free_tier": settings.SCHEDULE_FREE_TIER,
+            "is_over_free_tier": True,
+            "purchased_credits_usd": float(og_full.ai_credits_usd),
+            "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
+            "autoreload_failed": True,
+        }
+
     schedule_count = await count_schedules_this_month(db, og_id)
 
     # Demo company gets a higher free tier
@@ -423,10 +436,7 @@ async def check_schedule_quota(
 
     is_over = schedule_count >= free_tier
 
-    og_result = await db.execute(
-        select(OwnershipGroup.ai_credits_usd).where(OwnershipGroup.id == og_id)
-    )
-    purchased_credits = og_result.scalar_one_or_none() or 0.0
+    purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
     can_generate = not is_over or purchased_credits > 0
 
@@ -499,16 +509,24 @@ async def check_ai_credits(
             "monthly_cost_usd": 0.0,
         }
 
+    # Load OG to check autoreload state — blocks generation when a prior charge failed.
+    og_full = (await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))).scalar_one_or_none()
+    if og_full and og_full.autoreload_failed_at is not None:
+        return {
+            "can_generate": False,
+            "free_remaining_usd": 0.0,
+            "purchased_credits_usd": float(og_full.ai_credits_usd),
+            "is_over_free_tier": True,
+            "monthly_cost_usd": 0.0,
+            "autoreload_failed": True,
+        }
+
     usage = await get_monthly_usage(db, og_id)
     monthly_cost = usage.cost_usd if usage else 0.0
     free_remaining = max(0.0, settings.LLM_FREE_TIER_USD - monthly_cost)
     is_over = monthly_cost >= settings.LLM_FREE_TIER_USD
 
-    # Get purchased credits
-    og_result = await db.execute(
-        select(OwnershipGroup.ai_credits_usd).where(OwnershipGroup.id == og_id)
-    )
-    purchased_credits = og_result.scalar_one_or_none() or 0.0
+    purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
     can_generate = not is_over or purchased_credits > 0
 
