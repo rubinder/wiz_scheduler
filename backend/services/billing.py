@@ -561,6 +561,74 @@ async def add_purchased_credits(
 # Full billing summary
 # ---------------------------------------------------------------------------
 
+async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
+    """Compute the full billing summary for an ownership group."""
+    # LLM usage
+    usage = await get_monthly_usage(db, og_id)
+    llm_cost = usage.cost_usd if usage else 0.0
+    llm_charged = usage.charged_usd if usage else 0.0
+    llm_free_remaining = max(0, settings.LLM_FREE_TIER_USD - llm_cost)
+
+    # Storage
+    storage_gb = await calculate_storage_gb(db, og_id)
+    storage_charge = calculate_storage_charge(storage_gb)
+
+    # Employees
+    employee_count = await count_employees_for_group(db, og_id)
+    employee_charge = calculate_employee_charge(employee_count)
+
+    # Schedules
+    schedule_count = await count_schedules_this_month(db, og_id)
+    schedule_charge = calculate_schedule_charge(schedule_count)
+
+    # Base subscription
+    base_charge = settings.BASE_MONTHLY_USD
+
+    total_monthly_charge = round(
+        base_charge + llm_charged + storage_charge + employee_charge + schedule_charge, 4
+    )
+
+    return {
+        "base": {
+            "monthly_usd": base_charge,
+        },
+        "llm": {
+            "input_tokens": usage.input_tokens if usage else 0,
+            "output_tokens": usage.output_tokens if usage else 0,
+            "raw_cost_usd": round(llm_cost, 4),
+            "charged_usd": round(llm_charged, 4),
+            "free_tier_usd": settings.LLM_FREE_TIER_USD,
+            "free_remaining_usd": round(llm_free_remaining, 4),
+            "is_over_free_tier": llm_cost > settings.LLM_FREE_TIER_USD,
+            "overage_markup": settings.LLM_OVERAGE_MARKUP,
+        },
+        "storage": {
+            "used_gb": round(storage_gb, 4),
+            "free_gb": settings.STORAGE_FREE_GB,
+            "billable_gb": round(max(0, storage_gb - settings.STORAGE_FREE_GB), 4),
+            "cost_per_gb": settings.STORAGE_COST_PER_GB,
+            "charged_usd": storage_charge,
+        },
+        "employees": {
+            "count": employee_count,
+            "free_tier": settings.EMPLOYEE_FREE_TIER,
+            "billable": max(0, employee_count - settings.EMPLOYEE_FREE_TIER),
+            "block_size": settings.EMPLOYEE_BLOCK_SIZE,
+            "cost_per_block": settings.EMPLOYEE_COST_PER_BLOCK,
+            "charged_usd": employee_charge,
+        },
+        "schedules": {
+            "count": schedule_count,
+            "free_tier": settings.SCHEDULE_FREE_TIER,
+            "billable": max(0, schedule_count - settings.SCHEDULE_FREE_TIER),
+            "block_size": settings.SCHEDULE_BLOCK_SIZE,
+            "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK,
+            "charged_usd": schedule_charge,
+        },
+        "total_monthly_charge_usd": total_monthly_charge,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Auto-reload (real-time billing buffer for AI + schedules)
 # ---------------------------------------------------------------------------
@@ -667,75 +735,3 @@ async def auto_reload_if_needed(
         status="succeeded",
     ))
     await db.flush()
-
-
-# ---------------------------------------------------------------------------
-# Full billing summary
-# ---------------------------------------------------------------------------
-
-async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
-    """Compute the full billing summary for an ownership group."""
-    # LLM usage
-    usage = await get_monthly_usage(db, og_id)
-    llm_cost = usage.cost_usd if usage else 0.0
-    llm_charged = usage.charged_usd if usage else 0.0
-    llm_free_remaining = max(0, settings.LLM_FREE_TIER_USD - llm_cost)
-
-    # Storage
-    storage_gb = await calculate_storage_gb(db, og_id)
-    storage_charge = calculate_storage_charge(storage_gb)
-
-    # Employees
-    employee_count = await count_employees_for_group(db, og_id)
-    employee_charge = calculate_employee_charge(employee_count)
-
-    # Schedules
-    schedule_count = await count_schedules_this_month(db, og_id)
-    schedule_charge = calculate_schedule_charge(schedule_count)
-
-    # Base subscription
-    base_charge = settings.BASE_MONTHLY_USD
-
-    total_monthly_charge = round(
-        base_charge + llm_charged + storage_charge + employee_charge + schedule_charge, 4
-    )
-
-    return {
-        "base": {
-            "monthly_usd": base_charge,
-        },
-        "llm": {
-            "input_tokens": usage.input_tokens if usage else 0,
-            "output_tokens": usage.output_tokens if usage else 0,
-            "raw_cost_usd": round(llm_cost, 4),
-            "charged_usd": round(llm_charged, 4),
-            "free_tier_usd": settings.LLM_FREE_TIER_USD,
-            "free_remaining_usd": round(llm_free_remaining, 4),
-            "is_over_free_tier": llm_cost > settings.LLM_FREE_TIER_USD,
-            "overage_markup": settings.LLM_OVERAGE_MARKUP,
-        },
-        "storage": {
-            "used_gb": round(storage_gb, 4),
-            "free_gb": settings.STORAGE_FREE_GB,
-            "billable_gb": round(max(0, storage_gb - settings.STORAGE_FREE_GB), 4),
-            "cost_per_gb": settings.STORAGE_COST_PER_GB,
-            "charged_usd": storage_charge,
-        },
-        "employees": {
-            "count": employee_count,
-            "free_tier": settings.EMPLOYEE_FREE_TIER,
-            "billable": max(0, employee_count - settings.EMPLOYEE_FREE_TIER),
-            "block_size": settings.EMPLOYEE_BLOCK_SIZE,
-            "cost_per_block": settings.EMPLOYEE_COST_PER_BLOCK,
-            "charged_usd": employee_charge,
-        },
-        "schedules": {
-            "count": schedule_count,
-            "free_tier": settings.SCHEDULE_FREE_TIER,
-            "billable": max(0, schedule_count - settings.SCHEDULE_FREE_TIER),
-            "block_size": settings.SCHEDULE_BLOCK_SIZE,
-            "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK,
-            "charged_usd": schedule_charge,
-        },
-        "total_monthly_charge_usd": total_monthly_charge,
-    }

@@ -327,7 +327,7 @@ async def test_cache_default_payment_method_no_subscription_returns_none(
     assert result is None
 
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 @pytest_asyncio.fixture
