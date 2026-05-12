@@ -157,6 +157,14 @@ async def check_and_record_usage(
         )
         db.add(usage)
 
+    if this_charge > 0:
+        from sqlalchemy import select
+        og_result = await db.execute(
+            select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
+        )
+        og = og_result.scalar_one()
+        await auto_reload_if_needed(db, og, cost_usd=this_charge)
+
     await db.flush()
 
     free_remaining = max(0, settings.LLM_FREE_TIER_USD - usage.cost_usd)

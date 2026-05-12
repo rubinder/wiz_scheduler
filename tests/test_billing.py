@@ -151,6 +151,9 @@ async def test_check_and_record_usage_within_free_tier(db_session: AsyncSession,
 
 async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, seed_og):
     """Pre-load usage to exhaust free tier, then verify overage markup."""
+    # Pre-fund the credit buffer so the new auto-reload guard sees sufficient
+    # balance and skips. This test exercises the markup calculation, not reload.
+    seed_og.ai_credits_usd = 100.0
     now = datetime.now(timezone.utc)
     usage = TokenUsage(
         ownership_group_id=OG_ID,
@@ -455,3 +458,41 @@ async def test_auto_reload_failed_state_raises_blocked_error(
 
     with pytest.raises(AutoReloadBlocked):
         await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
+
+
+async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When LLM usage takes balance below threshold, auto_reload_if_needed is called
+    BEFORE the debit, and the debit succeeds against the topped-up balance."""
+    import stripe
+    from backend.services.billing import check_and_record_usage
+    from backend.models.billing_charge import BillingCharge
+    from sqlalchemy import select
+
+    fake_intent = MagicMock(status="succeeded", id="pi_reload_1")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: fake_intent)
+
+    # Pre-exhaust the free tier so any usage triggers a charge
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+    usage = TokenUsage(
+        ownership_group_id=OG_ID,
+        year=datetime.now(timezone.utc).year,
+        month=datetime.now(timezone.utc).month,
+        input_tokens=1_000_000_000,  # absurd to ensure cost > free tier
+        output_tokens=0,
+        total_tokens=1_000_000_000,
+        cost_usd=settings.LLM_FREE_TIER_USD + 5.0,
+        charged_usd=5.0,
+    )
+    db_session.add(usage)
+    await db_session.commit()
+
+    # This call should trigger auto-reload before debit
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 0)
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd > 0  # reload happened, then debit applied
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert any(c.kind == "autoreload" and c.status == "succeeded" for c in charges)
