@@ -229,10 +229,19 @@ data "aws_iam_policy_document" "cicd_iam" {
   }
 }
 
-resource "aws_iam_user_policy" "cicd_iam" {
-  name   = "${var.app_name}-cicd-iam-policy"
-  user   = aws_iam_user.cicd.name
-  policy = data.aws_iam_policy_document.cicd_iam.json
+# Customer-managed (not inline) because the IAM-management statements push us
+# over the 2048-byte inline-policy-per-user limit. Customer-managed policies
+# have a 6144-byte cap per version + can be attached without consuming the
+# user's inline-policy budget.
+resource "aws_iam_policy" "cicd_iam" {
+  name        = "${var.app_name}-cicd-iam-policy"
+  description = "IAM management permissions for the wizscheduler-cicd user (scoped to wizscheduler-* resources)"
+  policy      = data.aws_iam_policy_document.cicd_iam.json
+}
+
+resource "aws_iam_user_policy_attachment" "cicd_iam" {
+  user       = aws_iam_user.cicd.name
+  policy_arn = aws_iam_policy.cicd_iam.arn
 }
 
 # -----------------------------------------------------------------------------
