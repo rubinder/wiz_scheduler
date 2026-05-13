@@ -435,6 +435,10 @@ const en = {
     retryPayment: "Retry payment",
     retryFailed: "Retry failed — update your card and try again.",
     updateCard: "Update card",
+    pendingChargesTitle: "Pending Monthly Charges",
+    pendingChargesEmpty: "No additional charges projected this cycle.",
+    pendingChargeStorage: "Storage overage",
+    pendingChargeEmployees: "Employee overage",
   },
 
   // ── Export Schedules ──
