@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     STRIPE_PRICE_ID: str = ""  # Price ID for the base subscription
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/register?session_id={CHECKOUT_SESSION_ID}"
     STRIPE_CANCEL_URL: str = "http://localhost:5173/register"
+    STRIPE_BILLING_PORTAL_RETURN_URL: str = "http://localhost:5173/manager/schedule"
 
     # LLM billing
     LLM_FREE_TIER_USD: float = 2.00          # free credits per ownership group per month
@@ -60,6 +61,11 @@ class Settings(BaseSettings):
 
     # Base subscription
     BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
+
+    # Auto-reload (real-time billing for AI + schedules)
+    AUTORELOAD_DEFAULT_ENABLED: bool = True
+    AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
+    AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30

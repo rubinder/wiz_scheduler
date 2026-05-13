@@ -64,6 +64,33 @@ async def _get_company_ids_for_group(db: AsyncSession, og_id: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Stripe payment-method caching
+# ---------------------------------------------------------------------------
+
+async def cache_default_payment_method(
+    db: AsyncSession,
+    og: OwnershipGroup,
+) -> str | None:
+    """Fetch the subscription's default payment method and cache it on the OG.
+
+    Returns the payment method ID, or None if the OG has no subscription.
+    Idempotent: re-runs are safe and refresh the cached value.
+    """
+    if not og.stripe_subscription_id:
+        return None
+
+    import stripe
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    sub = stripe.Subscription.retrieve(og.stripe_subscription_id)
+    pm_id = sub.default_payment_method
+    if pm_id:
+        og.default_payment_method_id = pm_id
+        await db.flush()
+    return pm_id
+
+
+# ---------------------------------------------------------------------------
 # LLM billing
 # ---------------------------------------------------------------------------
 
@@ -129,6 +156,14 @@ async def check_and_record_usage(
             charged_usd=this_charge,
         )
         db.add(usage)
+
+    if this_charge > 0:
+        from sqlalchemy import select
+        og_result = await db.execute(
+            select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
+        )
+        og = og_result.scalar_one()
+        await auto_reload_if_needed(db, og, cost_usd=this_charge)
 
     await db.flush()
 
@@ -377,6 +412,19 @@ async def check_schedule_quota(
             "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
         }
 
+    # Load OG to check autoreload state — blocks generation when a prior charge failed.
+    og_full = (await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))).scalar_one_or_none()
+    if og_full and og_full.autoreload_failed_at is not None:
+        return {
+            "can_generate": False,
+            "schedules_used": 0,
+            "schedules_free_tier": settings.SCHEDULE_FREE_TIER,
+            "is_over_free_tier": True,
+            "purchased_credits_usd": float(og_full.ai_credits_usd),
+            "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
+            "autoreload_failed": True,
+        }
+
     schedule_count = await count_schedules_this_month(db, og_id)
 
     # Demo company gets a higher free tier
@@ -388,10 +436,7 @@ async def check_schedule_quota(
 
     is_over = schedule_count >= free_tier
 
-    og_result = await db.execute(
-        select(OwnershipGroup.ai_credits_usd).where(OwnershipGroup.id == og_id)
-    )
-    purchased_credits = og_result.scalar_one_or_none() or 0.0
+    purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
     can_generate = not is_over or purchased_credits > 0
 
@@ -426,13 +471,14 @@ async def deduct_credits_for_schedule_overage(
     per_schedule_cost = settings.SCHEDULE_COST_PER_BLOCK / settings.SCHEDULE_BLOCK_SIZE
 
     og_result = await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.id == og_id)
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
     )
     og = og_result.scalar_one_or_none()
     if not og:
         return
 
-    og.ai_credits_usd = max(0.0, round(og.ai_credits_usd - per_schedule_cost, 4))
+    await auto_reload_if_needed(db, og, cost_usd=per_schedule_cost)
+    og.ai_credits_usd = round(float(og.ai_credits_usd) - per_schedule_cost, 4)
     await db.flush()
 
 
@@ -463,16 +509,24 @@ async def check_ai_credits(
             "monthly_cost_usd": 0.0,
         }
 
+    # Load OG to check autoreload state — blocks generation when a prior charge failed.
+    og_full = (await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))).scalar_one_or_none()
+    if og_full and og_full.autoreload_failed_at is not None:
+        return {
+            "can_generate": False,
+            "free_remaining_usd": 0.0,
+            "purchased_credits_usd": float(og_full.ai_credits_usd),
+            "is_over_free_tier": True,
+            "monthly_cost_usd": 0.0,
+            "autoreload_failed": True,
+        }
+
     usage = await get_monthly_usage(db, og_id)
     monthly_cost = usage.cost_usd if usage else 0.0
     free_remaining = max(0.0, settings.LLM_FREE_TIER_USD - monthly_cost)
     is_over = monthly_cost >= settings.LLM_FREE_TIER_USD
 
-    # Get purchased credits
-    og_result = await db.execute(
-        select(OwnershipGroup.ai_credits_usd).where(OwnershipGroup.id == og_id)
-    )
-    purchased_credits = og_result.scalar_one_or_none() or 0.0
+    purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
     can_generate = not is_over or purchased_credits > 0
 
@@ -510,24 +564,6 @@ async def deduct_credits_for_overage(
 
     og.ai_credits_usd = max(0.0, og.ai_credits_usd - charged_usd)
     await db.flush()
-
-
-async def add_purchased_credits(
-    db: AsyncSession,
-    ownership_group_id: str,
-    amount_usd: float,
-) -> float:
-    """Add purchased AI credits to an ownership group. Returns new balance."""
-    og_result = await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.id == ownership_group_id)
-    )
-    og = og_result.scalar_one_or_none()
-    if not og:
-        return 0.0
-
-    og.ai_credits_usd = round(og.ai_credits_usd + amount_usd, 4)
-    await db.flush()
-    return og.ai_credits_usd
 
 
 # ---------------------------------------------------------------------------
@@ -600,3 +636,111 @@ async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
         },
         "total_monthly_charge_usd": total_monthly_charge,
     }
+
+
+# ---------------------------------------------------------------------------
+# Auto-reload (real-time billing buffer for AI + schedules)
+# ---------------------------------------------------------------------------
+
+class AutoReloadError(Exception):
+    """Charge attempt against the saved card failed (declined, SCA, etc.)."""
+
+
+class AutoReloadDisabled(Exception):
+    """OG has autoreload_enabled=False and balance is insufficient."""
+
+
+class AutoReloadBlocked(Exception):
+    """OG has a sticky autoreload_failed_at and must be manually retried."""
+
+
+async def auto_reload_if_needed(
+    db: AsyncSession,
+    og: OwnershipGroup,
+    cost_usd: float,
+) -> None:
+    """Charge the customer's saved card if needed to keep balance above threshold.
+
+    Called by debit paths (AI overage, schedule overage) BEFORE the debit is applied.
+    Raises if the customer is in a non-chargeable state — callers should propagate
+    the error as HTTP 402 to block the operation.
+
+    Side effects:
+        - On success: increments og.ai_credits_usd by autoreload_amount_usd,
+          writes a 'succeeded' BillingCharge row.
+        - On Stripe failure: sets og.autoreload_failed_at = now(),
+          writes a 'failed' BillingCharge row, then raises AutoReloadError.
+    """
+    from datetime import datetime, timezone
+    import stripe
+    from backend.config import settings
+    from backend.models.billing_charge import BillingCharge
+
+    if og.autoreload_failed_at is not None:
+        raise AutoReloadBlocked(
+            f"Billing on hold since {og.autoreload_failed_at.isoformat()}; "
+            "retry payment in the Billing UI."
+        )
+
+    threshold = float(og.autoreload_threshold_usd)
+    if float(og.ai_credits_usd) - cost_usd >= threshold:
+        return  # balance after debit will still be above threshold
+
+    if not og.autoreload_enabled:
+        raise AutoReloadDisabled(
+            "Auto-reload is disabled and the included AI/schedule quota is exhausted."
+        )
+
+    if not og.stripe_customer_id or not og.default_payment_method_id:
+        raise AutoReloadError(
+            "Customer has no payment method on file. Add a card to enable auto-reload."
+        )
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    reload_amount_usd = float(og.autoreload_amount_usd)
+
+    try:
+        intent = stripe.PaymentIntent.create(
+            customer=og.stripe_customer_id,
+            amount=int(reload_amount_usd * 100),
+            currency="usd",
+            payment_method=og.default_payment_method_id,
+            off_session=True,
+            confirm=True,
+            metadata={"og_id": og.id, "kind": "autoreload"},
+        )
+    except stripe.StripeError as e:
+        og.autoreload_failed_at = datetime.now(timezone.utc)
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind="autoreload",
+            amount_usd=reload_amount_usd,
+            stripe_object_id=None,
+            status="failed",
+            error_message=str(e),
+        ))
+        await db.flush()
+        raise AutoReloadError(str(e))
+
+    if intent.status != "succeeded":
+        og.autoreload_failed_at = datetime.now(timezone.utc)
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind="autoreload",
+            amount_usd=reload_amount_usd,
+            stripe_object_id=intent.id,
+            status="failed",
+            error_message=f"PaymentIntent status={intent.status}",
+        ))
+        await db.flush()
+        raise AutoReloadError(f"PaymentIntent status: {intent.status}")
+
+    og.ai_credits_usd = round(float(og.ai_credits_usd) + reload_amount_usd, 4)
+    db.add(BillingCharge(
+        ownership_group_id=og.id,
+        kind="autoreload",
+        amount_usd=reload_amount_usd,
+        stripe_object_id=intent.id,
+        status="succeeded",
+    ))
+    await db.flush()

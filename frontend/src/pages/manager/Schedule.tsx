@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import * as schedulesApi from "../../api/schedules";
 import * as shiftTemplatesApi from "../../api/shiftTemplates";
 import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
 import * as billingApi from "../../api/billing";
-import type { AiCreditStatus, ScheduleQuota } from "../../api/billing";
+import type { AiCreditStatus, AutoReloadStatus, ScheduleQuota } from "../../api/billing";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
@@ -356,7 +355,6 @@ function daysBetween(startStr: string, endStr: string): number {
 
 export default function Schedule() {
   const { t } = useLanguage();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [startDate, setStartDate] = useState(getNextMonday());
   const [endDate, setEndDate] = useState(addDays(getNextMonday(), 6));
   const weekStart = startDate; // alias for compatibility
@@ -367,10 +365,16 @@ export default function Schedule() {
   // AI credit & schedule quota state
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
   const [scheduleQuota, setScheduleQuota] = useState<ScheduleQuota | null>(null);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [showBillingModal, setShowBillingModal] = useState(false);
   const [purchaseReason, setPurchaseReason] = useState<"ai" | "schedules">("ai");
-  const [purchaseAmount, setPurchaseAmount] = useState(5);
-  const [purchaseLoading, setPurchaseLoading] = useState(false);
+  const [autoReload, setAutoReload] = useState<AutoReloadStatus | null>(null);
+  const [autoReloadEditing, setAutoReloadEditing] = useState(false);
+  const [autoReloadDraft, setAutoReloadDraft] = useState<{
+    enabled: boolean;
+    threshold_usd: number;
+    amount_usd: number;
+  }>({ enabled: true, threshold_usd: 2, amount_usd: 10 });
+  const [autoReloadSaving, setAutoReloadSaving] = useState(false);
   const [approvedLocations, setApprovedLocations] = useState<Set<string>>(
     new Set()
   );
@@ -426,29 +430,48 @@ export default function Schedule() {
     fetchCredits();
   }, [fetchCredits]);
 
-  // Handle return from Stripe credit purchase
+  // Load auto-reload settings on mount
   useEffect(() => {
-    const creditsSessionId = searchParams.get("credits_session_id");
-    if (creditsSessionId) {
-      searchParams.delete("credits_session_id");
-      setSearchParams(searchParams, { replace: true });
-      // Confirm the purchase
-      billingApi.confirmCredits(creditsSessionId).then(() => {
-        fetchCredits();
-      }).catch(() => {
-        setActionError("Failed to confirm credit purchase");
+    billingApi.getAutoReload().then((s) => {
+      setAutoReload(s);
+      setAutoReloadDraft({
+        enabled: s.enabled,
+        threshold_usd: s.threshold_usd,
+        amount_usd: s.amount_usd,
       });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }).catch(() => {});
+  }, []);
 
-  const handlePurchaseCredits = async () => {
-    setPurchaseLoading(true);
+  const handleSaveAutoReload = async () => {
+    setAutoReloadSaving(true);
     try {
-      const { url } = await billingApi.purchaseCredits(purchaseAmount);
+      const updated = await billingApi.updateAutoReload(autoReloadDraft);
+      setAutoReload(updated);
+      setAutoReloadEditing(false);
+      fetchCredits();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Failed to save auto-reload settings");
+    } finally {
+      setAutoReloadSaving(false);
+    }
+  };
+
+  const handleRetryAutoReload = async () => {
+    try {
+      const updated = await billingApi.retryAutoReload();
+      setAutoReload(updated);
+      fetchCredits();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : t.schedule.retryFailed);
+    }
+  };
+
+  const handleOpenPortal = async () => {
+    try {
+      const { url } = await billingApi.getPortalLink();
       window.location.href = url;
     } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : "Failed to start purchase");
-      setPurchaseLoading(false);
+      setActionError(err instanceof Error ? err.message : "Could not open billing portal");
     }
   };
 
@@ -507,13 +530,13 @@ export default function Schedule() {
     // Check schedule quota first (applies to both modes)
     if (scheduleQuota && !scheduleQuota.can_generate) {
       setPurchaseReason("schedules");
-      setShowPurchaseModal(true);
+      setShowBillingModal(true);
       return;
     }
     // For AI mode, also check AI credits
     if (mode === "ai" && creditStatus && !creditStatus.can_generate) {
       setPurchaseReason("ai");
-      setShowPurchaseModal(true);
+      setShowBillingModal(true);
       return;
     }
     setGenerateMode(mode);
@@ -702,6 +725,35 @@ export default function Schedule() {
     <div>
       <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.schedule.title}</h1>
 
+      {/* Auto-reload failed banner */}
+      {autoReload?.failed_at && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <div className="font-semibold text-red-900">{t.schedule.billingOnHoldTitle}</div>
+            <div className="text-sm text-red-800">
+              {t.schedule.billingOnHoldBody.replace(
+                "{date}",
+                new Date(autoReload.failed_at).toLocaleString()
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={handleRetryAutoReload}
+              className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium"
+            >
+              {t.schedule.retryPayment}
+            </button>
+            <button
+              onClick={handleOpenPortal}
+              className="px-3 py-1 bg-white border border-red-300 text-red-800 rounded text-sm font-medium"
+            >
+              {t.schedule.updateCard}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Credit & Quota Status Banner */}
       {(creditStatus || scheduleQuota) && (
         <div className="mb-4 space-y-2">
@@ -724,7 +776,7 @@ export default function Schedule() {
               </div>
               {scheduleQuota.is_over_free_tier && !scheduleQuota.can_generate && (
                 <button
-                  onClick={() => { setPurchaseReason("schedules"); setShowPurchaseModal(true); }}
+                  onClick={() => { setPurchaseReason("schedules"); setShowBillingModal(true); }}
                   className="glass-btn-primary text-xs px-3 py-1"
                 >
                   {t.schedule.buyCredits}
@@ -755,7 +807,7 @@ export default function Schedule() {
               </div>
               {creditStatus.is_over_free_tier && !creditStatus.can_generate && (
                 <button
-                  onClick={() => { setPurchaseReason("ai"); setShowPurchaseModal(true); }}
+                  onClick={() => { setPurchaseReason("ai"); setShowBillingModal(true); }}
                   className="glass-btn-primary text-xs px-3 py-1"
                 >
                   {t.schedule.buyCredits}
@@ -1203,14 +1255,14 @@ export default function Schedule() {
         })}
       </div>
 
-      {/* Purchase Credits Modal */}
-      {showPurchaseModal && (
+      {/* Auto-Reload Settings Modal */}
+      {showBillingModal && autoReload && (
         <div className="glass-modal-overlay">
-          <div className="glass-modal w-full max-w-sm mx-4">
+          <div className="glass-modal w-full max-w-md mx-4">
             <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
-              <h3 className={`text-lg font-semibold ${text.heading}`}>{t.schedule.buyAiCredits}</h3>
+              <h3 className={`text-lg font-semibold ${text.heading}`}>{t.schedule.autoReloadTitle}</h3>
               <button
-                onClick={() => setShowPurchaseModal(false)}
+                onClick={() => setShowBillingModal(false)}
                 className="text-gray-500 hover:text-gray-600 text-xl leading-none"
               >
                 &times;
@@ -1222,45 +1274,96 @@ export default function Schedule() {
                   ? t.schedule.scheduleQuotaExhaustedMsg
                   : t.schedule.creditsExhaustedMsg}
               </p>
-              {creditStatus && (
-                <div className={`text-xs ${text.muted} space-y-1`}>
-                  <div>{t.schedule.monthlyUsage}: ${creditStatus.monthly_cost_usd.toFixed(2)}</div>
-                  <div>{t.schedule.currentBalance}: ${creditStatus.purchased_credits_usd.toFixed(2)}</div>
+              <p className={`text-sm ${text.muted}`}>{t.schedule.autoReloadDescription}</p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className={`text-xs ${text.muted}`}>{t.schedule.balance}</div>
+                  <div className={`text-lg font-semibold ${text.heading}`}>${autoReload.current_balance_usd.toFixed(2)}</div>
                 </div>
-              )}
-              <div>
-                <label className="glass-label">{t.schedule.creditAmount}</label>
-                <div className="flex gap-2 mt-1">
-                  {[5, 10, 25, 50].map((amt) => (
-                    <button
-                      key={amt}
-                      onClick={() => setPurchaseAmount(amt)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border ${
-                        purchaseAmount === amt
-                          ? "border-accent bg-accent/15 text-accent-dark"
-                          : "border-sage/20 bg-sage/[0.05] text-gray-500 hover:border-sage/30"
-                      }`}
-                    >
-                      ${amt}
-                    </button>
-                  ))}
+                <div>
+                  <div className={`text-xs ${text.muted}`}>{t.schedule.threshold}</div>
+                  <div className={`text-lg font-semibold ${text.heading}`}>${autoReload.threshold_usd.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className={`text-xs ${text.muted}`}>{t.schedule.refillAmount}</div>
+                  <div className={`text-lg font-semibold ${text.heading}`}>${autoReload.amount_usd.toFixed(2)}</div>
                 </div>
               </div>
+              {autoReloadEditing && (
+                <div className="space-y-3 pt-2 border-t border-sage/10">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={autoReloadDraft.enabled}
+                      onChange={(e) => setAutoReloadDraft({ ...autoReloadDraft, enabled: e.target.checked })}
+                    />
+                    {t.schedule.autoReloadEnabled}
+                  </label>
+                  <label className="block text-sm">
+                    {t.schedule.threshold}: $
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={autoReloadDraft.threshold_usd}
+                      onChange={(e) => setAutoReloadDraft({ ...autoReloadDraft, threshold_usd: parseFloat(e.target.value) || 0 })}
+                      className="ml-2 border rounded px-2 py-1 w-24"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    {t.schedule.refillAmount}: $
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="1"
+                      value={autoReloadDraft.amount_usd}
+                      onChange={(e) => setAutoReloadDraft({ ...autoReloadDraft, amount_usd: parseFloat(e.target.value) || 0 })}
+                      className="ml-2 border rounded px-2 py-1 w-24"
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
-              <button
-                onClick={() => setShowPurchaseModal(false)}
-                className="glass-btn-secondary text-sm font-medium"
-              >
-                {t.common.cancel}
-              </button>
-              <button
-                onClick={handlePurchaseCredits}
-                disabled={purchaseLoading}
-                className="glass-btn-primary text-sm font-medium"
-              >
-                {purchaseLoading ? t.schedule.redirectingToPayment : `${t.schedule.purchase} $${purchaseAmount}`}
-              </button>
+              {!autoReloadEditing ? (
+                <>
+                  <button
+                    onClick={() => setShowBillingModal(false)}
+                    className="glass-btn-secondary text-sm font-medium"
+                  >
+                    {t.common.close}
+                  </button>
+                  <button
+                    onClick={() => setAutoReloadEditing(true)}
+                    className="glass-btn-primary text-sm font-medium"
+                  >
+                    {t.common.edit}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setAutoReloadEditing(false);
+                      setAutoReloadDraft({
+                        enabled: autoReload.enabled,
+                        threshold_usd: autoReload.threshold_usd,
+                        amount_usd: autoReload.amount_usd,
+                      });
+                    }}
+                    className="glass-btn-secondary text-sm font-medium"
+                  >
+                    {t.common.cancel}
+                  </button>
+                  <button
+                    onClick={handleSaveAutoReload}
+                    disabled={autoReloadSaving}
+                    className="glass-btn-primary text-sm font-medium"
+                  >
+                    {autoReloadSaving ? t.common.saving : t.common.save}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
