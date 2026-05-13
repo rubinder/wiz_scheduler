@@ -102,20 +102,28 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  default_action {
-    type = var.domain_name != "" ? "redirect" : "forward"
-
-    # Forward (no domain)
-    target_group_arn = var.domain_name == "" ? aws_lb_target_group.app.arn : null
-
-    # Redirect to HTTPS (with domain)
-    dynamic "redirect" {
-      for_each = var.domain_name != "" ? [1] : []
-      content {
+  # With a domain configured → redirect to HTTPS.
+  # Without → forward directly to the app target group.
+  # Two dynamic blocks pick exactly one based on var.domain_name; this avoids
+  # the deprecated `target_group_arn = null` pattern (warns on AWS provider
+  # 5.x, will become an error in 6.x).
+  dynamic "default_action" {
+    for_each = var.domain_name != "" ? [1] : []
+    content {
+      type = "redirect"
+      redirect {
         port        = "443"
         protocol    = "HTTPS"
         status_code = "HTTP_301"
       }
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = var.domain_name == "" ? [1] : []
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.app.arn
     }
   }
 
