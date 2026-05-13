@@ -785,3 +785,133 @@ async def auto_reload_if_needed(
         status="succeeded",
     ))
     await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Monthly InvoiceItem reconciliation (PR 2)
+# ---------------------------------------------------------------------------
+
+
+async def bill_monthly_overages_for_og(
+    db: AsyncSession,
+    og: OwnershipGroup,
+    period: str | None = None,
+) -> dict:
+    """Reconcile storage + employee overage InvoiceItems for one OG.
+
+    For each kind in ('invoice_item_storage', 'invoice_item_employees'):
+        - Compute the current charge from live usage data.
+        - Look up the existing pending BillingCharge for (og, period, kind).
+        - Create, update (delete + recreate), or delete the Stripe InvoiceItem
+          and matching BillingCharge row so the final state matches the
+          computed amount.
+
+    Subscriptions not in {active, trialing} are skipped — Stripe will not
+    bill anyway, and we don't want to dirty the audit log.
+
+    `period` defaults to the calendar month of the subscription's current
+    period_start (i.e. the period the upcoming invoice covers).
+    """
+    import stripe
+    from backend.config import settings
+    from backend.models.billing_charge import BillingCharge
+
+    if not og.stripe_subscription_id or not og.stripe_customer_id:
+        return {"og_id": og.id, "skipped": "no_subscription"}
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        sub = stripe.Subscription.retrieve(og.stripe_subscription_id)
+    except stripe.StripeError as e:
+        return {"og_id": og.id, "error": str(e)}
+
+    if sub.status not in ("active", "trialing"):
+        return {"og_id": og.id, "skipped": f"subscription_status={sub.status}"}
+
+    if period is None:
+        from datetime import datetime as _dt, timezone as _tz
+        start = _dt.fromtimestamp(int(sub.current_period_start), _tz.utc)
+        period = f"{start.year:04d}-{start.month:02d}"
+
+    summary: dict = {"og_id": og.id, "period": period, "actions": []}
+
+    for kind in ("invoice_item_storage", "invoice_item_employees"):
+        new_charge = await compute_monthly_overage(db, og.id, kind, period)
+        new_amount_cents = int(round(new_charge * 100))
+
+        existing = (await db.execute(
+            select(BillingCharge).where(
+                BillingCharge.ownership_group_id == og.id,
+                BillingCharge.kind == kind,
+                BillingCharge.period == period,
+                BillingCharge.status == "pending",
+            )
+        )).scalar_one_or_none()
+
+        if existing and int(round(float(existing.amount_usd) * 100)) == new_amount_cents and new_amount_cents > 0:
+            summary["actions"].append({"kind": kind, "action": "noop"})
+            continue
+
+        if existing:
+            try:
+                stripe.InvoiceItem.delete(existing.stripe_object_id)
+            except stripe.StripeError:
+                pass  # invoice item already finalized or gone; proceed
+            await db.delete(existing)
+            await db.flush()
+
+        if new_amount_cents == 0:
+            summary["actions"].append({"kind": kind, "action": "deleted" if existing else "skip_zero"})
+            continue
+
+        item = stripe.InvoiceItem.create(
+            customer=og.stripe_customer_id,
+            subscription=og.stripe_subscription_id,
+            amount=new_amount_cents,
+            currency="usd",
+            description=f"{kind.replace('invoice_item_', '').title()} overage — {period}",
+            metadata={"og_id": og.id, "period": period, "kind": kind},
+        )
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind=kind,
+            amount_usd=new_charge,
+            stripe_object_id=item.id,
+            period=period,
+            status="pending",
+        ))
+        await db.flush()
+        summary["actions"].append({
+            "kind": kind,
+            "action": "created" if not existing else "updated",
+            "amount_usd": new_charge,
+        })
+
+    await db.commit()
+    return summary
+
+
+async def bill_monthly_overages_all(db: AsyncSession) -> dict:
+    """Run bill_monthly_overages_for_og across every OG with a Stripe subscription.
+
+    Designed to be invoked weekly by a background loop and on-demand by the
+    `invoice.upcoming` Stripe webhook handler (defense in depth).
+    """
+    import logging
+    log = logging.getLogger("wizscheduler.monthly_billing")
+
+    result = await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.stripe_subscription_id.is_not(None))
+    )
+    ogs = list(result.scalars())
+
+    results: list[dict] = []
+    for og in ogs:
+        try:
+            summary = await bill_monthly_overages_for_og(db, og)
+            results.append(summary)
+        except Exception as e:  # noqa: BLE001
+            log.error("monthly billing failed for og=%s: %s", og.id, e)
+            results.append({"og_id": og.id, "error": str(e)})
+
+    return {"total_ogs": len(ogs), "results": results}
