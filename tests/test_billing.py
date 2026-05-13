@@ -14,7 +14,6 @@ from backend.models import Company, Employee, TokenUsage
 from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
-    add_purchased_credits,
     calculate_cost,
     calculate_employee_charge,
     calculate_schedule_charge,
@@ -217,9 +216,7 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
         charged_usd=0.0,
     )
     db_session.add(usage)
-    await db_session.flush()
-
-    await add_purchased_credits(db_session, OG_ID, 10.0)
+    seed_og.ai_credits_usd = 10.0
     await db_session.commit()
 
     result = await check_ai_credits(db_session, COMPANY_ID)
@@ -228,21 +225,8 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
     assert result["purchased_credits_usd"] == 10.0
 
 
-async def test_add_purchased_credits(db_session: AsyncSession, seed_og):
-    new_balance = await add_purchased_credits(db_session, OG_ID, 5.0)
-    assert new_balance == 5.0
-
-    new_balance = await add_purchased_credits(db_session, OG_ID, 3.0)
-    assert new_balance == 8.0
-
-
-async def test_add_purchased_credits_missing_og(db_session: AsyncSession):
-    result = await add_purchased_credits(db_session, "NOPE", 10.0)
-    assert result == 0.0
-
-
 async def test_deduct_credits_for_overage(db_session: AsyncSession, seed_og):
-    await add_purchased_credits(db_session, OG_ID, 10.0)
+    seed_og.ai_credits_usd = 10.0
     await db_session.commit()
 
     await deduct_credits_for_overage(db_session, COMPANY_ID, 3.0)
@@ -253,7 +237,7 @@ async def test_deduct_credits_for_overage(db_session: AsyncSession, seed_og):
 
 
 async def test_deduct_credits_zero_charge(db_session: AsyncSession, seed_og):
-    await add_purchased_credits(db_session, OG_ID, 10.0)
+    seed_og.ai_credits_usd = 10.0
     await db_session.commit()
 
     await deduct_credits_for_overage(db_session, COMPANY_ID, 0.0)

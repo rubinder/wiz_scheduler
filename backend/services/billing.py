@@ -566,24 +566,6 @@ async def deduct_credits_for_overage(
     await db.flush()
 
 
-async def add_purchased_credits(
-    db: AsyncSession,
-    ownership_group_id: str,
-    amount_usd: float,
-) -> float:
-    """Add purchased AI credits to an ownership group. Returns new balance."""
-    og_result = await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.id == ownership_group_id)
-    )
-    og = og_result.scalar_one_or_none()
-    if not og:
-        return 0.0
-
-    og.ai_credits_usd = round(og.ai_credits_usd + amount_usd, 4)
-    await db.flush()
-    return og.ai_credits_usd
-
-
 # ---------------------------------------------------------------------------
 # Full billing summary
 # ---------------------------------------------------------------------------
