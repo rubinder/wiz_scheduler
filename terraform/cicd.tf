@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------
 # CI/CD IAM User — least-privilege for GitHub Actions
-# Only allows: ECR login/push, ECS task-def read + service deploy
+# Allows: ECR login/push, ECS task-def read + service deploy, S3 frontend
+# sync, CloudFront invalidation, and terraform state read/write (S3 + DDB lock).
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_user" "cicd" {
@@ -99,6 +100,37 @@ data "aws_iam_policy_document" "cicd" {
       "cloudfront:GetDistribution",
     ]
     resources = [aws_cloudfront_distribution.frontend.arn]
+  }
+
+  # Terraform remote state — list bucket + read/write the state object
+  statement {
+    sid = "TfStateBucket"
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:GetBucketVersioning",
+    ]
+    resources = [aws_s3_bucket.tfstate.arn]
+  }
+
+  statement {
+    sid = "TfStateObject"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = ["${aws_s3_bucket.tfstate.arn}/terraform.tfstate"]
+  }
+
+  # Terraform state locking — full access to the lock table only.
+  # `dynamodb:*` is acceptable here because the table is single-purpose
+  # (terraform locks) and cannot reach any other DynamoDB resources.
+  statement {
+    sid       = "TfStateLock"
+    actions   = ["dynamodb:*"]
+    resources = [aws_dynamodb_table.tflock.arn]
   }
 }
 
