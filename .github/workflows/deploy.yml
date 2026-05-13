@@ -108,6 +108,11 @@ jobs:
         working-directory: terraform
         env:
           TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+          # Non-secret env-specific overrides that previously lived in the
+          # gitignored terraform.tfvars. Hardcoded here because the values
+          # are public; switch to GitHub secrets if a new environment needs
+          # different values.
+          TF_VAR_domain_name: "wizscheduler.com"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -176,6 +181,11 @@ jobs:
         working-directory: terraform
         env:
           TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+          # Non-secret env-specific overrides that previously lived in the
+          # gitignored terraform.tfvars. Hardcoded here because the values
+          # are public; switch to GitHub secrets if a new environment needs
+          # different values.
+          TF_VAR_domain_name: "wizscheduler.com"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
