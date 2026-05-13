@@ -1194,3 +1194,64 @@ async def test_webhook_payment_method_attached_refreshes_cached_pm(
 
     await db_session.refresh(og_with_card)
     assert og_with_card.default_payment_method_id == "pm_new_card"
+
+
+# ---------------------------------------------------------------------------
+# Task 9: /billing/usage augmented with pending_invoice_items
+# ---------------------------------------------------------------------------
+
+
+async def test_get_usage_includes_pending_invoice_items(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """GET /billing/usage returns pending_invoice_items derived from BillingCharge."""
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_storage",
+        amount_usd=0.5,
+        stripe_object_id="ii_1",
+        period="2026-05",
+        status="pending",
+    ))
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_employees",
+        amount_usd=1.0,
+        stripe_object_id="ii_2",
+        period="2026-05",
+        status="pending",
+    ))
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="autoreload",
+        amount_usd=10.0,
+        stripe_object_id="pi_1",
+        period=None,
+        status="succeeded",
+    ))
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    items = body.get("pending_invoice_items", [])
+    kinds = sorted(it["kind"] for it in items)
+    assert kinds == ["invoice_item_employees", "invoice_item_storage"]
+    storage = next(it for it in items if it["kind"] == "invoice_item_storage")
+    assert storage["amount_usd"] == 0.5
+    assert storage["period"] == "2026-05"
+
+
+async def test_get_usage_no_og_returns_empty_pending(
+    client: AsyncClient, manager_token, seed_company
+):
+    """No OG → pending_invoice_items is an empty list."""
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json().get("pending_invoice_items") == []
