@@ -182,6 +182,10 @@ resource "aws_ecs_task_definition" "app" {
           name  = "STRIPE_CANCEL_URL"
           value = var.domain_name != "" ? "https://${var.domain_name}/register" : ""
         },
+        {
+          name  = "GOOGLE_CLIENT_ID"
+          value = var.google_client_id
+        },
       ]
 
       logConfiguration = {

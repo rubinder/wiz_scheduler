@@ -116,3 +116,11 @@ variable "stripe_price_id" {
   type        = string
   default     = "price_1TVuM9B7IPUEjgxsElcEzZhH"
 }
+
+# --- Google OAuth (Sign-In with Google via GIS) ---
+
+variable "google_client_id" {
+  description = "Google OAuth 2.0 client ID (e.g. NNNNNNNN-XXXX.apps.googleusercontent.com). Public — exposed in the frontend bundle and used backend-side as the audience claim during ID-token verification. Leave empty to disable Google Sign-In."
+  type        = string
+  default     = ""
+}
