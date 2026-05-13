@@ -89,7 +89,7 @@ jobs:
       - name: Download current ECS task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition $ECS_SERVICE \
+            --task-definition $ECR_REPOSITORY \
             --query taskDefinition \
             > task-definition.json
 
