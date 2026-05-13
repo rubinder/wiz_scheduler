@@ -141,6 +141,101 @@ resource "aws_iam_user_policy" "cicd" {
 }
 
 # -----------------------------------------------------------------------------
+# Broad terraform-management permissions for the cicd user.
+#
+# Why: `terraform plan`/`apply` refreshes every resource in state, which means
+# the runner needs Read access on every AWS service we manage (and Write to
+# actually apply changes). The narrow per-service statements above are
+# insufficient for full terraform operations.
+#
+# How: attach AWS's managed PowerUserAccess (everything except IAM,
+# Organizations, and Identity Center) + a scoped inline policy for the IAM
+# resources terraform manages here (the wizscheduler-* roles + cicd user
+# itself). Safer than AdministratorAccess — IAM operations are confined to
+# wizscheduler-* ARNs.
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_user_policy_attachment" "cicd_power_user" {
+  user       = aws_iam_user.cicd.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+data "aws_iam_policy_document" "cicd_iam" {
+  statement {
+    sid = "IAMRoleManagement"
+    actions = [
+      "iam:GetRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:UpdateRole",
+      "iam:UpdateRoleDescription",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:ListRoleTags",
+      "iam:GetRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+    ]
+    resources = [
+      "arn:aws:iam::*:role/${var.app_name}-*",
+    ]
+  }
+
+  statement {
+    sid = "IAMUserManagement"
+    actions = [
+      "iam:GetUser",
+      "iam:CreateUser",
+      "iam:DeleteUser",
+      "iam:UpdateUser",
+      "iam:TagUser",
+      "iam:UntagUser",
+      "iam:ListUserTags",
+      "iam:GetUserPolicy",
+      "iam:PutUserPolicy",
+      "iam:DeleteUserPolicy",
+      "iam:ListUserPolicies",
+      "iam:AttachUserPolicy",
+      "iam:DetachUserPolicy",
+      "iam:ListAttachedUserPolicies",
+      "iam:CreateAccessKey",
+      "iam:DeleteAccessKey",
+      "iam:UpdateAccessKey",
+      "iam:ListAccessKeys",
+      "iam:GetAccessKeyLastUsed",
+    ]
+    resources = [
+      "arn:aws:iam::*:user/${var.app_name}-*",
+    ]
+  }
+
+  # Read-only on the full IAM policy catalog so terraform can resolve managed
+  # policy ARNs (PowerUserAccess, AmazonECSTaskExecutionRolePolicy, etc).
+  statement {
+    sid = "IAMReadPolicies"
+    actions = [
+      "iam:ListPolicies",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_user_policy" "cicd_iam" {
+  name   = "${var.app_name}-cicd-iam-policy"
+  user   = aws_iam_user.cicd.name
+  policy = data.aws_iam_policy_document.cicd_iam.json
+}
+
+# -----------------------------------------------------------------------------
 # Outputs — use these to set GitHub Actions secrets
 # -----------------------------------------------------------------------------
 
