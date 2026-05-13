@@ -26,6 +26,7 @@ from backend.routers import (
     roles,
     schedules,
     shift_templates,
+    webhooks,
 )
 
 
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(invites.router, prefix=api_prefix)
     app.include_router(gdpr.router, prefix=api_prefix)
     app.include_router(billing.router, prefix=api_prefix)
+    app.include_router(webhooks.router, prefix=api_prefix)
 
     # ── Daily background task: storage snapshots ──
     async def _daily_storage_snapshot_loop() -> None:

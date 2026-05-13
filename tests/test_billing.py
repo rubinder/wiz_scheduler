@@ -1038,3 +1038,159 @@ async def test_bill_monthly_overages_all_skips_unsubscribed(
     result = await bill_monthly_overages_all(db_session)
     assert result["total_ogs"] == 0
     assert result["results"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tasks 5–8: Stripe webhook router
+# ---------------------------------------------------------------------------
+
+
+async def test_webhook_rejects_unsigned_request(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{"type":"invoice.upcoming"}',
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert "signature" in response.json()["detail"].lower()
+
+
+async def test_webhook_503_when_secret_unset(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "")
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 503
+
+
+async def test_webhook_rejects_bad_signature(client: AsyncClient, monkeypatch):
+    import stripe
+    def boom(payload, sig_header, secret):
+        raise stripe.SignatureVerificationError("bad sig", sig_header)
+    monkeypatch.setattr(stripe.Webhook, "construct_event", boom)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{"type":"invoice.upcoming"}',
+        headers={"stripe-signature": "t=1,v1=bogus", "content-type": "application/json"},
+    )
+    assert response.status_code == 400
+
+
+async def test_webhook_accepts_unhandled_event(client: AsyncClient, monkeypatch):
+    """Events we don't handle return 200 (Stripe expects 2xx for "received")."""
+    import stripe
+    fake_event = {"type": "customer.created", "data": {"object": {}}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+
+async def test_webhook_invoice_upcoming_triggers_recompute(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """invoice.upcoming for an OG's customer fires bill_monthly_overages_for_og."""
+    import stripe
+    calls = []
+    async def fake_runner(db, og, period=None):
+        calls.append({"og_id": og.id, "period": period})
+        return {"og_id": og.id}
+    monkeypatch.setattr(
+        "backend.routers.webhooks.bill_monthly_overages_for_og", fake_runner
+    )
+
+    fake_event = {
+        "type": "invoice.upcoming",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["og_id"] == OG_ID
+
+
+async def test_webhook_invoice_upcoming_unknown_customer_acks(
+    client: AsyncClient, monkeypatch
+):
+    """invoice.upcoming for a customer we don't know returns 200 (acked, no work)."""
+    import stripe
+    fake_event = {
+        "type": "invoice.upcoming",
+        "data": {"object": {"customer": "cus_unknown_xyz"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+
+async def test_webhook_invoice_payment_failed_sets_autoreload_failed_at(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    fake_event = {
+        "type": "invoice.payment_failed",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    assert og_with_card.autoreload_failed_at is None
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+
+
+async def test_webhook_payment_method_attached_refreshes_cached_pm(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    import stripe
+
+    fake_event = {
+        "type": "payment_method.attached",
+        "data": {"object": {"id": "pm_new_card", "customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    fake_sub = MagicMock(default_payment_method="pm_new_card")
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.default_payment_method_id == "pm_new_card"
