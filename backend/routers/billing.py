@@ -79,9 +79,24 @@ async def get_usage(
             "schedules": {"count": 0, "free_tier": settings.SCHEDULE_FREE_TIER, "billable": 0,
                           "block_size": settings.SCHEDULE_BLOCK_SIZE, "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK, "charged_usd": 0},
             "total_monthly_charge_usd": settings.BASE_MONTHLY_USD,
+            "pending_invoice_items": [],
         }
 
-    return await get_full_billing_summary(db, og_id)
+    summary = await get_full_billing_summary(db, og_id)
+    rows = (await db.execute(
+        select(BillingCharge)
+        .where(
+            BillingCharge.ownership_group_id == og_id,
+            BillingCharge.kind.in_(("invoice_item_storage", "invoice_item_employees")),
+            BillingCharge.status == "pending",
+        )
+        .order_by(BillingCharge.created_at.desc())
+    )).scalars()
+    summary["pending_invoice_items"] = [
+        {"kind": r.kind, "amount_usd": float(r.amount_usd), "period": r.period}
+        for r in rows
+    ]
+    return summary
 
 
 @router.post("/storage-snapshots")

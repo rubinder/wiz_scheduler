@@ -27,6 +27,51 @@ export interface AutoReloadStatus {
   failed_at: string | null;
 }
 
+export interface PendingInvoiceItem {
+  kind: "invoice_item_storage" | "invoice_item_employees";
+  amount_usd: number;
+  period: string;
+}
+
+export interface BillingUsage {
+  base: { monthly_usd: number };
+  llm: {
+    input_tokens: number;
+    output_tokens: number;
+    raw_cost_usd: number;
+    charged_usd: number;
+    free_tier_usd: number;
+    free_remaining_usd: number;
+    is_over_free_tier: boolean;
+    overage_markup: number;
+  };
+  storage: {
+    used_gb: number;
+    free_gb: number;
+    billable_gb: number;
+    cost_per_gb: number;
+    charged_usd: number;
+  };
+  employees: {
+    count: number;
+    free_tier: number;
+    billable: number;
+    block_size: number;
+    cost_per_block: number;
+    charged_usd: number;
+  };
+  schedules: {
+    count: number;
+    free_tier: number;
+    billable: number;
+    block_size: number;
+    cost_per_block: number;
+    charged_usd: number;
+  };
+  total_monthly_charge_usd: number;
+  pending_invoice_items: PendingInvoiceItem[];
+}
+
 export interface BillingChargeRow {
   id: string;
   kind: "autoreload" | "invoice_item_storage" | "invoice_item_employees";
@@ -71,4 +116,8 @@ export function getBillingCharges(limit = 50): Promise<{ charges: BillingChargeR
 
 export function getPortalLink(): Promise<{ url: string }> {
   return apiFetch<{ url: string }>("/billing/portal-link");
+}
+
+export function getUsage(): Promise<BillingUsage> {
+  return apiFetch<BillingUsage>("/billing/usage");
 }

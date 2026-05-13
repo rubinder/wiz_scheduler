@@ -346,6 +346,47 @@ def calculate_employee_charge(employee_count: int) -> float:
     return round(blocks * settings.EMPLOYEE_COST_PER_BLOCK, 4)
 
 
+async def compute_monthly_overage(
+    db: AsyncSession,
+    og_id: str,
+    kind: str,
+    period: str,
+) -> float:
+    """Compute the dollar overage charge for a given kind+period.
+
+    `kind` must be 'invoice_item_storage' or 'invoice_item_employees'.
+    `period` is 'YYYY-MM'. Storage uses the most recent snapshot within
+    that calendar month; employees uses the current point-in-time count
+    (employee billing is anniversary-period based, not historical).
+    """
+    from datetime import date
+
+    if kind == "invoice_item_storage":
+        year, month = int(period[:4]), int(period[5:7])
+        next_month = 1 if month == 12 else month + 1
+        next_year = year + 1 if month == 12 else year
+        result = await db.execute(
+            select(StorageSnapshot)
+            .where(
+                StorageSnapshot.ownership_group_id == og_id,
+                StorageSnapshot.snapshot_date >= date(year, month, 1),
+                StorageSnapshot.snapshot_date < date(next_year, next_month, 1),
+            )
+            .order_by(StorageSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+        snap = result.scalar_one_or_none()
+        if not snap:
+            return 0.0
+        return calculate_storage_charge(float(snap.storage_gb))
+
+    if kind == "invoice_item_employees":
+        count = await count_employees_for_group(db, og_id)
+        return calculate_employee_charge(count)
+
+    raise ValueError(f"Unknown overage kind: {kind!r}")
+
+
 # ---------------------------------------------------------------------------
 # Schedule generation billing
 # ---------------------------------------------------------------------------
@@ -744,3 +785,133 @@ async def auto_reload_if_needed(
         status="succeeded",
     ))
     await db.flush()
+
+
+# ---------------------------------------------------------------------------
+# Monthly InvoiceItem reconciliation (PR 2)
+# ---------------------------------------------------------------------------
+
+
+async def bill_monthly_overages_for_og(
+    db: AsyncSession,
+    og: OwnershipGroup,
+    period: str | None = None,
+) -> dict:
+    """Reconcile storage + employee overage InvoiceItems for one OG.
+
+    For each kind in ('invoice_item_storage', 'invoice_item_employees'):
+        - Compute the current charge from live usage data.
+        - Look up the existing pending BillingCharge for (og, period, kind).
+        - Create, update (delete + recreate), or delete the Stripe InvoiceItem
+          and matching BillingCharge row so the final state matches the
+          computed amount.
+
+    Subscriptions not in {active, trialing} are skipped — Stripe will not
+    bill anyway, and we don't want to dirty the audit log.
+
+    `period` defaults to the calendar month of the subscription's current
+    period_start (i.e. the period the upcoming invoice covers).
+    """
+    import stripe
+    from backend.config import settings
+    from backend.models.billing_charge import BillingCharge
+
+    if not og.stripe_subscription_id or not og.stripe_customer_id:
+        return {"og_id": og.id, "skipped": "no_subscription"}
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        sub = stripe.Subscription.retrieve(og.stripe_subscription_id)
+    except stripe.StripeError as e:
+        return {"og_id": og.id, "error": str(e)}
+
+    if sub.status not in ("active", "trialing"):
+        return {"og_id": og.id, "skipped": f"subscription_status={sub.status}"}
+
+    if period is None:
+        from datetime import datetime as _dt, timezone as _tz
+        start = _dt.fromtimestamp(int(sub.current_period_start), _tz.utc)
+        period = f"{start.year:04d}-{start.month:02d}"
+
+    summary: dict = {"og_id": og.id, "period": period, "actions": []}
+
+    for kind in ("invoice_item_storage", "invoice_item_employees"):
+        new_charge = await compute_monthly_overage(db, og.id, kind, period)
+        new_amount_cents = int(round(new_charge * 100))
+
+        existing = (await db.execute(
+            select(BillingCharge).where(
+                BillingCharge.ownership_group_id == og.id,
+                BillingCharge.kind == kind,
+                BillingCharge.period == period,
+                BillingCharge.status == "pending",
+            )
+        )).scalar_one_or_none()
+
+        if existing and int(round(float(existing.amount_usd) * 100)) == new_amount_cents and new_amount_cents > 0:
+            summary["actions"].append({"kind": kind, "action": "noop"})
+            continue
+
+        if existing:
+            try:
+                stripe.InvoiceItem.delete(existing.stripe_object_id)
+            except stripe.StripeError:
+                pass  # invoice item already finalized or gone; proceed
+            await db.delete(existing)
+            await db.flush()
+
+        if new_amount_cents == 0:
+            summary["actions"].append({"kind": kind, "action": "deleted" if existing else "skip_zero"})
+            continue
+
+        item = stripe.InvoiceItem.create(
+            customer=og.stripe_customer_id,
+            subscription=og.stripe_subscription_id,
+            amount=new_amount_cents,
+            currency="usd",
+            description=f"{kind.replace('invoice_item_', '').title()} overage — {period}",
+            metadata={"og_id": og.id, "period": period, "kind": kind},
+        )
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind=kind,
+            amount_usd=new_charge,
+            stripe_object_id=item.id,
+            period=period,
+            status="pending",
+        ))
+        await db.flush()
+        summary["actions"].append({
+            "kind": kind,
+            "action": "created" if not existing else "updated",
+            "amount_usd": new_charge,
+        })
+
+    await db.commit()
+    return summary
+
+
+async def bill_monthly_overages_all(db: AsyncSession) -> dict:
+    """Run bill_monthly_overages_for_og across every OG with a Stripe subscription.
+
+    Designed to be invoked weekly by a background loop and on-demand by the
+    `invoice.upcoming` Stripe webhook handler (defense in depth).
+    """
+    import logging
+    log = logging.getLogger("wizscheduler.monthly_billing")
+
+    result = await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.stripe_subscription_id.is_not(None))
+    )
+    ogs = list(result.scalars())
+
+    results: list[dict] = []
+    for og in ogs:
+        try:
+            summary = await bill_monthly_overages_for_og(db, og)
+            results.append(summary)
+        except Exception as e:  # noqa: BLE001
+            log.error("monthly billing failed for og=%s: %s", og.id, e)
+            results.append({"og_id": og.id, "error": str(e)})
+
+    return {"total_ogs": len(ogs), "results": results}

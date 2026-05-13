@@ -92,3 +92,20 @@ resource "aws_secretsmanager_secret_version" "stripe_secret_key" {
     ignore_changes = [secret_string]
   }
 }
+
+resource "aws_secretsmanager_secret" "stripe_webhook_secret" {
+  name                    = "${var.app_name}/${var.environment}/STRIPE_WEBHOOK_SECRET"
+  description             = "Stripe webhook signing secret (whsec_...)"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-stripe-webhook-secret" }
+}
+
+resource "aws_secretsmanager_secret_version" "stripe_webhook_secret" {
+  secret_id     = aws_secretsmanager_secret.stripe_webhook_secret.id
+  secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}

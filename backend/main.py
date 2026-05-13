@@ -26,6 +26,7 @@ from backend.routers import (
     roles,
     schedules,
     shift_templates,
+    webhooks,
 )
 
 
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(invites.router, prefix=api_prefix)
     app.include_router(gdpr.router, prefix=api_prefix)
     app.include_router(billing.router, prefix=api_prefix)
+    app.include_router(webhooks.router, prefix=api_prefix)
 
     # ── Daily background task: storage snapshots ──
     async def _daily_storage_snapshot_loop() -> None:
@@ -133,11 +135,40 @@ def create_app() -> FastAPI:
             # Sleep 24 hours
             await asyncio.sleep(24 * 60 * 60)
 
+    # ── Weekly background task: monthly InvoiceItem reconciliation ──
+    async def _weekly_monthly_billing_loop() -> None:
+        """Reconcile monthly InvoiceItems for storage + employee overages.
+
+        Runs every 7 days. Idempotent — re-runs in the same period either
+        no-op or update the InvoiceItem amount to match latest usage.
+        """
+        import asyncio
+        import logging
+
+        from backend.database import async_session_factory
+        from backend.services.billing import bill_monthly_overages_all
+
+        log = logging.getLogger("wizscheduler.monthly_billing")
+
+        # Wait 60 seconds after startup, then 7 days between runs.
+        await asyncio.sleep(60)
+
+        while True:
+            try:
+                async with async_session_factory() as db:
+                    summary = await bill_monthly_overages_all(db)
+                log.info("Weekly monthly billing run: %s", summary)
+            except Exception as e:
+                log.error("Weekly monthly billing failed: %s", e)
+
+            await asyncio.sleep(7 * 24 * 60 * 60)
+
     @app.on_event("startup")
     async def _start_background_tasks() -> None:
         import asyncio
         from backend.services.monitoring import run_self_check_loop
         asyncio.create_task(_daily_storage_snapshot_loop())
+        asyncio.create_task(_weekly_monthly_billing_loop())
         asyncio.create_task(run_self_check_loop())
 
     # Load-test profile: bypass JWT signature verification.

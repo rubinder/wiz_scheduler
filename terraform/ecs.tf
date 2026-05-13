@@ -77,6 +77,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.anthropic_api_key.arn,
       aws_secretsmanager_secret.resend_api_key.arn,
       aws_secretsmanager_secret.stripe_secret_key.arn,
+      aws_secretsmanager_secret.stripe_webhook_secret.arn,
     ]
   }
 }
@@ -145,6 +146,10 @@ resource "aws_ecs_task_definition" "app" {
         {
           name      = "STRIPE_SECRET_KEY"
           valueFrom = aws_secretsmanager_secret.stripe_secret_key.arn
+        },
+        {
+          name      = "STRIPE_WEBHOOK_SECRET"
+          valueFrom = aws_secretsmanager_secret.stripe_webhook_secret.arn
         },
       ]
 

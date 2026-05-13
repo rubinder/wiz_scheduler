@@ -682,3 +682,576 @@ async def test_get_portal_link_400_without_stripe_customer(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Task 1: compute_monthly_overage
+# ---------------------------------------------------------------------------
+
+from datetime import date
+
+
+async def test_compute_monthly_overage_storage_zero(db_session: AsyncSession, seed_og):
+    """No storage snapshot for the period → returns 0."""
+    from backend.services.billing import compute_monthly_overage
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_storage_within_free_tier(db_session: AsyncSession, seed_og):
+    """Storage snapshot under 0.5 GB → returns 0."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=0.3,
+        charged_usd=0.0,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_storage_over_free_tier(db_session: AsyncSession, seed_og):
+    """Storage snapshot of 1.5 GB → $0.50 (1.0 GB billable × $0.50)."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.5
+
+
+async def test_compute_monthly_overage_storage_picks_latest_in_period(db_session: AsyncSession, seed_og):
+    """When multiple snapshots exist in period, use the most recent."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 1),
+        measured_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        storage_gb=0.6,
+        charged_usd=0.05,
+    ))
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 28),
+        measured_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
+        storage_gb=2.5,
+        charged_usd=1.0,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    # 2.5 GB measured, 0.5 GB free → 2.0 billable GB × $0.50 = $1.00
+    assert charge == 1.0
+
+
+async def test_compute_monthly_overage_employees_zero(db_session: AsyncSession, seed_og):
+    """No employees → returns 0."""
+    from backend.services.billing import compute_monthly_overage
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_employees", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_employees_over_free_tier(db_session: AsyncSession, seed_og):
+    """1500 employees → 1 block × $1.00 (500 over free tier of 1000)."""
+    from backend.services.billing import compute_monthly_overage
+    for _ in range(1500):
+        db_session.add(Employee(id=_id(), company_id=COMPANY_ID, full_name="X"))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_employees", "2026-05")
+    assert charge == 1.0
+
+
+async def test_compute_monthly_overage_unknown_kind_raises(db_session: AsyncSession, seed_og):
+    """Unknown kind raises ValueError."""
+    from backend.services.billing import compute_monthly_overage
+    with pytest.raises(ValueError):
+        await compute_monthly_overage(db_session, OG_ID, "invoice_item_nonsense", "2026-05")
+
+
+# ---------------------------------------------------------------------------
+# Task 2: bill_monthly_overages_for_og
+# ---------------------------------------------------------------------------
+
+
+async def test_bill_monthly_overages_creates_invoice_item_when_charge_positive(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When overage > 0 and no existing BillingCharge exists, create Stripe
+    InvoiceItem + audit row."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+    from backend.models import StorageSnapshot
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+
+    fake_sub = MagicMock(
+        status="active",
+        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    created = []
+    def fake_create(**kwargs):
+        created.append(kwargs)
+        return MagicMock(id=f"ii_{len(created)}")
+    monkeypatch.setattr(stripe.InvoiceItem, "create", fake_create)
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    assert len(created) == 1
+    storage_ii = created[0]
+    assert storage_ii["customer"] == "cus_test_abc"
+    assert storage_ii["amount"] == 50
+    assert storage_ii["metadata"]["kind"] == "invoice_item_storage"
+    assert storage_ii["metadata"]["period"] == "2026-05"
+
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+    )).scalars())
+    assert len(rows) == 1
+    assert rows[0].kind == "invoice_item_storage"
+    assert rows[0].period == "2026-05"
+    assert rows[0].status == "pending"
+    assert rows[0].stripe_object_id == "ii_1"
+
+
+async def test_bill_monthly_overages_idempotent_same_amount(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Re-running with same usage and same period should not create a duplicate."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+    from backend.models import StorageSnapshot
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+
+    fake_sub = MagicMock(
+        status="active",
+        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    create_calls = []
+    monkeypatch.setattr(stripe.InvoiceItem, "create",
+                        lambda **kw: (create_calls.append(kw), MagicMock(id=f"ii_{len(create_calls)}"))[1])
+    monkeypatch.setattr(stripe.InvoiceItem, "delete", lambda iid: MagicMock())
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    assert len(create_calls) == 1
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+    )).scalars())
+    assert len(rows) == 1
+
+
+async def test_bill_monthly_overages_updates_when_amount_changes(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When the recomputed amount differs from the existing pending charge,
+    delete the old InvoiceItem and create a new one."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+    from backend.models import StorageSnapshot
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+
+    fake_sub = MagicMock(
+        status="active",
+        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    create_calls = []
+    delete_calls = []
+    monkeypatch.setattr(stripe.InvoiceItem, "create",
+                        lambda **kw: (create_calls.append(kw), MagicMock(id=f"ii_{len(create_calls)}"))[1])
+    monkeypatch.setattr(stripe.InvoiceItem, "delete",
+                        lambda iid: (delete_calls.append(iid), MagicMock())[1])
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 28),
+        measured_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
+        storage_gb=3.0,
+        charged_usd=1.25,
+    ))
+    await db_session.commit()
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    assert len(create_calls) == 2
+    assert delete_calls == ["ii_1"]
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+                                 .order_by(BillingCharge.created_at)
+    )).scalars())
+    assert len(rows) == 1
+    assert rows[0].stripe_object_id == "ii_2"
+    assert float(rows[0].amount_usd) == 1.25
+
+
+async def test_bill_monthly_overages_deletes_when_charge_drops_to_zero(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When recomputed amount is zero, the existing pending InvoiceItem is deleted."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+    from backend.models import StorageSnapshot
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+
+    fake_sub = MagicMock(
+        status="active",
+        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    monkeypatch.setattr(stripe.InvoiceItem, "create",
+                        lambda **kw: MagicMock(id="ii_first"))
+    delete_calls = []
+    monkeypatch.setattr(stripe.InvoiceItem, "delete",
+                        lambda iid: (delete_calls.append(iid), MagicMock())[1])
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 28),
+        measured_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
+        storage_gb=0.2,
+        charged_usd=0.0,
+    ))
+    await db_session.commit()
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    assert delete_calls == ["ii_first"]
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+    )).scalars())
+    assert rows == []
+
+
+async def test_bill_monthly_overages_skips_inactive_subscription(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When the subscription isn't active or trialing, do nothing."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+    from backend.models import StorageSnapshot
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+
+    fake_sub = MagicMock(status="past_due", current_period_start=0)
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    create_calls = []
+    monkeypatch.setattr(stripe.InvoiceItem, "create",
+                        lambda **kw: (create_calls.append(kw), MagicMock())[1])
+
+    await bill_monthly_overages_for_og(db_session, og_with_card, period="2026-05")
+
+    assert create_calls == []
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+    )).scalars())
+    assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# Task 3: bill_monthly_overages_all
+# ---------------------------------------------------------------------------
+
+
+async def test_bill_monthly_overages_all_iterates_subscribed_ogs(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """bill_monthly_overages_all walks every OG with a subscription and
+    invokes the per-OG runner."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_all
+
+    fake_sub = MagicMock(
+        status="active",
+        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    monkeypatch.setattr(stripe.InvoiceItem, "create", lambda **kw: MagicMock(id="ii_x"))
+
+    result = await bill_monthly_overages_all(db_session)
+    assert result["total_ogs"] == 1
+    assert any(r["og_id"] == OG_ID for r in result["results"])
+
+
+async def test_bill_monthly_overages_all_skips_unsubscribed(
+    db_session: AsyncSession, seed_og
+):
+    """OGs without a subscription are not in the result list."""
+    from backend.services.billing import bill_monthly_overages_all
+    result = await bill_monthly_overages_all(db_session)
+    assert result["total_ogs"] == 0
+    assert result["results"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tasks 5–8: Stripe webhook router
+# ---------------------------------------------------------------------------
+
+
+async def test_webhook_rejects_unsigned_request(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{"type":"invoice.upcoming"}',
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert "signature" in response.json()["detail"].lower()
+
+
+async def test_webhook_503_when_secret_unset(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "")
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 503
+
+
+async def test_webhook_rejects_bad_signature(client: AsyncClient, monkeypatch):
+    import stripe
+    def boom(payload, sig_header, secret):
+        raise stripe.SignatureVerificationError("bad sig", sig_header)
+    monkeypatch.setattr(stripe.Webhook, "construct_event", boom)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{"type":"invoice.upcoming"}',
+        headers={"stripe-signature": "t=1,v1=bogus", "content-type": "application/json"},
+    )
+    assert response.status_code == 400
+
+
+async def test_webhook_accepts_unhandled_event(client: AsyncClient, monkeypatch):
+    """Events we don't handle return 200 (Stripe expects 2xx for "received")."""
+    import stripe
+    fake_event = {"type": "customer.created", "data": {"object": {}}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+
+async def test_webhook_invoice_upcoming_triggers_recompute(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """invoice.upcoming for an OG's customer fires bill_monthly_overages_for_og."""
+    import stripe
+    calls = []
+    async def fake_runner(db, og, period=None):
+        calls.append({"og_id": og.id, "period": period})
+        return {"og_id": og.id}
+    monkeypatch.setattr(
+        "backend.routers.webhooks.bill_monthly_overages_for_og", fake_runner
+    )
+
+    fake_event = {
+        "type": "invoice.upcoming",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["og_id"] == OG_ID
+
+
+async def test_webhook_invoice_upcoming_unknown_customer_acks(
+    client: AsyncClient, monkeypatch
+):
+    """invoice.upcoming for a customer we don't know returns 200 (acked, no work)."""
+    import stripe
+    fake_event = {
+        "type": "invoice.upcoming",
+        "data": {"object": {"customer": "cus_unknown_xyz"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+
+async def test_webhook_invoice_payment_failed_sets_autoreload_failed_at(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    fake_event = {
+        "type": "invoice.payment_failed",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    assert og_with_card.autoreload_failed_at is None
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+
+
+async def test_webhook_payment_method_attached_refreshes_cached_pm(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    import stripe
+
+    fake_event = {
+        "type": "payment_method.attached",
+        "data": {"object": {"id": "pm_new_card", "customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    fake_sub = MagicMock(default_payment_method="pm_new_card")
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b'{}',
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.default_payment_method_id == "pm_new_card"
+
+
+# ---------------------------------------------------------------------------
+# Task 9: /billing/usage augmented with pending_invoice_items
+# ---------------------------------------------------------------------------
+
+
+async def test_get_usage_includes_pending_invoice_items(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """GET /billing/usage returns pending_invoice_items derived from BillingCharge."""
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_storage",
+        amount_usd=0.5,
+        stripe_object_id="ii_1",
+        period="2026-05",
+        status="pending",
+    ))
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_employees",
+        amount_usd=1.0,
+        stripe_object_id="ii_2",
+        period="2026-05",
+        status="pending",
+    ))
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="autoreload",
+        amount_usd=10.0,
+        stripe_object_id="pi_1",
+        period=None,
+        status="succeeded",
+    ))
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    items = body.get("pending_invoice_items", [])
+    kinds = sorted(it["kind"] for it in items)
+    assert kinds == ["invoice_item_employees", "invoice_item_storage"]
+    storage = next(it for it in items if it["kind"] == "invoice_item_storage")
+    assert storage["amount_usd"] == 0.5
+    assert storage["period"] == "2026-05"
+
+
+async def test_get_usage_no_og_returns_empty_pending(
+    client: AsyncClient, manager_token, seed_company
+):
+    """No OG → pending_invoice_items is an empty list."""
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json().get("pending_invoice_items") == []

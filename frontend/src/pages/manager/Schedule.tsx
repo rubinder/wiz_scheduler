@@ -4,7 +4,7 @@ import * as shiftTemplatesApi from "../../api/shiftTemplates";
 import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
 import * as billingApi from "../../api/billing";
-import type { AiCreditStatus, AutoReloadStatus, ScheduleQuota } from "../../api/billing";
+import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } from "../../api/billing";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
@@ -375,6 +375,7 @@ export default function Schedule() {
     amount_usd: number;
   }>({ enabled: true, threshold_usd: 2, amount_usd: 10 });
   const [autoReloadSaving, setAutoReloadSaving] = useState(false);
+  const [billingUsage, setBillingUsage] = useState<BillingUsage | null>(null);
   const [approvedLocations, setApprovedLocations] = useState<Set<string>>(
     new Set()
   );
@@ -440,6 +441,11 @@ export default function Schedule() {
         amount_usd: s.amount_usd,
       });
     }).catch(() => {});
+  }, []);
+
+  // Load billing usage (for the Pending Monthly Charges panel)
+  useEffect(() => {
+    billingApi.getUsage().then(setBillingUsage).catch(() => {});
   }, []);
 
   const handleSaveAutoReload = async () => {
@@ -751,6 +757,32 @@ export default function Schedule() {
               {t.schedule.updateCard}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Pending Monthly Charges */}
+      {billingUsage && (
+        <div className="mb-4 p-4 rounded-lg border border-sage/20 bg-sage/[0.05]">
+          <h3 className={`text-sm font-semibold mb-2 ${text.heading}`}>
+            {t.schedule.pendingChargesTitle}
+          </h3>
+          {billingUsage.pending_invoice_items.length === 0 ? (
+            <p className={`text-xs ${text.muted}`}>{t.schedule.pendingChargesEmpty}</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {billingUsage.pending_invoice_items.map((it) => (
+                <li key={`${it.kind}-${it.period}`} className="flex justify-between">
+                  <span>
+                    {it.kind === "invoice_item_storage"
+                      ? t.schedule.pendingChargeStorage
+                      : t.schedule.pendingChargeEmployees}{" "}
+                    <span className={text.muted}>({it.period})</span>
+                  </span>
+                  <span className="font-medium">${it.amount_usd.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
