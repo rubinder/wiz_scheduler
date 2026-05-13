@@ -682,3 +682,97 @@ async def test_get_portal_link_400_without_stripe_customer(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Task 1: compute_monthly_overage
+# ---------------------------------------------------------------------------
+
+from datetime import date
+
+
+async def test_compute_monthly_overage_storage_zero(db_session: AsyncSession, seed_og):
+    """No storage snapshot for the period → returns 0."""
+    from backend.services.billing import compute_monthly_overage
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_storage_within_free_tier(db_session: AsyncSession, seed_og):
+    """Storage snapshot under 0.5 GB → returns 0."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=0.3,
+        charged_usd=0.0,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_storage_over_free_tier(db_session: AsyncSession, seed_og):
+    """Storage snapshot of 1.5 GB → $0.50 (1.0 GB billable × $0.50)."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 15),
+        measured_at=datetime(2026, 5, 15, tzinfo=timezone.utc),
+        storage_gb=1.5,
+        charged_usd=0.5,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    assert charge == 0.5
+
+
+async def test_compute_monthly_overage_storage_picks_latest_in_period(db_session: AsyncSession, seed_og):
+    """When multiple snapshots exist in period, use the most recent."""
+    from backend.models import StorageSnapshot
+    from backend.services.billing import compute_monthly_overage
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 1),
+        measured_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        storage_gb=0.6,
+        charged_usd=0.05,
+    ))
+    db_session.add(StorageSnapshot(
+        ownership_group_id=OG_ID,
+        snapshot_date=date(2026, 5, 28),
+        measured_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
+        storage_gb=2.5,
+        charged_usd=1.0,
+    ))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_storage", "2026-05")
+    # 2.5 GB measured, 0.5 GB free → 2.0 billable GB × $0.50 = $1.00
+    assert charge == 1.0
+
+
+async def test_compute_monthly_overage_employees_zero(db_session: AsyncSession, seed_og):
+    """No employees → returns 0."""
+    from backend.services.billing import compute_monthly_overage
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_employees", "2026-05")
+    assert charge == 0.0
+
+
+async def test_compute_monthly_overage_employees_over_free_tier(db_session: AsyncSession, seed_og):
+    """1500 employees → 1 block × $1.00 (500 over free tier of 1000)."""
+    from backend.services.billing import compute_monthly_overage
+    for _ in range(1500):
+        db_session.add(Employee(id=_id(), company_id=COMPANY_ID, full_name="X"))
+    await db_session.commit()
+    charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_employees", "2026-05")
+    assert charge == 1.0
+
+
+async def test_compute_monthly_overage_unknown_kind_raises(db_session: AsyncSession, seed_og):
+    """Unknown kind raises ValueError."""
+    from backend.services.billing import compute_monthly_overage
+    with pytest.raises(ValueError):
+        await compute_monthly_overage(db_session, OG_ID, "invoice_item_nonsense", "2026-05")

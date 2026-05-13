@@ -346,6 +346,47 @@ def calculate_employee_charge(employee_count: int) -> float:
     return round(blocks * settings.EMPLOYEE_COST_PER_BLOCK, 4)
 
 
+async def compute_monthly_overage(
+    db: AsyncSession,
+    og_id: str,
+    kind: str,
+    period: str,
+) -> float:
+    """Compute the dollar overage charge for a given kind+period.
+
+    `kind` must be 'invoice_item_storage' or 'invoice_item_employees'.
+    `period` is 'YYYY-MM'. Storage uses the most recent snapshot within
+    that calendar month; employees uses the current point-in-time count
+    (employee billing is anniversary-period based, not historical).
+    """
+    from datetime import date
+
+    if kind == "invoice_item_storage":
+        year, month = int(period[:4]), int(period[5:7])
+        next_month = 1 if month == 12 else month + 1
+        next_year = year + 1 if month == 12 else year
+        result = await db.execute(
+            select(StorageSnapshot)
+            .where(
+                StorageSnapshot.ownership_group_id == og_id,
+                StorageSnapshot.snapshot_date >= date(year, month, 1),
+                StorageSnapshot.snapshot_date < date(next_year, next_month, 1),
+            )
+            .order_by(StorageSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+        snap = result.scalar_one_or_none()
+        if not snap:
+            return 0.0
+        return calculate_storage_charge(float(snap.storage_gb))
+
+    if kind == "invoice_item_employees":
+        count = await count_employees_for_group(db, og_id)
+        return calculate_employee_charge(count)
+
+    raise ValueError(f"Unknown overage kind: {kind!r}")
+
+
 # ---------------------------------------------------------------------------
 # Schedule generation billing
 # ---------------------------------------------------------------------------
