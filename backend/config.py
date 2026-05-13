@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     STRIPE_PRICE_ID: str = ""  # Price ID for the base subscription
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/register?session_id={CHECKOUT_SESSION_ID}"
     STRIPE_CANCEL_URL: str = "http://localhost:5173/register"
+    STRIPE_BILLING_PORTAL_RETURN_URL: str = "http://localhost:5173/manager/schedule"
 
     # LLM billing
     LLM_FREE_TIER_USD: float = 2.00          # free credits per ownership group per month

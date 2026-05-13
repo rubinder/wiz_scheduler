@@ -1,12 +1,22 @@
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
 from backend.models import User
-from backend.services.billing import get_full_billing_summary, get_ownership_group_id, record_storage_snapshots
+from backend.models.billing_charge import BillingCharge
+from backend.models.ownership_group import OwnershipGroup
+from backend.services.billing import (
+    AutoReloadBlocked,
+    AutoReloadError,
+    auto_reload_if_needed,
+    get_full_billing_summary,
+    get_ownership_group_id,
+    record_storage_snapshots,
+)
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -184,3 +194,167 @@ async def trigger_storage_snapshots(
     Also runs automatically once per day via a background task.
     """
     return await record_storage_snapshots(db)
+
+
+# ---------------------------------------------------------------------------
+# Auto-reload endpoints (Tasks 9–12)
+# ---------------------------------------------------------------------------
+
+
+class AutoReloadStatus(BaseModel):
+    enabled: bool
+    threshold_usd: float
+    amount_usd: float
+    current_balance_usd: float
+    failed_at: str | None
+
+
+class AutoReloadUpdate(BaseModel):
+    enabled: bool | None = None
+    threshold_usd: float | None = Field(default=None, ge=0.5)
+    amount_usd: float | None = Field(default=None, ge=0.5)
+
+
+class BillingChargeRow(BaseModel):
+    id: str
+    kind: str
+    amount_usd: float
+    stripe_object_id: str | None
+    period: str | None
+    status: str
+    error_message: str | None
+    created_at: str
+
+
+class BillingChargesResponse(BaseModel):
+    charges: list[BillingChargeRow]
+
+
+class PortalLinkResponse(BaseModel):
+    url: str
+
+
+async def _load_og(db: AsyncSession, current_user: User) -> OwnershipGroup:
+    og_id = await get_ownership_group_id(db, str(current_user.company_id))
+    if not og_id:
+        raise HTTPException(status_code=404, detail="No ownership group found")
+    result = await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))
+    og = result.scalar_one_or_none()
+    if not og:
+        raise HTTPException(status_code=404, detail="Ownership group not found")
+    return og
+
+
+def _autoreload_status(og: OwnershipGroup) -> AutoReloadStatus:
+    return AutoReloadStatus(
+        enabled=og.autoreload_enabled,
+        threshold_usd=float(og.autoreload_threshold_usd),
+        amount_usd=float(og.autoreload_amount_usd),
+        current_balance_usd=float(og.ai_credits_usd),
+        failed_at=og.autoreload_failed_at.isoformat() if og.autoreload_failed_at else None,
+    )
+
+
+@router.get("/autoreload", response_model=AutoReloadStatus)
+async def get_autoreload(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> AutoReloadStatus:
+    og = await _load_og(db, current_user)
+    return _autoreload_status(og)
+
+
+@router.put("/autoreload", response_model=AutoReloadStatus)
+async def update_autoreload(
+    body: AutoReloadUpdate,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> AutoReloadStatus:
+    og = await _load_og(db, current_user)
+    if body.enabled is not None:
+        og.autoreload_enabled = body.enabled
+    if body.threshold_usd is not None:
+        og.autoreload_threshold_usd = body.threshold_usd
+    if body.amount_usd is not None:
+        og.autoreload_amount_usd = body.amount_usd
+    await db.commit()
+    return _autoreload_status(og)
+
+
+@router.post("/autoreload/retry", response_model=AutoReloadStatus)
+async def retry_autoreload(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> AutoReloadStatus:
+    og = await _load_og(db, current_user)
+    if og.autoreload_failed_at is None:
+        raise HTTPException(status_code=400, detail="Auto-reload is not in a failed state")
+
+    og.autoreload_failed_at = None
+    await db.flush()
+
+    try:
+        await auto_reload_if_needed(db, og, cost_usd=float(og.autoreload_threshold_usd))
+    except AutoReloadError as e:
+        await db.commit()
+        raise HTTPException(status_code=402, detail=f"Retry failed: {e}")
+    except AutoReloadBlocked:
+        raise HTTPException(status_code=409, detail="Billing on hold")
+
+    await db.commit()
+    return _autoreload_status(og)
+
+
+@router.get("/charges", response_model=BillingChargesResponse)
+async def get_billing_charges(
+    limit: int = 50,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> BillingChargesResponse:
+    og_id = await get_ownership_group_id(db, str(current_user.company_id))
+    if not og_id:
+        return BillingChargesResponse(charges=[])
+
+    result = await db.execute(
+        select(BillingCharge)
+        .where(BillingCharge.ownership_group_id == og_id)
+        .order_by(BillingCharge.created_at.desc())
+        .limit(min(limit, 200))
+    )
+    rows = list(result.scalars())
+    return BillingChargesResponse(charges=[
+        BillingChargeRow(
+            id=r.id,
+            kind=r.kind,
+            amount_usd=float(r.amount_usd),
+            stripe_object_id=r.stripe_object_id,
+            period=r.period,
+            status=r.status,
+            error_message=r.error_message,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ])
+
+
+@router.get("/portal-link", response_model=PortalLinkResponse)
+async def get_portal_link(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> PortalLinkResponse:
+    og = await _load_og(db, current_user)
+    if not og.stripe_customer_id:
+        raise HTTPException(status_code=400, detail="No Stripe customer associated with this account")
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=og.stripe_customer_id,
+            return_url=settings.STRIPE_BILLING_PORTAL_RETURN_URL,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return PortalLinkResponse(url=session.url)

@@ -39,14 +39,17 @@ OG_ID = _id()
 
 
 @pytest_asyncio.fixture
-async def seed_og(db_session: AsyncSession):
-    """Ownership group with a company linked to it."""
+async def seed_og(db_session: AsyncSession, seed_company: Company):
+    """Ownership group linked to the canonical test Company.
+
+    Depends on `seed_company` so we don't double-insert the Company row when
+    fixtures like `manager_token` (which also needs the Company) are requested.
+    """
     og = OwnershipGroup(id=OG_ID, name="Test Group", ai_credits_usd=0.0)
     db_session.add(og)
     await db_session.flush()
 
-    company = Company(id=COMPANY_ID, name="Test Corp", slug="test123", ownership_group_id=OG_ID)
-    db_session.add(company)
+    seed_company.ownership_group_id = OG_ID
     await db_session.commit()
     return og
 
@@ -550,3 +553,148 @@ async def test_check_schedule_quota_blocked_when_failed_at_set(
     status = await check_schedule_quota(db_session, str(COMPANY_ID))
     assert status["can_generate"] is False
     assert status.get("autoreload_failed") is True
+
+
+# ---------------------------------------------------------------------------
+# Router endpoint tests (Tasks 9-12)
+# ---------------------------------------------------------------------------
+
+from httpx import AsyncClient
+
+
+async def test_get_autoreload_returns_settings_and_balance(
+    client: AsyncClient, manager_token, og_with_card
+):
+    response = await client.get(
+        "/api/v1/billing/autoreload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["enabled"] is True
+    assert body["threshold_usd"] == 2.0
+    assert body["amount_usd"] == 10.0
+    assert "current_balance_usd" in body
+    assert body["failed_at"] is None
+
+
+async def test_put_autoreload_updates_settings(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    response = await client.put(
+        "/api/v1/billing/autoreload",
+        json={"enabled": True, "threshold_usd": 5.0, "amount_usd": 25.0},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["threshold_usd"] == 5.0
+    assert body["amount_usd"] == 25.0
+
+    await db_session.refresh(og_with_card)
+    assert float(og_with_card.autoreload_threshold_usd) == 5.0
+    assert float(og_with_card.autoreload_amount_usd) == 25.0
+
+
+async def test_put_autoreload_rejects_invalid_values(
+    client: AsyncClient, manager_token, og_with_card
+):
+    response = await client.put(
+        "/api/v1/billing/autoreload",
+        json={"amount_usd": 0.25},  # below Stripe's $0.50 minimum
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_post_autoreload_retry_succeeds(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    fake_intent = MagicMock(status="succeeded", id="pi_retry_ok")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: fake_intent)
+
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/billing/autoreload/retry",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["failed_at"] is None
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is None
+    assert og_with_card.ai_credits_usd > 0
+
+
+async def test_post_autoreload_retry_declined_keeps_failed_state(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    def boom(**kw):
+        raise stripe.CardError("declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/billing/autoreload/retry",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 402
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+
+
+async def test_get_billing_charges_returns_recent_rows(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    for i in range(3):
+        db_session.add(BillingCharge(
+            ownership_group_id=OG_ID,
+            kind="autoreload",
+            amount_usd=10.0,
+            stripe_object_id=f"pi_{i}",
+            status="succeeded",
+        ))
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/billing/charges?limit=10",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["charges"]) == 3
+    assert all(c["kind"] == "autoreload" for c in body["charges"])
+
+
+async def test_get_portal_link_returns_url(
+    client: AsyncClient, manager_token, og_with_card, monkeypatch
+):
+    import stripe
+    fake_session = MagicMock(url="https://billing.stripe.com/session_abc")
+    monkeypatch.setattr(stripe.billing_portal.Session, "create", lambda **kw: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.get(
+        "/api/v1/billing/portal-link",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["url"].startswith("https://billing.stripe.com/")
+
+
+async def test_get_portal_link_400_without_stripe_customer(
+    client: AsyncClient, manager_token, seed_og
+):
+    # seed_og (without _with_card) has no stripe_customer_id
+    response = await client.get(
+        "/api/v1/billing/portal-link",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
