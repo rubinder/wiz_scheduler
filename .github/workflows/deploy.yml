@@ -16,8 +16,13 @@ env:
 
 jobs:
   # Detect which subsystems changed so terraform jobs only run when needed.
+  # Needs `pull-requests: read` so dorny/paths-filter can call the PR-files
+  # API on pull_request events.
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       terraform: ${{ steps.filter.outputs.terraform }}
     steps:
