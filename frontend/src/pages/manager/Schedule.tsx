@@ -456,8 +456,24 @@ export default function Schedule() {
     }
   };
 
-  // handleRetryAutoReload and handleOpenPortal are added in Task 16
-  // alongside the failed-state banner that uses them.
+  const handleRetryAutoReload = async () => {
+    try {
+      const updated = await billingApi.retryAutoReload();
+      setAutoReload(updated);
+      fetchCredits();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : t.schedule.retryFailed);
+    }
+  };
+
+  const handleOpenPortal = async () => {
+    try {
+      const { url } = await billingApi.getPortalLink();
+      window.location.href = url;
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Could not open billing portal");
+    }
+  };
 
   // Load employees once when results arrive
   useEffect(() => {
@@ -708,6 +724,35 @@ export default function Schedule() {
   return (
     <div>
       <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.schedule.title}</h1>
+
+      {/* Auto-reload failed banner */}
+      {autoReload?.failed_at && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4 mb-6 flex items-center justify-between gap-4">
+          <div>
+            <div className="font-semibold text-red-900">{t.schedule.billingOnHoldTitle}</div>
+            <div className="text-sm text-red-800">
+              {t.schedule.billingOnHoldBody.replace(
+                "{date}",
+                new Date(autoReload.failed_at).toLocaleString()
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={handleRetryAutoReload}
+              className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium"
+            >
+              {t.schedule.retryPayment}
+            </button>
+            <button
+              onClick={handleOpenPortal}
+              className="px-3 py-1 bg-white border border-red-300 text-red-800 rounded text-sm font-medium"
+            >
+              {t.schedule.updateCard}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Credit & Quota Status Banner */}
       {(creditStatus || scheduleQuota) && (
