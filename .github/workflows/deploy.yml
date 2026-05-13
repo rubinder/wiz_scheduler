@@ -116,7 +116,8 @@ jobs:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           # Non-secret env-specific overrides that previously lived in the
           # gitignored terraform.tfvars. Hardcoded here because the values
-          # are public.
+          # are public; switch to GitHub secrets if a new environment needs
+          # different values.
           TF_VAR_domain_name: "wizscheduler.com"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
@@ -189,7 +190,8 @@ jobs:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           # Non-secret env-specific overrides that previously lived in the
           # gitignored terraform.tfvars. Hardcoded here because the values
-          # are public.
+          # are public; switch to GitHub secrets if a new environment needs
+          # different values.
           TF_VAR_domain_name: "wizscheduler.com"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
