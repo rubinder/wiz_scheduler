@@ -1650,3 +1650,33 @@ async def test_confirm_reactivation_rejects_unpaid_session(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert response.status_code == 400
+
+
+async def test_confirm_reactivation_rejects_foreign_customer(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """A session belonging to a different stripe_customer_id is rejected."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_OTHER_ACCOUNT",
+        subscription="sub_evil_xyz",
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_foreign"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+    assert "account" in response.json()["detail"].lower()
+
+    # OG state must be unchanged
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+    assert og_with_card.stripe_customer_id == "cus_test_abc"

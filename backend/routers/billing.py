@@ -364,6 +364,9 @@ async def confirm_reactivation(
     except stripe.StripeError:
         raise HTTPException(status_code=400, detail="Invalid session")
 
+    if session.customer != og.stripe_customer_id:
+        raise HTTPException(status_code=400, detail="Session does not belong to this account")
+
     if session.payment_status != "paid":
         raise HTTPException(status_code=400, detail="Payment not completed")
 
