@@ -1679,4 +1679,66 @@ async def test_confirm_reactivation_rejects_foreign_customer(
     # OG state must be unchanged
     await db_session.refresh(og_with_card)
     assert og_with_card.canceled_at is not None
+
+
+async def test_send_subscription_ended_email_calls_resend(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When RESEND_API_KEY is set, the helper calls resend.Emails.send with
+    a properly formatted body addressed to the OG's manager(s)."""
+    from contextlib import asynccontextmanager
+    from backend.services.billing import send_subscription_ended_email
+    from backend.models import User
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    # Patch async_session_factory to yield the test db_session instead of
+    # opening a new connection to the real PostgreSQL instance.
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+
+    import backend.database as _db_module
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_subscription_ended_email(og_with_card)
+
+    assert len(sent) == 1
+    body = sent[0]
+    assert "manager@acme.test" in body["to"]
+    assert "subscription" in body["subject"].lower()
+    assert "90" in body["html"] or "ninety" in body["html"].lower()
+
+
+async def test_send_subscription_ended_email_noop_without_resend_key(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """No exception, no email when RESEND_API_KEY is unset."""
+    from backend.services.billing import send_subscription_ended_email
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    # Should not raise even though we haven't stubbed resend module.
+    await send_subscription_ended_email(og_with_card)
     assert og_with_card.stripe_customer_id == "cus_test_abc"
