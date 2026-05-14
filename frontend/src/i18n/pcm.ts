@@ -674,74 +674,74 @@ const pcm = {
   },
 
   features: {
-    pageTitle: "Every screen a manager uses, end to end",
+    pageTitle: "Every screen wey manager dey use, from start to finish",
     pageIntro:
-      "Take a guided tour of the Wiz Scheduler manager experience: from configuring your company and locations, to defining roles and shift templates, to generating an AI-optimized weekly schedule and exporting it.",
-    backToHome: "← Back to home",
+      "Take guided tour of how Wiz Scheduler dey work for manager: from setting up your company and locations, to defining roles and shift templates, sef to generating AI-optimized weekly schedule and exporting am.",
+    backToHome: "← Go back to home",
     tocTitle: "Tour the screens",
-    ctaTitle: "Ready to try Wiz Scheduler?",
-    ctaDesc: "Start with the free tier — no credit card required.",
-    ctaBtn: "Create your account",
+    ctaTitle: "You don ready to try Wiz Scheduler?",
+    ctaDesc: "Start with the free tier — no credit card need.",
+    ctaBtn: "Open your account",
     pages: {
       dashboard: {
         title: "Dashboard",
-        desc: "Your home base. See usage at a glance: billing period status, schedules generated, AI credits used, and storage. A quick jumping-off point for the screens you visit most.",
+        desc: "Your starting place. Quick look at usage: billing period, schedules wey you don generate, AI credits wey you don use, and storage. Sharp entry to the screens wey you dey use pass.",
       },
       company: {
         title: "Company",
-        desc: "Configure your ownership group: company name, logo, branding, and high-level settings that apply across every region and location.",
+        desc: "Set up your ownership group: company name, logo, branding, and top-level settings wey go work for every region and location.",
       },
       regions: {
         title: "Regions",
-        desc: "Group locations by region for reporting and management. Helpful for multi-state, multi-country, or franchise operators who want a layer above the individual location.",
+        desc: "Group locations by region for reporting and management. E good for operators wey dey run multi-state, multi-country, or franchise wey want layer on top individual location.",
       },
       locations: {
         title: "Locations",
-        desc: "Manage every physical site you schedule for. Each location has its own timezone, address, region, and roster of eligible employees — and is scheduled independently by the AI.",
+        desc: "Manage every physical site wey you dey schedule for. Each location get im own timezone, address, region, and list of eligible employees — and AI go schedule am separately.",
       },
       roles: {
         title: "Roles",
-        desc: "Define the job titles employees can be scheduled into. Roles are fully customizable per company — there are no hardcoded role names, so Wiz Scheduler adapts to any industry vocabulary.",
+        desc: "Set the job titles wey employees fit do. Roles dey fully customisable per company — no hardcoded names, so Wiz Scheduler go fit any industry vocabulary.",
       },
       "role-equivalents": {
         title: "Role Equivalents",
-        desc: `Map roles that can cover for each other. Lets the scheduler treat "Barista" and "Baker" as interchangeable when filling a shift, while respecting skill-level differences.`,
+        desc: `Match roles wey fit cover for each other. E go make scheduler treat "Barista" and "Baker" as if dem fit swap when filling shift, while still respecting skill-level difference.`,
       },
       employees: {
         title: "Employees",
-        desc: "The master roster. Set each person's assigned roles, skill level, locations they can work at, hour limits, and availability. Inline editing makes bulk updates fast.",
+        desc: "The main roster. For every person, set the roles wey dem fit do, skill level, locations wey dem fit work, hour limits, and availability. Inline editing dey sharp for bulk updates.",
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
-        desc: "Enforce per-employee weekly hour caps and minimums. Useful for student visas, part-time agreements, and overtime budgets. The AI will never schedule outside these bounds.",
+        desc: "Set per-employee weekly maximum and minimum hours. E good for student visa, part-time arrangement, and overtime budget. AI no go ever schedule pass these limits.",
       },
       "day-blackouts": {
         title: "Day Blackouts",
-        desc: "Block off entire days when a location is closed or an employee is unavailable. Holidays, vacations, training days — the scheduler respects them all automatically.",
+        desc: "Block full days when location close or worker no dey available. Holidays, off days, training days — scheduler go respect dem automatically.",
       },
       "employee-onboarding": {
         title: "Employee Onboarding",
-        desc: "Invite new hires by email. They self-serve their availability and personal details — you stay focused on running the business, not chasing data entry.",
+        desc: "Invite new hire by email. Dem go fill their availability and personal details by themselves — you no need dey chase data entry, just face the business.",
       },
       "employee-association": {
         title: "Employee Association",
-        desc: "Mark which employees work well together (or shouldn't be paired). The AI uses these affinities and anti-affinities as soft preferences when assigning shifts.",
+        desc: "Mark which employees dey work well together (or wey dem no suppose pair). AI go use these preferences as soft hint when e dey assign shifts.",
       },
       "shift-templates": {
         title: "Shift Templates",
-        desc: "Define each location's recurring weekly shift pattern: which roles are needed, how many of each, on which days, and at what times. The blueprint the AI fills in.",
+        desc: "Define each location weekly shift pattern wey dey repeat: which roles dey needed, how many of each, on which days, and at what time. Na the blueprint AI go fill.",
       },
       schedule: {
         title: "Schedule",
-        desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish.",
+        desc: "Generate optimised weekly schedule with one click. Pick algorithmic strategy (Rotation, Max Hours, Random) or AI. Review results per location, edit inline, and publish.",
       },
       "export-schedules": {
         title: "Export Schedules",
-        desc: "Download published schedules as CSV or PDF, or push directly to 7shifts and Deputy. Keep your existing payroll and POS workflows unchanged.",
+        desc: "Download published schedules as CSV or PDF, or push am direct to 7shifts and Deputy. Your existing payroll and POS workflow no go change.",
       },
       "data-privacy": {
         title: "Data Privacy",
-        desc: "GDPR-friendly tools for data export, erasure, and consent. Manager-side view of every data subject request and its status.",
+        desc: "GDPR-friendly tools for data export, erasure, and consent. Manager-side view of every data subject request and im status.",
       },
     },
   },
