@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Base subscription
     BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
 
+    # Subscription cancellation lifecycle
+    SUBSCRIPTION_GRACE_DAYS: int = 90
+    SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE: int = 14
+
     # Auto-reload (real-time billing for AI + schedules)
     AUTORELOAD_DEFAULT_ENABLED: bool = True
     AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0

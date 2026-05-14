@@ -1519,3 +1519,39 @@ async def test_employees_list_still_works_when_canceled(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert response.status_code == 200
+
+
+async def test_get_usage_reports_canceled_state(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """GET /billing/usage includes is_read_only, canceled_at, scheduled_deletion_at
+    when the OG has canceled_at set."""
+    canceled = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc)
+    og_with_card.canceled_at = canceled
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_read_only"] is True
+    assert body["canceled_at"].startswith("2026-05-01T12:00:00")
+    # 90 days after 2026-05-01 = 2026-07-30
+    assert body["scheduled_deletion_at"].startswith("2026-07-30")
+
+
+async def test_get_usage_active_state_no_cancellation_fields(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """Active OGs return is_read_only=False and null cancellation timestamps."""
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_read_only"] is False
+    assert body["canceled_at"] is None
+    assert body["scheduled_deletion_at"] is None

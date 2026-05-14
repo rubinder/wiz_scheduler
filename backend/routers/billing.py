@@ -1,4 +1,5 @@
 import stripe
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -63,7 +64,8 @@ async def get_usage(
 ) -> dict:
     """Get the full billing summary for the current ownership group.
 
-    Includes LLM usage, storage, and employee count charges.
+    Includes LLM/storage/employee usage, pending invoice items, and the
+    cancellation lifecycle state (is_read_only, canceled_at, scheduled_deletion_at).
     """
     og_id = await get_ownership_group_id(db, current_user.company_id)
     if not og_id:
@@ -80,6 +82,9 @@ async def get_usage(
                           "block_size": settings.SCHEDULE_BLOCK_SIZE, "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK, "charged_usd": 0},
             "total_monthly_charge_usd": settings.BASE_MONTHLY_USD,
             "pending_invoice_items": [],
+            "is_read_only": False,
+            "canceled_at": None,
+            "scheduled_deletion_at": None,
         }
 
     summary = await get_full_billing_summary(db, og_id)
@@ -96,6 +101,19 @@ async def get_usage(
         {"kind": r.kind, "amount_usd": float(r.amount_usd), "period": r.period}
         for r in rows
     ]
+
+    og = await db.get(OwnershipGroup, og_id)
+    if og and og.canceled_at is not None:
+        summary["is_read_only"] = True
+        summary["canceled_at"] = og.canceled_at.isoformat()
+        summary["scheduled_deletion_at"] = (
+            og.canceled_at + timedelta(days=settings.SUBSCRIPTION_GRACE_DAYS)
+        ).isoformat()
+    else:
+        summary["is_read_only"] = False
+        summary["canceled_at"] = None
+        summary["scheduled_deletion_at"] = None
+
     return summary
 
 
