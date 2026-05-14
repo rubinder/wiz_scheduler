@@ -415,7 +415,7 @@ const en = {
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
     buyAiCredits: "Buy AI Credits",
-    creditsExhaustedMsg: "Your free AI credits have been used up this month. Purchase additional credits to continue generating AI schedules.",
+    creditsExhaustedMsg: "Your free AI credits have been used up this month. Auto-reload will charge your saved card to refill your balance when it drops below the threshold.",
     monthlyUsage: "Monthly AI cost",
     currentBalance: "Purchased credit balance",
     creditAmount: "Credit amount",
