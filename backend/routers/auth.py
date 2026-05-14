@@ -294,22 +294,29 @@ async def switch_company(
 async def _verify_google_token(id_token: str) -> dict | None:
     """Verify a Google ID token and return the payload (email, sub, name, etc).
 
-    Returns None if verification fails.
+    Returns None if verification fails for any reason — invalid signature,
+    expired token, missing google-auth dependency, network failure, etc.
     """
-    from google.oauth2 import id_token as google_id_token
-    from google.auth.transport import requests as google_requests
-
     try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+
         idinfo = google_id_token.verify_oauth2_token(
             id_token,
             google_requests.Request(),
             settings.GOOGLE_CLIENT_ID,
         )
-        # Verify issuer
         if idinfo["iss"] not in ("accounts.google.com", "https://accounts.google.com"):
             return None
         return idinfo
-    except Exception:
+    except Exception as e:
+        # Don't swallow silently — surface in CloudWatch so misconfigurations
+        # (missing dep, missing GOOGLE_CLIENT_ID, clock skew, etc) are visible
+        # without bringing the route down.
+        import logging
+        logging.getLogger("wizscheduler.google_auth").warning(
+            "Google ID token verification failed: %s", e
+        )
         return None
 
 
