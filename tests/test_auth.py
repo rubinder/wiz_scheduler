@@ -69,3 +69,123 @@ async def test_manager_route_with_employee_token(
         headers={"Authorization": f"Bearer {employee_token}"},
     )
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Google-based registration
+# ---------------------------------------------------------------------------
+
+
+async def test_register_with_google_token(client: AsyncClient, db_session, monkeypatch):
+    """Registering with a verified Google id_token creates a user with
+    google_id set, no human-known password, and links the OG."""
+    from backend.routers import auth as auth_router
+    from sqlalchemy import select
+    from backend.models import User
+
+    async def fake_verify(_token):
+        return {"sub": "google-sub-123", "email": "alice@example.com",
+                "email_verified": True, "name": "Alice"}
+    monkeypatch.setattr(auth_router, "_verify_google_token", fake_verify)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "alice@example.com",
+            "google_id_token": "fake-id-token",
+            "full_name": "Alice",
+            "company_name": "AliceCo",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["token_type"] == "bearer"
+
+    user = (await db_session.execute(
+        select(User).where(User.email == "alice@example.com")
+    )).scalar_one()
+    assert user.google_id == "google-sub-123"
+    # hashed_password is set (random) but not derivable from anything caller knows
+    assert user.hashed_password
+    assert user.hashed_password.startswith("$2b$")  # bcrypt
+
+
+async def test_register_with_google_requires_exactly_one_credential(client: AsyncClient):
+    # Both password AND google_id_token → 400
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "x@example.com", "password": "abc", "google_id_token": "tok",
+            "full_name": "X", "company_name": "X",
+            "privacy_accepted": True, "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 400
+    assert "exactly one" in resp.json()["detail"].lower()
+
+    # Neither → 400
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "x@example.com", "full_name": "X", "company_name": "X",
+            "privacy_accepted": True, "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 400
+
+
+async def test_register_google_token_invalid(client: AsyncClient, monkeypatch):
+    from backend.routers import auth as auth_router
+    async def fake_verify(_token):
+        return None
+    monkeypatch.setattr(auth_router, "_verify_google_token", fake_verify)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "x@example.com", "google_id_token": "bogus",
+            "full_name": "X", "company_name": "X",
+            "privacy_accepted": True, "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 401
+
+
+async def test_register_google_email_mismatch(client: AsyncClient, monkeypatch):
+    """The Google verified email must match the registration email."""
+    from backend.routers import auth as auth_router
+    async def fake_verify(_token):
+        return {"sub": "g-sub", "email": "actual-google@example.com",
+                "email_verified": True, "name": "X"}
+    monkeypatch.setattr(auth_router, "_verify_google_token", fake_verify)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "different@example.com", "google_id_token": "tok",
+            "full_name": "X", "company_name": "X",
+            "privacy_accepted": True, "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 400
+    assert "does not match" in resp.json()["detail"].lower()
+
+
+async def test_register_google_email_not_verified(client: AsyncClient, monkeypatch):
+    from backend.routers import auth as auth_router
+    async def fake_verify(_token):
+        return {"sub": "g-sub", "email": "x@example.com",
+                "email_verified": False, "name": "X"}
+    monkeypatch.setattr(auth_router, "_verify_google_token", fake_verify)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "x@example.com", "google_id_token": "tok",
+            "full_name": "X", "company_name": "X",
+            "privacy_accepted": True, "terms_accepted": True,
+        },
+    )
+    assert resp.status_code == 400
+    assert "not verified" in resp.json()["detail"].lower()

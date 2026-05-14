@@ -89,8 +89,34 @@ async def register(
             detail="You must accept the privacy policy and terms of service to register.",
         )
 
-    # Hash password outside the DB transaction to reduce connection hold time
-    hashed_pw = _hash_password(body.password)
+    # Exactly one of password / google_id_token must be provided.
+    if bool(body.password) == bool(body.google_id_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide exactly one of password or google_id_token.",
+        )
+
+    # Resolve auth credentials. Google path: verify id_token, ensure the
+    # verified Google email matches the registration email, and generate
+    # a random internal password (hashed_password is NOT NULL in the DB
+    # but never used for Google-authenticated users).
+    google_sub: str | None = None
+    if body.google_id_token:
+        idinfo = await _verify_google_token(body.google_id_token)
+        if not idinfo:
+            raise HTTPException(status_code=401, detail="Invalid Google token")
+        if not idinfo.get("email_verified"):
+            raise HTTPException(status_code=400, detail="Google email is not verified")
+        if idinfo.get("email", "").lower() != body.email.lower():
+            raise HTTPException(status_code=400, detail="Google email does not match registration email")
+        google_sub = idinfo["sub"]
+        # Generate an unguessable random password the user never sees. They
+        # authenticate via Google; if they ever want a real password they
+        # can set one later via a separate flow.
+        hashed_pw = _hash_password(secrets.token_urlsafe(48))
+    else:
+        # Hash password outside the DB transaction to reduce connection hold time
+        hashed_pw = _hash_password(body.password)
     client_ip = mask_ip(request.client.host) if request.client else None
 
     # Verify Stripe checkout session if billing is configured
@@ -143,6 +169,7 @@ async def register(
         hashed_password=hashed_pw,
         full_name=body.full_name,
         user_role="manager",
+        google_id=google_sub,
     )
     db.add(user)
     await db.flush()

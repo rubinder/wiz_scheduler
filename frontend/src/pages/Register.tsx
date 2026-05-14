@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createCheckoutSession } from "../api/auth";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
 import { text, border, action } from "../theme";
+
+// `window.google` is already declared in Login.tsx with a permissive shape.
+// No re-declaration here — we cast the GIS callback inline below.
 
 export default function Register() {
   const { register } = useAuth();
@@ -23,6 +26,12 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
 
+  // Google Sign-Up: when set, the user has authenticated with Google and
+  // we'll register without a password. Email/full_name are auto-filled from
+  // the verified Google account and locked.
+  const [googleIdToken, setGoogleIdToken] = useState<string | null>(null);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
   // Stripe session from redirect
   const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
 
@@ -38,11 +47,44 @@ export default function Register() {
       setCompanyName(sessionStorage.getItem("reg_companyName") || "");
       setPrivacyAccepted(sessionStorage.getItem("reg_privacy") === "true");
       setTermsAccepted(sessionStorage.getItem("reg_terms") === "true");
+      const restoredGoogle = sessionStorage.getItem("reg_googleIdToken");
+      if (restoredGoogle) setGoogleIdToken(restoredGoogle);
       // Clean up URL
       searchParams.delete("session_id");
       setSearchParams(searchParams, { replace: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize Google Sign-In button once the GIS SDK is available and the
+  // user hasn't already chosen the Google path.
+  useEffect(() => {
+    if (googleIdToken) return; // already signed in via Google
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google?.accounts?.id || !googleBtnRef.current) return;
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: (resp: { credential: string }) => {
+        // resp.credential is the Google id_token. Decode the JWT payload
+        // (no signature verification — backend does that on register).
+        try {
+          const payload = JSON.parse(atob(resp.credential.split(".")[1]));
+          setEmail(payload.email || "");
+          setFullName(payload.name || "");
+          setGoogleIdToken(resp.credential);
+          setError("");
+        } catch {
+          setError("Could not parse Google response. Please try again.");
+        }
+      },
+    });
+    window.google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: "outline",
+      size: "large",
+      text: "signup_with",
+      shape: "rectangular",
+      width: 360,
+    });
+  }, [googleIdToken]);
 
   const billingComplete = !!stripeSessionId;
 
@@ -61,6 +103,9 @@ export default function Register() {
     sessionStorage.setItem("reg_companyName", companyName);
     sessionStorage.setItem("reg_privacy", String(privacyAccepted));
     sessionStorage.setItem("reg_terms", String(termsAccepted));
+    if (googleIdToken) {
+      sessionStorage.setItem("reg_googleIdToken", googleIdToken);
+    }
 
     try {
       const { url } = await createCheckoutSession(email);
@@ -76,15 +121,16 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      await register(
+      await register({
         email,
-        password,
+        password: googleIdToken ? undefined : password,
+        googleIdToken: googleIdToken || undefined,
         fullName,
         companyName,
         privacyAccepted,
         termsAccepted,
-        stripeSessionId || undefined
-      );
+        stripeSessionId: stripeSessionId || undefined,
+      });
       // Clean up sessionStorage
       sessionStorage.removeItem("reg_email");
       sessionStorage.removeItem("reg_password");
@@ -92,6 +138,7 @@ export default function Register() {
       sessionStorage.removeItem("reg_companyName");
       sessionStorage.removeItem("reg_privacy");
       sessionStorage.removeItem("reg_terms");
+      sessionStorage.removeItem("reg_googleIdToken");
       navigate("/manager/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -111,6 +158,32 @@ export default function Register() {
             {error}
           </div>
         )}
+        {!googleIdToken && (
+          <>
+            <div ref={googleBtnRef} className="flex justify-center mb-4" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`flex-1 border-t ${border.default}`} />
+              <span className={`text-xs ${text.muted}`}>{t.login.orContinueWith}</span>
+              <div className={`flex-1 border-t ${border.default}`} />
+            </div>
+          </>
+        )}
+        {googleIdToken && (
+          <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center justify-between">
+            <span>Signed in with Google as {email}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setGoogleIdToken(null);
+                setEmail("");
+                setFullName("");
+              }}
+              className="text-xs underline"
+            >
+              Use email + password instead
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="glass-label">
@@ -121,7 +194,8 @@ export default function Register() {
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="glass-input w-full"
+              readOnly={!!googleIdToken}
+              className={`glass-input w-full ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </div>
           <div>
@@ -133,21 +207,24 @@ export default function Register() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="glass-input w-full"
+              readOnly={!!googleIdToken}
+              className={`glass-input w-full ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </div>
-          <div>
-            <label className="glass-label">
-              {t.common.password}
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="glass-input w-full"
-            />
-          </div>
+          {!googleIdToken && (
+            <div>
+              <label className="glass-label">
+                {t.common.password}
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="glass-input w-full"
+              />
+            </div>
+          )}
           <div>
             <label className="glass-label">
               {t.register.companyName}

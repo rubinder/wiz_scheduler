@@ -2,7 +2,9 @@
 
 export interface RegisterRequest {
   email: string;
-  password: string;
+  // Provide exactly one of `password` or `google_id_token`.
+  password?: string;
+  google_id_token?: string;
   full_name: string;
   company_name: string;
   privacy_accepted?: boolean;

@@ -12,15 +12,16 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string, ownershipGroupId?: string) => Promise<void>;
-  register: (
-    email: string,
-    password: string,
-    fullName: string,
-    companyName: string,
-    privacyAccepted?: boolean,
-    termsAccepted?: boolean,
-    stripeSessionId?: string
-  ) => Promise<void>;
+  register: (params: {
+    email: string;
+    password?: string;
+    googleIdToken?: string;
+    fullName: string;
+    companyName: string;
+    privacyAccepted?: boolean;
+    termsAccepted?: boolean;
+    stripeSessionId?: string;
+  }) => Promise<void>;
   logout: () => void;
   switchCompany: (companyId: string) => Promise<void>;
 }
@@ -66,23 +67,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (
-      email: string,
-      password: string,
-      fullName: string,
-      companyName: string,
-      privacyAccepted?: boolean,
-      termsAccepted?: boolean,
-      stripeSessionId?: string
-    ) => {
+    async (params: {
+      email: string;
+      password?: string;
+      googleIdToken?: string;
+      fullName: string;
+      companyName: string;
+      privacyAccepted?: boolean;
+      termsAccepted?: boolean;
+      stripeSessionId?: string;
+    }) => {
       const res = await authApi.register({
-        email,
-        password,
-        full_name: fullName,
-        company_name: companyName,
-        privacy_accepted: privacyAccepted,
-        terms_accepted: termsAccepted,
-        stripe_session_id: stripeSessionId,
+        email: params.email,
+        password: params.password,
+        google_id_token: params.googleIdToken,
+        full_name: params.fullName,
+        company_name: params.companyName,
+        privacy_accepted: params.privacyAccepted,
+        terms_accepted: params.termsAccepted,
+        stripe_session_id: params.stripeSessionId,
       });
       localStorage.setItem("token", res.access_token);
       await fetchMe();

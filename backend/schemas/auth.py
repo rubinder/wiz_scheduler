@@ -3,7 +3,13 @@ from pydantic import BaseModel
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str
+    # Exactly one of `password` or `google_id_token` is required.
+    # Password path → traditional email+password registration.
+    # Google path → caller passes a Google id_token; the verified Google
+    # email must match `email`; an internal random password is generated
+    # to satisfy the NOT NULL hashed_password column.
+    password: str | None = None
+    google_id_token: str | None = None
     full_name: str
     company_name: str
     privacy_accepted: bool = False
