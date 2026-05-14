@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db
+from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
     bill_monthly_overages_for_og,
@@ -74,5 +75,42 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
             await cache_default_payment_method(db, og)
             await db.commit()
         return {"received": True, "type": event_type, "og_id": og.id if og else None}
+
+    if event_type == "invoice.payment_succeeded":
+        # Invoice finalized + paid. Walk its line items and flip the
+        # matching pending BillingCharge rows (our InvoiceItem-backed
+        # entries) to status=succeeded for audit accuracy.
+        og = await _find_og(_customer_id())
+        if not og:
+            return {"received": True, "type": event_type, "og_id": None}
+
+        if isinstance(obj, dict):
+            lines = (obj.get("lines") or {}).get("data") or []
+        else:
+            lines = getattr(getattr(obj, "lines", None), "data", None) or []
+
+        updated = 0
+        for line in lines:
+            line_md = line.get("metadata") if isinstance(line, dict) else (getattr(line, "metadata", None) or {})
+            line_md = dict(line_md) if line_md else {}
+            if line_md.get("kind") not in ("invoice_item_storage", "invoice_item_employees"):
+                continue
+            ii_id = line.get("invoice_item") if isinstance(line, dict) else getattr(line, "invoice_item", None)
+            if not ii_id:
+                continue
+            bc = (await db.execute(
+                select(BillingCharge).where(
+                    BillingCharge.ownership_group_id == og.id,
+                    BillingCharge.stripe_object_id == ii_id,
+                    BillingCharge.status == "pending",
+                )
+            )).scalar_one_or_none()
+            if bc:
+                bc.status = "succeeded"
+                updated += 1
+
+        if updated:
+            await db.commit()
+        return {"received": True, "type": event_type, "og_id": og.id, "updated": updated}
 
     return {"received": True, "type": event_type}
