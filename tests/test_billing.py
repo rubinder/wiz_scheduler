@@ -1555,3 +1555,98 @@ async def test_get_usage_active_state_no_cancellation_fields(
     assert body["is_read_only"] is False
     assert body["canceled_at"] is None
     assert body["scheduled_deletion_at"] is None
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Reactivation endpoints (checkout + confirm)
+# ---------------------------------------------------------------------------
+
+
+async def test_reactivate_checkout_creates_session(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """POST /billing/reactivate-checkout returns a Stripe Checkout URL,
+    reusing the existing stripe_customer_id."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    captured_kwargs = {}
+    def fake_create(**kwargs):
+        captured_kwargs.update(kwargs)
+        return MagicMock(id="cs_reactivate_1", url="https://checkout.stripe.com/c/cs_reactivate_1")
+    monkeypatch.setattr(stripe.checkout.Session, "create", fake_create)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setattr(settings, "STRIPE_PRICE_ID", "price_test")
+
+    response = await client.post(
+        "/api/v1/billing/reactivate-checkout",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["url"].startswith("https://checkout.stripe.com/")
+    assert captured_kwargs["customer"] == "cus_test_abc"
+    assert captured_kwargs["mode"] == "subscription"
+
+
+async def test_reactivate_checkout_rejects_when_not_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """Cannot reactivate an OG that hasn't been canceled."""
+    assert og_with_card.canceled_at is None
+    response = await client.post(
+        "/api/v1/billing/reactivate-checkout",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+
+
+async def test_confirm_reactivation_clears_canceled_state(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """POST /billing/confirm-reactivation clears canceled_at + all notified_* flags."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    og_with_card.notified_subscription_ended_at = datetime.now(timezone.utc)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_test_abc",
+        subscription="sub_reactivated_xyz",
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_reactivate_1"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is None
+    assert og_with_card.notified_subscription_ended_at is None
+    assert og_with_card.notified_deletion_reminder_at is None
+    assert og_with_card.stripe_subscription_id == "sub_reactivated_xyz"
+
+
+async def test_confirm_reactivation_rejects_unpaid_session(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(payment_status="unpaid", customer="cus_test_abc")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_unpaid"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400

@@ -292,3 +292,87 @@ async def get_portal_link(
         raise HTTPException(status_code=502, detail=str(e))
 
     return PortalLinkResponse(url=session.url)
+
+
+# ---------------------------------------------------------------------------
+# Reactivation endpoints
+# ---------------------------------------------------------------------------
+
+
+class ReactivateCheckoutResponse(BaseModel):
+    session_id: str
+    url: str
+
+
+class ConfirmReactivationRequest(BaseModel):
+    session_id: str
+
+
+@router.post("/reactivate-checkout", response_model=ReactivateCheckoutResponse)
+async def reactivate_checkout(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> ReactivateCheckoutResponse:
+    """Create a Stripe Checkout session for reactivating a canceled subscription.
+
+    Reuses the existing stripe_customer_id so saved payment methods + invoice
+    history persist across the cancel/reactivate cycle. The customer completes
+    Checkout and is redirected back; the frontend then calls
+    /billing/confirm-reactivation with the session_id.
+    """
+    og = await _load_og(db, current_user)
+    if og.canceled_at is None:
+        raise HTTPException(status_code=400, detail="Subscription is not canceled")
+    if not settings.STRIPE_SECRET_KEY or not settings.STRIPE_PRICE_ID:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    success_url = settings.STRIPE_SUCCESS_URL.replace(
+        "/register", "/manager/dashboard"
+    ).replace("session_id=", "reactivate_session_id=")
+    cancel_url = settings.STRIPE_CANCEL_URL.replace("/register", "/manager/dashboard")
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            payment_method_types=["card"],
+            customer=og.stripe_customer_id,
+            line_items=[{"price": settings.STRIPE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return ReactivateCheckoutResponse(session_id=session.id, url=session.url)
+
+
+@router.post("/confirm-reactivation")
+async def confirm_reactivation(
+    body: ConfirmReactivationRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Verify the reactivation Checkout session and clear cancellation state."""
+    og = await _load_og(db, current_user)
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        session = stripe.checkout.Session.retrieve(body.session_id)
+    except stripe.StripeError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+
+    if session.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Payment not completed")
+
+    og.stripe_customer_id = session.customer
+    og.stripe_subscription_id = session.subscription
+    og.canceled_at = None
+    og.notified_subscription_ended_at = None
+    og.notified_deletion_reminder_at = None
+    og.notified_data_deleted_at = None
+    await db.commit()
+
+    return {"reactivated": True, "subscription_id": og.stripe_subscription_id}
