@@ -19,6 +19,7 @@ from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
     bill_monthly_overages_for_og,
     cache_default_payment_method,
+    send_subscription_ended_email,
 )
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -112,5 +113,24 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
         if updated:
             await db.commit()
         return {"received": True, "type": event_type, "og_id": og.id, "updated": updated}
+
+    if event_type == "customer.subscription.updated":
+        og = await _find_og(_customer_id())
+        cape = obj.get("cancel_at_period_end") if isinstance(obj, dict) else getattr(obj, "cancel_at_period_end", None)
+        logger.info(
+            "Subscription updated: og=%s cancel_at_period_end=%s",
+            og.id if og else None,
+            cape,
+        )
+        return {"received": True, "type": event_type, "og_id": og.id if og else None}
+
+    if event_type == "customer.subscription.deleted":
+        og = await _find_og(_customer_id())
+        if og and og.canceled_at is None:
+            og.canceled_at = datetime.now(timezone.utc)
+            og.notified_subscription_ended_at = og.canceled_at
+            await db.commit()
+            await send_subscription_ended_email(og)
+        return {"received": True, "type": event_type, "og_id": og.id if og else None}
 
     return {"received": True, "type": event_type}

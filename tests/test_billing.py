@@ -1384,3 +1384,102 @@ async def test_webhook_invoice_payment_succeeded_unknown_customer_acks(
         headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
     )
     assert response.status_code == 200
+
+
+async def test_webhook_subscription_updated_logs_only(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """customer.subscription.updated is acked but does not mutate the OG."""
+    import stripe
+    fake_event = {
+        "type": "customer.subscription.updated",
+        "data": {"object": {
+            "customer": "cus_test_abc",
+            "cancel_at_period_end": True,
+            "current_period_end": int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp()),
+        }},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is None  # NOT set — Stripe is authoritative
+
+
+async def test_webhook_subscription_deleted_sets_canceled_at(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """customer.subscription.deleted sets og.canceled_at and sends an email."""
+    import stripe
+    fake_event = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    sent_emails = []
+    async def fake_send(og):
+        sent_emails.append(og.id)
+    monkeypatch.setattr(
+        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+    )
+
+    assert og_with_card.canceled_at is None
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+    assert og_with_card.notified_subscription_ended_at is not None
+    assert sent_emails == [OG_ID]
+
+
+async def test_webhook_subscription_deleted_idempotent(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """Redelivering the deletion event does not overwrite canceled_at."""
+    import stripe
+    original_canceled = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    og_with_card.canceled_at = original_canceled
+    og_with_card.notified_subscription_ended_at = original_canceled
+    await db_session.commit()
+
+    fake_event = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    sent = []
+    async def fake_send(og):
+        sent.append(og.id)
+    monkeypatch.setattr(
+        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+    )
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    # SQLite strips tz info; compare naive-to-naive to verify the value is unchanged
+    db_canceled = og_with_card.canceled_at
+    if db_canceled is not None and db_canceled.tzinfo is None:
+        db_canceled = db_canceled.replace(tzinfo=timezone.utc)
+    assert db_canceled == original_canceled  # unchanged
+    assert sent == []  # email NOT re-sent

@@ -915,3 +915,17 @@ async def bill_monthly_overages_all(db: AsyncSession) -> dict:
             results.append({"og_id": og.id, "error": str(e)})
 
     return {"total_ogs": len(ogs), "results": results}
+
+
+async def send_subscription_ended_email(og: OwnershipGroup) -> None:
+    """Send the 'your subscription has ended' email via Resend.
+
+    Idempotency is handled by the caller (webhook handler checks
+    notified_subscription_ended_at before invoking). Non-fatal — exceptions
+    are logged and swallowed so a Resend outage doesn't drop the webhook.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping subscription-ended email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+    # Real send wired in Task 6; this stub exists so the webhook handler can import it.
+    logger.info("send_subscription_ended_email stub for og=%s", og.id)
