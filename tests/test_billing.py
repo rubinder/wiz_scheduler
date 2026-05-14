@@ -1483,3 +1483,39 @@ async def test_webhook_subscription_deleted_idempotent(
         db_canceled = db_canceled.replace(tzinfo=timezone.utc)
     assert db_canceled == original_canceled  # unchanged
     assert sent == []  # email NOT re-sent
+
+
+# ---------------------------------------------------------------------------
+# Task 3: require_active_billing dependency
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_blocked_when_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """POST /schedules/generate returns 402 when og.canceled_at is set."""
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/schedules/generate",
+        json={"week_start_date": "2026-06-01", "use_local": True},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 402
+    assert "subscription" in response.json()["detail"].lower()
+
+
+async def test_employees_list_still_works_when_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card, seed_employees
+):
+    """CRUD reads stay accessible when the OG is canceled — users need
+    to retrieve their data."""
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/employees/",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
