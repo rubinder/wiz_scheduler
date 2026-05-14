@@ -1255,3 +1255,132 @@ async def test_get_usage_no_og_returns_empty_pending(
     )
     assert response.status_code == 200
     assert response.json().get("pending_invoice_items") == []
+
+
+# ---------------------------------------------------------------------------
+# Task: invoice.payment_succeeded webhook handler
+# ---------------------------------------------------------------------------
+
+
+async def test_webhook_invoice_payment_succeeded_marks_pending_as_succeeded(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """invoice.payment_succeeded with our InvoiceItem in the lines list flips
+    matching BillingCharge rows from pending -> succeeded."""
+    import stripe
+
+    # Seed two pending BillingCharge rows backed by InvoiceItems
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_storage",
+        amount_usd=0.5,
+        stripe_object_id="ii_storage_1",
+        period="2026-05",
+        status="pending",
+    ))
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_employees",
+        amount_usd=1.0,
+        stripe_object_id="ii_emp_1",
+        period="2026-05",
+        status="pending",
+    ))
+    await db_session.commit()
+
+    fake_event = {
+        "type": "invoice.payment_succeeded",
+        "data": {"object": {
+            "customer": "cus_test_abc",
+            "lines": {"data": [
+                # Our InvoiceItem-backed lines
+                {"invoice_item": "ii_storage_1", "metadata": {"kind": "invoice_item_storage", "period": "2026-05"}},
+                {"invoice_item": "ii_emp_1", "metadata": {"kind": "invoice_item_employees", "period": "2026-05"}},
+                # An unrelated subscription line (the base monthly charge) — must be ignored
+                {"invoice_item": None, "metadata": {}, "subscription": "sub_test_123"},
+            ]},
+        }},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "invoice.payment_succeeded"
+    assert body["updated"] == 2
+
+    rows = list((await db_session.execute(
+        select(BillingCharge).where(BillingCharge.ownership_group_id == OG_ID)
+        .order_by(BillingCharge.stripe_object_id)
+    )).scalars())
+    statuses = {r.stripe_object_id: r.status for r in rows}
+    assert statuses == {"ii_emp_1": "succeeded", "ii_storage_1": "succeeded"}
+
+
+async def test_webhook_invoice_payment_succeeded_ignores_unrelated_lines(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """An invoice that contains only subscription lines (no InvoiceItems of ours)
+    succeeds with updated=0 and no DB changes."""
+    import stripe
+
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID,
+        kind="invoice_item_storage",
+        amount_usd=0.5,
+        stripe_object_id="ii_other_period",
+        period="2026-04",
+        status="pending",
+    ))
+    await db_session.commit()
+
+    fake_event = {
+        "type": "invoice.payment_succeeded",
+        "data": {"object": {
+            "customer": "cus_test_abc",
+            "lines": {"data": [
+                {"invoice_item": None, "metadata": {}, "subscription": "sub_test_123"},
+            ]},
+        }},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    assert response.json()["updated"] == 0
+
+    # The pre-seeded pending charge from a different period is unchanged
+    bc = (await db_session.execute(
+        select(BillingCharge).where(BillingCharge.stripe_object_id == "ii_other_period")
+    )).scalar_one()
+    assert bc.status == "pending"
+
+
+async def test_webhook_invoice_payment_succeeded_unknown_customer_acks(
+    client: AsyncClient, monkeypatch
+):
+    """An invoice for a customer we don't know returns 200 (acked, no work)."""
+    import stripe
+    fake_event = {
+        "type": "invoice.payment_succeeded",
+        "data": {"object": {"customer": "cus_unknown_xyz", "lines": {"data": []}}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
