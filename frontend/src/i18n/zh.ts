@@ -434,6 +434,11 @@ const zh = {
     retryPayment: "重试付款",
     retryFailed: "重试失败 — 请更新你的银行卡后再试。",
     updateCard: "更新银行卡",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "本月待结费用",
     pendingChargesEmpty: "本周期未预计有额外费用。",
     pendingChargeStorage: "存储超额",
@@ -744,6 +749,11 @@ const zh = {
         desc: "符合 GDPR 的数据导出、删除与同意工具。管理员可查看每一个数据主体请求及其状态。",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

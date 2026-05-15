@@ -915,3 +915,64 @@ async def bill_monthly_overages_all(db: AsyncSession) -> dict:
             results.append({"og_id": og.id, "error": str(e)})
 
     return {"total_ogs": len(ogs), "results": results}
+
+
+async def send_subscription_ended_email(og: OwnershipGroup) -> None:
+    """Send the 'your subscription has ended' email via Resend.
+
+    Idempotency is the caller's responsibility (the webhook handler checks
+    notified_subscription_ended_at before invoking). Non-fatal — exceptions
+    are logged and swallowed so a Resend outage doesn't drop the webhook.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping subscription-ended email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+
+    from sqlalchemy import select
+    from backend.models import Company, User
+    from backend.database import async_session_factory
+
+    async with async_session_factory() as db:
+        company_ids = (await db.execute(
+            select(Company.id).where(Company.ownership_group_id == og.id)
+        )).scalars().all()
+        if not company_ids:
+            return
+        manager_emails = (await db.execute(
+            select(User.email).where(
+                User.company_id.in_(company_ids),
+                User.user_role == "manager",
+            )
+        )).scalars().all()
+        manager_emails = [e for e in manager_emails if e]
+
+    if not manager_emails:
+        logger.info("No manager emails found for og=%s; subscription-ended email skipped", og.id)
+        return
+
+    try:
+        import html as _html
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": list(manager_emails),
+            "subject": "Your WizScheduler subscription has ended",
+            "html": (
+                f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p>Your WizScheduler subscription has been canceled. "
+                f"You still have read-only access to your data.</p>"
+                f"<p><strong>You have {settings.SUBSCRIPTION_GRACE_DAYS} days to reactivate</strong> before "
+                f"your data is permanently deleted.</p>"
+                f'<p>To resume scheduling, log in and click <em>Reactivate '
+                f"Subscription</em>.</p>"
+                f"</div>"
+            ),
+        })
+    except Exception:
+        logger.error(
+            "Failed to send subscription-ended email for og=%s",
+            og.id,
+            exc_info=True,
+        )

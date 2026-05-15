@@ -70,6 +70,9 @@ export interface BillingUsage {
   };
   total_monthly_charge_usd: number;
   pending_invoice_items: PendingInvoiceItem[];
+  is_read_only?: boolean;
+  canceled_at?: string | null;
+  scheduled_deletion_at?: string | null;
 }
 
 export interface BillingChargeRow {
@@ -120,4 +123,22 @@ export function getPortalLink(): Promise<{ url: string }> {
 
 export function getUsage(): Promise<BillingUsage> {
   return apiFetch<BillingUsage>("/billing/usage");
+}
+
+export function reactivateCheckout(): Promise<{ session_id: string; url: string }> {
+  return apiFetch<{ session_id: string; url: string }>("/billing/reactivate-checkout", {
+    method: "POST",
+  });
+}
+
+export function confirmReactivation(
+  sessionId: string
+): Promise<{ reactivated: boolean; subscription_id: string }> {
+  return apiFetch<{ reactivated: boolean; subscription_id: string }>(
+    "/billing/confirm-reactivation",
+    {
+      method: "POST",
+      body: JSON.stringify({ session_id: sessionId }),
+    }
+  );
 }

@@ -1,16 +1,35 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import Import7ShiftsModal from "../../components/shared/Import7ShiftsModal";
 import ImportDeputyModal from "../../components/shared/ImportDeputyModal";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg } from "../../theme";
+import * as billingApi from "../../api/billing";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [showImport, setShowImport] = useState(false);
   const [showDeputyImport, setShowDeputyImport] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const sessionId = searchParams.get("reactivate_session_id");
+    if (!sessionId) return;
+    searchParams.delete("reactivate_session_id");
+    setSearchParams(searchParams, { replace: true });
+
+    billingApi
+      .confirmReactivation(sessionId)
+      .then(() => {
+        window.location.reload();
+      })
+      .catch((err) => {
+        console.error("Reactivation confirmation failed", err);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navCards = [
     {

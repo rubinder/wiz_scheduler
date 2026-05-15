@@ -47,6 +47,31 @@ async def require_manager(
     return current_user
 
 
+async def require_active_billing(
+    current_user: "User" = Depends(require_manager),
+    db: "AsyncSession" = Depends(get_db),
+) -> "User":
+    """Block requests when the OG is in the read-only grace period.
+
+    Used to gate paid-resource endpoints (AI/schedule generation) without
+    blocking CRUD, billing, auth, or GDPR endpoints — users in grace need
+    to retrieve their data and reactivate.
+    """
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services.billing import get_ownership_group_id
+
+    og_id = await get_ownership_group_id(db, str(current_user.company_id))
+    if not og_id:
+        return current_user
+    og = await db.get(OwnershipGroup, og_id)
+    if og and og.canceled_at is not None:
+        raise HTTPException(
+            status_code=402,
+            detail="Subscription canceled. Reactivate to resume scheduling.",
+        )
+    return current_user
+
+
 async def get_ownership_group_company_ids(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

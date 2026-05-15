@@ -434,6 +434,11 @@ const ind = {
     retryPayment: "Coba pembayaran lagi",
     retryFailed: "Percobaan gagal — perbarui kartu Anda dan coba lagi.",
     updateCard: "Perbarui kartu",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Biaya bulanan tertunda",
     pendingChargesEmpty: "Tidak ada biaya tambahan yang diproyeksikan di siklus ini.",
     pendingChargeStorage: "Kelebihan penyimpanan",
@@ -744,6 +749,11 @@ const ind = {
         desc: "Alat ramah GDPR untuk ekspor, penghapusan, dan persetujuan data. Tampilan manajer untuk setiap permintaan subjek data dan statusnya.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_active_billing, require_manager
 from backend.models import Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
@@ -132,7 +132,7 @@ async def get_schedule_quota(
 async def generate_schedule(
     body: GenerateRequest,
     request: Request,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_active_billing),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     from backend.scheduling.graph import run_scheduling_pipeline

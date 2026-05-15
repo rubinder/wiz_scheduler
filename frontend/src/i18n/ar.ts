@@ -434,6 +434,11 @@ const ar = {
     retryPayment: "إعادة محاولة الدفع",
     retryFailed: "فشلت إعادة المحاولة — حدّث بطاقتك وحاول مرة أخرى.",
     updateCard: "تحديث البطاقة",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "الرسوم الشهرية المُعلَّقة",
     pendingChargesEmpty: "لا توجد رسوم إضافية متوقعة في هذه الدورة.",
     pendingChargeStorage: "تجاوز التخزين",
@@ -744,6 +749,11 @@ const ar = {
         desc: "أدوات متوافقة مع GDPR لتصدير البيانات وحذفها وإدارة الموافقات. عرض من جانب المدير لكل طلب من أصحاب البيانات وحالته.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

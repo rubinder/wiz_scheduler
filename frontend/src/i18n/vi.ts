@@ -434,6 +434,11 @@ const vi = {
     retryPayment: "Thử lại thanh toán",
     retryFailed: "Thử lại thất bại — cập nhật thẻ và thử lại.",
     updateCard: "Cập nhật thẻ",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Phí hàng tháng đang chờ",
     pendingChargesEmpty: "Không có khoản phí bổ sung nào dự kiến trong chu kỳ này.",
     pendingChargeStorage: "Vượt mức lưu trữ",
@@ -744,6 +749,11 @@ const vi = {
         desc: "Các công cụ thân thiện với GDPR cho xuất, xóa và cấp quyền dữ liệu. Quản lý có thể xem từng yêu cầu của chủ thể dữ liệu và trạng thái của nó.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

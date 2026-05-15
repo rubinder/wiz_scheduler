@@ -34,6 +34,18 @@ class OwnershipGroup(Base):
         DateTime(timezone=True), nullable=True
     )
     default_payment_method_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    canceled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    notified_subscription_ended_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    notified_deletion_reminder_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    notified_data_deleted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Which external integration feeds data into this group (e.g. "7shifts").
     # NULL means the group manages data manually without an integration.
     api_integration: Mapped[str | None] = mapped_column(String, nullable=True)

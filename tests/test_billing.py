@@ -1384,3 +1384,411 @@ async def test_webhook_invoice_payment_succeeded_unknown_customer_acks(
         headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
     )
     assert response.status_code == 200
+
+
+async def test_webhook_subscription_updated_logs_only(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """customer.subscription.updated is acked but does not mutate the OG."""
+    import stripe
+    fake_event = {
+        "type": "customer.subscription.updated",
+        "data": {"object": {
+            "customer": "cus_test_abc",
+            "cancel_at_period_end": True,
+            "current_period_end": int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp()),
+        }},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is None  # NOT set — Stripe is authoritative
+
+
+async def test_webhook_subscription_deleted_sets_canceled_at(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """customer.subscription.deleted sets og.canceled_at and sends an email."""
+    import stripe
+    fake_event = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    sent_emails = []
+    async def fake_send(og):
+        sent_emails.append(og.id)
+    monkeypatch.setattr(
+        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+    )
+
+    assert og_with_card.canceled_at is None
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+    assert og_with_card.notified_subscription_ended_at is not None
+    assert sent_emails == [OG_ID]
+
+
+async def test_webhook_subscription_deleted_idempotent(
+    client: AsyncClient, db_session, og_with_card, monkeypatch
+):
+    """Redelivering the deletion event does not overwrite canceled_at."""
+    import stripe
+    original_canceled = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    og_with_card.canceled_at = original_canceled
+    og_with_card.notified_subscription_ended_at = original_canceled
+    await db_session.commit()
+
+    fake_event = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": "cus_test_abc"}},
+    }
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, s, k: fake_event)
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    sent = []
+    async def fake_send(og):
+        sent.append(og.id)
+    monkeypatch.setattr(
+        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+    )
+
+    response = await client.post(
+        "/api/v1/webhooks/stripe",
+        content=b"{}",
+        headers={"stripe-signature": "t=1,v1=x", "content-type": "application/json"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    # SQLite strips tz info; compare naive-to-naive to verify the value is unchanged
+    db_canceled = og_with_card.canceled_at
+    if db_canceled is not None and db_canceled.tzinfo is None:
+        db_canceled = db_canceled.replace(tzinfo=timezone.utc)
+    assert db_canceled == original_canceled  # unchanged
+    assert sent == []  # email NOT re-sent
+
+
+# ---------------------------------------------------------------------------
+# Task 3: require_active_billing dependency
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_blocked_when_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """POST /schedules/generate returns 402 when og.canceled_at is set."""
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/schedules/generate",
+        json={"week_start_date": "2026-06-01", "use_local": True},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 402
+    assert "subscription" in response.json()["detail"].lower()
+
+
+async def test_employees_list_still_works_when_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card, seed_employees
+):
+    """CRUD reads stay accessible when the OG is canceled — users need
+    to retrieve their data."""
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/employees/",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+
+
+async def test_get_usage_reports_canceled_state(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """GET /billing/usage includes is_read_only, canceled_at, scheduled_deletion_at
+    when the OG has canceled_at set."""
+    canceled = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc)
+    og_with_card.canceled_at = canceled
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_read_only"] is True
+    assert body["canceled_at"].startswith("2026-05-01T12:00:00")
+    # 90 days after 2026-05-01 = 2026-07-30
+    assert body["scheduled_deletion_at"].startswith("2026-07-30")
+
+
+async def test_get_usage_active_state_no_cancellation_fields(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """Active OGs return is_read_only=False and null cancellation timestamps."""
+    response = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_read_only"] is False
+    assert body["canceled_at"] is None
+    assert body["scheduled_deletion_at"] is None
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Reactivation endpoints (checkout + confirm)
+# ---------------------------------------------------------------------------
+
+
+async def test_reactivate_checkout_creates_session(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """POST /billing/reactivate-checkout returns a Stripe Checkout URL,
+    reusing the existing stripe_customer_id."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    captured_kwargs = {}
+    def fake_create(**kwargs):
+        captured_kwargs.update(kwargs)
+        return MagicMock(id="cs_reactivate_1", url="https://checkout.stripe.com/c/cs_reactivate_1")
+    monkeypatch.setattr(stripe.checkout.Session, "create", fake_create)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setattr(settings, "STRIPE_PRICE_ID", "price_test")
+
+    response = await client.post(
+        "/api/v1/billing/reactivate-checkout",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["url"].startswith("https://checkout.stripe.com/")
+    assert captured_kwargs["customer"] == "cus_test_abc"
+    assert captured_kwargs["mode"] == "subscription"
+
+
+async def test_reactivate_checkout_rejects_when_not_canceled(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """Cannot reactivate an OG that hasn't been canceled."""
+    assert og_with_card.canceled_at is None
+    response = await client.post(
+        "/api/v1/billing/reactivate-checkout",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+
+
+async def test_confirm_reactivation_clears_canceled_state(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """POST /billing/confirm-reactivation clears canceled_at + all notified_* flags."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    og_with_card.notified_subscription_ended_at = datetime.now(timezone.utc)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_test_abc",
+        subscription="sub_reactivated_xyz",
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_reactivate_1"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is None
+    assert og_with_card.notified_subscription_ended_at is None
+    assert og_with_card.notified_deletion_reminder_at is None
+    assert og_with_card.stripe_subscription_id == "sub_reactivated_xyz"
+
+
+async def test_confirm_reactivation_rejects_unpaid_session(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(payment_status="unpaid", customer="cus_test_abc")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_unpaid"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+
+
+async def test_confirm_reactivation_rejects_foreign_customer(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """A session belonging to a different stripe_customer_id is rejected."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_OTHER_ACCOUNT",
+        subscription="sub_evil_xyz",
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_foreign"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+    assert "account" in response.json()["detail"].lower()
+
+    # OG state must be unchanged
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+
+
+async def test_send_subscription_ended_email_calls_resend(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """When RESEND_API_KEY is set, the helper calls resend.Emails.send with
+    a properly formatted body addressed to the OG's manager(s)."""
+    from contextlib import asynccontextmanager
+    from backend.services.billing import send_subscription_ended_email
+    from backend.models import User
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    # Patch async_session_factory to yield the test db_session instead of
+    # opening a new connection to the real PostgreSQL instance.
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+
+    import backend.database as _db_module
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_subscription_ended_email(og_with_card)
+
+    assert len(sent) == 1
+    body = sent[0]
+    assert "manager@acme.test" in body["to"]
+    assert "subscription" in body["subject"].lower()
+    assert "90" in body["html"] or "ninety" in body["html"].lower()
+
+
+async def test_send_subscription_ended_email_noop_without_resend_key(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """No exception, no email when RESEND_API_KEY is unset."""
+    from backend.services.billing import send_subscription_ended_email
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    # Should not raise even though we haven't stubbed resend module.
+    await send_subscription_ended_email(og_with_card)
+    assert og_with_card.stripe_customer_id == "cus_test_abc"
+
+
+async def test_send_subscription_ended_email_escapes_og_name(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """og.name is HTML-escaped to prevent stored XSS in the email body."""
+    from backend.services.billing import send_subscription_ended_email
+    from backend.models import User
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+
+    og_with_card.name = "<script>alert(1)</script>"
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_subscription_ended_email(og_with_card)
+
+    assert len(sent) == 1
+    html_body = sent[0]["html"]
+    assert "<script>alert(1)</script>" not in html_body  # raw payload must NOT appear
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html_body  # escaped form present

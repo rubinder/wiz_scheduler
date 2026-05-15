@@ -434,6 +434,11 @@ const de = {
     retryPayment: "Zahlung erneut versuchen",
     retryFailed: "Wiederholung fehlgeschlagen — aktualisiere deine Karte und versuche es erneut.",
     updateCard: "Karte aktualisieren",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Ausstehende monatliche Gebühren",
     pendingChargesEmpty: "Keine weiteren Gebühren in diesem Zyklus erwartet.",
     pendingChargeStorage: "Speicher-Überschreitung",
@@ -744,6 +749,11 @@ const de = {
         desc: "DSGVO-freundliche Werkzeuge für Datenexport, -löschung und Einwilligung. Manager-Sicht auf jede Anfrage betroffener Personen und deren Status.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

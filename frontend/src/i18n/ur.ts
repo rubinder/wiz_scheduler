@@ -434,6 +434,11 @@ const ur = {
     retryPayment: "ادائیگی دوبارہ آزمائیں",
     retryFailed: "دوبارہ کوشش ناکام — اپنا کارڈ اپ ڈیٹ کریں اور دوبارہ کوشش کریں۔",
     updateCard: "کارڈ اپ ڈیٹ کریں",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "زیرِ التواء ماہانہ چارجز",
     pendingChargesEmpty: "اس سائیکل میں کوئی اضافی چارجز متوقع نہیں ہیں۔",
     pendingChargeStorage: "اسٹوریج اوور ایج",
@@ -744,6 +749,11 @@ const ur = {
         desc: "ڈیٹا کی برآمد، حذف، اور رضامندی کے لیے GDPR کے موافق ٹولز۔ ہر ڈیٹا سبجیکٹ درخواست اور اس کی حیثیت کا مینیجر سائڈ نظارہ۔",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -434,6 +434,11 @@ const es = {
     retryPayment: "Reintentar pago",
     retryFailed: "El reintento falló — actualiza tu tarjeta e inténtalo de nuevo.",
     updateCard: "Actualizar tarjeta",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Cargos mensuales pendientes",
     pendingChargesEmpty: "No se prevén cargos adicionales en este ciclo.",
     pendingChargeStorage: "Excedente de almacenamiento",
@@ -744,6 +749,11 @@ const es = {
         desc: "Herramientas compatibles con el RGPD para exportación, eliminación y consentimiento de datos. Vista de gerente de cada solicitud de los titulares y su estado.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 
