@@ -951,6 +951,7 @@ async def send_subscription_ended_email(og: OwnershipGroup) -> None:
         return
 
     try:
+        import html as _html
         import resend
         resend.api_key = settings.RESEND_API_KEY
         resend.Emails.send({
@@ -959,15 +960,19 @@ async def send_subscription_ended_email(og: OwnershipGroup) -> None:
             "subject": "Your WizScheduler subscription has ended",
             "html": (
                 f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
-                f"<p>Hi {og.name},</p>"
+                f"<p>Hi {_html.escape(og.name)},</p>"
                 f"<p>Your WizScheduler subscription has been canceled. "
                 f"You still have read-only access to your data.</p>"
-                f"<p><strong>You have 90 days to reactivate</strong> before "
+                f"<p><strong>You have {settings.SUBSCRIPTION_GRACE_DAYS} days to reactivate</strong> before "
                 f"your data is permanently deleted.</p>"
                 f'<p>To resume scheduling, log in and click <em>Reactivate '
                 f"Subscription</em>.</p>"
                 f"</div>"
             ),
         })
-    except Exception as e:
-        logger.error("Failed to send subscription-ended email for og=%s: %s", og.id, e)
+    except Exception:
+        logger.error(
+            "Failed to send subscription-ended email for og=%s",
+            og.id,
+            exc_info=True,
+        )

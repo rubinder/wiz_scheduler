@@ -1742,3 +1742,53 @@ async def test_send_subscription_ended_email_noop_without_resend_key(
     # Should not raise even though we haven't stubbed resend module.
     await send_subscription_ended_email(og_with_card)
     assert og_with_card.stripe_customer_id == "cus_test_abc"
+
+
+async def test_send_subscription_ended_email_escapes_og_name(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """og.name is HTML-escaped to prevent stored XSS in the email body."""
+    from backend.services.billing import send_subscription_ended_email
+    from backend.models import User
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+
+    og_with_card.name = "<script>alert(1)</script>"
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_subscription_ended_email(og_with_card)
+
+    assert len(sent) == 1
+    html_body = sent[0]["html"]
+    assert "<script>alert(1)</script>" not in html_body  # raw payload must NOT appear
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html_body  # escaped form present
