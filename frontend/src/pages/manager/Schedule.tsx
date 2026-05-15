@@ -375,6 +375,7 @@ export default function Schedule() {
     amount_usd: number;
   }>({ enabled: true, threshold_usd: 2, amount_usd: 10 });
   const [autoReloadSaving, setAutoReloadSaving] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [billingUsage, setBillingUsage] = useState<BillingUsage | null>(null);
   const [approvedLocations, setApprovedLocations] = useState<Set<string>>(
     new Set()
@@ -478,6 +479,17 @@ export default function Schedule() {
       window.location.href = url;
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : "Could not open billing portal");
+    }
+  };
+
+  const handleReactivate = async () => {
+    setReactivating(true);
+    try {
+      const { url } = await billingApi.reactivateCheckout();
+      window.location.href = url;
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Could not start reactivation");
+      setReactivating(false);
     }
   };
 
@@ -730,6 +742,36 @@ export default function Schedule() {
   return (
     <div>
       <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.schedule.title}</h1>
+
+      {/* Cancellation banner — read-only grace period */}
+      {billingUsage?.is_read_only && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-semibold text-red-900 mb-2">
+            {t.schedule.cancellationCardTitle}
+          </h3>
+          <p className="text-sm text-red-800 mb-1">
+            {t.schedule.cancellationEndedOn.replace(
+              "{date}",
+              billingUsage.canceled_at ? new Date(billingUsage.canceled_at).toLocaleDateString() : ""
+            )}
+          </p>
+          <p className="text-sm text-red-800 mb-4">
+            {t.schedule.cancellationDeletionOn.replace(
+              "{date}",
+              billingUsage.scheduled_deletion_at
+                ? new Date(billingUsage.scheduled_deletion_at).toLocaleDateString()
+                : ""
+            )}
+          </p>
+          <button
+            onClick={handleReactivate}
+            disabled={reactivating}
+            className="px-4 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 disabled:opacity-50"
+          >
+            {reactivating ? t.schedule.redirectingToPayment : t.schedule.reactivateSubscription}
+          </button>
+        </div>
+      )}
 
       {/* Auto-reload failed banner */}
       {autoReload?.failed_at && (
@@ -1359,6 +1401,13 @@ export default function Schedule() {
             <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
               {!autoReloadEditing ? (
                 <>
+                  <button
+                    type="button"
+                    onClick={handleOpenPortal}
+                    className="glass-btn-secondary text-sm font-medium mr-auto"
+                  >
+                    {t.schedule.manageBilling}
+                  </button>
                   <button
                     onClick={() => setShowBillingModal(false)}
                     className="glass-btn-secondary text-sm font-medium"
