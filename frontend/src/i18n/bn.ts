@@ -434,6 +434,11 @@ const bn = {
     retryPayment: "পেমেন্ট পুনরায় চেষ্টা করুন",
     retryFailed: "পুনরায় চেষ্টা ব্যর্থ — আপনার কার্ড আপডেট করুন এবং আবার চেষ্টা করুন।",
     updateCard: "কার্ড আপডেট করুন",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "অপেক্ষমাণ মাসিক চার্জ",
     pendingChargesEmpty: "এই চক্রে কোনো অতিরিক্ত চার্জ অনুমান করা হয়নি।",
     pendingChargeStorage: "স্টোরেজ ওভারেজ",
@@ -744,6 +749,11 @@ const bn = {
         desc: "ডেটা এক্সপোর্ট, মুছে ফেলা ও সম্মতির জন্য GDPR-বান্ধব টুলস। প্রতিটি ডেটা সাবজেক্ট অনুরোধ ও তার অবস্থার ম্যানেজার-পার্শ্ব দৃশ্য।",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -434,6 +434,11 @@ const ja = {
     retryPayment: "支払いを再試行",
     retryFailed: "再試行に失敗 — カードを更新してもう一度お試しください。",
     updateCard: "カードを更新",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "保留中の月額料金",
     pendingChargesEmpty: "このサイクルで追加料金は見込まれていません。",
     pendingChargeStorage: "ストレージ超過分",
@@ -744,6 +749,11 @@ const ja = {
         desc: "データのエクスポート、削除、同意管理に対応した GDPR フレンドリーなツール。各データ主体リクエストとそのステータスをマネージャー視点で確認できます。",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

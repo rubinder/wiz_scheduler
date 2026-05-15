@@ -434,6 +434,11 @@ const trLang = {
     retryPayment: "Ödemeyi yeniden dene",
     retryFailed: "Yeniden deneme başarısız — kartınızı güncelleyip tekrar deneyin.",
     updateCard: "Kartı güncelle",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Bekleyen Aylık Ücretler",
     pendingChargesEmpty: "Bu döngüde ek ücret öngörülmüyor.",
     pendingChargeStorage: "Depolama aşımı",
@@ -744,6 +749,11 @@ const trLang = {
         desc: "Veri dışa aktarımı, silme ve onay için GDPR uyumlu araçlar. Her veri sahibi talebi ve durumu için yönetici görünümü.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -435,6 +435,11 @@ const en = {
     retryPayment: "Retry payment",
     retryFailed: "Retry failed — update your card and try again.",
     updateCard: "Update card",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Pending Monthly Charges",
     pendingChargesEmpty: "No additional charges projected this cycle.",
     pendingChargeStorage: "Storage overage",
@@ -747,6 +752,10 @@ const en = {
         desc: "GDPR-friendly tools for data export, erasure, and consent. Manager-side view of every data subject request and its status.",
       },
     },
+  },
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -434,6 +434,11 @@ const ru = {
     retryPayment: "Повторить оплату",
     retryFailed: "Повтор не удался — обновите карту и попробуйте снова.",
     updateCard: "Обновить карту",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Ожидаемые ежемесячные начисления",
     pendingChargesEmpty: "В этом цикле дополнительных начислений не ожидается.",
     pendingChargeStorage: "Перерасход хранилища",
@@ -744,6 +749,11 @@ const ru = {
         desc: "Инструменты, совместимые с GDPR, для экспорта, удаления и согласия. Менеджер видит каждый запрос субъекта данных и его статус.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

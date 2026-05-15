@@ -434,6 +434,11 @@ const te = {
     retryPayment: "చెల్లింపును మళ్లీ ప్రయత్నించండి",
     retryFailed: "మళ్లీ ప్రయత్నం విఫలమైంది — మీ కార్డ్‌ను నవీకరించి మళ్లీ ప్రయత్నించండి.",
     updateCard: "కార్డ్‌ను నవీకరించండి",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "పెండింగ్‌లో ఉన్న నెలవారీ ఛార్జీలు",
     pendingChargesEmpty: "ఈ చక్రంలో అదనపు ఛార్జీలు అంచనా వేయబడలేదు.",
     pendingChargeStorage: "నిల్వ అదనపు",
@@ -744,6 +749,11 @@ const te = {
         desc: "డేటా ఎగుమతి, తొలగింపు మరియు సమ్మతి కోసం GDPR-అనుకూల సాధనాలు. ప్రతి డేటా సబ్జెక్ట్ అభ్యర్థన మరియు దాని స్థితికి సంబంధించిన మేనేజర్ వీక్షణ.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

@@ -434,6 +434,11 @@ const ta = {
     retryPayment: "கட்டணத்தை மீண்டும் முயற்சிக்கவும்",
     retryFailed: "மீண்டும் முயற்சி தோல்வியடைந்தது — உங்கள் அட்டையைப் புதுப்பித்து மீண்டும் முயற்சிக்கவும்.",
     updateCard: "அட்டையைப் புதுப்பிக்கவும்",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "நிலுவையில் உள்ள மாதாந்திர கட்டணங்கள்",
     pendingChargesEmpty: "இந்த சுழற்சியில் கூடுதல் கட்டணங்கள் எதிர்பார்க்கப்படவில்லை.",
     pendingChargeStorage: "சேமிப்பகம் கூடுதல்",
@@ -744,6 +749,11 @@ const ta = {
         desc: "தரவு ஏற்றுமதி, அழித்தல், மற்றும் சம்மதத்திற்கான GDPR-நட்பு கருவிகள். ஒவ்வொரு தரவு உரிமையாளர் கோரிக்கை மற்றும் அதன் நிலையின் மேலாளர் பார்வை.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

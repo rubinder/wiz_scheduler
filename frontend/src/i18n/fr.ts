@@ -434,6 +434,11 @@ const fr = {
     retryPayment: "Réessayer le paiement",
     retryFailed: "Échec du réessai — mettez à jour votre carte et réessayez.",
     updateCard: "Mettre à jour la carte",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Frais mensuels en attente",
     pendingChargesEmpty: "Aucun frais supplémentaire prévu ce cycle.",
     pendingChargeStorage: "Dépassement de stockage",
@@ -744,6 +749,11 @@ const fr = {
         desc: "Outils compatibles RGPD pour l'export, l'effacement et le consentement des données. Vue gestionnaire de chaque demande des personnes concernées et de son statut.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

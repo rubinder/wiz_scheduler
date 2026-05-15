@@ -434,6 +434,11 @@ const hi = {
     retryPayment: "भुगतान पुनः प्रयास करें",
     retryFailed: "पुनः प्रयास विफल — अपना कार्ड अपडेट करें और फिर से प्रयास करें।",
     updateCard: "कार्ड अपडेट करें",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "लंबित मासिक शुल्क",
     pendingChargesEmpty: "इस चक्र में कोई अतिरिक्त शुल्क अनुमानित नहीं है।",
     pendingChargeStorage: "स्टोरेज ओवरेज",
@@ -744,6 +749,11 @@ const hi = {
         desc: "डेटा एक्सपोर्ट, मिटाने, और सहमति के लिए GDPR-अनुकूल टूल। प्रत्येक डेटा विषय अनुरोध और उसकी स्थिति का मैनेजर-स्तर का दृश्य।",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 

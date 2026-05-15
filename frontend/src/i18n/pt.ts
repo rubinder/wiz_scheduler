@@ -434,6 +434,11 @@ const pt = {
     retryPayment: "Tentar pagamento novamente",
     retryFailed: "Tentativa falhou — atualize seu cartão e tente novamente.",
     updateCard: "Atualizar cartão",
+    manageBilling: "Manage Billing",
+    cancellationCardTitle: "Subscription canceled",
+    cancellationEndedOn: "Your subscription ended on {date}.",
+    cancellationDeletionOn: "Your data will be permanently deleted on {date}.",
+    reactivateSubscription: "Reactivate Subscription",
     pendingChargesTitle: "Cobranças mensais pendentes",
     pendingChargesEmpty: "Nenhuma cobrança adicional prevista neste ciclo.",
     pendingChargeStorage: "Excedente de armazenamento",
@@ -744,6 +749,11 @@ const pt = {
         desc: "Ferramentas compatíveis com LGPD/GDPR para exportação, exclusão e consentimento de dados. Visão do gestor sobre cada solicitação de titulares e seu status.",
       },
     },
+  },
+
+  cancellationBanner: {
+    title: "Subscription ended.",
+    body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
   },
 } as const;
 
