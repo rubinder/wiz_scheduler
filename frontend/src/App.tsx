@@ -27,6 +27,7 @@ import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
 import Landing from "./pages/Landing";
 import Features from "./pages/Features";
+import CancellationBanner from "./components/shared/CancellationBanner";
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ function ProtectedLayout() {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <TopBar />
+        <CancellationBanner />
         <main className="flex-1 p-6">
           <Outlet />
         </main>
