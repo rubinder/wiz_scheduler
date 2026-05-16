@@ -469,3 +469,35 @@ async def test_approve_returns_409_when_locked(
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "schedule_locked"
+
+
+async def test_approve_releases_lock_on_success(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    """Approving a draft schedule must remove the lock row when it completes."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock, ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="[]",
+    )
+    db_session.add(sched)
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
