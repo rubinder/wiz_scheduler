@@ -1049,6 +1049,99 @@ async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
         )
 
 
+async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None:
+    """Permanently delete an ownership group and every row referencing it.
+
+    Called by the day-90 cron after send_data_deleted_email. Caller must commit.
+
+    Deletes 19 explicit tables in dependency order plus the OG row.
+    storage_snapshots and billing_charges cascade automatically via
+    ondelete=CASCADE on their FK to ownership_groups.id.
+
+    PostgreSQL bulk DELETE checks FK constraints at end-of-statement, so
+    self-FK tables (employees.id->employees.id, condensed_roles->condensed_roles,
+    shift_schedules->shift_schedules) work correctly in a single statement.
+    """
+    from sqlalchemy import delete, select
+    from backend.models import (
+        Company,
+        Employee,
+        EmployeeAffinity,
+        EmployeeAvailability,
+        EmployeeCompany,
+        EmployeeDayBlackout,
+        EmployeeInvite,
+        EmployeeRole,
+        Location,
+        Region,
+        Role,
+        Shift,
+        ShiftSchedule,
+        ShiftTemplate,
+        User,
+    )
+    from backend.models.condensed_role import CondensedRole
+    from backend.models.consent import UserConsent
+    from backend.models.department import Department
+    from backend.models.employee_role_minutes import EmployeeRoleMinutes
+    from backend.models.failure_log import FailureLog
+    from backend.models.token_usage import TokenUsage
+
+    company_ids = (await db.execute(
+        select(Company.id).where(Company.ownership_group_id == og.id)
+    )).scalars().all()
+
+    if company_ids:
+        # 1. shifts — refs shift_schedules, employees, locations, roles
+        await db.execute(delete(Shift).where(Shift.company_id.in_(company_ids)))
+        # 2. shift_schedules — self-FK, refs employees/locations/roles
+        await db.execute(delete(ShiftSchedule).where(ShiftSchedule.company_id.in_(company_ids)))
+        # 3. employee_role_minutes — refs employees, roles
+        await db.execute(delete(EmployeeRoleMinutes).where(EmployeeRoleMinutes.company_id.in_(company_ids)))
+        # 4. employee_roles — pivot employees ↔ roles
+        await db.execute(delete(EmployeeRole).where(EmployeeRole.company_id.in_(company_ids)))
+        # 5. employee_affinities — refs 2 employees
+        await db.execute(delete(EmployeeAffinity).where(EmployeeAffinity.company_id.in_(company_ids)))
+        # 6. employee_invites
+        await db.execute(delete(EmployeeInvite).where(EmployeeInvite.company_id.in_(company_ids)))
+        # 7. employee_day_blackouts
+        await db.execute(delete(EmployeeDayBlackout).where(EmployeeDayBlackout.company_id.in_(company_ids)))
+        # 8. employee_availability
+        await db.execute(delete(EmployeeAvailability).where(EmployeeAvailability.company_id.in_(company_ids)))
+        # 9. employee_companies — refs employees + companies (employee_id is CASCADE)
+        await db.execute(delete(EmployeeCompany).where(EmployeeCompany.company_id.in_(company_ids)))
+        # 10. departments — refs locations
+        await db.execute(delete(Department).where(Department.company_id.in_(company_ids)))
+        # 11. shift_templates — refs locations
+        await db.execute(delete(ShiftTemplate).where(ShiftTemplate.company_id.in_(company_ids)))
+        # 12. employees — self-FK + refs roles, users
+        await db.execute(delete(Employee).where(Employee.company_id.in_(company_ids)))
+        # 13. locations — refs regions
+        await db.execute(delete(Location).where(Location.company_id.in_(company_ids)))
+        # 14. condensed_roles — self-FK + refs roles; condensed_role_mappings cascade
+        await db.execute(delete(CondensedRole).where(CondensedRole.company_id.in_(company_ids)))
+        # 15. roles
+        await db.execute(delete(Role).where(Role.company_id.in_(company_ids)))
+        # 16. regions
+        await db.execute(delete(Region).where(Region.company_id.in_(company_ids)))
+        # 17. user_consents — refs users
+        await db.execute(delete(UserConsent).where(UserConsent.company_id.in_(company_ids)))
+        # 18. failure_logs
+        await db.execute(delete(FailureLog).where(FailureLog.company_id.in_(company_ids)))
+        # 19. users
+        await db.execute(delete(User).where(User.company_id.in_(company_ids)))
+        # 20. companies
+        await db.execute(delete(Company).where(Company.id.in_(company_ids)))
+
+    # 21. token_usage (OG-level, no FK cascade)
+    await db.execute(delete(TokenUsage).where(TokenUsage.ownership_group_id == og.id))
+
+    # storage_snapshots + billing_charges cascade automatically.
+
+    # The OG row itself.
+    await db.delete(og)
+
+
 async def send_data_deleted_email(og: OwnershipGroup) -> None:
     """Final notice: the OG's data has just been (or is about to be) deleted.
 

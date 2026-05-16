@@ -1956,3 +1956,86 @@ async def test_send_data_deleted_email_noop_without_resend_key(
     from backend.services.billing import send_data_deleted_email
     monkeypatch.setattr(settings, "RESEND_API_KEY", "")
     await send_data_deleted_email(og_with_card)  # must not raise
+
+
+async def test_delete_og_and_dependents_removes_full_subtree(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Verify the helper removes the OG and every dependent row, leaving
+    no FK orphans. Seeds a representative slice across the FK graph."""
+    from datetime import date
+    from sqlalchemy import select, func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import (
+        Company, Employee, Location, Region, Role, ShiftTemplate, User,
+    )
+    from backend.models.condensed_role import CondensedRole
+    from backend.models.schedule import ShiftSchedule
+    from backend.models.token_usage import TokenUsage
+
+    # Seed dependent rows under the existing og_with_card's company.
+    user = User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="del@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="To Delete",
+        user_role="manager",
+    )
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add_all([user, region])
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id, name="L1", timezone="UTC")
+    role = Role(id=_id(), company_id=COMPANY_ID, name="Server")
+    db_session.add_all([location, role])
+    await db_session.flush()
+    employee = Employee(
+        id=_id(), company_id=COMPANY_ID, full_name="Alice",
+        user_id=None,
+    )
+    db_session.add(employee)
+    await db_session.flush()
+    schedule = ShiftSchedule(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        week_start_date=date(2026, 5, 4),
+    )
+    usage = TokenUsage(
+        id=_id(), ownership_group_id=OG_ID, year=2026, month=5,
+        input_tokens=1000, output_tokens=500, cost_usd=0.05,
+    )
+    db_session.add_all([schedule, usage])
+    await db_session.commit()
+
+    # Sanity check
+    assert (await db_session.execute(select(func.count()).select_from(Employee))).scalar() >= 1
+
+    # Act
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    # Assert — OG row + dependents are gone
+    from backend.models.ownership_group import OwnershipGroup
+    assert (await db_session.execute(select(OwnershipGroup).where(OwnershipGroup.id == OG_ID))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(Company).where(Company.id == COMPANY_ID))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(User).where(User.id == user.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(Employee).where(Employee.id == employee.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(ShiftSchedule).where(ShiftSchedule.id == schedule.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(TokenUsage).where(TokenUsage.id == usage.id))).scalar_one_or_none() is None
+
+
+async def test_delete_og_and_dependents_handles_empty_og(
+    db_session: AsyncSession
+):
+    """An OG with no companies or dependents still deletes cleanly."""
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models.ownership_group import OwnershipGroup
+    from sqlalchemy import select
+
+    bare_og = OwnershipGroup(id=_id(), name="Empty OG", stripe_customer_id="cus_empty")
+    db_session.add(bare_og)
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, bare_og)
+    await db_session.commit()
+
+    assert (await db_session.execute(select(OwnershipGroup).where(OwnershipGroup.id == bare_og.id))).scalar_one_or_none() is None
