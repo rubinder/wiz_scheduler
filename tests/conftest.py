@@ -47,6 +47,20 @@ test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
+def pytest_sessionfinish(session, exitstatus):
+    """Dispose the test engine so aiosqlite's per-connection thread pool
+    shuts down. Without this, pytest prints the summary but the Python
+    process hangs because the aiosqlite threads keep the interpreter alive.
+    """
+    import asyncio
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(test_engine.dispose())
+        loop.close()
+    except Exception:
+        pass
+
+
 # Register SQLite-compatible replacements for PostgreSQL functions
 @event.listens_for(test_engine.sync_engine, "connect")
 def _register_sqlite_functions(dbapi_connection, connection_record):

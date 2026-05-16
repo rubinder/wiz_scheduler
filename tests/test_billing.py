@@ -1900,6 +1900,7 @@ async def test_send_deletion_reminder_email_escapes_og_name(
 
     assert len(sent) == 1
     assert "<script>alert(1)</script>" not in sent[0]["html"]
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in sent[0]["html"]
 
 
 async def test_send_data_deleted_email_calls_resend(
