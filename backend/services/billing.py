@@ -1142,6 +1142,51 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     await db.delete(og)
 
 
+async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
+    """Daily cron driver.
+
+    Walks all OGs with canceled_at set; sends day-76 reminder once, performs
+    day-90 deletion once. Returns a small summary dict for logging.
+    """
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    reminder_threshold_days = (
+        settings.SUBSCRIPTION_GRACE_DAYS
+        - settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE
+    )
+
+    canceled_ogs = (await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.canceled_at.is_not(None))
+    )).scalars().all()
+
+    reminders_sent = 0
+    deletions_done = 0
+
+    for og in canceled_ogs:
+        # canceled_at column is timezone-aware UTC in PG; SQLite drops tz.
+        canceled_at = og.canceled_at
+        if canceled_at.tzinfo is None:
+            canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+        age_days = (now - canceled_at).days
+
+        # Day 76: send reminder (once)
+        if age_days >= reminder_threshold_days and og.notified_deletion_reminder_at is None:
+            await send_deletion_reminder_email(og)
+            og.notified_deletion_reminder_at = now
+            reminders_sent += 1
+
+        # Day 90: delete (the row goes away so this is naturally idempotent)
+        if age_days >= settings.SUBSCRIPTION_GRACE_DAYS:
+            await send_data_deleted_email(og)  # must happen BEFORE delete
+            await delete_og_and_dependents(db, og)
+            deletions_done += 1
+
+    await db.commit()
+    return {"reminders_sent": reminders_sent, "deletions_done": deletions_done}
+
+
 async def send_data_deleted_email(og: OwnershipGroup) -> None:
     """Final notice: the OG's data has just been (or is about to be) deleted.
 

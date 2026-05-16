@@ -1,6 +1,6 @@
 """Tests for backend/services/billing.py."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -2039,3 +2039,119 @@ async def test_delete_og_and_dependents_handles_empty_og(
     await db_session.commit()
 
     assert (await db_session.execute(select(OwnershipGroup).where(OwnershipGroup.id == bare_og.id))).scalar_one_or_none() is None
+
+
+# ---------------------------------------------------------------------------
+# process_cancellation_lifecycle orchestrator tests
+# ---------------------------------------------------------------------------
+
+
+async def test_lifecycle_skips_active_ogs(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """OGs with canceled_at IS NULL must be ignored entirely."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    # og_with_card.canceled_at is None (default fixture state)
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == []
+    assert deletions == []
+
+
+async def test_lifecycle_sends_reminder_at_day_76(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """At exactly 76 days post-cancel, the reminder fires and the flag stamps."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=76)
+    await db_session.commit()
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == [OG_ID]
+    assert deletions == []
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.notified_deletion_reminder_at is not None
+
+
+async def test_lifecycle_reminder_is_idempotent(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Second run after reminder already sent doesn't re-fire."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=80)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc) - timedelta(days=3)
+    await db_session.commit()
+
+    reminders = []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): pass
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == []
+
+
+async def test_lifecycle_deletes_at_day_90(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """At day 90+, send the final email AND delete the OG row."""
+    from sqlalchemy import select
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    await db_session.commit()
+
+    deletions, reminders = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert deletions == [OG_ID]
+
+    # OG row must be gone after commit
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == OG_ID)
+    )).scalar_one_or_none() is None
+
+
+async def test_lifecycle_reminder_and_deletion_both_overdue(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """If the cron never ran for an OG that's now day 91 and never got the
+    reminder, the deletion should still happen — reminder is best-effort."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    # notified_deletion_reminder_at left None
+    await db_session.commit()
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    # Day 91 → send reminder + delete in the same pass. Order doesn't matter
+    # since both happen before the row is gone.
+    assert reminders == [OG_ID]
+    assert deletions == [OG_ID]
