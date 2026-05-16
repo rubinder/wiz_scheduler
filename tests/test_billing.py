@@ -1,6 +1,6 @@
 """Tests for backend/services/billing.py."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -1792,3 +1792,366 @@ async def test_send_subscription_ended_email_escapes_og_name(
     html_body = sent[0]["html"]
     assert "<script>alert(1)</script>" not in html_body  # raw payload must NOT appear
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html_body  # escaped form present
+
+
+# ---------------------------------------------------------------------------
+# send_deletion_reminder_email
+# ---------------------------------------------------------------------------
+
+
+async def test_send_deletion_reminder_email_calls_resend(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Day-76 reminder includes the scheduled deletion date and reactivation CTA."""
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+    from backend.services.billing import send_deletion_reminder_email
+    from backend.models import User
+
+    og_with_card.canceled_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_deletion_reminder_email(og_with_card)
+
+    assert len(sent) == 1
+    body = sent[0]
+    assert "manager@acme.test" in body["to"]
+    assert "14" in body["subject"] or "14" in body["html"]  # 14-day warning
+    assert "reactivate" in body["html"].lower()
+    # Scheduled deletion date = 2026-01-01 + 90 days = 2026-04-01
+    assert "2026-04-01" in body["html"] or "April" in body["html"]
+
+
+async def test_send_deletion_reminder_email_noop_without_resend_key(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    from backend.services.billing import send_deletion_reminder_email
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    await send_deletion_reminder_email(og_with_card)  # must not raise
+
+
+async def test_send_deletion_reminder_email_escapes_og_name(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """XSS regression: og.name must be html-escaped."""
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+    from backend.services.billing import send_deletion_reminder_email
+    from backend.models import User
+
+    og_with_card.name = "<script>alert(1)</script>"
+    og_with_card.canceled_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_deletion_reminder_email(og_with_card)
+
+    assert len(sent) == 1
+    assert "<script>alert(1)</script>" not in sent[0]["html"]
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in sent[0]["html"]
+
+
+async def test_send_data_deleted_email_calls_resend(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Final notice: data has been deleted. No reactivation possible."""
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+    from backend.services.billing import send_data_deleted_email
+    from backend.models import User
+
+    og_with_card.canceled_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_data_deleted_email(og_with_card)
+
+    assert len(sent) == 1
+    body = sent[0]
+    assert "manager@acme.test" in body["to"]
+    assert "deleted" in body["subject"].lower()
+    assert "permanently" in body["html"].lower() or "irreversibl" in body["html"].lower()
+
+
+async def test_send_data_deleted_email_noop_without_resend_key(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    from backend.services.billing import send_data_deleted_email
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    await send_data_deleted_email(og_with_card)  # must not raise
+
+
+async def test_delete_og_and_dependents_removes_full_subtree(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Verify the helper removes the OG and every dependent row, leaving
+    no FK orphans. Seeds a representative slice across the FK graph."""
+    from datetime import date
+    from sqlalchemy import select, func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import (
+        Company, Employee, Location, Region, Role, ShiftTemplate, User,
+    )
+    from backend.models.condensed_role import CondensedRole
+    from backend.models.schedule import ShiftSchedule
+    from backend.models.token_usage import TokenUsage
+
+    # Seed dependent rows under the existing og_with_card's company.
+    user = User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="del@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="To Delete",
+        user_role="manager",
+    )
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add_all([user, region])
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id, name="L1", timezone="UTC")
+    role = Role(id=_id(), company_id=COMPANY_ID, name="Server")
+    db_session.add_all([location, role])
+    await db_session.flush()
+    employee = Employee(
+        id=_id(), company_id=COMPANY_ID, full_name="Alice",
+        user_id=None,
+    )
+    db_session.add(employee)
+    await db_session.flush()
+    schedule = ShiftSchedule(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        week_start_date=date(2026, 5, 4),
+    )
+    usage = TokenUsage(
+        id=_id(), ownership_group_id=OG_ID, year=2026, month=5,
+        input_tokens=1000, output_tokens=500, cost_usd=0.05,
+    )
+    db_session.add_all([schedule, usage])
+    await db_session.commit()
+
+    # Sanity check
+    assert (await db_session.execute(select(func.count()).select_from(Employee))).scalar() >= 1
+
+    # Act
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    # Assert — OG row + dependents are gone
+    from backend.models.ownership_group import OwnershipGroup
+    assert (await db_session.execute(select(OwnershipGroup).where(OwnershipGroup.id == OG_ID))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(Company).where(Company.id == COMPANY_ID))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(User).where(User.id == user.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(Employee).where(Employee.id == employee.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(ShiftSchedule).where(ShiftSchedule.id == schedule.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(TokenUsage).where(TokenUsage.id == usage.id))).scalar_one_or_none() is None
+
+
+async def test_delete_og_and_dependents_handles_empty_og(
+    db_session: AsyncSession
+):
+    """An OG with no companies or dependents still deletes cleanly."""
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models.ownership_group import OwnershipGroup
+    from sqlalchemy import select
+
+    bare_og = OwnershipGroup(id=_id(), name="Empty OG", stripe_customer_id="cus_empty")
+    db_session.add(bare_og)
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, bare_og)
+    await db_session.commit()
+
+    assert (await db_session.execute(select(OwnershipGroup).where(OwnershipGroup.id == bare_og.id))).scalar_one_or_none() is None
+
+
+# ---------------------------------------------------------------------------
+# process_cancellation_lifecycle orchestrator tests
+# ---------------------------------------------------------------------------
+
+
+async def test_lifecycle_skips_active_ogs(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """OGs with canceled_at IS NULL must be ignored entirely."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    # og_with_card.canceled_at is None (default fixture state)
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == []
+    assert deletions == []
+
+
+async def test_lifecycle_sends_reminder_at_day_76(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """At exactly 76 days post-cancel, the reminder fires and the flag stamps."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=76)
+    await db_session.commit()
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == [OG_ID]
+    assert deletions == []
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.notified_deletion_reminder_at is not None
+
+
+async def test_lifecycle_reminder_is_idempotent(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Second run after reminder already sent doesn't re-fire."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=80)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc) - timedelta(days=3)
+    await db_session.commit()
+
+    reminders = []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): pass
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert reminders == []
+
+
+async def test_lifecycle_deletes_at_day_90(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """At day 90+, send the final email AND delete the OG row."""
+    from sqlalchemy import select
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    await db_session.commit()
+
+    deletions, reminders = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    assert deletions == [OG_ID]
+
+    # OG row must be gone after commit
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == OG_ID)
+    )).scalar_one_or_none() is None
+
+
+async def test_lifecycle_reminder_and_deletion_both_overdue(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """If the cron never ran for an OG that's now day 91 and never got the
+    reminder, the deletion should still happen — reminder is best-effort."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    # notified_deletion_reminder_at left None
+    await db_session.commit()
+
+    reminders, deletions = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deletions.append(og.id)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    await process_cancellation_lifecycle(db_session)
+    # Day 91 → send reminder + delete in the same pass. Order doesn't matter
+    # since both happen before the row is gone.
+    assert reminders == [OG_ID]
+    assert deletions == [OG_ID]

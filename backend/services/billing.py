@@ -976,3 +976,274 @@ async def send_subscription_ended_email(og: OwnershipGroup) -> None:
             og.id,
             exc_info=True,
         )
+
+
+async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
+    """Day-76 reminder: 14 days until the OG's data is permanently deleted.
+
+    Caller (the cron) is responsible for idempotency via
+    notified_deletion_reminder_at. Resend errors are swallowed.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping deletion-reminder email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+
+    from sqlalchemy import select
+    from backend.models import Company, User
+    from backend.database import async_session_factory
+    import html as _html
+    from datetime import timedelta
+
+    async with async_session_factory() as db:
+        company_ids = (await db.execute(
+            select(Company.id).where(Company.ownership_group_id == og.id)
+        )).scalars().all()
+        if not company_ids:
+            return
+        manager_emails = (await db.execute(
+            select(User.email).where(
+                User.company_id.in_(company_ids),
+                User.user_role == "manager",
+            )
+        )).scalars().all()
+        manager_emails = [e for e in manager_emails if e]
+
+    if not manager_emails:
+        logger.info("No manager emails for og=%s; deletion-reminder skipped", og.id)
+        return
+
+    if og.canceled_at is None:
+        # Defensive: caller should have filtered, but don't send a reminder
+        # to an active account.
+        logger.warning("send_deletion_reminder_email called for og=%s with canceled_at=None", og.id)
+        return
+
+    deletion_date = (og.canceled_at + timedelta(days=settings.SUBSCRIPTION_GRACE_DAYS)).date()
+
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": list(manager_emails),
+            "subject": f"Your WizScheduler data will be deleted in {settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE} days",
+            "html": (
+                f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p><strong>Your WizScheduler data is scheduled for permanent "
+                f"deletion on {deletion_date.isoformat()}</strong> — "
+                f"{settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE} days from today.</p>"
+                f"<p>If you want to keep your data, log in and click "
+                f"<em>Reactivate Subscription</em> before that date.</p>"
+                f"<p>If you do nothing, all of your employees, schedules, "
+                f"locations, and historical data will be permanently and "
+                f"irreversibly deleted.</p>"
+                f"</div>"
+            ),
+        })
+    except Exception:
+        logger.error(
+            "Failed to send deletion-reminder email for og=%s",
+            og.id,
+            exc_info=True,
+        )
+
+
+async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None:
+    """Permanently delete an ownership group and every row referencing it.
+
+    Called by the day-90 cron after send_data_deleted_email. Caller must commit.
+
+    Deletes 19 explicit tables in dependency order plus the OG row.
+    storage_snapshots and billing_charges cascade automatically via
+    ondelete=CASCADE on their FK to ownership_groups.id.
+
+    PostgreSQL bulk DELETE checks FK constraints at end-of-statement, so
+    self-FK tables (employees.id->employees.id, condensed_roles->condensed_roles,
+    shift_schedules->shift_schedules) work correctly in a single statement.
+    """
+    from sqlalchemy import delete, select
+    from backend.models import (
+        Company,
+        Employee,
+        EmployeeAffinity,
+        EmployeeAvailability,
+        EmployeeCompany,
+        EmployeeDayBlackout,
+        EmployeeInvite,
+        EmployeeRole,
+        Location,
+        Region,
+        Role,
+        Shift,
+        ShiftSchedule,
+        ShiftTemplate,
+        User,
+    )
+    from backend.models.condensed_role import CondensedRole
+    from backend.models.consent import UserConsent
+    from backend.models.department import Department
+    from backend.models.employee_role_minutes import EmployeeRoleMinutes
+    from backend.models.failure_log import FailureLog
+    from backend.models.token_usage import TokenUsage
+
+    company_ids = (await db.execute(
+        select(Company.id).where(Company.ownership_group_id == og.id)
+    )).scalars().all()
+
+    if company_ids:
+        # 1. shifts — refs shift_schedules, employees, locations, roles
+        await db.execute(delete(Shift).where(Shift.company_id.in_(company_ids)))
+        # 2. shift_schedules — self-FK, refs employees/locations/roles
+        await db.execute(delete(ShiftSchedule).where(ShiftSchedule.company_id.in_(company_ids)))
+        # 3. employee_role_minutes — refs employees, roles
+        await db.execute(delete(EmployeeRoleMinutes).where(EmployeeRoleMinutes.company_id.in_(company_ids)))
+        # 4. employee_roles — pivot employees ↔ roles
+        await db.execute(delete(EmployeeRole).where(EmployeeRole.company_id.in_(company_ids)))
+        # 5. employee_affinities — refs 2 employees
+        await db.execute(delete(EmployeeAffinity).where(EmployeeAffinity.company_id.in_(company_ids)))
+        # 6. employee_invites
+        await db.execute(delete(EmployeeInvite).where(EmployeeInvite.company_id.in_(company_ids)))
+        # 7. employee_day_blackouts
+        await db.execute(delete(EmployeeDayBlackout).where(EmployeeDayBlackout.company_id.in_(company_ids)))
+        # 8. employee_availability
+        await db.execute(delete(EmployeeAvailability).where(EmployeeAvailability.company_id.in_(company_ids)))
+        # 9. employee_companies — refs employees + companies (employee_id is CASCADE)
+        await db.execute(delete(EmployeeCompany).where(EmployeeCompany.company_id.in_(company_ids)))
+        # 10. departments — refs locations
+        await db.execute(delete(Department).where(Department.company_id.in_(company_ids)))
+        # 11. shift_templates — refs locations
+        await db.execute(delete(ShiftTemplate).where(ShiftTemplate.company_id.in_(company_ids)))
+        # 12. employees — self-FK + refs roles, users
+        await db.execute(delete(Employee).where(Employee.company_id.in_(company_ids)))
+        # 13. locations — refs regions
+        await db.execute(delete(Location).where(Location.company_id.in_(company_ids)))
+        # 14. condensed_roles — self-FK + refs roles; condensed_role_mappings cascade
+        await db.execute(delete(CondensedRole).where(CondensedRole.company_id.in_(company_ids)))
+        # 15. roles
+        await db.execute(delete(Role).where(Role.company_id.in_(company_ids)))
+        # 16. regions
+        await db.execute(delete(Region).where(Region.company_id.in_(company_ids)))
+        # 17. user_consents — refs users
+        await db.execute(delete(UserConsent).where(UserConsent.company_id.in_(company_ids)))
+        # 18. failure_logs
+        await db.execute(delete(FailureLog).where(FailureLog.company_id.in_(company_ids)))
+        # 19. users
+        await db.execute(delete(User).where(User.company_id.in_(company_ids)))
+        # 20. companies
+        await db.execute(delete(Company).where(Company.id.in_(company_ids)))
+
+    # 21. token_usage (OG-level, no FK cascade)
+    await db.execute(delete(TokenUsage).where(TokenUsage.ownership_group_id == og.id))
+
+    # storage_snapshots + billing_charges cascade automatically.
+
+    # The OG row itself.
+    await db.delete(og)
+
+
+async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
+    """Daily cron driver.
+
+    Walks all OGs with canceled_at set; sends day-76 reminder once, performs
+    day-90 deletion once. Returns a small summary dict for logging.
+    """
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    reminder_threshold_days = (
+        settings.SUBSCRIPTION_GRACE_DAYS
+        - settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE
+    )
+
+    canceled_ogs = (await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.canceled_at.is_not(None))
+    )).scalars().all()
+
+    reminders_sent = 0
+    deletions_done = 0
+
+    for og in canceled_ogs:
+        # canceled_at column is timezone-aware UTC in PG; SQLite drops tz.
+        canceled_at = og.canceled_at
+        if canceled_at.tzinfo is None:
+            canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+        age_days = (now - canceled_at).days
+
+        # Day 76: send reminder (once)
+        if age_days >= reminder_threshold_days and og.notified_deletion_reminder_at is None:
+            await send_deletion_reminder_email(og)
+            og.notified_deletion_reminder_at = now
+            reminders_sent += 1
+
+        # Day 90: delete (the row goes away so this is naturally idempotent)
+        if age_days >= settings.SUBSCRIPTION_GRACE_DAYS:
+            await send_data_deleted_email(og)  # must happen BEFORE delete
+            await delete_og_and_dependents(db, og)
+            deletions_done += 1
+
+    await db.commit()
+    return {"reminders_sent": reminders_sent, "deletions_done": deletions_done}
+
+
+async def send_data_deleted_email(og: OwnershipGroup) -> None:
+    """Final notice: the OG's data has just been (or is about to be) deleted.
+
+    Must be called BEFORE delete_og_and_dependents so we still have access
+    to the manager email addresses. Resend errors are swallowed.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping data-deleted email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+
+    from sqlalchemy import select
+    from backend.models import Company, User
+    from backend.database import async_session_factory
+    import html as _html
+
+    async with async_session_factory() as db:
+        company_ids = (await db.execute(
+            select(Company.id).where(Company.ownership_group_id == og.id)
+        )).scalars().all()
+        if not company_ids:
+            return
+        manager_emails = (await db.execute(
+            select(User.email).where(
+                User.company_id.in_(company_ids),
+                User.user_role == "manager",
+            )
+        )).scalars().all()
+        manager_emails = [e for e in manager_emails if e]
+
+    if not manager_emails:
+        logger.info("No manager emails for og=%s; data-deleted email skipped", og.id)
+        return
+
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": list(manager_emails),
+            "subject": "Your WizScheduler data has been deleted",
+            "html": (
+                f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p>As scheduled, your WizScheduler account and all "
+                f"associated data have been <strong>permanently and "
+                f"irreversibly deleted</strong>.</p>"
+                f"<p>This includes all employees, schedules, locations, "
+                f"and historical records.</p>"
+                f"<p>If you'd like to use WizScheduler again, you can "
+                f"sign up for a new account from scratch.</p>"
+                f"<p>Thank you for using WizScheduler.</p>"
+                f"</div>"
+            ),
+        })
+    except Exception:
+        logger.error(
+            "Failed to send data-deleted email for og=%s",
+            og.id,
+            exc_info=True,
+        )
