@@ -433,3 +433,39 @@ async def test_generate_releases_lock_on_exception(
         )
     )).scalars().all()
     assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/{id}/approve — schedule lock integration
+# ---------------------------------------------------------------------------
+
+
+async def test_approve_returns_409_when_locked(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    from datetime import datetime, timedelta, timezone
+    from backend.models import ScheduleLock, ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="[]",
+    )
+    db_session.add(sched)
+    db_session.add(ScheduleLock(
+        company_id=seeded_company.company_id,
+        locked_by_user_id=seeded_company.manager_user_id,
+        operation="generate",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "schedule_locked"

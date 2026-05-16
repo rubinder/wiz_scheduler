@@ -317,15 +317,17 @@ from types import SimpleNamespace
 
 @pytest_asyncio.fixture
 async def seeded_company(
-    seed_company: Company, seed_manager: User
+    seed_company: Company, seed_manager: User, seed_location: Location
 ) -> SimpleNamespace:
-    """Returns a namespace with `company_id` and `manager_user_id` pointing at
-    the seeded Company + manager User. `og_id` is None unless the caller
-    explicitly creates one. Use this when a test needs both a Company and a
-    manager User in one shot without composing multiple fixtures manually.
+    """Returns a namespace with `company_id`, `manager_user_id`, and
+    `location_id` pointing at the seeded Company + manager User + Location.
+    `og_id` is None unless the caller explicitly creates one. Use this when a
+    test needs both a Company and a manager User in one shot without composing
+    multiple fixtures manually.
     """
     return SimpleNamespace(
         company_id=seed_company.id,
         manager_user_id=seed_manager.id,
+        location_id=seed_location.id,
         og_id=seed_company.ownership_group_id,
     )
