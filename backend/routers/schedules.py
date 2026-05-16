@@ -13,6 +13,7 @@ from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.models.employee import EmployeeAvailability
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
+from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 from backend.utils.id_gen import generate_short_id
 
 logger = logging.getLogger(__name__)
@@ -158,81 +159,109 @@ async def generate_schedule(
                 detail="AI credits exhausted. Please purchase additional credits to continue.",
             )
 
+    # Acquire per-Company schedule lock before starting the stream.
+    try:
+        lock = await acquire_lock(
+            db,
+            company_id=str(current_user.company_id),
+            user_id=str(current_user.id),
+            operation="generate",
+        )
+    except LockHeld as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_locked",
+                "locked_by": e.locked_by_full_name,
+                "expires_at": e.expires_at.isoformat(),
+            },
+        )
+
     template_ids = (
         [str(tid) for tid in body.template_ids] if body.template_ids else None
     )
 
     async def event_stream():
-        # Record consent for AI data processing
-        if not body.use_local:
-            client_ip = mask_ip(request.client.host) if request.client else None
-            db.add(UserConsent(
-                user_id=current_user.id,
-                company_id=current_user.company_id,
-                consent_type="data_processing_ai",
-                version="1.0",
-                ip_address=client_ip,
-            ))
-            await db.flush()
-
         try:
-            async for chunk in run_scheduling_pipeline(
-                company_id=str(current_user.company_id),
-                week_start_date=str(body.week_start_date),
-                db=db,
-                template_ids=template_ids,
-                use_local=body.use_local,
-                strategy=body.strategy,
-                strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
-                strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
-                num_days=body.num_days,
-            ):
-                # Persist a ShiftSchedule row so approve/reject have a record to find
-                loc_id = chunk.get("location_id", "")
-                if loc_id:
-                    sched = ShiftSchedule(
-                        company_id=current_user.company_id,
-                        location_id=loc_id,
-                        week_start_date=body.week_start_date,
-                        status="draft",
-                        raw_llm_output=json.dumps(chunk.get("shifts", [])),
-                        strategy=body.strategy if body.use_local else "ai",
-                        strategy_param=body.strategy_param,
-                        strategy_param2=body.strategy_param2,
-                    )
-                    db.add(sched)
-                    await db.flush()
-                    chunk["schedule_id"] = str(sched.id)
+            # Record consent for AI data processing
+            if not body.use_local:
+                client_ip = mask_ip(request.client.host) if request.client else None
+                db.add(UserConsent(
+                    user_id=current_user.id,
+                    company_id=current_user.company_id,
+                    consent_type="data_processing_ai",
+                    version="1.0",
+                    ip_address=client_ip,
+                ))
+                await db.flush()
 
-                    # Deduct credits if over schedule free tier
-                    from backend.services.billing import deduct_credits_for_schedule_overage
-                    await deduct_credits_for_schedule_overage(db, str(current_user.company_id))
+            try:
+                async for chunk in run_scheduling_pipeline(
+                    company_id=str(current_user.company_id),
+                    week_start_date=str(body.week_start_date),
+                    db=db,
+                    template_ids=template_ids,
+                    use_local=body.use_local,
+                    strategy=body.strategy,
+                    strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
+                    strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
+                    num_days=body.num_days,
+                ):
+                    # Persist a ShiftSchedule row so approve/reject have a record to find
+                    loc_id = chunk.get("location_id", "")
+                    if loc_id:
+                        sched = ShiftSchedule(
+                            company_id=current_user.company_id,
+                            location_id=loc_id,
+                            week_start_date=body.week_start_date,
+                            status="draft",
+                            raw_llm_output=json.dumps(chunk.get("shifts", [])),
+                            strategy=body.strategy if body.use_local else "ai",
+                            strategy_param=body.strategy_param,
+                            strategy_param2=body.strategy_param2,
+                        )
+                        db.add(sched)
+                        await db.flush()
+                        chunk["schedule_id"] = str(sched.id)
 
-                    await db.commit()
+                        # Deduct credits if over schedule free tier
+                        from backend.services.billing import deduct_credits_for_schedule_overage
+                        await deduct_credits_for_schedule_overage(db, str(current_user.company_id))
 
-                yield json.dumps(chunk) + "\n"
-        except Exception as exc:
-            from backend.services.failure_logger import log_failure
+                        await db.commit()
 
-            await log_failure(
-                category="PIPELINE",
-                source="schedules.generate",
-                message=str(exc),
-                detail={
-                    "week_start_date": str(body.week_start_date),
-                    "exception_type": type(exc).__name__,
-                },
-                company_id=current_user.company_id,
-            )
-            # Emit the error as a single NDJSON line so the frontend can display it
-            error_result = {
-                "location_id": "",
-                "location_name": "Pipeline Error",
-                "shifts": [],
-                "errors": [str(exc)],
-                "status": "PIPELINE_ERROR",
-            }
-            yield json.dumps(error_result) + "\n"
+                    yield json.dumps(chunk) + "\n"
+            except Exception as exc:
+                from backend.services.failure_logger import log_failure
+
+                await log_failure(
+                    category="PIPELINE",
+                    source="schedules.generate",
+                    message=str(exc),
+                    detail={
+                        "week_start_date": str(body.week_start_date),
+                        "exception_type": type(exc).__name__,
+                    },
+                    company_id=current_user.company_id,
+                )
+                # Emit the error as a single NDJSON line so the frontend can display it
+                error_result = {
+                    "location_id": "",
+                    "location_name": "Pipeline Error",
+                    "shifts": [],
+                    "errors": [str(exc)],
+                    "status": "PIPELINE_ERROR",
+                }
+                yield json.dumps(error_result) + "\n"
+        finally:
+            try:
+                await release_lock(db, lock.id)
+                await db.commit()
+            except Exception:
+                logger.exception(
+                    "Failed to release schedule lock for company=%s",
+                    current_user.company_id,
+                )
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 

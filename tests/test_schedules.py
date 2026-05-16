@@ -336,3 +336,100 @@ async def test_schedule_quota_no_ownership_group(
     assert resp.status_code == 200
     data = resp.json()
     assert data["can_generate"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/generate — schedule lock integration
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_returns_409_when_locked(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """If a non-expired lock exists for the Company, /generate returns 409."""
+    from datetime import datetime, timedelta, timezone
+    from backend.models import ScheduleLock
+
+    db_session.add(ScheduleLock(
+        company_id=seeded_company.company_id,
+        locked_by_user_id=seeded_company.manager_user_id,
+        operation="generate",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["detail"]["code"] == "schedule_locked"
+    assert "locked_by" in body["detail"]
+    assert "expires_at" in body["detail"]
+
+
+async def test_generate_releases_lock_after_stream(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """When the stream completes successfully, the lock row is gone."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock
+
+    async def fake_pipeline(**kwargs):
+        if False:
+            yield {}
+        return
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", fake_pipeline
+    )
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    assert resp.status_code == 200
+    async for _ in resp.aiter_lines():
+        pass
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
+
+
+async def test_generate_releases_lock_on_exception(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """If the pipeline raises mid-stream, the lock is still released."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock
+
+    async def boom(**kwargs):
+        raise RuntimeError("boom")
+        yield  # pragma: no cover
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", boom
+    )
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    async for _ in resp.aiter_lines():
+        pass
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
