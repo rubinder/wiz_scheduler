@@ -345,7 +345,7 @@ async def test_schedule_quota_no_ownership_group(
 
 async def test_generate_returns_409_when_locked(
     client: AsyncClient, manager_token: str, db_session: AsyncSession,
-    seeded_company, monkeypatch
+    seeded_company,
 ):
     """If a non-expired lock exists for the Company, /generate returns 409."""
     from datetime import datetime, timedelta, timezone

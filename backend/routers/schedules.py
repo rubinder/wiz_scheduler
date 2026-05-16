@@ -159,6 +159,10 @@ async def generate_schedule(
                 detail="AI credits exhausted. Please purchase additional credits to continue.",
             )
 
+    template_ids = (
+        [str(tid) for tid in body.template_ids] if body.template_ids else None
+    )
+
     # Acquire per-Company schedule lock before starting the stream.
     try:
         lock = await acquire_lock(
@@ -176,10 +180,6 @@ async def generate_schedule(
                 "expires_at": e.expires_at.isoformat(),
             },
         )
-
-    template_ids = (
-        [str(tid) for tid in body.template_ids] if body.template_ids else None
-    )
 
     async def event_stream():
         try:
