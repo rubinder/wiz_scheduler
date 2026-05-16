@@ -306,3 +306,26 @@ def manager_token(seed_manager: User) -> str:
 @pytest_asyncio.fixture
 def employee_token(seed_employee_user: User) -> str:
     return _make_token(EMPLOYEE_USER_ID, COMPANY_ID, "employee")
+
+
+# ---------------------------------------------------------------------------
+# Composite fixture used by team-collab + locking tests
+# ---------------------------------------------------------------------------
+
+from types import SimpleNamespace
+
+
+@pytest_asyncio.fixture
+async def seeded_company(
+    seed_company: Company, seed_manager: User
+) -> SimpleNamespace:
+    """Returns a namespace with `company_id` and `manager_user_id` pointing at
+    the seeded Company + manager User. `og_id` is None unless the caller
+    explicitly creates one. Use this when a test needs both a Company and a
+    manager User in one shot without composing multiple fixtures manually.
+    """
+    return SimpleNamespace(
+        company_id=seed_company.id,
+        manager_user_id=seed_manager.id,
+        og_id=seed_company.ownership_group_id,
+    )
