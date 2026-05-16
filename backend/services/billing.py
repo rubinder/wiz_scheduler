@@ -1047,3 +1047,65 @@ async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
             og.id,
             exc_info=True,
         )
+
+
+async def send_data_deleted_email(og: OwnershipGroup) -> None:
+    """Final notice: the OG's data has just been (or is about to be) deleted.
+
+    Must be called BEFORE delete_og_and_dependents so we still have access
+    to the manager email addresses. Resend errors are swallowed.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping data-deleted email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+
+    from sqlalchemy import select
+    from backend.models import Company, User
+    from backend.database import async_session_factory
+    import html as _html
+
+    async with async_session_factory() as db:
+        company_ids = (await db.execute(
+            select(Company.id).where(Company.ownership_group_id == og.id)
+        )).scalars().all()
+        if not company_ids:
+            return
+        manager_emails = (await db.execute(
+            select(User.email).where(
+                User.company_id.in_(company_ids),
+                User.user_role == "manager",
+            )
+        )).scalars().all()
+        manager_emails = [e for e in manager_emails if e]
+
+    if not manager_emails:
+        logger.info("No manager emails for og=%s; data-deleted email skipped", og.id)
+        return
+
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": list(manager_emails),
+            "subject": "Your WizScheduler data has been deleted",
+            "html": (
+                f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p>As scheduled, your WizScheduler account and all "
+                f"associated data have been <strong>permanently and "
+                f"irreversibly deleted</strong>.</p>"
+                f"<p>This includes all employees, schedules, locations, "
+                f"and historical records.</p>"
+                f"<p>If you'd like to use WizScheduler again, you can "
+                f"sign up for a new account from scratch.</p>"
+                f"<p>Thank you for using WizScheduler.</p>"
+                f"</div>"
+            ),
+        })
+    except Exception:
+        logger.error(
+            "Failed to send data-deleted email for og=%s",
+            og.id,
+            exc_info=True,
+        )

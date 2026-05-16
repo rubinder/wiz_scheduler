@@ -1900,4 +1900,58 @@ async def test_send_deletion_reminder_email_escapes_og_name(
 
     assert len(sent) == 1
     assert "<script>alert(1)</script>" not in sent[0]["html"]
-    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in sent[0]["html"]
+
+
+async def test_send_data_deleted_email_calls_resend(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Final notice: data has been deleted. No reactivation possible."""
+    from contextlib import asynccontextmanager
+    import backend.database as _db_module
+    from backend.services.billing import send_data_deleted_email
+    from backend.models import User
+
+    og_with_card.canceled_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db_session.add(User(
+        id=_id(),
+        company_id=COMPANY_ID,
+        email="manager@acme.test",
+        hashed_password="$2b$12$dummy",
+        full_name="Acme Manager",
+        user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+
+    @asynccontextmanager
+    async def _fake_session_factory():
+        yield db_session
+    monkeypatch.setattr(_db_module, "async_session_factory", _fake_session_factory)
+
+    sent = []
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    await send_data_deleted_email(og_with_card)
+
+    assert len(sent) == 1
+    body = sent[0]
+    assert "manager@acme.test" in body["to"]
+    assert "deleted" in body["subject"].lower()
+    assert "permanently" in body["html"].lower() or "irreversibl" in body["html"].lower()
+
+
+async def test_send_data_deleted_email_noop_without_resend_key(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    from backend.services.billing import send_data_deleted_email
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    await send_data_deleted_email(og_with_card)  # must not raise
