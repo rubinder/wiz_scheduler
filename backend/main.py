@@ -163,12 +163,41 @@ def create_app() -> FastAPI:
 
             await asyncio.sleep(7 * 24 * 60 * 60)
 
+    # ── Daily background task: cancellation lifecycle (PR β) ──
+    async def _daily_cancellation_lifecycle_loop() -> None:
+        """Walk canceled OGs daily. Send reminder at day 76, hard-delete at day 90."""
+        import asyncio
+        import logging
+
+        from backend.database import async_session_factory
+        from backend.services.billing import process_cancellation_lifecycle
+
+        log = logging.getLogger("wizscheduler.cancellation_lifecycle")
+
+        # Wait 120 seconds after startup, then 24h between runs.
+        await asyncio.sleep(120)
+
+        while True:
+            try:
+                async with async_session_factory() as db:
+                    result = await process_cancellation_lifecycle(db)
+                log.info(
+                    "Cancellation lifecycle pass: reminders=%s deletions=%s",
+                    result.get("reminders_sent"),
+                    result.get("deletions_done"),
+                )
+            except Exception as e:
+                log.error("Cancellation lifecycle failed: %s", e, exc_info=True)
+
+            await asyncio.sleep(24 * 60 * 60)
+
     @app.on_event("startup")
     async def _start_background_tasks() -> None:
         import asyncio
         from backend.services.monitoring import run_self_check_loop
         asyncio.create_task(_daily_storage_snapshot_loop())
         asyncio.create_task(_weekly_monthly_billing_loop())
+        asyncio.create_task(_daily_cancellation_lifecycle_loop())
         asyncio.create_task(run_self_check_loop())
 
     # Load-test profile: bypass JWT signature verification.
