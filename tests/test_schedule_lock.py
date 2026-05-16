@@ -69,7 +69,7 @@ async def test_acquire_raises_when_held(db_session: AsyncSession, seeded_company
             operation="generate",
         )
     assert exc.value.expires_at > datetime.now(timezone.utc)
-    assert isinstance(exc.value.locked_by_full_name, str)
+    assert exc.value.locked_by_full_name == "Test Manager"
 
 
 @pytest.mark.asyncio
@@ -91,3 +91,7 @@ async def test_release_deletes_row(db_session: AsyncSession, seeded_company):
 async def test_release_idempotent(db_session: AsyncSession, seeded_company):
     """Releasing a row that's already gone must not raise."""
     await release(db_session, "nope0001")
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(ScheduleLock.company_id == seeded_company.company_id)
+    )).scalars().all()
+    assert rows == []
