@@ -214,3 +214,36 @@ async def test_list_invites_returns_og_scope(
     )
     assert resp.status_code == 200
     assert len(resp.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_accept_404_after_already_accepted(
+    client: AsyncClient, db_session: AsyncSession, seeded_company
+):
+    """A token that's already been accepted cannot be used again."""
+    og = OwnershipGroup(name="Acme OG")
+    db_session.add(og)
+    await db_session.flush()
+    co = await db_session.get(Company, seeded_company.company_id)
+    co.ownership_group_id = og.id
+    invite = ManagerInvite(
+        ownership_group_id=og.id,
+        invited_by_user_id=seeded_company.manager_user_id,
+        email="replay@acme.test",
+        token="t_replay_" + "x" * 35,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    db_session.add(invite)
+    await db_session.commit()
+
+    body = {
+        "token": invite.token,
+        "company_id": seeded_company.company_id,
+        "full_name": "Replay Mgr",
+        "password": "supersecret",
+    }
+    first = await client.post("/api/v1/manager-invites/accept", json=body)
+    assert first.status_code == 200
+
+    second = await client.post("/api/v1/manager-invites/accept", json=body)
+    assert second.status_code == 404
