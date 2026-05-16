@@ -976,3 +976,74 @@ async def send_subscription_ended_email(og: OwnershipGroup) -> None:
             og.id,
             exc_info=True,
         )
+
+
+async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
+    """Day-76 reminder: 14 days until the OG's data is permanently deleted.
+
+    Caller (the cron) is responsible for idempotency via
+    notified_deletion_reminder_at. Resend errors are swallowed.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.info("Skipping deletion-reminder email for og=%s (RESEND_API_KEY unset)", og.id)
+        return
+
+    from sqlalchemy import select
+    from backend.models import Company, User
+    from backend.database import async_session_factory
+    import html as _html
+    from datetime import timedelta
+
+    async with async_session_factory() as db:
+        company_ids = (await db.execute(
+            select(Company.id).where(Company.ownership_group_id == og.id)
+        )).scalars().all()
+        if not company_ids:
+            return
+        manager_emails = (await db.execute(
+            select(User.email).where(
+                User.company_id.in_(company_ids),
+                User.user_role == "manager",
+            )
+        )).scalars().all()
+        manager_emails = [e for e in manager_emails if e]
+
+    if not manager_emails:
+        logger.info("No manager emails for og=%s; deletion-reminder skipped", og.id)
+        return
+
+    if og.canceled_at is None:
+        # Defensive: caller should have filtered, but don't send a reminder
+        # to an active account.
+        logger.warning("send_deletion_reminder_email called for og=%s with canceled_at=None", og.id)
+        return
+
+    deletion_date = (og.canceled_at + timedelta(days=settings.SUBSCRIPTION_GRACE_DAYS)).date()
+
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": list(manager_emails),
+            "subject": f"Your WizScheduler data will be deleted in {settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE} days",
+            "html": (
+                f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p><strong>Your WizScheduler data is scheduled for permanent "
+                f"deletion on {deletion_date.isoformat()}</strong> — "
+                f"{settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE} days from today.</p>"
+                f"<p>If you want to keep your data, log in and click "
+                f"<em>Reactivate Subscription</em> before that date.</p>"
+                f"<p>If you do nothing, all of your employees, schedules, "
+                f"locations, and historical data will be permanently and "
+                f"irreversibly deleted.</p>"
+                f"</div>"
+            ),
+        })
+    except Exception:
+        logger.error(
+            "Failed to send deletion-reminder email for og=%s",
+            og.id,
+            exc_info=True,
+        )
