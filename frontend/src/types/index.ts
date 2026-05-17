@@ -273,3 +273,22 @@ export interface BulkUploadResponse {
   skipped: number;
   errors: string[];
 }
+
+// ── Manager invites ──
+
+export interface ManagerInvite {
+  id: string;
+  email: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_company_id: string | null;
+}
+
+export interface ManagerInviteInfo {
+  email: string;
+  group_name: string;
+  expired: boolean;
+  companies: { id: string; name: string }[];
+}
