@@ -294,15 +294,13 @@ const zh = {
 
   // ── Employee Association ──
   association: {
-    title: "员工可用时间与关联",
-    description: "管理员工的可用时间和排班亲和度。",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "亲和度数值：",
     mustTogether: "= 必须一起排班，",
     preferTogether: "= 最好一起排班，",
     cannotTogether: "= 不能一起排班，",
     preferApart: "= 尽量不要一起排班（当不得不偶尔安排在一起时，请使用此值代替 -1）。",
-    tabAvailability: "可用时间",
-    tabAffinities: "亲和度",
     addAssociation: "+ 添加关联",
     targetEmployee: "目标员工",
     affinityLevel: "亲和度等级",
@@ -360,6 +358,8 @@ const zh = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

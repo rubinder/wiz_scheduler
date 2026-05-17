@@ -293,9 +293,9 @@ export default function EmployeeAvailability() {
   if (employees.length === 0) {
     return (
       <div className={`text-center py-16 ${text.muted}`}>
-        <p className="text-lg">{t.association.noEmployees}</p>
+        <p className="text-lg">{t.employeeAvailability.noEmployees}</p>
         <p className="mt-2">
-          {t.association.addEmployeesFirst}
+          {t.employeeAvailability.addEmployeesFirst}
         </p>
       </div>
     );

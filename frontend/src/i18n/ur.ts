@@ -294,15 +294,13 @@ const ur = {
 
   // ── Employee Association ──
   association: {
-    title: "ملازم دستیابی اور وابستگی",
-    description: "ملازمین کی دستیابی اور شیڈولنگ تعلقات کا انتظام کریں۔",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "تعلق کی اقدار:",
     mustTogether: "= لازمی ساتھ کام کریں،",
     preferTogether: "= ساتھ ہونا اچھا ہے،",
     cannotTogether: "= ساتھ کام نہیں کر سکتے،",
     preferApart: "= ساتھ نہ کام کرنا بہتر ہے (جب -1 کے بجائے استعمال کریں جب کبھی کبھار انہیں ساتھ شیڈول کرنا ناگزیر ہو)۔",
-    tabAvailability: "دستیابی",
-    tabAffinities: "تعلقات",
     addAssociation: "+ وابستگی شامل کریں",
     targetEmployee: "ہدف ملازم",
     affinityLevel: "تعلق کی سطح",
@@ -360,6 +358,8 @@ const ur = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

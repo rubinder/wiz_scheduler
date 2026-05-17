@@ -294,15 +294,13 @@ const ja = {
 
   // ── Employee Association ──
   association: {
-    title: "従業員の勤務可能時間と関連付け",
-    description: "従業員の勤務可能時間とスケジュール上の相性を管理します。",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "相性の値：",
     mustTogether: "= 必ず一緒に勤務、",
     preferTogether: "= できれば一緒に勤務、",
     cannotTogether: "= 一緒に勤務不可、",
     preferApart: "= できれば別々に勤務（やむを得ず一緒にスケジュールする場合は -1 の代わりに使用）。",
-    tabAvailability: "勤務可能時間",
-    tabAffinities: "相性",
     addAssociation: "+ 関連付けを追加",
     targetEmployee: "対象従業員",
     affinityLevel: "相性レベル",
@@ -360,6 +358,8 @@ const ja = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

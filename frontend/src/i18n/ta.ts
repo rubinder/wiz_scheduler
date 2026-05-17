@@ -294,15 +294,13 @@ const ta = {
 
   // ── Employee Association ──
   association: {
-    title: "பணியாளர் கிடைப்பு & தொடர்பு",
-    description: "பணியாளர் கிடைப்பு மற்றும் அட்டவணை உறவுநிலைகளை நிர்வகிக்கவும்.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "உறவுநிலை மதிப்புகள்:",
     mustTogether: "= கட்டாயம் ஒன்றாக வேலை செய்ய வேண்டும்,",
     preferTogether: "= ஒன்றாக இருப்பது நல்லது,",
     cannotTogether: "= ஒன்றாக வேலை செய்ய இயலாது,",
     preferApart: "= ஒன்றாக வேலை செய்யாமல் இருப்பது விரும்பத்தக்கது (எப்போதாவது ஒன்றாக அட்டவணைப்படுத்த வேண்டிய நிலையில் -1 க்கு பதிலாக பயன்படுத்தவும்).",
-    tabAvailability: "கிடைப்பு",
-    tabAffinities: "உறவுநிலைகள்",
     addAssociation: "+ தொடர்பைச் சேர்",
     targetEmployee: "இலக்கு பணியாளர்",
     affinityLevel: "உறவுநிலை அளவு",
@@ -360,6 +358,8 @@ const ta = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

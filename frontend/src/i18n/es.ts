@@ -294,15 +294,13 @@ const es = {
 
   // ── Employee Association ──
   association: {
-    title: "Disponibilidad y asociación de empleados",
-    description: "Administra la disponibilidad y las afinidades de programación de los empleados.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Valores de afinidad:",
     mustTogether: "= deben trabajar juntos,",
     preferTogether: "= preferible que trabajen juntos,",
     cannotTogether: "= no pueden trabajar juntos,",
     preferApart: "= preferible que no trabajen juntos (usa en lugar de -1 cuando no tienes otra opción más que programarlos juntos ocasionalmente).",
-    tabAvailability: "Disponibilidad",
-    tabAffinities: "Afinidades",
     addAssociation: "+ Agregar asociación",
     targetEmployee: "Empleado objetivo",
     affinityLevel: "Nivel de afinidad",
@@ -360,6 +358,8 @@ const es = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

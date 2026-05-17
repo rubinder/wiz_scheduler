@@ -294,15 +294,13 @@ const ar = {
 
   // ── Employee Association ──
   association: {
-    title: "توفّر الموظفين والارتباطات",
-    description: "إدارة أوقات توفّر الموظفين وعلاقات الجدولة بينهم.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "قيم الارتباط:",
     mustTogether: "= يجب أن يعملا معًا،",
     preferTogether: "= يُفضّل أن يعملا معًا،",
     cannotTogether: "= لا يمكنهما العمل معًا،",
     preferApart: "= يُفضّل عدم العمل معًا (استخدمها بدلاً من -1 عندما لا يكون لديك خيار سوى جدولتهما معًا أحيانًا).",
-    tabAvailability: "التوفّر",
-    tabAffinities: "الارتباطات",
     addAssociation: "+ إضافة ارتباط",
     targetEmployee: "الموظف المستهدف",
     affinityLevel: "مستوى الارتباط",
@@ -360,6 +358,8 @@ const ar = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

@@ -294,15 +294,13 @@ const ind = {
 
   // ── Employee Association ──
   association: {
-    title: "Ketersediaan & Asosiasi Karyawan",
-    description: "Kelola ketersediaan karyawan dan afinitas penjadwalan.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Nilai afinitas:",
     mustTogether: "= harus bekerja bersama,",
     preferTogether: "= lebih baik bersama,",
     cannotTogether: "= tidak boleh bekerja bersama,",
     preferApart: "= sebaiknya tidak bekerja bersama (gunakan sebagai pengganti -1 ketika sesekali harus menjadwalkan mereka bersama).",
-    tabAvailability: "Ketersediaan",
-    tabAffinities: "Afinitas",
     addAssociation: "+ Tambah Asosiasi",
     targetEmployee: "Karyawan Target",
     affinityLevel: "Tingkat Afinitas",
@@ -360,6 +358,8 @@ const ind = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

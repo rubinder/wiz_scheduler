@@ -294,15 +294,13 @@ const bn = {
 
   // ── Employee Association ──
   association: {
-    title: "কর্মী উপলব্ধতা ও সম্পর্ক",
-    description: "কর্মীদের উপলব্ধতা ও সময়সূচি সম্পর্ক পরিচালনা করুন।",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "সম্পর্কের মান:",
     mustTogether: "= একসাথে কাজ করতে হবে,",
     preferTogether: "= একসাথে থাকলে ভালো,",
     cannotTogether: "= একসাথে কাজ করতে পারবে না,",
     preferApart: "= একসাথে কাজ না করাই ভালো (যখন মাঝে মাঝে একসাথে সময়সূচি করা ছাড়া উপায় নেই তখন -1 এর পরিবর্তে ব্যবহার করুন)।",
-    tabAvailability: "উপলব্ধতা",
-    tabAffinities: "সম্পর্কসমূহ",
     addAssociation: "+ সম্পর্ক যোগ করুন",
     targetEmployee: "লক্ষ্য কর্মী",
     affinityLevel: "সম্পর্কের স্তর",
@@ -360,6 +358,8 @@ const bn = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

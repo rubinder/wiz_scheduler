@@ -294,15 +294,13 @@ const trLang = {
 
   // ── Employee Association ──
   association: {
-    title: "Çalışan Müsaitlik & İlişkilendirme",
-    description: "Çalışan müsaitliğini ve programlama ilişkilerini yönetin.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "İlişki değerleri:",
     mustTogether: "= birlikte çalışmalı,",
     preferTogether: "= birlikte olması tercih edilir,",
     cannotTogether: "= birlikte çalışamaz,",
     preferApart: "= birlikte çalışmaması tercih edilir (zaman zaman birlikte programlamaktan başka seçeneğiniz olmadığında -1 yerine kullanın).",
-    tabAvailability: "Müsaitlik",
-    tabAffinities: "İlişkiler",
     addAssociation: "+ İlişki Ekle",
     targetEmployee: "Hedef Çalışan",
     affinityLevel: "İlişki Düzeyi",
@@ -360,6 +358,8 @@ const trLang = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

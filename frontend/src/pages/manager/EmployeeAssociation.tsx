@@ -19,8 +19,6 @@ import {
   getLevelColor,
 } from "./_employeesShared";
 
-// ── Affinity tab helpers ──
-
 interface EditingRow {
   id: string | null;
   employee_id: string;

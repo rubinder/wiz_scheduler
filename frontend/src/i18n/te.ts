@@ -294,15 +294,13 @@ const te = {
 
   // ── Employee Association ──
   association: {
-    title: "ఉద్యోగి అందుబాటు & అనుబంధం",
-    description: "ఉద్యోగి అందుబాటు మరియు షెడ్యూలింగ్ అనుబంధాలను నిర్వహించండి.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "అనుబంధ విలువలు:",
     mustTogether: "= తప్పనిసరిగా కలిసి పని చేయాలి,",
     preferTogether: "= కలిసి ఉంటే మంచిది,",
     cannotTogether: "= కలిసి పని చేయకూడదు,",
     preferApart: "= కలిసి పని చేయకపోవడం మంచిది (అప్పుడప్పుడు వారిని కలిసి షెడ్యూల్ చేయక తప్పనిసరి పరిస్థితిలో -1 కి బదులుగా ఉపయోగించండి).",
-    tabAvailability: "అందుబాటు",
-    tabAffinities: "అనుబంధాలు",
     addAssociation: "+ అనుబంధం జోడించు",
     targetEmployee: "లక్ష్య ఉద్యోగి",
     affinityLevel: "అనుబంధ స్థాయి",
@@ -360,6 +358,8 @@ const te = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

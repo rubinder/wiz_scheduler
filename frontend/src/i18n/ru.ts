@@ -294,15 +294,13 @@ const ru = {
 
   // ── Employee Association ──
   association: {
-    title: "Доступность и связи сотрудников",
-    description: "Управление доступностью сотрудников и предпочтениями в расписании.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Значения связей:",
     mustTogether: "= обязательно работать вместе,",
     preferTogether: "= желательно вместе,",
     cannotTogether: "= нельзя работать вместе,",
     preferApart: "= предпочтительно не вместе (используйте вместо -1, когда иногда приходится ставить их вместе).",
-    tabAvailability: "Доступность",
-    tabAffinities: "Связи",
     addAssociation: "+ Добавить связь",
     targetEmployee: "Целевой сотрудник",
     affinityLevel: "Уровень связи",
@@ -360,6 +358,8 @@ const ru = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

@@ -294,15 +294,13 @@ const vi = {
 
   // ── Employee Association ──
   association: {
-    title: "Lịch trống & Liên kết nhân viên",
-    description: "Quản lý lịch trống và mức độ tương thích lịch làm việc của nhân viên.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Giá trị mức độ tương thích:",
     mustTogether: "= phải làm cùng nhau,",
     preferTogether: "= nên làm cùng nhau,",
     cannotTogether: "= không thể làm cùng nhau,",
     preferApart: "= không nên làm cùng nhau (dùng thay cho -1 khi đôi khi không thể tránh xếp chung).",
-    tabAvailability: "Lịch trống",
-    tabAffinities: "Mức độ tương thích",
     addAssociation: "+ Thêm liên kết",
     targetEmployee: "Nhân viên mục tiêu",
     affinityLevel: "Mức độ tương thích",
@@ -360,6 +358,8 @@ const vi = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

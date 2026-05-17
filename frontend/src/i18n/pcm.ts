@@ -294,15 +294,13 @@ const pcm = {
 
   // ── Employee Association ──
   association: {
-    title: "Worker Availability & Association",
-    description: "Manage worker availability and scheduling affinities.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Affinity values:",
     mustTogether: "= must work together,",
     preferTogether: "= e go better if dem work together,",
     cannotTogether: "= dem no fit work together,",
     preferApart: "= better make dem no work together (use this one instead of -1 if you no get choice but to sometimes schedule dem together).",
-    tabAvailability: "Availability",
-    tabAffinities: "Affinities",
     addAssociation: "+ Add Association",
     targetEmployee: "Target Worker",
     affinityLevel: "Affinity Level",
@@ -360,6 +358,8 @@ const pcm = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──

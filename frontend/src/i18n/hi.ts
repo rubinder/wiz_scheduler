@@ -294,15 +294,13 @@ const hi = {
 
   // ── Employee Association ──
   association: {
-    title: "कर्मचारी उपलब्धता एवं संबंध",
-    description: "कर्मचारी उपलब्धता और शेड्यूलिंग संबंध प्रबंधित करें।",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "संबंध मान:",
     mustTogether: "= साथ काम करना अनिवार्य,",
     preferTogether: "= साथ रखना अच्छा रहेगा,",
     cannotTogether: "= साथ काम नहीं कर सकते,",
     preferApart: "= साथ न रखना बेहतर (जब कभी-कभी साथ शेड्यूल करने के अलावा कोई विकल्प न हो तो -1 के बजाय इसका उपयोग करें)।",
-    tabAvailability: "उपलब्धता",
-    tabAffinities: "संबंध",
     addAssociation: "+ संबंध जोड़ें",
     targetEmployee: "लक्ष्य कर्मचारी",
     affinityLevel: "संबंध स्तर",
@@ -360,6 +358,8 @@ const hi = {
   // ── Employee Availability (manager) ──
   employeeAvailability: {
     title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
   },
 
   // ── Day Blackouts ──
