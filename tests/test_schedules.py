@@ -501,3 +501,33 @@ async def test_approve_releases_lock_on_success(
         )
     )).scalars().all()
     assert rows == []
+
+
+async def test_approve_rolls_back_status_on_parse_error(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    """If raw_llm_output is malformed, the 500 must NOT leave the schedule
+    marked 'approved' in the database."""
+    from sqlalchemy import select
+    from backend.models import ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="not valid json {{{",
+    )
+    db_session.add(sched)
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 500
+
+    # Reload and assert status was rolled back to 'draft'.
+    await db_session.refresh(sched)
+    assert sched.status == "draft"

@@ -457,6 +457,9 @@ async def approve_schedule(
 
         resp = ShiftScheduleResponse.model_validate(schedule)
         resp.shifts = [_shift_to_response(s) for s in shifts]
+    except Exception:
+        await db.rollback()
+        raise
     finally:
         await release_lock(db, lock.id)
         await db.commit()
