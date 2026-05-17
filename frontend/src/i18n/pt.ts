@@ -62,6 +62,7 @@ const pt = {
   nav: {
     dashboard: "Painel",
     company: "Empresa",
+    team: "Team",
     regions: "Regiões",
     locations: "Locais",
     roles: "Funções",
@@ -76,6 +77,25 @@ const pt = {
     exportSchedules: "Exportar escalas aprovadas",
     myAvailability: "Minha disponibilidade",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

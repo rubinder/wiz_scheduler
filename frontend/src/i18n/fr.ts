@@ -62,6 +62,7 @@ const fr = {
   nav: {
     dashboard: "Tableau de bord",
     company: "Entreprise",
+    team: "Team",
     regions: "Régions",
     locations: "Emplacements",
     roles: "Rôles",
@@ -76,6 +77,25 @@ const fr = {
     exportSchedules: "Exporter les horaires approuvés",
     myAvailability: "Ma disponibilité",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

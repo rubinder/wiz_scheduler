@@ -62,6 +62,7 @@ const ru = {
   nav: {
     dashboard: "Панель управления",
     company: "Компания",
+    team: "Team",
     regions: "Регионы",
     locations: "Локации",
     roles: "Роли",
@@ -76,6 +77,25 @@ const ru = {
     exportSchedules: "Экспорт утверждённых расписаний",
     myAvailability: "Моя доступность",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

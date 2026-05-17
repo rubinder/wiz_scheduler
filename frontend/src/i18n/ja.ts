@@ -62,6 +62,7 @@ const ja = {
   nav: {
     dashboard: "ダッシュボード",
     company: "会社",
+    team: "Team",
     regions: "地域",
     locations: "拠点",
     roles: "役割",
@@ -76,6 +77,25 @@ const ja = {
     exportSchedules: "承認済みスケジュールのエクスポート",
     myAvailability: "勤務可能時間",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

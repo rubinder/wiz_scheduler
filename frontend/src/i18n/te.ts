@@ -62,6 +62,7 @@ const te = {
   nav: {
     dashboard: "డాష్‌బోర్డ్",
     company: "సంస్థ",
+    team: "Team",
     regions: "ప్రాంతాలు",
     locations: "స్థానాలు",
     roles: "పాత్రలు",
@@ -76,6 +77,25 @@ const te = {
     exportSchedules: "ఆమోదించిన షెడ్యూల్‌లను ఎగుమతి చేయి",
     myAvailability: "నా అందుబాటు",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

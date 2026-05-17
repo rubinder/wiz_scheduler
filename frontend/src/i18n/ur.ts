@@ -62,6 +62,7 @@ const ur = {
   nav: {
     dashboard: "ڈیش بورڈ",
     company: "کمپنی",
+    team: "Team",
     regions: "علاقے",
     locations: "مقامات",
     roles: "کردار",
@@ -76,6 +77,25 @@ const ur = {
     exportSchedules: "منظور شدہ شیڈولز برآمد کریں",
     myAvailability: "میری دستیابی",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

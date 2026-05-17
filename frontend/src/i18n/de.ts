@@ -62,6 +62,7 @@ const de = {
   nav: {
     dashboard: "Übersicht",
     company: "Unternehmen",
+    team: "Team",
     regions: "Regionen",
     locations: "Standorte",
     roles: "Rollen",
@@ -76,6 +77,25 @@ const de = {
     exportSchedules: "Genehmigte Dienstpläne exportieren",
     myAvailability: "Meine Verfügbarkeit",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

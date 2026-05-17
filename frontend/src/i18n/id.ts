@@ -62,6 +62,7 @@ const ind = {
   nav: {
     dashboard: "Dasbor",
     company: "Perusahaan",
+    team: "Team",
     regions: "Wilayah",
     locations: "Lokasi",
     roles: "Peran",
@@ -76,6 +77,25 @@ const ind = {
     exportSchedules: "Ekspor Jadwal yang Disetujui",
     myAvailability: "Ketersediaan Saya",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

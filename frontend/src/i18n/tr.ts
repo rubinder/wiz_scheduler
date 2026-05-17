@@ -62,6 +62,7 @@ const trLang = {
   nav: {
     dashboard: "Kontrol Paneli",
     company: "Şirket",
+    team: "Team",
     regions: "Bölgeler",
     locations: "Konumlar",
     roles: "Roller",
@@ -76,6 +77,25 @@ const trLang = {
     exportSchedules: "Onaylı Programları Dışa Aktar",
     myAvailability: "Müsaitliğim",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

@@ -62,6 +62,7 @@ const zh = {
   nav: {
     dashboard: "仪表盘",
     company: "公司",
+    team: "Team",
     regions: "区域",
     locations: "门店",
     roles: "角色",
@@ -76,6 +77,25 @@ const zh = {
     exportSchedules: "导出已审批排班",
     myAvailability: "我的可用时间",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

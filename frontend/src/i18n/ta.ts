@@ -62,6 +62,7 @@ const ta = {
   nav: {
     dashboard: "முகப்புப்பலகை",
     company: "நிறுவனம்",
+    team: "Team",
     regions: "பிராந்தியங்கள்",
     locations: "இடங்கள்",
     roles: "பங்குகள்",
@@ -76,6 +77,25 @@ const ta = {
     exportSchedules: "அங்கீகரிக்கப்பட்ட அட்டவணைகளை ஏற்றுமதி செய்",
     myAvailability: "எனது கிடைப்பு",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

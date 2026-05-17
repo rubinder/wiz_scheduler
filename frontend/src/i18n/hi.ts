@@ -62,6 +62,7 @@ const hi = {
   nav: {
     dashboard: "डैशबोर्ड",
     company: "कंपनी",
+    team: "Team",
     regions: "क्षेत्र",
     locations: "स्थान",
     roles: "भूमिकाएं",
@@ -76,6 +77,25 @@ const hi = {
     exportSchedules: "स्वीकृत शेड्यूल निर्यात करें",
     myAvailability: "मेरी उपलब्धता",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──

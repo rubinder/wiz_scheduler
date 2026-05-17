@@ -13,6 +13,7 @@ interface NavItem {
 const baseManagerLinks: NavItem[] = [
   { to: "/manager/dashboard", labelKey: "dashboard" },
   { to: "/manager/company", labelKey: "company" },
+  { to: "/manager/team", labelKey: "team" },
   { to: "/manager/regions", labelKey: "regions" },
   { to: "/manager/locations", labelKey: "locations" },
   { to: "/manager/roles", labelKey: "roles" },

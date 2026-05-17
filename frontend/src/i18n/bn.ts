@@ -62,6 +62,7 @@ const bn = {
   nav: {
     dashboard: "ড্যাশবোর্ড",
     company: "কোম্পানি",
+    team: "Team",
     regions: "অঞ্চলসমূহ",
     locations: "অবস্থানসমূহ",
     roles: "ভূমিকাসমূহ",
@@ -76,6 +77,25 @@ const bn = {
     exportSchedules: "অনুমোদিত সময়সূচি এক্সপোর্ট",
     myAvailability: "আমার উপলব্ধতা",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
