@@ -157,6 +157,33 @@ const vi = {
     logIn: "Đăng nhập",
   },
 
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
+  },
+
   // ── Dashboard ──
   dashboard: {
     welcome: "Chào mừng,",
