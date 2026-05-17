@@ -259,6 +259,8 @@ const fr = {
     noRoles: "Aucun rôle",
     skill: "Compétence",
     addRow: "+ Ajouter une ligne",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

@@ -259,6 +259,8 @@ const pcm = {
     noRoles: "No roles",
     skill: "Skill",
     addRow: "+ Add Row",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

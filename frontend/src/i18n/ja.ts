@@ -259,6 +259,8 @@ const ja = {
     noRoles: "役割なし",
     skill: "スキル",
     addRow: "+ 行を追加",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

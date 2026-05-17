@@ -259,6 +259,8 @@ const vi = {
     noRoles: "Không có vai trò",
     skill: "Kỹ năng",
     addRow: "+ Thêm hàng",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

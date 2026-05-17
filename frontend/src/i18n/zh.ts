@@ -259,6 +259,8 @@ const zh = {
     noRoles: "无角色",
     skill: "技能等级",
     addRow: "+ 添加行",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

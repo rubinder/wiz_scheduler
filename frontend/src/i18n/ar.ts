@@ -259,6 +259,8 @@ const ar = {
     noRoles: "لا توجد أدوار",
     skill: "مستوى المهارة",
     addRow: "+ إضافة صف",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

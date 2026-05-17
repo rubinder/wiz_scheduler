@@ -259,6 +259,8 @@ const ru = {
     noRoles: "Нет ролей",
     skill: "Квалификация",
     addRow: "+ Добавить строку",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

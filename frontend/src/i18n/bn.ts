@@ -259,6 +259,8 @@ const bn = {
     noRoles: "কোনো ভূমিকা নেই",
     skill: "দক্ষতা",
     addRow: "+ সারি যোগ করুন",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

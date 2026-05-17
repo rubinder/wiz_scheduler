@@ -259,6 +259,8 @@ const ind = {
     noRoles: "Tidak ada peran",
     skill: "Keahlian",
     addRow: "+ Tambah Baris",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

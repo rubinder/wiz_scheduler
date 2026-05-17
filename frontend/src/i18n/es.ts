@@ -259,6 +259,8 @@ const es = {
     noRoles: "Sin roles",
     skill: "Habilidad",
     addRow: "+ Agregar fila",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

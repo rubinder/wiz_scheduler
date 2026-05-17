@@ -259,6 +259,8 @@ const mr = {
     noRoles: "भूमिका नाहीत",
     skill: "कौशल्य",
     addRow: "+ ओळ जोडा",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

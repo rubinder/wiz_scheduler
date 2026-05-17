@@ -259,6 +259,8 @@ const trLang = {
     noRoles: "Rol yok",
     skill: "Beceri",
     addRow: "+ Satır Ekle",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

@@ -259,6 +259,8 @@ const de = {
     noRoles: "Keine Rollen",
     skill: "Qualifikation",
     addRow: "+ Zeile hinzufügen",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

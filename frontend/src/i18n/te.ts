@@ -259,6 +259,8 @@ const te = {
     noRoles: "పాత్రలు లేవు",
     skill: "నైపుణ్యం",
     addRow: "+ అడ్డు వరుస జోడించు",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

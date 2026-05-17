@@ -259,6 +259,8 @@ const ta = {
     noRoles: "பங்குகள் இல்லை",
     skill: "திறன்",
     addRow: "+ வரிசையைச் சேர்",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──

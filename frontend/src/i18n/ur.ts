@@ -259,6 +259,8 @@ const ur = {
     noRoles: "کوئی کردار نہیں",
     skill: "مہارت",
     addRow: "+ قطار شامل کریں",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
