@@ -396,6 +396,8 @@ const de = {
     approve: "Genehmigen",
     reject: "Ablehnen",
     noShiftsGenerated: "Keine Schichten für diesen Standort generiert.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "für",
     rotationHistory: "Rotation (3-Monats-Verlauf)",
     rotationHistoryDesc: "Berücksichtigt geleistete Stunden pro Rolle der letzten 3 Monate. Einstellbare Fairness-Gewichtung.",

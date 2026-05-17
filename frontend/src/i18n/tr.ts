@@ -396,6 +396,8 @@ const trLang = {
     approve: "Onayla",
     reject: "Reddet",
     noShiftsGenerated: "Bu konum için vardiya oluşturulmadı.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "için",
     rotationHistory: "Rotasyon (3 Aylık Geçmiş)",
     rotationHistoryDesc: "Son 3 aydaki rol başına çalışılan saatleri dikkate alır. Ayarlanabilir adalet ağırlığı.",

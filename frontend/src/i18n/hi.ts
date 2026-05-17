@@ -396,6 +396,8 @@ const hi = {
     approve: "स्वीकृत करें",
     reject: "अस्वीकृत करें",
     noShiftsGenerated: "इस स्थान के लिए कोई शिफ्ट जनरेट नहीं हुई।",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "के लिए",
     rotationHistory: "रोटेशन (3 महीने का इतिहास)",
     rotationHistoryDesc: "पिछले 3 महीनों में प्रति भूमिका काम किए गए घंटों पर विचार करता है। समायोज्य निष्पक्षता भार।",

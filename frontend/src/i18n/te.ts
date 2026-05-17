@@ -396,6 +396,8 @@ const te = {
     approve: "ఆమోదించు",
     reject: "తిరస్కరించు",
     noShiftsGenerated: "ఈ స్థానానికి షిఫ్ట్‌లు రూపొందించబడలేదు.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "కోసం",
     rotationHistory: "రొటేషన్ (3 నెలల చరిత్ర)",
     rotationHistoryDesc: "గత 3 నెలల్లో ప్రతి పాత్రకు పనిచేసిన గంటలను పరిగణిస్తుంది. సర్దుబాటు చేయగల న్యాయబద్ధత బరువు.",

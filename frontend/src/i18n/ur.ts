@@ -396,6 +396,8 @@ const ur = {
     approve: "منظور",
     reject: "مسترد",
     noShiftsGenerated: "اس مقام کے لیے کوئی شفٹ تیار نہیں ہوئی۔",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "کے لیے",
     rotationHistory: "گردش (3 ماہ کی تاریخ)",
     rotationHistoryDesc: "پچھلے 3 مہینوں میں ہر کردار کے لیے کام کیے گئے گھنٹوں پر غور کرتا ہے۔ ایڈجسٹ ایبل انصاف وزن۔",

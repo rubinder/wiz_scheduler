@@ -396,6 +396,8 @@ const ar = {
     approve: "اعتماد",
     reject: "رفض",
     noShiftsGenerated: "لم يتم إنشاء ورديات لهذا الموقع.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "لـ",
     rotationHistory: "تناوب (سجل 3 أشهر)",
     rotationHistoryDesc: "يأخذ بعين الاعتبار ساعات العمل لكل دور خلال الأشهر الثلاثة الماضية. وزن العدالة قابل للتعديل.",

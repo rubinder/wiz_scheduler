@@ -396,6 +396,8 @@ const bn = {
     approve: "অনুমোদন",
     reject: "প্রত্যাখ্যান",
     noShiftsGenerated: "এই অবস্থানের জন্য কোনো শিফট তৈরি হয়নি।",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "এর জন্য",
     rotationHistory: "রোটেশন (৩ মাসের ইতিহাস)",
     rotationHistoryDesc: "গত ৩ মাসে প্রতিটি ভূমিকায় কাজের ঘণ্টা বিবেচনা করে। সামঞ্জস্যযোগ্য ন্যায্যতা ওজন।",

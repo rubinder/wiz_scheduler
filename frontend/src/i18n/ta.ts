@@ -396,6 +396,8 @@ const ta = {
     approve: "அங்கீகரி",
     reject: "நிராகரி",
     noShiftsGenerated: "இந்த இடத்திற்கு பணிநேரங்கள் எதுவும் உருவாக்கப்படவில்லை.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "க்கான",
     rotationHistory: "சுழற்சி (3 மாத வரலாறு)",
     rotationHistoryDesc: "கடந்த 3 மாதங்களில் ஒவ்வொரு பணிக்கும் வேலை செய்த மணிநேரங்களை கருத்தில் கொள்கிறது. சரிசெய்யக்கூடிய நியாய எடை.",

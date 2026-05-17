@@ -396,6 +396,8 @@ const ja = {
     approve: "承認",
     reject: "却下",
     noShiftsGenerated: "この拠点のシフトは生成されませんでした。",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "対象：",
     rotationHistory: "ローテーション（3ヶ月履歴）",
     rotationHistoryDesc: "過去3ヶ月間の役割ごとの勤務時間を考慮します。公平性の重みを調整可能。",

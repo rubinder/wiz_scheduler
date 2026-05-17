@@ -396,6 +396,8 @@ const ru = {
     approve: "Утвердить",
     reject: "Отклонить",
     noShiftsGenerated: "Для этой локации смены не сгенерированы.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "для",
     rotationHistory: "Ротация (история за 3 месяца)",
     rotationHistoryDesc: "Учитывает отработанные часы по ролям за последние 3 месяца. Регулируемый вес справедливости.",

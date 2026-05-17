@@ -396,6 +396,8 @@ const pcm = {
     approve: "Approve",
     reject: "Reject",
     noShiftsGenerated: "No shifts generate for this location.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "for",
     rotationHistory: "Rotation (3-Month History)",
     rotationHistoryDesc: "E dey look how many hours each person don work for each role for the past 3 months. You fit adjust the fairness.",

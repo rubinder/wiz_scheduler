@@ -396,6 +396,8 @@ const es = {
     approve: "Aprobar",
     reject: "Rechazar",
     noShiftsGenerated: "No se generaron turnos para esta ubicación.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "para",
     rotationHistory: "Rotación (Historial de 3 Meses)",
     rotationHistoryDesc: "Considera las horas trabajadas por rol en los últimos 3 meses. Peso de equidad ajustable.",

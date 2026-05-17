@@ -396,6 +396,8 @@ const zh = {
     approve: "审批",
     reject: "驳回",
     noShiftsGenerated: "该门店未生成班次。",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "用于",
     rotationHistory: "轮换（3个月历史）",
     rotationHistoryDesc: "考虑过去3个月每个岗位的工作时长。可调节公平权重。",

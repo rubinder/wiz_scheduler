@@ -8,7 +8,7 @@ import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } fr
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
-import { useScheduleStream } from "../../hooks/useScheduleStream";
+import { ScheduleLockedError, useScheduleStream } from "../../hooks/useScheduleStream";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, roleColorsLight, spinner as spinnerClass } from "../../theme";
 import type {
@@ -353,14 +353,61 @@ function daysBetween(startStr: string, endStr: string): number {
   return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function LockedToast({
+  lockedBy,
+  expiresAt,
+  onExpired,
+}: {
+  lockedBy: string;
+  expiresAt: Date;
+  onExpired: () => void;
+}) {
+  const { t } = useLanguage();
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)),
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      const next = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+      setRemaining(next);
+      if (next === 0) onExpired();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt, onExpired]);
+  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const ss = String(remaining % 60).padStart(2, "0");
+  const body = t.schedule.lockedToastBody
+    .replace("{locked_by}", lockedBy)
+    .replace("{countdown}", `${mm}:${ss}`);
+  return (
+    <div className="fixed bottom-4 right-4 max-w-sm rounded-lg bg-amber-100 border border-amber-400 text-amber-900 p-4 shadow-lg z-50">
+      <div className="font-semibold">{t.schedule.lockedToastTitle}</div>
+      <div className="text-sm">{body}</div>
+    </div>
+  );
+}
+
 export default function Schedule() {
   const { t } = useLanguage();
   const [startDate, setStartDate] = useState(getNextMonday());
   const [endDate, setEndDate] = useState(addDays(getNextMonday(), 6));
   const weekStart = startDate; // alias for compatibility
-  const { results, isStreaming, error, generate, reset } =
+  const { results, isStreaming, error, lockedError, generate, reset } =
     useScheduleStream();
   const [actionError, setActionError] = useState("");
+
+  // Schedule-lock toast state — populated by either the stream hook
+  // (generate path) or the approve handler.
+  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const [lockExpiresAt, setLockExpiresAt] = useState<Date | null>(null);
+  const lockActive = lockedBy !== null && lockExpiresAt !== null;
+
+  useEffect(() => {
+    if (lockedError) {
+      setLockedBy(lockedError.lockedBy);
+      setLockExpiresAt(lockedError.expiresAt);
+    }
+  }, [lockedError]);
 
   // AI credit & schedule quota state
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
@@ -640,6 +687,11 @@ export default function Schedule() {
           return next;
         });
       } catch (err: unknown) {
+        if (err instanceof ScheduleLockedError) {
+          setLockedBy(err.lockedBy);
+          setLockExpiresAt(err.expiresAt);
+          return;
+        }
         setActionError(
           err instanceof Error ? err.message : "Approve failed"
         );
@@ -920,7 +972,7 @@ export default function Schedule() {
         </div>
         <button
           onClick={() => handleGenerateClick("local")}
-          disabled={isStreaming}
+          disabled={isStreaming || lockActive}
           className="glass-btn-success px-5 py-3 rounded-lg font-semibold text-sm"
         >
           {isStreaming && generateMode === "local" ? t.schedule.generating : t.schedule.localGenerate}
@@ -928,7 +980,7 @@ export default function Schedule() {
         <DemoGuard>
           <button
             onClick={() => handleGenerateClick("ai")}
-            disabled={isStreaming}
+            disabled={isStreaming || lockActive}
             className="glass-btn-primary px-5 py-3 rounded-lg font-semibold text-sm"
           >
             {isStreaming && generateMode === "ai" ? t.schedule.generating : t.schedule.aiGenerate}
@@ -1278,7 +1330,7 @@ export default function Schedule() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleApprove(locationResult)}
-                        disabled={saving}
+                        disabled={saving || lockActive}
                         className="glass-btn-success px-3 py-1 text-sm font-medium disabled:opacity-50"
                       >
                         {saving ? t.common.saving : t.schedule.approve}
@@ -1448,6 +1500,17 @@ export default function Schedule() {
             </div>
           </div>
         </div>
+      )}
+
+      {lockActive && lockExpiresAt && (
+        <LockedToast
+          lockedBy={lockedBy!}
+          expiresAt={lockExpiresAt}
+          onExpired={() => {
+            setLockedBy(null);
+            setLockExpiresAt(null);
+          }}
+        />
       )}
     </div>
   );

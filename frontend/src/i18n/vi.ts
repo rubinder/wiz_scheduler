@@ -396,6 +396,8 @@ const vi = {
     approve: "Duyệt",
     reject: "Từ chối",
     noShiftsGenerated: "Không có ca nào được tạo cho địa điểm này.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "cho",
     rotationHistory: "Luân chuyển (Lịch sử 3 tháng)",
     rotationHistoryDesc: "Xem xét số giờ làm việc theo vai trò trong 3 tháng qua. Trọng số công bằng có thể điều chỉnh.",

@@ -397,6 +397,8 @@ const en = {
     approve: "Approve",
     reject: "Reject",
     noShiftsGenerated: "No shifts generated for this location.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "for",
     rotationHistory: "Rotation (3-Month History)",
     rotationHistoryDesc: "Considers hours worked per role over the past 3 months. Adjustable fairness weight.",

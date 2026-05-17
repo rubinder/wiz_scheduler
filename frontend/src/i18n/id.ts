@@ -396,6 +396,8 @@ const ind = {
     approve: "Setujui",
     reject: "Tolak",
     noShiftsGenerated: "Tidak ada shift yang dibuat untuk lokasi ini.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "untuk",
     rotationHistory: "Rotasi (Riwayat 3 Bulan)",
     rotationHistoryDesc: "Mempertimbangkan jam kerja per peran selama 3 bulan terakhir. Bobot keadilan dapat disesuaikan.",

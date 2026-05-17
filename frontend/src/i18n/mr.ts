@@ -396,6 +396,8 @@ const mr = {
     approve: "मंजूर करा",
     reject: "नाकारा",
     noShiftsGenerated: "या स्थानासाठी कोणतीही शिफ्ट तयार झाली नाही.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "साठी",
     rotationHistory: "रोटेशन (3 महिन्यांचा इतिहास)",
     rotationHistoryDesc: "मागील 3 महिन्यांत प्रत्येक भूमिकेसाठी काम केलेले तास विचारात घेते. समायोज्य न्याय्यता वजन.",
