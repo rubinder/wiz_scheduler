@@ -71,6 +71,7 @@ const ru = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Подключение сотрудников",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Доступность и связи сотрудников",
     shiftTemplates: "Шаблоны смен",
     schedule: "Расписание",
@@ -356,6 +357,11 @@ const ru = {
     noEmployees: "Сотрудники не найдены.",
     addEmployeesFirst: "Сначала добавьте сотрудников, прежде чем создавать связи.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

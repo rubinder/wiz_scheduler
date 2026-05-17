@@ -71,6 +71,7 @@ const trLang = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Çalışan Katılımı",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Çalışan Müsaitlik & İlişkilendirme",
     shiftTemplates: "Vardiya Şablonları",
     schedule: "Program",
@@ -356,6 +357,11 @@ const trLang = {
     noEmployees: "Çalışan bulunamadı.",
     addEmployeesFirst: "İlişki oluşturmadan önce çalışan ekleyin.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

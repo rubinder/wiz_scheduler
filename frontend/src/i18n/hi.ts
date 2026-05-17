@@ -71,6 +71,7 @@ const hi = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "कर्मचारी ऑनबोर्डिंग",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "कर्मचारी उपलब्धता एवं संबंध",
     shiftTemplates: "शिफ्ट टेम्पलेट",
     schedule: "शेड्यूल",
@@ -356,6 +357,11 @@ const hi = {
     noEmployees: "कोई कर्मचारी नहीं मिले।",
     addEmployeesFirst: "संबंध बनाने से पहले कर्मचारी जोड़ें।",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

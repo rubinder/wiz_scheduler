@@ -71,6 +71,7 @@ const ar = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "تسجيل الموظفين",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "توفّر الموظفين والارتباطات",
     shiftTemplates: "قوالب الورديات",
     schedule: "الجدول",
@@ -356,6 +357,11 @@ const ar = {
     noEmployees: "لم يتم العثور على موظفين.",
     addEmployeesFirst: "أضف موظفين أولاً قبل إنشاء الارتباطات.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

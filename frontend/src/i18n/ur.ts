@@ -71,6 +71,7 @@ const ur = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "ملازم آن بورڈنگ",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "ملازم دستیابی اور وابستگی",
     shiftTemplates: "شفٹ ٹیمپلیٹس",
     schedule: "شیڈول",
@@ -356,6 +357,11 @@ const ur = {
     noEmployees: "کوئی ملازم نہیں ملا۔",
     addEmployeesFirst: "وابستگیاں بنانے سے پہلے ملازمین شامل کریں۔",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

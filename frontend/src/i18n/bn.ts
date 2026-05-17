@@ -71,6 +71,7 @@ const bn = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "কর্মী অনবোর্ডিং",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "কর্মী উপলব্ধতা ও সম্পর্ক",
     shiftTemplates: "শিফট টেমপ্লেট",
     schedule: "সময়সূচি",
@@ -356,6 +357,11 @@ const bn = {
     noEmployees: "কোনো কর্মী পাওয়া যায়নি।",
     addEmployeesFirst: "সম্পর্ক তৈরি করার আগে প্রথমে কর্মী যোগ করুন।",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

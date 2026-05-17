@@ -71,6 +71,7 @@ const pt = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Integração de funcionários",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Disponibilidade e associação de funcionários",
     shiftTemplates: "Modelos de turnos",
     schedule: "Escala",
@@ -356,6 +357,11 @@ const pt = {
     noEmployees: "Nenhum funcionário encontrado.",
     addEmployeesFirst: "Adicione funcionários primeiro antes de criar associações.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

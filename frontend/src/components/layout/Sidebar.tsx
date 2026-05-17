@@ -25,11 +25,12 @@ const baseManagerLinks: NavItem[] = [
 ];
 
 const postEmployeeManagerLinks: NavItem[] = [
-  { to: "/manager/employee-association", labelKey: "employeeAssociation" },
-  { to: "/manager/shift-templates", labelKey: "shiftTemplates" },
-  { to: "/manager/schedule", labelKey: "schedule" },
-  { to: "/manager/export-schedules", labelKey: "exportSchedules" },
-  { to: "/manager/data-privacy", labelKey: "dataPrivacy" },
+  { to: "/manager/employee-availability", labelKey: "employeeAvailability" },
+  { to: "/manager/employee-association",  labelKey: "employeeAssociation" },
+  { to: "/manager/shift-templates",        labelKey: "shiftTemplates" },
+  { to: "/manager/schedule",               labelKey: "schedule" },
+  { to: "/manager/export-schedules",       labelKey: "exportSchedules" },
+  { to: "/manager/data-privacy",           labelKey: "dataPrivacy" },
 ];
 
 const employeeLinks: NavItem[] = [
@@ -53,7 +54,7 @@ export default function Sidebar() {
   const links = isManager
     ? hasEmployees
       ? [...baseManagerLinks, ...postEmployeeManagerLinks]
-      : [...baseManagerLinks, ...postEmployeeManagerLinks.slice(1)]
+      : [...baseManagerLinks, ...postEmployeeManagerLinks.slice(2)]
     : employeeLinks;
 
   return (

@@ -71,7 +71,8 @@ const en = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Employee Onboarding",
-    employeeAssociation: "Employee Availability & Association",
+    employeeAvailability: "Employee Availability",
+    employeeAssociation: "Employee Association",
     shiftTemplates: "Shift Templates",
     schedule: "Schedule",
     exportSchedules: "Export Approved Schedules",
@@ -355,6 +356,11 @@ const en = {
     allDay: "All Day",
     noEmployees: "No employees found.",
     addEmployeesFirst: "Add employees first before creating associations.",
+  },
+
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
   },
 
   // ── Day Blackouts ──

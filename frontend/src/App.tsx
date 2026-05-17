@@ -16,6 +16,7 @@ import RoleEquivalents from "./pages/manager/RoleEquivalents";
 import Roles from "./pages/manager/Roles";
 import Schedule from "./pages/manager/Schedule";
 import EmployeeAssociation from "./pages/manager/EmployeeAssociation";
+import EmployeeAvailability from "./pages/manager/EmployeeAvailability";
 import EmployeeOnboarding from "./pages/manager/EmployeeOnboarding";
 import DayBlackouts from "./pages/manager/DayBlackouts";
 import ExportSchedules from "./pages/manager/ExportSchedules";
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="hour-restrictions" element={<HourRestrictions />} />
           <Route path="day-blackouts" element={<DayBlackouts />} />
           <Route path="employee-onboarding" element={<EmployeeOnboarding />} />
+          <Route path="employee-availability" element={<EmployeeAvailability />} />
           <Route path="employee-association" element={<EmployeeAssociation />} />
           <Route path="shift-templates" element={<ShiftTemplates />} />
           <Route path="schedule" element={<Schedule />} />

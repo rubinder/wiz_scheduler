@@ -71,6 +71,7 @@ const zh = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "员工入职",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "员工可用时间与关联",
     shiftTemplates: "班次模板",
     schedule: "排班",
@@ -356,6 +357,11 @@ const zh = {
     noEmployees: "未找到员工。",
     addEmployeesFirst: "请先添加员工再创建关联。",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

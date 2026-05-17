@@ -71,6 +71,7 @@ const ind = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Orientasi Karyawan",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Ketersediaan & Asosiasi Karyawan",
     shiftTemplates: "Template Shift",
     schedule: "Jadwal",
@@ -356,6 +357,11 @@ const ind = {
     noEmployees: "Tidak ada karyawan ditemukan.",
     addEmployeesFirst: "Tambahkan karyawan terlebih dahulu sebelum membuat asosiasi.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

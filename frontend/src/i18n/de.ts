@@ -71,6 +71,7 @@ const de = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Mitarbeiter-Onboarding",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Verfügbarkeit & Zuordnung",
     shiftTemplates: "Schichtvorlagen",
     schedule: "Dienstplan",
@@ -356,6 +357,11 @@ const de = {
     noEmployees: "Keine Mitarbeiter gefunden.",
     addEmployeesFirst: "Fügen Sie zuerst Mitarbeiter hinzu, bevor Sie Zuordnungen erstellen.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

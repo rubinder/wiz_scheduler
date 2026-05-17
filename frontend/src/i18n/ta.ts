@@ -71,6 +71,7 @@ const ta = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "பணியாளர் சேர்க்கை",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "பணியாளர் கிடைப்பு & தொடர்பு",
     shiftTemplates: "பணிநேர வார்ப்புருக்கள்",
     schedule: "அட்டவணை",
@@ -356,6 +357,11 @@ const ta = {
     noEmployees: "பணியாளர்கள் எவரும் கிடைக்கவில்லை.",
     addEmployeesFirst: "தொடர்புகளை உருவாக்குவதற்கு முன் பணியாளர்களைச் சேர்க்கவும்.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

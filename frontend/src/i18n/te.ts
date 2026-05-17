@@ -71,6 +71,7 @@ const te = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "ఉద్యోగి ఆన్‌బోర్డింగ్",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "ఉద్యోగి అందుబాటు & అనుబంధం",
     shiftTemplates: "షిఫ్ట్ టెంప్లేట్‌లు",
     schedule: "షెడ్యూల్",
@@ -356,6 +357,11 @@ const te = {
     noEmployees: "ఉద్యోగులు కనుగొనబడలేదు.",
     addEmployeesFirst: "అనుబంధాలు సృష్టించే ముందు మొదట ఉద్యోగులను జోడించండి.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

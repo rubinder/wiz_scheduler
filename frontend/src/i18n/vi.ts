@@ -71,6 +71,7 @@ const vi = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Tiếp nhận nhân viên",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Lịch trống & Liên kết nhân viên",
     shiftTemplates: "Mẫu ca làm",
     schedule: "Lịch làm việc",
@@ -356,6 +357,11 @@ const vi = {
     noEmployees: "Không tìm thấy nhân viên.",
     addEmployeesFirst: "Thêm nhân viên trước khi tạo liên kết.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

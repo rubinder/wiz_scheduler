@@ -71,6 +71,7 @@ const pcm = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Worker Onboarding",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Worker Availability & Association",
     shiftTemplates: "Shift Templates",
     schedule: "Schedule",
@@ -356,6 +357,11 @@ const pcm = {
     noEmployees: "No workers dey.",
     addEmployeesFirst: "Add workers first before you create associations.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

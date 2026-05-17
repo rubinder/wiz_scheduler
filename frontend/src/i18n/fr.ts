@@ -71,6 +71,7 @@ const fr = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Intégration des employés",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Disponibilité et associations des employés",
     shiftTemplates: "Modèles de quarts",
     schedule: "Horaire",
@@ -356,6 +357,11 @@ const fr = {
     noEmployees: "Aucun employé trouvé.",
     addEmployeesFirst: "Ajoutez des employés avant de créer des associations.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",

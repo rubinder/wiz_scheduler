@@ -71,6 +71,7 @@ const ja = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "従業員オンボーディング",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "従業員の勤務可能時間と関連付け",
     shiftTemplates: "シフトテンプレート",
     schedule: "スケジュール",
@@ -356,6 +357,11 @@ const ja = {
     noEmployees: "従業員が見つかりません。",
     addEmployeesFirst: "関連付けを作成する前に、まず従業員を追加してください。",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
