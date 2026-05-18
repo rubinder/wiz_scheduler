@@ -62,6 +62,7 @@ const ja = {
   nav: {
     dashboard: "ダッシュボード",
     company: "会社",
+    team: "Team",
     regions: "地域",
     locations: "拠点",
     roles: "役割",
@@ -70,12 +71,32 @@ const ja = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "従業員オンボーディング",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "従業員の勤務可能時間と関連付け",
     shiftTemplates: "シフトテンプレート",
     schedule: "スケジュール",
     exportSchedules: "承認済みスケジュールのエクスポート",
     myAvailability: "勤務可能時間",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const ja = {
     createAndLogin: "アカウント作成してログイン",
     haveAccount: "すでにアカウントをお持ちですか？",
     logIn: "ログイン",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const ja = {
     noRoles: "役割なし",
     skill: "スキル",
     addRow: "+ 行を追加",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const ja = {
 
   // ── Employee Association ──
   association: {
-    title: "従業員の勤務可能時間と関連付け",
-    description: "従業員の勤務可能時間とスケジュール上の相性を管理します。",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "相性の値：",
     mustTogether: "= 必ず一緒に勤務、",
     preferTogether: "= できれば一緒に勤務、",
     cannotTogether: "= 一緒に勤務不可、",
     preferApart: "= できれば別々に勤務（やむを得ず一緒にスケジュールする場合は -1 の代わりに使用）。",
-    tabAvailability: "勤務可能時間",
-    tabAffinities: "相性",
     addAssociation: "+ 関連付けを追加",
     targetEmployee: "対象従業員",
     affinityLevel: "相性レベル",
@@ -309,6 +357,13 @@ const ja = {
     noEmployees: "従業員が見つかりません。",
     addEmployeesFirst: "関連付けを作成する前に、まず従業員を追加してください。",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const ja = {
     approve: "承認",
     reject: "却下",
     noShiftsGenerated: "この拠点のシフトは生成されませんでした。",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "対象：",
     rotationHistory: "ローテーション（3ヶ月履歴）",
     rotationHistoryDesc: "過去3ヶ月間の役割ごとの勤務時間を考慮します。公平性の重みを調整可能。",

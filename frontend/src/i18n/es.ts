@@ -62,6 +62,7 @@ const es = {
   nav: {
     dashboard: "Panel",
     company: "Empresa",
+    team: "Team",
     regions: "Regiones",
     locations: "Ubicaciones",
     roles: "Roles",
@@ -70,12 +71,32 @@ const es = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Incorporación de empleados",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Disponibilidad y asociación de empleados",
     shiftTemplates: "Plantillas de turnos",
     schedule: "Horario",
     exportSchedules: "Exportar horarios aprobados",
     myAvailability: "Mi disponibilidad",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const es = {
     createAndLogin: "Crear cuenta e iniciar sesión",
     haveAccount: "¿Ya tienes una cuenta?",
     logIn: "Iniciar sesión",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const es = {
     noRoles: "Sin roles",
     skill: "Habilidad",
     addRow: "+ Agregar fila",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const es = {
 
   // ── Employee Association ──
   association: {
-    title: "Disponibilidad y asociación de empleados",
-    description: "Administra la disponibilidad y las afinidades de programación de los empleados.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Valores de afinidad:",
     mustTogether: "= deben trabajar juntos,",
     preferTogether: "= preferible que trabajen juntos,",
     cannotTogether: "= no pueden trabajar juntos,",
     preferApart: "= preferible que no trabajen juntos (usa en lugar de -1 cuando no tienes otra opción más que programarlos juntos ocasionalmente).",
-    tabAvailability: "Disponibilidad",
-    tabAffinities: "Afinidades",
     addAssociation: "+ Agregar asociación",
     targetEmployee: "Empleado objetivo",
     affinityLevel: "Nivel de afinidad",
@@ -309,6 +357,13 @@ const es = {
     noEmployees: "No se encontraron empleados.",
     addEmployeesFirst: "Agrega empleados primero antes de crear asociaciones.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const es = {
     approve: "Aprobar",
     reject: "Rechazar",
     noShiftsGenerated: "No se generaron turnos para esta ubicación.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "para",
     rotationHistory: "Rotación (Historial de 3 Meses)",
     rotationHistoryDesc: "Considera las horas trabajadas por rol en los últimos 3 meses. Peso de equidad ajustable.",

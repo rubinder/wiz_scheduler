@@ -62,6 +62,7 @@ const zh = {
   nav: {
     dashboard: "仪表盘",
     company: "公司",
+    team: "Team",
     regions: "区域",
     locations: "门店",
     roles: "角色",
@@ -70,12 +71,32 @@ const zh = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "员工入职",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "员工可用时间与关联",
     shiftTemplates: "班次模板",
     schedule: "排班",
     exportSchedules: "导出已审批排班",
     myAvailability: "我的可用时间",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const zh = {
     createAndLogin: "创建账号并登录",
     haveAccount: "已有账号？",
     logIn: "登录",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const zh = {
     noRoles: "无角色",
     skill: "技能等级",
     addRow: "+ 添加行",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const zh = {
 
   // ── Employee Association ──
   association: {
-    title: "员工可用时间与关联",
-    description: "管理员工的可用时间和排班亲和度。",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "亲和度数值：",
     mustTogether: "= 必须一起排班，",
     preferTogether: "= 最好一起排班，",
     cannotTogether: "= 不能一起排班，",
     preferApart: "= 尽量不要一起排班（当不得不偶尔安排在一起时，请使用此值代替 -1）。",
-    tabAvailability: "可用时间",
-    tabAffinities: "亲和度",
     addAssociation: "+ 添加关联",
     targetEmployee: "目标员工",
     affinityLevel: "亲和度等级",
@@ -309,6 +357,13 @@ const zh = {
     noEmployees: "未找到员工。",
     addEmployeesFirst: "请先添加员工再创建关联。",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const zh = {
     approve: "审批",
     reject: "驳回",
     noShiftsGenerated: "该门店未生成班次。",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "用于",
     rotationHistory: "轮换（3个月历史）",
     rotationHistoryDesc: "考虑过去3个月每个岗位的工作时长。可调节公平权重。",

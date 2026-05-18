@@ -1,6 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import type { LocationResult } from "../types";
 
+export class ScheduleLockedError extends Error {
+  constructor(
+    public readonly lockedBy: string,
+    public readonly expiresAt: Date,
+  ) {
+    super(`Schedule locked by ${lockedBy} until ${expiresAt.toISOString()}`);
+    this.name = "ScheduleLockedError";
+  }
+}
+
 interface GenerateOptions {
   useLocal?: boolean;
   strategy?: "random" | "rotation" | "rotation_history" | "max_hours";
@@ -13,6 +23,7 @@ interface UseScheduleStreamReturn {
   results: LocationResult[];
   isStreaming: boolean;
   error: string | null;
+  lockedError: ScheduleLockedError | null;
   generate: (weekStartDate: string, locationIds?: string[], templateIds?: string[], options?: GenerateOptions) => void;
   reset: () => void;
 }
@@ -21,6 +32,7 @@ export function useScheduleStream(): UseScheduleStreamReturn {
   const [results, setResults] = useState<LocationResult[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lockedError, setLockedError] = useState<ScheduleLockedError | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
@@ -30,6 +42,7 @@ export function useScheduleStream(): UseScheduleStreamReturn {
     setResults([]);
     setIsStreaming(false);
     setError(null);
+    setLockedError(null);
   }, []);
 
   const generate = useCallback(
@@ -78,6 +91,17 @@ export function useScheduleStream(): UseScheduleStreamReturn {
         signal: controller.signal,
       })
         .then(async (response) => {
+          if (response.status === 409) {
+            const body = await response.json().catch(() => null);
+            const detail = body?.detail ?? {};
+            if (detail.code === "schedule_locked") {
+              throw new ScheduleLockedError(
+                String(detail.locked_by ?? "another manager"),
+                new Date(String(detail.expires_at ?? Date.now())),
+              );
+            }
+          }
+
           if (!response.ok) {
             const errBody = await response
               .json()
@@ -127,14 +151,18 @@ export function useScheduleStream(): UseScheduleStreamReturn {
           setIsStreaming(false);
         })
         .catch((err) => {
-          if (err.name !== "AbortError") {
-            setError(err.message || "Stream failed");
+          if (err.name === "AbortError") return;
+          if (err instanceof ScheduleLockedError) {
+            setLockedError(err);
             setIsStreaming(false);
+            return;
           }
+          setError(err.message || "Stream failed");
+          setIsStreaming(false);
         });
     },
     [reset]
   );
 
-  return { results, isStreaming, error, generate, reset };
+  return { results, isStreaming, error, lockedError, generate, reset };
 }

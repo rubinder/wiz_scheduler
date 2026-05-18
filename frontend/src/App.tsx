@@ -3,6 +3,7 @@ import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
 import AcceptInvite from "./pages/AcceptInvite";
+import AcceptManagerInvite from "./pages/AcceptManagerInvite";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Availability from "./pages/employee/Availability";
@@ -15,11 +16,13 @@ import RoleEquivalents from "./pages/manager/RoleEquivalents";
 import Roles from "./pages/manager/Roles";
 import Schedule from "./pages/manager/Schedule";
 import EmployeeAssociation from "./pages/manager/EmployeeAssociation";
+import EmployeeAvailability from "./pages/manager/EmployeeAvailability";
 import EmployeeOnboarding from "./pages/manager/EmployeeOnboarding";
 import DayBlackouts from "./pages/manager/DayBlackouts";
 import ExportSchedules from "./pages/manager/ExportSchedules";
 import HourRestrictions from "./pages/manager/HourRestrictions";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
+import Team from "./pages/manager/Team";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import DataProcessingAgreement from "./pages/DataProcessingAgreement";
@@ -75,6 +78,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
+      <Route path="/accept-manager-invite" element={<AcceptManagerInvite />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/dpa" element={<DataProcessingAgreement />} />
@@ -91,9 +95,11 @@ export default function App() {
           <Route path="roles" element={<Roles />} />
           <Route path="role-equivalents" element={<RoleEquivalents />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="team" element={<Team />} />
           <Route path="hour-restrictions" element={<HourRestrictions />} />
           <Route path="day-blackouts" element={<DayBlackouts />} />
           <Route path="employee-onboarding" element={<EmployeeOnboarding />} />
+          <Route path="employee-availability" element={<EmployeeAvailability />} />
           <Route path="employee-association" element={<EmployeeAssociation />} />
           <Route path="shift-templates" element={<ShiftTemplates />} />
           <Route path="schedule" element={<Schedule />} />

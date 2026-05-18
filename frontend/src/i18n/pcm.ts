@@ -62,6 +62,7 @@ const pcm = {
   nav: {
     dashboard: "Dashboard",
     company: "Company",
+    team: "Team",
     regions: "Regions",
     locations: "Locations",
     roles: "Roles",
@@ -70,12 +71,32 @@ const pcm = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Worker Onboarding",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Worker Availability & Association",
     shiftTemplates: "Shift Templates",
     schedule: "Schedule",
     exportSchedules: "Export Approved Schedules",
     myAvailability: "My Availability",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -134,6 +155,33 @@ const pcm = {
     creatingAccount: "E dey create account...",
     createAndLogin: "Create Account & Log In",
     haveAccount: "You don get account?",
+    logIn: "Log in",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
     logIn: "Log in",
   },
 
@@ -211,6 +259,8 @@ const pcm = {
     noRoles: "No roles",
     skill: "Skill",
     addRow: "+ Add Row",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const pcm = {
 
   // ── Employee Association ──
   association: {
-    title: "Worker Availability & Association",
-    description: "Manage worker availability and scheduling affinities.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Affinity values:",
     mustTogether: "= must work together,",
     preferTogether: "= e go better if dem work together,",
     cannotTogether: "= dem no fit work together,",
     preferApart: "= better make dem no work together (use this one instead of -1 if you no get choice but to sometimes schedule dem together).",
-    tabAvailability: "Availability",
-    tabAffinities: "Affinities",
     addAssociation: "+ Add Association",
     targetEmployee: "Target Worker",
     affinityLevel: "Affinity Level",
@@ -309,6 +357,13 @@ const pcm = {
     noEmployees: "No workers dey.",
     addEmployeesFirst: "Add workers first before you create associations.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const pcm = {
     approve: "Approve",
     reject: "Reject",
     noShiftsGenerated: "No shifts generate for this location.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "for",
     rotationHistory: "Rotation (3-Month History)",
     rotationHistoryDesc: "E dey look how many hours each person don work for each role for the past 3 months. You fit adjust the fairness.",

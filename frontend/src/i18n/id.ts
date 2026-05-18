@@ -62,6 +62,7 @@ const ind = {
   nav: {
     dashboard: "Dasbor",
     company: "Perusahaan",
+    team: "Team",
     regions: "Wilayah",
     locations: "Lokasi",
     roles: "Peran",
@@ -70,12 +71,32 @@ const ind = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Orientasi Karyawan",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Ketersediaan & Asosiasi Karyawan",
     shiftTemplates: "Template Shift",
     schedule: "Jadwal",
     exportSchedules: "Ekspor Jadwal yang Disetujui",
     myAvailability: "Ketersediaan Saya",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const ind = {
     createAndLogin: "Buat Akun & Masuk",
     haveAccount: "Sudah punya akun?",
     logIn: "Masuk",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const ind = {
     noRoles: "Tidak ada peran",
     skill: "Keahlian",
     addRow: "+ Tambah Baris",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const ind = {
 
   // ── Employee Association ──
   association: {
-    title: "Ketersediaan & Asosiasi Karyawan",
-    description: "Kelola ketersediaan karyawan dan afinitas penjadwalan.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Nilai afinitas:",
     mustTogether: "= harus bekerja bersama,",
     preferTogether: "= lebih baik bersama,",
     cannotTogether: "= tidak boleh bekerja bersama,",
     preferApart: "= sebaiknya tidak bekerja bersama (gunakan sebagai pengganti -1 ketika sesekali harus menjadwalkan mereka bersama).",
-    tabAvailability: "Ketersediaan",
-    tabAffinities: "Afinitas",
     addAssociation: "+ Tambah Asosiasi",
     targetEmployee: "Karyawan Target",
     affinityLevel: "Tingkat Afinitas",
@@ -309,6 +357,13 @@ const ind = {
     noEmployees: "Tidak ada karyawan ditemukan.",
     addEmployeesFirst: "Tambahkan karyawan terlebih dahulu sebelum membuat asosiasi.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const ind = {
     approve: "Setujui",
     reject: "Tolak",
     noShiftsGenerated: "Tidak ada shift yang dibuat untuk lokasi ini.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "untuk",
     rotationHistory: "Rotasi (Riwayat 3 Bulan)",
     rotationHistoryDesc: "Mempertimbangkan jam kerja per peran selama 3 bulan terakhir. Bobot keadilan dapat disesuaikan.",

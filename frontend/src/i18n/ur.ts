@@ -62,6 +62,7 @@ const ur = {
   nav: {
     dashboard: "ڈیش بورڈ",
     company: "کمپنی",
+    team: "Team",
     regions: "علاقے",
     locations: "مقامات",
     roles: "کردار",
@@ -70,12 +71,32 @@ const ur = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "ملازم آن بورڈنگ",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "ملازم دستیابی اور وابستگی",
     shiftTemplates: "شفٹ ٹیمپلیٹس",
     schedule: "شیڈول",
     exportSchedules: "منظور شدہ شیڈولز برآمد کریں",
     myAvailability: "میری دستیابی",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const ur = {
     createAndLogin: "اکاؤنٹ بنائیں اور لاگ ان کریں",
     haveAccount: "پہلے سے اکاؤنٹ ہے؟",
     logIn: "لاگ ان کریں",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const ur = {
     noRoles: "کوئی کردار نہیں",
     skill: "مہارت",
     addRow: "+ قطار شامل کریں",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const ur = {
 
   // ── Employee Association ──
   association: {
-    title: "ملازم دستیابی اور وابستگی",
-    description: "ملازمین کی دستیابی اور شیڈولنگ تعلقات کا انتظام کریں۔",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "تعلق کی اقدار:",
     mustTogether: "= لازمی ساتھ کام کریں،",
     preferTogether: "= ساتھ ہونا اچھا ہے،",
     cannotTogether: "= ساتھ کام نہیں کر سکتے،",
     preferApart: "= ساتھ نہ کام کرنا بہتر ہے (جب -1 کے بجائے استعمال کریں جب کبھی کبھار انہیں ساتھ شیڈول کرنا ناگزیر ہو)۔",
-    tabAvailability: "دستیابی",
-    tabAffinities: "تعلقات",
     addAssociation: "+ وابستگی شامل کریں",
     targetEmployee: "ہدف ملازم",
     affinityLevel: "تعلق کی سطح",
@@ -309,6 +357,13 @@ const ur = {
     noEmployees: "کوئی ملازم نہیں ملا۔",
     addEmployeesFirst: "وابستگیاں بنانے سے پہلے ملازمین شامل کریں۔",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const ur = {
     approve: "منظور",
     reject: "مسترد",
     noShiftsGenerated: "اس مقام کے لیے کوئی شفٹ تیار نہیں ہوئی۔",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "کے لیے",
     rotationHistory: "گردش (3 ماہ کی تاریخ)",
     rotationHistoryDesc: "پچھلے 3 مہینوں میں ہر کردار کے لیے کام کیے گئے گھنٹوں پر غور کرتا ہے۔ ایڈجسٹ ایبل انصاف وزن۔",

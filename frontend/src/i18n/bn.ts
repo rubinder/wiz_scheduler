@@ -62,6 +62,7 @@ const bn = {
   nav: {
     dashboard: "ড্যাশবোর্ড",
     company: "কোম্পানি",
+    team: "Team",
     regions: "অঞ্চলসমূহ",
     locations: "অবস্থানসমূহ",
     roles: "ভূমিকাসমূহ",
@@ -70,12 +71,32 @@ const bn = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "কর্মী অনবোর্ডিং",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "কর্মী উপলব্ধতা ও সম্পর্ক",
     shiftTemplates: "শিফট টেমপ্লেট",
     schedule: "সময়সূচি",
     exportSchedules: "অনুমোদিত সময়সূচি এক্সপোর্ট",
     myAvailability: "আমার উপলব্ধতা",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const bn = {
     createAndLogin: "অ্যাকাউন্ট তৈরি করুন ও লগ ইন করুন",
     haveAccount: "ইতোমধ্যে একটি অ্যাকাউন্ট আছে?",
     logIn: "লগ ইন",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const bn = {
     noRoles: "কোনো ভূমিকা নেই",
     skill: "দক্ষতা",
     addRow: "+ সারি যোগ করুন",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const bn = {
 
   // ── Employee Association ──
   association: {
-    title: "কর্মী উপলব্ধতা ও সম্পর্ক",
-    description: "কর্মীদের উপলব্ধতা ও সময়সূচি সম্পর্ক পরিচালনা করুন।",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "সম্পর্কের মান:",
     mustTogether: "= একসাথে কাজ করতে হবে,",
     preferTogether: "= একসাথে থাকলে ভালো,",
     cannotTogether: "= একসাথে কাজ করতে পারবে না,",
     preferApart: "= একসাথে কাজ না করাই ভালো (যখন মাঝে মাঝে একসাথে সময়সূচি করা ছাড়া উপায় নেই তখন -1 এর পরিবর্তে ব্যবহার করুন)।",
-    tabAvailability: "উপলব্ধতা",
-    tabAffinities: "সম্পর্কসমূহ",
     addAssociation: "+ সম্পর্ক যোগ করুন",
     targetEmployee: "লক্ষ্য কর্মী",
     affinityLevel: "সম্পর্কের স্তর",
@@ -309,6 +357,13 @@ const bn = {
     noEmployees: "কোনো কর্মী পাওয়া যায়নি।",
     addEmployeesFirst: "সম্পর্ক তৈরি করার আগে প্রথমে কর্মী যোগ করুন।",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const bn = {
     approve: "অনুমোদন",
     reject: "প্রত্যাখ্যান",
     noShiftsGenerated: "এই অবস্থানের জন্য কোনো শিফট তৈরি হয়নি।",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "এর জন্য",
     rotationHistory: "রোটেশন (৩ মাসের ইতিহাস)",
     rotationHistoryDesc: "গত ৩ মাসে প্রতিটি ভূমিকায় কাজের ঘণ্টা বিবেচনা করে। সামঞ্জস্যযোগ্য ন্যায্যতা ওজন।",

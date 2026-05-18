@@ -13,6 +13,7 @@ from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.models.employee import EmployeeAvailability
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
+from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 from backend.utils.id_gen import generate_short_id
 
 logger = logging.getLogger(__name__)
@@ -162,77 +163,105 @@ async def generate_schedule(
         [str(tid) for tid in body.template_ids] if body.template_ids else None
     )
 
+    # Acquire per-Company schedule lock before starting the stream.
+    try:
+        lock = await acquire_lock(
+            db,
+            company_id=str(current_user.company_id),
+            user_id=str(current_user.id),
+            operation="generate",
+        )
+    except LockHeld as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_locked",
+                "locked_by": e.locked_by_full_name,
+                "expires_at": e.expires_at.isoformat(),
+            },
+        )
+
     async def event_stream():
-        # Record consent for AI data processing
-        if not body.use_local:
-            client_ip = mask_ip(request.client.host) if request.client else None
-            db.add(UserConsent(
-                user_id=current_user.id,
-                company_id=current_user.company_id,
-                consent_type="data_processing_ai",
-                version="1.0",
-                ip_address=client_ip,
-            ))
-            await db.flush()
-
         try:
-            async for chunk in run_scheduling_pipeline(
-                company_id=str(current_user.company_id),
-                week_start_date=str(body.week_start_date),
-                db=db,
-                template_ids=template_ids,
-                use_local=body.use_local,
-                strategy=body.strategy,
-                strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
-                strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
-                num_days=body.num_days,
-            ):
-                # Persist a ShiftSchedule row so approve/reject have a record to find
-                loc_id = chunk.get("location_id", "")
-                if loc_id:
-                    sched = ShiftSchedule(
-                        company_id=current_user.company_id,
-                        location_id=loc_id,
-                        week_start_date=body.week_start_date,
-                        status="draft",
-                        raw_llm_output=json.dumps(chunk.get("shifts", [])),
-                        strategy=body.strategy if body.use_local else "ai",
-                        strategy_param=body.strategy_param,
-                        strategy_param2=body.strategy_param2,
-                    )
-                    db.add(sched)
-                    await db.flush()
-                    chunk["schedule_id"] = str(sched.id)
+            # Record consent for AI data processing
+            if not body.use_local:
+                client_ip = mask_ip(request.client.host) if request.client else None
+                db.add(UserConsent(
+                    user_id=current_user.id,
+                    company_id=current_user.company_id,
+                    consent_type="data_processing_ai",
+                    version="1.0",
+                    ip_address=client_ip,
+                ))
+                await db.flush()
 
-                    # Deduct credits if over schedule free tier
-                    from backend.services.billing import deduct_credits_for_schedule_overage
-                    await deduct_credits_for_schedule_overage(db, str(current_user.company_id))
+            try:
+                async for chunk in run_scheduling_pipeline(
+                    company_id=str(current_user.company_id),
+                    week_start_date=str(body.week_start_date),
+                    db=db,
+                    template_ids=template_ids,
+                    use_local=body.use_local,
+                    strategy=body.strategy,
+                    strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
+                    strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
+                    num_days=body.num_days,
+                ):
+                    # Persist a ShiftSchedule row so approve/reject have a record to find
+                    loc_id = chunk.get("location_id", "")
+                    if loc_id:
+                        sched = ShiftSchedule(
+                            company_id=current_user.company_id,
+                            location_id=loc_id,
+                            week_start_date=body.week_start_date,
+                            status="draft",
+                            raw_llm_output=json.dumps(chunk.get("shifts", [])),
+                            strategy=body.strategy if body.use_local else "ai",
+                            strategy_param=body.strategy_param,
+                            strategy_param2=body.strategy_param2,
+                        )
+                        db.add(sched)
+                        await db.flush()
+                        chunk["schedule_id"] = str(sched.id)
 
-                    await db.commit()
+                        # Deduct credits if over schedule free tier
+                        from backend.services.billing import deduct_credits_for_schedule_overage
+                        await deduct_credits_for_schedule_overage(db, str(current_user.company_id))
 
-                yield json.dumps(chunk) + "\n"
-        except Exception as exc:
-            from backend.services.failure_logger import log_failure
+                        await db.commit()
 
-            await log_failure(
-                category="PIPELINE",
-                source="schedules.generate",
-                message=str(exc),
-                detail={
-                    "week_start_date": str(body.week_start_date),
-                    "exception_type": type(exc).__name__,
-                },
-                company_id=current_user.company_id,
-            )
-            # Emit the error as a single NDJSON line so the frontend can display it
-            error_result = {
-                "location_id": "",
-                "location_name": "Pipeline Error",
-                "shifts": [],
-                "errors": [str(exc)],
-                "status": "PIPELINE_ERROR",
-            }
-            yield json.dumps(error_result) + "\n"
+                    yield json.dumps(chunk) + "\n"
+            except Exception as exc:
+                from backend.services.failure_logger import log_failure
+
+                await log_failure(
+                    category="PIPELINE",
+                    source="schedules.generate",
+                    message=str(exc),
+                    detail={
+                        "week_start_date": str(body.week_start_date),
+                        "exception_type": type(exc).__name__,
+                    },
+                    company_id=current_user.company_id,
+                )
+                # Emit the error as a single NDJSON line so the frontend can display it
+                error_result = {
+                    "location_id": "",
+                    "location_name": "Pipeline Error",
+                    "shifts": [],
+                    "errors": [str(exc)],
+                    "status": "PIPELINE_ERROR",
+                }
+                yield json.dumps(error_result) + "\n"
+        finally:
+            try:
+                await release_lock(db, lock.id)
+                await db.commit()
+            except Exception:
+                logger.exception(
+                    "Failed to release schedule lock for company=%s",
+                    current_user.company_id,
+                )
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
@@ -281,135 +310,160 @@ async def approve_schedule(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
 
-    schedule.status = "approved"
-
-    # Create Shift records from the stored raw_llm_output
-    if schedule.raw_llm_output:
-        try:
-            # Build set of valid role IDs and condensed-role -> member-role mapping
-            from backend.models import Role
-            from backend.models.condensed_role import CondensedRoleMapping
-            role_result = await db.execute(
-                select(Role.id).where(Role.company_id == current_user.company_id)
-            )
-            valid_role_ids: set[str] = {str(r) for r in role_result.scalars().all()}
-
-            crm_result = await db.execute(
-                select(CondensedRoleMapping).join(
-                    CondensedRoleMapping.condensed_role
-                ).where(
-                    CondensedRoleMapping.condensed_role.has(company_id=current_user.company_id)
-                )
-            )
-            # Map condensed_role_id -> first member role_id
-            condensed_to_role: dict[str, str] = {}
-            for crm in crm_result.scalars().all():
-                cid = str(crm.condensed_role_id)
-                if cid not in condensed_to_role:
-                    condensed_to_role[cid] = str(crm.role_id)
-
-            shifts_data = json.loads(schedule.raw_llm_output)
-            for s in shifts_data:
-                # Skip VACANT placeholders and non-ok shifts
-                if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
-                    continue
-                # Skip shifts with missing required IDs
-                try:
-                    loc_id = s["location_id"]
-                    emp_id = s["employee_id"]
-                    role_id = s["role_id"]
-                except KeyError:
-                    continue
-                if not role_id:
-                    continue
-                # Resolve condensed role IDs to a real role ID
-                if role_id not in valid_role_ids:
-                    role_id = condensed_to_role.get(role_id, role_id)
-                if role_id not in valid_role_ids:
-                    logger.warning(
-                        "Skipping shift with unknown role_id %s (role_name=%s)",
-                        role_id, s.get("role_name", ""),
-                    )
-                    continue
-                shift = Shift(
-                    company_id=current_user.company_id,
-                    shift_schedule_id=schedule.id,
-                    location_id=loc_id,
-                    employee_id=emp_id,
-                    role_id=role_id,
-                    role_name=s.get("role_name", ""),
-                    date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
-                    start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
-                    end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],
-                )
-                db.add(shift)
-        except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to parse schedule data: {exc}",
-            )
-
-        # Subtract consumed hours from employee availability.
-        # For each approved shift, find the overlapping availability window
-        # and split it around the shift (removing only the scheduled hours).
-        await _subtract_availability_for_shifts(
-            db, current_user.company_id, shifts_data,
+    try:
+        lock = await acquire_lock(
+            db,
+            company_id=str(current_user.company_id),
+            user_id=str(current_user.id),
+            operation="approve",
+        )
+    except LockHeld as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_locked",
+                "locked_by": e.locked_by_full_name,
+                "expires_at": e.expires_at.isoformat(),
+            },
         )
 
-        # Accumulate worked minutes into employee_role_minutes for history tracking
-        from backend.models.employee_role_minutes import EmployeeRoleMinutes
+    try:
+        schedule.status = "approved"
 
-        for s in shifts_data:
-            if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
-                continue
+        # Create Shift records from the stored raw_llm_output
+        if schedule.raw_llm_output:
             try:
-                emp_id = s["employee_id"]
-                role_id_val = s["role_id"]
-                shift_start = datetime.fromisoformat(s["start_time"])
-                shift_end = datetime.fromisoformat(s["end_time"])
-                minutes = (shift_end - shift_start).total_seconds() / 60.0
-                shift_date = date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"]
-                month_start = shift_date.replace(day=1)
+                # Build set of valid role IDs and condensed-role -> member-role mapping
+                from backend.models import Role
+                from backend.models.condensed_role import CondensedRoleMapping
+                role_result = await db.execute(
+                    select(Role.id).where(Role.company_id == current_user.company_id)
+                )
+                valid_role_ids: set[str] = {str(r) for r in role_result.scalars().all()}
 
-                # Resolve condensed role IDs to a real role ID
-                if role_id_val not in valid_role_ids:
-                    role_id_val = condensed_to_role.get(role_id_val, role_id_val)
-                if role_id_val not in valid_role_ids:
-                    continue
-
-                existing = await db.execute(
-                    select(EmployeeRoleMinutes).where(
-                        EmployeeRoleMinutes.company_id == current_user.company_id,
-                        EmployeeRoleMinutes.employee_id == emp_id,
-                        EmployeeRoleMinutes.role_id == role_id_val,
-                        EmployeeRoleMinutes.month_start == month_start,
+                crm_result = await db.execute(
+                    select(CondensedRoleMapping).join(
+                        CondensedRoleMapping.condensed_role
+                    ).where(
+                        CondensedRoleMapping.condensed_role.has(company_id=current_user.company_id)
                     )
                 )
-                record = existing.scalar_one_or_none()
-                if record:
-                    record.total_minutes += minutes
-                else:
-                    db.add(EmployeeRoleMinutes(
+                # Map condensed_role_id -> first member role_id
+                condensed_to_role: dict[str, str] = {}
+                for crm in crm_result.scalars().all():
+                    cid = str(crm.condensed_role_id)
+                    if cid not in condensed_to_role:
+                        condensed_to_role[cid] = str(crm.role_id)
+
+                shifts_data = json.loads(schedule.raw_llm_output)
+                for s in shifts_data:
+                    # Skip VACANT placeholders and non-ok shifts
+                    if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                        continue
+                    # Skip shifts with missing required IDs
+                    try:
+                        loc_id = s["location_id"]
+                        emp_id = s["employee_id"]
+                        role_id = s["role_id"]
+                    except KeyError:
+                        continue
+                    if not role_id:
+                        continue
+                    # Resolve condensed role IDs to a real role ID
+                    if role_id not in valid_role_ids:
+                        role_id = condensed_to_role.get(role_id, role_id)
+                    if role_id not in valid_role_ids:
+                        logger.warning(
+                            "Skipping shift with unknown role_id %s (role_name=%s)",
+                            role_id, s.get("role_name", ""),
+                        )
+                        continue
+                    shift = Shift(
                         company_id=current_user.company_id,
+                        shift_schedule_id=schedule.id,
+                        location_id=loc_id,
                         employee_id=emp_id,
-                        role_id=role_id_val,
-                        month_start=month_start,
-                        total_minutes=minutes,
-                    ))
-            except (KeyError, ValueError):
-                continue
+                        role_id=role_id,
+                        role_name=s.get("role_name", ""),
+                        date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
+                        start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
+                        end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],
+                    )
+                    db.add(shift)
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to parse schedule data: {exc}",
+                )
 
-    await db.commit()
-    await db.refresh(schedule)
+            # Subtract consumed hours from employee availability.
+            # For each approved shift, find the overlapping availability window
+            # and split it around the shift (removing only the scheduled hours).
+            await _subtract_availability_for_shifts(
+                db, current_user.company_id, shifts_data,
+            )
 
-    # Fetch shifts for response
-    shift_result = await db.execute(
-        select(Shift).where(Shift.shift_schedule_id == schedule.id)
-    )
-    shifts = shift_result.scalars().all()
+            # Accumulate worked minutes into employee_role_minutes for history tracking
+            from backend.models.employee_role_minutes import EmployeeRoleMinutes
 
-    resp = ShiftScheduleResponse.model_validate(schedule)
-    resp.shifts = [_shift_to_response(s) for s in shifts]
+            for s in shifts_data:
+                if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                    continue
+                try:
+                    emp_id = s["employee_id"]
+                    role_id_val = s["role_id"]
+                    shift_start = datetime.fromisoformat(s["start_time"])
+                    shift_end = datetime.fromisoformat(s["end_time"])
+                    minutes = (shift_end - shift_start).total_seconds() / 60.0
+                    shift_date = date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"]
+                    month_start = shift_date.replace(day=1)
+
+                    # Resolve condensed role IDs to a real role ID
+                    if role_id_val not in valid_role_ids:
+                        role_id_val = condensed_to_role.get(role_id_val, role_id_val)
+                    if role_id_val not in valid_role_ids:
+                        continue
+
+                    existing = await db.execute(
+                        select(EmployeeRoleMinutes).where(
+                            EmployeeRoleMinutes.company_id == current_user.company_id,
+                            EmployeeRoleMinutes.employee_id == emp_id,
+                            EmployeeRoleMinutes.role_id == role_id_val,
+                            EmployeeRoleMinutes.month_start == month_start,
+                        )
+                    )
+                    record = existing.scalar_one_or_none()
+                    if record:
+                        record.total_minutes += minutes
+                    else:
+                        db.add(EmployeeRoleMinutes(
+                            company_id=current_user.company_id,
+                            employee_id=emp_id,
+                            role_id=role_id_val,
+                            month_start=month_start,
+                            total_minutes=minutes,
+                        ))
+                except (KeyError, ValueError):
+                    continue
+
+        await db.commit()
+        await db.refresh(schedule)
+
+        # Fetch shifts for response
+        shift_result = await db.execute(
+            select(Shift).where(Shift.shift_schedule_id == schedule.id)
+        )
+        shifts = shift_result.scalars().all()
+
+        resp = ShiftScheduleResponse.model_validate(schedule)
+        resp.shifts = [_shift_to_response(s) for s in shifts]
+    except Exception:
+        await db.rollback()
+        raise
+    finally:
+        await release_lock(db, lock.id)
+        await db.commit()
+
     return resp
 
 

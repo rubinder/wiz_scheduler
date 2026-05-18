@@ -80,6 +80,9 @@ class Settings(BaseSettings):
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
 
+    # Schedule generation/approval temporal lock
+    SCHEDULE_LOCK_TTL_SECONDS: int = 300  # 5 minutes
+
     # Monitoring
     MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval
     MONITORING_SCHEDULING_FAILURE_WINDOW_MINUTES: int = 30   # look-back for recent failures

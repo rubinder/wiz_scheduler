@@ -62,6 +62,7 @@ const te = {
   nav: {
     dashboard: "డాష్‌బోర్డ్",
     company: "సంస్థ",
+    team: "Team",
     regions: "ప్రాంతాలు",
     locations: "స్థానాలు",
     roles: "పాత్రలు",
@@ -70,12 +71,32 @@ const te = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "ఉద్యోగి ఆన్‌బోర్డింగ్",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "ఉద్యోగి అందుబాటు & అనుబంధం",
     shiftTemplates: "షిఫ్ట్ టెంప్లేట్‌లు",
     schedule: "షెడ్యూల్",
     exportSchedules: "ఆమోదించిన షెడ్యూల్‌లను ఎగుమతి చేయి",
     myAvailability: "నా అందుబాటు",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const te = {
     createAndLogin: "ఖాతా సృష్టించి లాగిన్ చేయండి",
     haveAccount: "ఇప్పటికే ఖాతా ఉందా?",
     logIn: "లాగిన్ చేయండి",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const te = {
     noRoles: "పాత్రలు లేవు",
     skill: "నైపుణ్యం",
     addRow: "+ అడ్డు వరుస జోడించు",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const te = {
 
   // ── Employee Association ──
   association: {
-    title: "ఉద్యోగి అందుబాటు & అనుబంధం",
-    description: "ఉద్యోగి అందుబాటు మరియు షెడ్యూలింగ్ అనుబంధాలను నిర్వహించండి.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "అనుబంధ విలువలు:",
     mustTogether: "= తప్పనిసరిగా కలిసి పని చేయాలి,",
     preferTogether: "= కలిసి ఉంటే మంచిది,",
     cannotTogether: "= కలిసి పని చేయకూడదు,",
     preferApart: "= కలిసి పని చేయకపోవడం మంచిది (అప్పుడప్పుడు వారిని కలిసి షెడ్యూల్ చేయక తప్పనిసరి పరిస్థితిలో -1 కి బదులుగా ఉపయోగించండి).",
-    tabAvailability: "అందుబాటు",
-    tabAffinities: "అనుబంధాలు",
     addAssociation: "+ అనుబంధం జోడించు",
     targetEmployee: "లక్ష్య ఉద్యోగి",
     affinityLevel: "అనుబంధ స్థాయి",
@@ -309,6 +357,13 @@ const te = {
     noEmployees: "ఉద్యోగులు కనుగొనబడలేదు.",
     addEmployeesFirst: "అనుబంధాలు సృష్టించే ముందు మొదట ఉద్యోగులను జోడించండి.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const te = {
     approve: "ఆమోదించు",
     reject: "తిరస్కరించు",
     noShiftsGenerated: "ఈ స్థానానికి షిఫ్ట్‌లు రూపొందించబడలేదు.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "కోసం",
     rotationHistory: "రొటేషన్ (3 నెలల చరిత్ర)",
     rotationHistoryDesc: "గత 3 నెలల్లో ప్రతి పాత్రకు పనిచేసిన గంటలను పరిగణిస్తుంది. సర్దుబాటు చేయగల న్యాయబద్ధత బరువు.",

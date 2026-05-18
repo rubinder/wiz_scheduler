@@ -15,6 +15,8 @@ from backend.models.employee_role_minutes import EmployeeRoleMinutes
 from backend.models.consent import UserConsent
 from backend.models.storage_snapshot import StorageSnapshot
 from backend.models.billing_charge import BillingCharge
+from backend.models.manager_invite import ManagerInvite
+from backend.models.schedule_lock import ScheduleLock
 
 __all__ = [
     "OwnershipGroup",
@@ -42,4 +44,6 @@ __all__ = [
     "UserConsent",
     "StorageSnapshot",
     "BillingCharge",
+    "ManagerInvite",
+    "ScheduleLock",
 ]

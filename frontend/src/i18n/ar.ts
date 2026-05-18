@@ -62,6 +62,7 @@ const ar = {
   nav: {
     dashboard: "لوحة التحكم",
     company: "الشركة",
+    team: "Team",
     regions: "المناطق",
     locations: "المواقع",
     roles: "الأدوار",
@@ -70,12 +71,32 @@ const ar = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "تسجيل الموظفين",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "توفّر الموظفين والارتباطات",
     shiftTemplates: "قوالب الورديات",
     schedule: "الجدول",
     exportSchedules: "تصدير الجداول المعتمدة",
     myAvailability: "أوقات توفّري",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const ar = {
     createAndLogin: "إنشاء الحساب وتسجيل الدخول",
     haveAccount: "لديك حساب بالفعل؟",
     logIn: "تسجيل الدخول",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const ar = {
     noRoles: "لا توجد أدوار",
     skill: "مستوى المهارة",
     addRow: "+ إضافة صف",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const ar = {
 
   // ── Employee Association ──
   association: {
-    title: "توفّر الموظفين والارتباطات",
-    description: "إدارة أوقات توفّر الموظفين وعلاقات الجدولة بينهم.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "قيم الارتباط:",
     mustTogether: "= يجب أن يعملا معًا،",
     preferTogether: "= يُفضّل أن يعملا معًا،",
     cannotTogether: "= لا يمكنهما العمل معًا،",
     preferApart: "= يُفضّل عدم العمل معًا (استخدمها بدلاً من -1 عندما لا يكون لديك خيار سوى جدولتهما معًا أحيانًا).",
-    tabAvailability: "التوفّر",
-    tabAffinities: "الارتباطات",
     addAssociation: "+ إضافة ارتباط",
     targetEmployee: "الموظف المستهدف",
     affinityLevel: "مستوى الارتباط",
@@ -309,6 +357,13 @@ const ar = {
     noEmployees: "لم يتم العثور على موظفين.",
     addEmployeesFirst: "أضف موظفين أولاً قبل إنشاء الارتباطات.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const ar = {
     approve: "اعتماد",
     reject: "رفض",
     noShiftsGenerated: "لم يتم إنشاء ورديات لهذا الموقع.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "لـ",
     rotationHistory: "تناوب (سجل 3 أشهر)",
     rotationHistoryDesc: "يأخذ بعين الاعتبار ساعات العمل لكل دور خلال الأشهر الثلاثة الماضية. وزن العدالة قابل للتعديل.",

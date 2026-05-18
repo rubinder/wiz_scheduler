@@ -62,6 +62,7 @@ const ta = {
   nav: {
     dashboard: "முகப்புப்பலகை",
     company: "நிறுவனம்",
+    team: "Team",
     regions: "பிராந்தியங்கள்",
     locations: "இடங்கள்",
     roles: "பங்குகள்",
@@ -70,12 +71,32 @@ const ta = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "பணியாளர் சேர்க்கை",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "பணியாளர் கிடைப்பு & தொடர்பு",
     shiftTemplates: "பணிநேர வார்ப்புருக்கள்",
     schedule: "அட்டவணை",
     exportSchedules: "அங்கீகரிக்கப்பட்ட அட்டவணைகளை ஏற்றுமதி செய்",
     myAvailability: "எனது கிடைப்பு",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const ta = {
     createAndLogin: "கணக்கை உருவாக்கி உள்நுழை",
     haveAccount: "ஏற்கனவே கணக்கு உள்ளதா?",
     logIn: "உள்நுழை",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const ta = {
     noRoles: "பங்குகள் இல்லை",
     skill: "திறன்",
     addRow: "+ வரிசையைச் சேர்",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const ta = {
 
   // ── Employee Association ──
   association: {
-    title: "பணியாளர் கிடைப்பு & தொடர்பு",
-    description: "பணியாளர் கிடைப்பு மற்றும் அட்டவணை உறவுநிலைகளை நிர்வகிக்கவும்.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "உறவுநிலை மதிப்புகள்:",
     mustTogether: "= கட்டாயம் ஒன்றாக வேலை செய்ய வேண்டும்,",
     preferTogether: "= ஒன்றாக இருப்பது நல்லது,",
     cannotTogether: "= ஒன்றாக வேலை செய்ய இயலாது,",
     preferApart: "= ஒன்றாக வேலை செய்யாமல் இருப்பது விரும்பத்தக்கது (எப்போதாவது ஒன்றாக அட்டவணைப்படுத்த வேண்டிய நிலையில் -1 க்கு பதிலாக பயன்படுத்தவும்).",
-    tabAvailability: "கிடைப்பு",
-    tabAffinities: "உறவுநிலைகள்",
     addAssociation: "+ தொடர்பைச் சேர்",
     targetEmployee: "இலக்கு பணியாளர்",
     affinityLevel: "உறவுநிலை அளவு",
@@ -309,6 +357,13 @@ const ta = {
     noEmployees: "பணியாளர்கள் எவரும் கிடைக்கவில்லை.",
     addEmployeesFirst: "தொடர்புகளை உருவாக்குவதற்கு முன் பணியாளர்களைச் சேர்க்கவும்.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const ta = {
     approve: "அங்கீகரி",
     reject: "நிராகரி",
     noShiftsGenerated: "இந்த இடத்திற்கு பணிநேரங்கள் எதுவும் உருவாக்கப்படவில்லை.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "க்கான",
     rotationHistory: "சுழற்சி (3 மாத வரலாறு)",
     rotationHistoryDesc: "கடந்த 3 மாதங்களில் ஒவ்வொரு பணிக்கும் வேலை செய்த மணிநேரங்களை கருத்தில் கொள்கிறது. சரிசெய்யக்கூடிய நியாய எடை.",

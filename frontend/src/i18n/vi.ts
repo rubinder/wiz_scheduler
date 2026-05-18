@@ -62,6 +62,7 @@ const vi = {
   nav: {
     dashboard: "Bảng điều khiển",
     company: "Công ty",
+    team: "Team",
     regions: "Khu vực",
     locations: "Địa điểm",
     roles: "Vai trò",
@@ -70,12 +71,32 @@ const vi = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Tiếp nhận nhân viên",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Lịch trống & Liên kết nhân viên",
     shiftTemplates: "Mẫu ca làm",
     schedule: "Lịch làm việc",
     exportSchedules: "Xuất lịch đã duyệt",
     myAvailability: "Lịch trống của tôi",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const vi = {
     createAndLogin: "Tạo tài khoản & Đăng nhập",
     haveAccount: "Đã có tài khoản?",
     logIn: "Đăng nhập",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const vi = {
     noRoles: "Không có vai trò",
     skill: "Kỹ năng",
     addRow: "+ Thêm hàng",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const vi = {
 
   // ── Employee Association ──
   association: {
-    title: "Lịch trống & Liên kết nhân viên",
-    description: "Quản lý lịch trống và mức độ tương thích lịch làm việc của nhân viên.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "Giá trị mức độ tương thích:",
     mustTogether: "= phải làm cùng nhau,",
     preferTogether: "= nên làm cùng nhau,",
     cannotTogether: "= không thể làm cùng nhau,",
     preferApart: "= không nên làm cùng nhau (dùng thay cho -1 khi đôi khi không thể tránh xếp chung).",
-    tabAvailability: "Lịch trống",
-    tabAffinities: "Mức độ tương thích",
     addAssociation: "+ Thêm liên kết",
     targetEmployee: "Nhân viên mục tiêu",
     affinityLevel: "Mức độ tương thích",
@@ -309,6 +357,13 @@ const vi = {
     noEmployees: "Không tìm thấy nhân viên.",
     addEmployeesFirst: "Thêm nhân viên trước khi tạo liên kết.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const vi = {
     approve: "Duyệt",
     reject: "Từ chối",
     noShiftsGenerated: "Không có ca nào được tạo cho địa điểm này.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "cho",
     rotationHistory: "Luân chuyển (Lịch sử 3 tháng)",
     rotationHistoryDesc: "Xem xét số giờ làm việc theo vai trò trong 3 tháng qua. Trọng số công bằng có thể điều chỉnh.",

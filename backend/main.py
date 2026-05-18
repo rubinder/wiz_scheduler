@@ -21,6 +21,7 @@ from backend.routers import (
     import_deputy,
     invites,
     locations,
+    manager_invites,
     ownership_group,
     regions,
     roles,
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(export_schedules.router, prefix=api_prefix)
     app.include_router(failure_logs.router, prefix=api_prefix)
     app.include_router(invites.router, prefix=api_prefix)
+    app.include_router(manager_invites.router, prefix=api_prefix)
     app.include_router(gdpr.router, prefix=api_prefix)
     app.include_router(billing.router, prefix=api_prefix)
     app.include_router(webhooks.router, prefix=api_prefix)

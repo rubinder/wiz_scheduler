@@ -336,3 +336,198 @@ async def test_schedule_quota_no_ownership_group(
     assert resp.status_code == 200
     data = resp.json()
     assert data["can_generate"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/generate — schedule lock integration
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_returns_409_when_locked(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    """If a non-expired lock exists for the Company, /generate returns 409."""
+    from datetime import datetime, timedelta, timezone
+    from backend.models import ScheduleLock
+
+    db_session.add(ScheduleLock(
+        company_id=seeded_company.company_id,
+        locked_by_user_id=seeded_company.manager_user_id,
+        operation="generate",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["detail"]["code"] == "schedule_locked"
+    assert "locked_by" in body["detail"]
+    assert "expires_at" in body["detail"]
+
+
+async def test_generate_releases_lock_after_stream(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """When the stream completes successfully, the lock row is gone."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock
+
+    async def fake_pipeline(**kwargs):
+        if False:
+            yield {}
+        return
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", fake_pipeline
+    )
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    assert resp.status_code == 200
+    async for _ in resp.aiter_lines():
+        pass
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
+
+
+async def test_generate_releases_lock_on_exception(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """If the pipeline raises mid-stream, the lock is still released."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock
+
+    async def boom(**kwargs):
+        raise RuntimeError("boom")
+        yield  # pragma: no cover
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", boom
+    )
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    async for _ in resp.aiter_lines():
+        pass
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/{id}/approve — schedule lock integration
+# ---------------------------------------------------------------------------
+
+
+async def test_approve_returns_409_when_locked(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    from datetime import datetime, timedelta, timezone
+    from backend.models import ScheduleLock, ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="[]",
+    )
+    db_session.add(sched)
+    db_session.add(ScheduleLock(
+        company_id=seeded_company.company_id,
+        locked_by_user_id=seeded_company.manager_user_id,
+        operation="generate",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "schedule_locked"
+
+
+async def test_approve_releases_lock_on_success(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    """Approving a draft schedule must remove the lock row when it completes."""
+    from sqlalchemy import select
+    from backend.models import ScheduleLock, ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="[]",
+    )
+    db_session.add(sched)
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200
+
+    rows = (await db_session.execute(
+        select(ScheduleLock).where(
+            ScheduleLock.company_id == seeded_company.company_id
+        )
+    )).scalars().all()
+    assert rows == []
+
+
+async def test_approve_rolls_back_status_on_parse_error(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company,
+):
+    """If raw_llm_output is malformed, the 500 must NOT leave the schedule
+    marked 'approved' in the database."""
+    from sqlalchemy import select
+    from backend.models import ShiftSchedule
+
+    sched = ShiftSchedule(
+        company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        week_start_date=datetime(2026, 5, 18).date(),
+        status="draft",
+        raw_llm_output="not valid json {{{",
+    )
+    db_session.add(sched)
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/schedules/{sched.id}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 500
+
+    # Reload and assert status was rolled back to 'draft'.
+    await db_session.refresh(sched)
+    assert sched.status == "draft"

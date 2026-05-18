@@ -27,6 +27,7 @@ export default function Employees() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<string>("all");
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -333,18 +334,38 @@ export default function Employees() {
 
   const hasMultipleCompanies = companies.length > 1;
 
+  const displayedEmployees =
+    locationFilter === "all"
+      ? employees
+      : employees.filter((e) => e.location_ids?.includes(locationFilter));
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className={`text-2xl font-bold ${text.heading}`}>{t.employeesPage.title}</h1>
-        <DemoGuard>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="glass-btn-success"
-          >
-            {t.employeesPage.importData}
-          </button>
-        </DemoGuard>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className={`text-sm ${text.muted}`}>{t.employeesPage.filterLocationLabel}</label>
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className={`glass-input-sm text-sm ${border.default} ${text.primary}`}
+            >
+              <option value="all">{t.employeesPage.filterAllLocations}</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+          <DemoGuard>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="glass-btn-success"
+            >
+              {t.employeesPage.importData}
+            </button>
+          </DemoGuard>
+        </div>
       </div>
       {error && (
         <div className="glass-alert-error mb-4">
@@ -389,7 +410,7 @@ export default function Employees() {
             </tr>
           </thead>
           <tbody className={`divide-y ${border.divider}`}>
-            {employees.map((emp) => {
+            {displayedEmployees.map((emp) => {
               const isEditing = editingId === emp.id;
               return (
                 <tr key={emp.id} className={isEditing ? bg.editingRow : ""}>

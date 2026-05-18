@@ -62,6 +62,7 @@ const trLang = {
   nav: {
     dashboard: "Kontrol Paneli",
     company: "Şirket",
+    team: "Team",
     regions: "Bölgeler",
     locations: "Konumlar",
     roles: "Roller",
@@ -70,12 +71,32 @@ const trLang = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "Çalışan Katılımı",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "Çalışan Müsaitlik & İlişkilendirme",
     shiftTemplates: "Vardiya Şablonları",
     schedule: "Program",
     exportSchedules: "Onaylı Programları Dışa Aktar",
     myAvailability: "Müsaitliğim",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const trLang = {
     createAndLogin: "Hesap Oluştur ve Giriş Yap",
     haveAccount: "Zaten hesabınız var mı?",
     logIn: "Giriş yapın",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const trLang = {
     noRoles: "Rol yok",
     skill: "Beceri",
     addRow: "+ Satır Ekle",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const trLang = {
 
   // ── Employee Association ──
   association: {
-    title: "Çalışan Müsaitlik & İlişkilendirme",
-    description: "Çalışan müsaitliğini ve programlama ilişkilerini yönetin.",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "İlişki değerleri:",
     mustTogether: "= birlikte çalışmalı,",
     preferTogether: "= birlikte olması tercih edilir,",
     cannotTogether: "= birlikte çalışamaz,",
     preferApart: "= birlikte çalışmaması tercih edilir (zaman zaman birlikte programlamaktan başka seçeneğiniz olmadığında -1 yerine kullanın).",
-    tabAvailability: "Müsaitlik",
-    tabAffinities: "İlişkiler",
     addAssociation: "+ İlişki Ekle",
     targetEmployee: "Hedef Çalışan",
     affinityLevel: "İlişki Düzeyi",
@@ -309,6 +357,13 @@ const trLang = {
     noEmployees: "Çalışan bulunamadı.",
     addEmployeesFirst: "İlişki oluşturmadan önce çalışan ekleyin.",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const trLang = {
     approve: "Onayla",
     reject: "Reddet",
     noShiftsGenerated: "Bu konum için vardiya oluşturulmadı.",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "için",
     rotationHistory: "Rotasyon (3 Aylık Geçmiş)",
     rotationHistoryDesc: "Son 3 aydaki rol başına çalışılan saatleri dikkate alır. Ayarlanabilir adalet ağırlığı.",

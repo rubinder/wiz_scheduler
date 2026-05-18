@@ -62,6 +62,7 @@ const hi = {
   nav: {
     dashboard: "डैशबोर्ड",
     company: "कंपनी",
+    team: "Team",
     regions: "क्षेत्र",
     locations: "स्थान",
     roles: "भूमिकाएं",
@@ -70,12 +71,32 @@ const hi = {
     hourRestrictions: "Hour Restrictions",
     dayBlackouts: "Day Rules",
     employeeOnboarding: "कर्मचारी ऑनबोर्डिंग",
+    employeeAvailability: "Employee Availability",
     employeeAssociation: "कर्मचारी उपलब्धता एवं संबंध",
     shiftTemplates: "शिफ्ट टेम्पलेट",
     schedule: "शेड्यूल",
     exportSchedules: "स्वीकृत शेड्यूल निर्यात करें",
     myAvailability: "मेरी उपलब्धता",
     dataPrivacy: "Data & Privacy",
+  },
+
+  // ── Team ──
+  team: {
+    title: "Team",
+    inviteButton: "Invite manager",
+    emailLabel: "Email",
+    emailPlaceholder: "manager@example.com",
+    sendInvite: "Send invite",
+    cancel: "Cancel",
+    pendingStatus: "Pending",
+    acceptedStatus: "Accepted",
+    expiredStatus: "Expired",
+    columnEmail: "Email",
+    columnStatus: "Status",
+    columnInvitedAt: "Invited",
+    columnAcceptedAt: "Accepted",
+    columnCompany: "Company",
+    noInvites: "No manager invites yet.",
   },
 
   // ── Login ──
@@ -135,6 +156,33 @@ const hi = {
     createAndLogin: "खाता बनाएं और लॉग इन करें",
     haveAccount: "पहले से खाता है?",
     logIn: "लॉग इन करें",
+  },
+
+  acceptManagerInvite: {
+    title: "Accept Manager Invite",
+    loadingInvite: "Loading invite...",
+    noToken: "No invite token provided.",
+    invalidOrExpired: "This invite link is invalid or has expired.",
+    invalidInvite: "Invalid Invite",
+    goToLogin: "Go to Login",
+    welcomeTo: "You have been invited to manage",
+    choosePassword: "Set up your account to start managing.",
+    emailLabel: "Email",
+    fullNameLabel: "Full name",
+    fullNameRequired: "Full name is required.",
+    companyLabel: "Company to manage",
+    companyRequired: "Please select a company.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm password",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submitButton: "Accept invite",
+    submitting: "Setting up account...",
+    failedCreate: "Failed to create account.",
+    haveAccount: "Already have an account?",
+    logIn: "Log in",
   },
 
   // ── Dashboard ──
@@ -211,6 +259,8 @@ const hi = {
     noRoles: "कोई भूमिका नहीं",
     skill: "कौशल",
     addRow: "+ पंक्ति जोड़ें",
+    filterLocationLabel: "Location:",
+    filterAllLocations: "All locations",
   },
 
   // ── Employee Onboarding ──
@@ -246,15 +296,13 @@ const hi = {
 
   // ── Employee Association ──
   association: {
-    title: "कर्मचारी उपलब्धता एवं संबंध",
-    description: "कर्मचारी उपलब्धता और शेड्यूलिंग संबंध प्रबंधित करें।",
+    title: "Employee Association",
+    description: "Manage scheduling affinities between employees.",
     affinityExplanation: "संबंध मान:",
     mustTogether: "= साथ काम करना अनिवार्य,",
     preferTogether: "= साथ रखना अच्छा रहेगा,",
     cannotTogether: "= साथ काम नहीं कर सकते,",
     preferApart: "= साथ न रखना बेहतर (जब कभी-कभी साथ शेड्यूल करने के अलावा कोई विकल्प न हो तो -1 के बजाय इसका उपयोग करें)।",
-    tabAvailability: "उपलब्धता",
-    tabAffinities: "संबंध",
     addAssociation: "+ संबंध जोड़ें",
     targetEmployee: "लक्ष्य कर्मचारी",
     affinityLevel: "संबंध स्तर",
@@ -309,6 +357,13 @@ const hi = {
     noEmployees: "कोई कर्मचारी नहीं मिले।",
     addEmployeesFirst: "संबंध बनाने से पहले कर्मचारी जोड़ें।",
   },
+  // ── Employee Availability (manager) ──
+  employeeAvailability: {
+    title: "Employee Availability",
+    noEmployees: "No employees yet.",
+    addEmployeesFirst: "Add employees first before recording their availability.",
+  },
+
   // ── Day Blackouts ──
   dayBlackouts: {
     title: "Day Rules",
@@ -396,6 +451,8 @@ const hi = {
     approve: "स्वीकृत करें",
     reject: "अस्वीकृत करें",
     noShiftsGenerated: "इस स्थान के लिए कोई शिफ्ट जनरेट नहीं हुई।",
+    lockedToastTitle: "Schedule activity in progress",
+    lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     forLabel: "के लिए",
     rotationHistory: "रोटेशन (3 महीने का इतिहास)",
     rotationHistoryDesc: "पिछले 3 महीनों में प्रति भूमिका काम किए गए घंटों पर विचार करता है। समायोज्य निष्पक्षता भार।",
