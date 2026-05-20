@@ -44,7 +44,16 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    enabled = true
+  }
+
   tags = { Name = "${var.app_name}-alb" }
+
+  # Ensure the bucket policy is in place before the ALB tries to write its
+  # first object — otherwise terraform apply fails the LB attribute update.
+  depends_on = [aws_s3_bucket_policy.alb_logs]
 }
 
 # -----------------------------------------------------------------------------
