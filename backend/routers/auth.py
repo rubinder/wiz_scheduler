@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -25,6 +26,15 @@ from backend.schemas.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+
+def _mask_email(email: str) -> str:
+    """Mask an email for logs: keep the first 3 chars of the local part."""
+    if not email or "@" not in email:
+        return (email[:3] + "***") if email else "?"
+    local, _, domain = email.partition("@")
+    return f"{local[:3]}***@{domain}"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -204,6 +214,11 @@ async def login(
     # Find all users whose password matches
     matched_users: list[User] = [u for u in users if _verify_password(body.password, u.hashed_password)]
     if not matched_users:
+        logger.info(
+            "login.fail email=%s reason=%s",
+            _mask_email(body.email),
+            "no_user_with_email" if not users else "wrong_password",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # Look up ownership groups for each matched user's company
@@ -227,6 +242,11 @@ async def login(
                 target_user = u
                 break
         if target_user is None:
+            logger.info(
+                "login.fail email=%s reason=og_mismatch requested_og=%s",
+                _mask_email(body.email),
+                body.ownership_group_id,
+            )
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         token = _create_access_token(target_user.id, target_user.company_id, target_user.user_role)
         return TokenResponse(access_token=token)
@@ -237,6 +257,11 @@ async def login(
             select(OwnershipGroup).where(OwnershipGroup.id.in_(og_ids))
         )
         groups = og_result.scalars().all()
+        logger.info(
+            "login.multiple_ogs email=%s og_count=%d",
+            _mask_email(body.email),
+            len(groups),
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={

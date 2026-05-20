@@ -42,6 +42,37 @@ async def test_login_wrong_password(client: AsyncClient, seed_manager):
     assert resp.status_code == 401
 
 
+async def test_login_wrong_password_emits_log(client: AsyncClient, seed_manager, caplog):
+    """401 from an existing-email-wrong-password attempt must emit a structured log."""
+    import logging
+    caplog.set_level(logging.INFO, logger="backend.routers.auth")
+    resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "manager@test.com", "password": "wrongpass"},
+    )
+    assert resp.status_code == 401
+    matching = [r for r in caplog.records if "login.fail" in r.getMessage()]
+    assert len(matching) == 1
+    msg = matching[0].getMessage()
+    assert "reason=wrong_password" in msg
+    assert "manager@test.com" not in msg  # email must be masked
+    assert "man***@test.com" in msg
+
+
+async def test_login_no_user_emits_log(client: AsyncClient, caplog):
+    """401 when no user has that email at all must log reason=no_user_with_email."""
+    import logging
+    caplog.set_level(logging.INFO, logger="backend.routers.auth")
+    resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "nobody@example.test", "password": "anything"},
+    )
+    assert resp.status_code == 401
+    matching = [r for r in caplog.records if "login.fail" in r.getMessage()]
+    assert len(matching) == 1
+    assert "reason=no_user_with_email" in matching[0].getMessage()
+
+
 async def test_me_with_valid_token(client: AsyncClient, manager_token: str):
     resp = await client.get(
         "/api/v1/auth/me",
