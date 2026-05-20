@@ -105,10 +105,16 @@ export default function Dashboard() {
       </div>
 
       {showImport && (
-        <Import7ShiftsModal onClose={() => setShowImport(false)} />
+        <Import7ShiftsModal
+          onClose={() => setShowImport(false)}
+          onSuccess={() => window.location.reload()}
+        />
       )}
       {showDeputyImport && (
-        <ImportDeputyModal onClose={() => setShowDeputyImport(false)} />
+        <ImportDeputyModal
+          onClose={() => setShowDeputyImport(false)}
+          onSuccess={() => window.location.reload()}
+        />
       )}
     </div>
   );
