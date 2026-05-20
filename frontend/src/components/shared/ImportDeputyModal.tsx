@@ -6,6 +6,13 @@ import DemoGuard from "./DemoGuard";
 
 interface Props {
   onClose: () => void;
+  /**
+   * Invoked when the user dismisses the modal AFTER a successful import.
+   * Used by Dashboard to reload the page so newly-imported Companies show
+   * up in the sidebar / company-list — without this, React state stays
+   * stale and the customer thinks the import didn't work.
+   */
+  onSuccess?: () => void;
 }
 
 function SyncRow({
@@ -26,7 +33,7 @@ function SyncRow({
   );
 }
 
-export default function ImportDeputyModal({ onClose }: Props) {
+export default function ImportDeputyModal({ onClose, onSuccess }: Props) {
   const { t } = useLanguage();
   const [token, setToken] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -178,7 +185,10 @@ export default function ImportDeputyModal({ onClose }: Props) {
         <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
           {result ? (
             <button
-              onClick={onClose}
+              onClick={() => {
+                onSuccess?.();
+                onClose();
+              }}
               className="glass-btn-primary px-4 py-2 text-sm font-medium"
             >
               {t.common.done}
