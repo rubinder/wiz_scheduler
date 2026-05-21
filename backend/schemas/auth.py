@@ -60,5 +60,16 @@ class UserResponse(BaseModel):
     user_role: str
     ownership_group_id: str | None = None
     is_demo: bool = False
+    has_google: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class GoogleLinkCurrentRequest(BaseModel):
+    """Body for POST /auth/google/link-current.
+
+    Unlike POST /auth/google/link (which re-verifies ownership via password),
+    this endpoint trusts the bearer JWT — used to add Google sign-in from
+    inside a logged-in session, e.g. a Dashboard 'Link Google' card.
+    """
+    id_token: str

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import Import7ShiftsModal from "../../components/shared/Import7ShiftsModal";
@@ -6,6 +6,80 @@ import ImportDeputyModal from "../../components/shared/ImportDeputyModal";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg } from "../../theme";
 import * as billingApi from "../../api/billing";
+import { googleLinkCurrent } from "../../api/googleAuth";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, config: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+function LinkGoogleCard() {
+  const { t } = useLanguage();
+  const btnRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState("");
+  const [linking, setLinking] = useState(false);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google?.accounts?.id) return;
+
+    const handleCallback = async (resp: { credential?: string }) => {
+      if (!resp.credential) return;
+      setError("");
+      setLinking(true);
+      try {
+        await googleLinkCurrent(resp.credential);
+        // Reload so useAuth re-fetches /me and the card disappears.
+        window.location.reload();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : t.linkGoogle.failed);
+      } finally {
+        setLinking(false);
+      }
+    };
+
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleCallback,
+    });
+
+    if (btnRef.current) {
+      window.google.accounts.id.renderButton(btnRef.current, {
+        theme: "filled_black",
+        size: "large",
+        text: "continue_with",
+      });
+    }
+  }, [t.linkGoogle.failed]);
+
+  return (
+    <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="flex-1">
+        <h3 className={`text-base font-semibold ${text.body} mb-1`}>
+          {t.linkGoogle.title}
+        </h3>
+        <p className={`text-sm ${text.muted}`}>{t.linkGoogle.description}</p>
+        {error && (
+          <p className="text-sm text-red-400 mt-2">{error}</p>
+        )}
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <div ref={btnRef} aria-disabled={linking} />
+        {linking && (
+          <span className={`text-xs ${text.muted}`}>{t.linkGoogle.linking}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -89,6 +163,7 @@ export default function Dashboard() {
       <p className={`${text.muted} mb-8`}>
         {t.dashboard.subtitle}
       </p>
+      {user && !user.has_google && <LinkGoogleCard />}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {navCards.map((card) => (
           <Link

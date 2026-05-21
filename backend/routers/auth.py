@@ -17,6 +17,7 @@ from backend.utils.privacy import mask_ip
 from backend.schemas.auth import (
     GoogleAuthRequest,
     GoogleAuthResponse,
+    GoogleLinkCurrentRequest,
     GoogleLinkRequest,
     LoginRequest,
     RegisterRequest,
@@ -470,6 +471,59 @@ async def google_link(
     return TokenResponse(access_token=token)
 
 
+@router.post("/google/link-current", response_model=TokenResponse)
+async def google_link_current(
+    body: GoogleLinkCurrentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Link a Google identity to the currently-authenticated user.
+
+    No password re-verification — JWT IS the proof of identity. Used by
+    the in-app 'Link Google' card so logged-in users can add Google
+    sign-in without logging out + back in via the Login flow.
+    """
+    idinfo = await _verify_google_token(body.id_token)
+    if not idinfo:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    google_sub = idinfo["sub"]
+    google_email = idinfo.get("email", "")
+
+    if google_email.lower() != current_user.email.lower():
+        raise HTTPException(
+            status_code=400,
+            detail="Google account email must match your account email",
+        )
+
+    # Reject if this google_id is already linked to a different person.
+    existing = (await db.execute(
+        select(User).where(
+            User.google_id == google_sub,
+            User.email != current_user.email,
+        )
+    )).first()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This Google account is already linked to a different user",
+        )
+
+    # Mirror /auth/google/link: link to every User row with this email so the
+    # multi-company-same-email case keeps working with Google sign-in.
+    same_email = (await db.execute(
+        select(User).where(User.email == current_user.email)
+    )).scalars().all()
+    for u in same_email:
+        u.google_id = google_sub
+    await db.commit()
+
+    token = _create_access_token(
+        current_user.id, current_user.company_id, current_user.user_role
+    )
+    return TokenResponse(access_token=token)
+
+
 @router.get("/me", response_model=UserResponse)
 async def me(
     current_user: User = Depends(get_current_user),
@@ -486,4 +540,5 @@ async def me(
     response = UserResponse.model_validate(current_user)
     response.ownership_group_id = ownership_group_id
     response.is_demo = company_slug == "acme-corp"
+    response.has_google = current_user.google_id is not None
     return response
