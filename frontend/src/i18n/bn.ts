@@ -201,6 +201,14 @@ const bn = {
     scheduleDesc: "সময়সূচি তৈরি ও অনুমোদন করুন",
   },
 
+  // ── Link Google account (dashboard card) ──
+  linkGoogle: {
+    title: "Link your Google account",
+    description: "Add Google sign-in so you can log in faster next time. Your Google account email must match this account.",
+    linking: "Linking…",
+    failed: "Could not link Google account.",
+  },
+
   // ── Company ──
   companyPage: {
     title: "কোম্পানি সেটিংস",

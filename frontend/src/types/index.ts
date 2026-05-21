@@ -31,6 +31,7 @@ export interface User {
   user_role: string;
   ownership_group_id: string | null;
   is_demo: boolean;
+  has_google: boolean;
 }
 
 // ── Company ──

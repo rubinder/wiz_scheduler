@@ -36,3 +36,15 @@ export function googleLink(
     }),
   });
 }
+
+/**
+ * Link Google to the currently-authenticated user (no password re-prompt;
+ * the bearer JWT is the proof of identity). Used by the in-app Link Google
+ * card on the manager dashboard.
+ */
+export function googleLinkCurrent(idToken: string): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>("/auth/google/link-current", {
+    method: "POST",
+    body: JSON.stringify({ id_token: idToken }),
+  });
+}
