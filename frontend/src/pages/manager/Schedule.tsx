@@ -5,6 +5,7 @@ import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
 import * as billingApi from "../../api/billing";
 import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } from "../../api/billing";
+import { listSpecialHours } from "../../api/specialHours";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
@@ -17,7 +18,11 @@ import type {
   LocationResult,
   ShiftAssignment,
   ShiftTemplate,
+  SpecialHoursDay,
 } from "../../types";
+
+// Extract HH:MM from an HH:MM or HH:MM:SS string
+const fmtHM = (t: string) => (t.length >= 5 ? t.slice(0, 5) : t);
 
 // ── helpers ──
 
@@ -209,12 +214,14 @@ interface ScheduleGridProps {
   editable: boolean;
   employees: Employee[];
   onEditShift?: (shiftIndex: number) => void;
+  specialHoursByDate?: Record<string, SpecialHoursDay>;
 }
 
 function ScheduleGrid({
   shifts,
   editable,
   onEditShift,
+  specialHoursByDate,
 }: ScheduleGridProps) {
   const { t } = useLanguage();
   const { dates, roles, grid, roleColorMap, shiftIndexMap } = useMemo(() => {
@@ -265,14 +272,25 @@ function ScheduleGrid({
             <th className={`px-4 py-3 text-left text-xs font-semibold ${text.muted} uppercase sticky left-0 ${bg.stickyCol} z-10 min-w-[140px]`}>
               {t.common.role}
             </th>
-            {dates.map((d) => (
-              <th
-                key={d}
-                className={`px-3 py-3 text-center text-xs font-semibold ${text.muted} uppercase min-w-[160px]`}
-              >
-                {getDayLabel(d)}
-              </th>
-            ))}
+            {dates.map((d) => {
+              const sh = specialHoursByDate?.[d];
+              return (
+                <th
+                  key={d}
+                  className={`px-3 py-3 text-center text-xs font-semibold ${text.muted} uppercase min-w-[160px]`}
+                >
+                  <div>{getDayLabel(d)}</div>
+                  {sh && (
+                    <span
+                      className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-900 normal-case"
+                      title={`${sh.label ?? t.specialHours.scheduleBadge} · ${fmtHM(sh.open_time)}–${fmtHM(sh.close_time)}`}
+                    >
+                      ★ {sh.label ?? t.specialHours.scheduleBadge} · {fmtHM(sh.open_time)}–{fmtHM(sh.close_time)}
+                    </span>
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -430,6 +448,21 @@ export default function Schedule() {
   const [rejectedLocations, setRejectedLocations] = useState<Set<string>>(
     new Set()
   );
+
+  // Special hours for the current week (used to render a badge on
+  // matching day-of-week column headers inside each location card).
+  const [specialHours, setSpecialHours] = useState<SpecialHoursDay[]>([]);
+  useEffect(() => {
+    if (!weekStart) return;
+    const from_date = weekStart;
+    // The schedule range is capped at 7 days (Mon..Sun in the default
+    // case, but a manager may pick a shorter range). Use endDate when
+    // available so we cover exactly the visible week.
+    const to_date = endDate || addDays(weekStart, 6);
+    listSpecialHours({ from_date, to_date })
+      .then(setSpecialHours)
+      .catch(() => setSpecialHours([]));
+  }, [weekStart, endDate]);
 
   // Editable shifts: keyed by location_id
   const [editedShifts, setEditedShifts] = useState<
@@ -1294,6 +1327,15 @@ export default function Schedule() {
           const decided = isApproved || isRejected;
           const currentShifts =
             editedShifts[locationResult.location_id] ?? locationResult.shifts;
+          const specialHoursByDate: Record<string, SpecialHoursDay> = {};
+          for (const sh of specialHours) {
+            if (sh.location_id === locationResult.location_id) {
+              specialHoursByDate[sh.date] = sh;
+            }
+          }
+          const locationSpecialHours = Object.values(specialHoursByDate).sort(
+            (a, b) => a.date.localeCompare(b.date),
+          );
 
           return (
             <div
@@ -1359,6 +1401,19 @@ export default function Schedule() {
                 </div>
               )}
 
+              {locationSpecialHours.length > 0 && (
+                <div className={`px-4 py-2 border-b ${border.subtle} flex flex-wrap items-center gap-2`}>
+                  {locationSpecialHours.map((sh) => (
+                    <span
+                      key={sh.id}
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-900"
+                    >
+                      ★ {sh.label ?? t.specialHours.scheduleBadge} · {fmtHM(sh.open_time)}–{fmtHM(sh.close_time)} · {sh.date}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {currentShifts.length > 0 && (
                 <ScheduleGrid
                   shifts={currentShifts}
@@ -1367,6 +1422,7 @@ export default function Schedule() {
                   onEditShift={(idx) =>
                     handleEditShift(locationResult.location_id, idx)
                   }
+                  specialHoursByDate={specialHoursByDate}
                 />
               )}
 
