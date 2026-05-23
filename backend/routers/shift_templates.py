@@ -15,12 +15,28 @@ router = APIRouter(prefix="/shift-templates", tags=["shift-templates"])
 
 @router.get("/", response_model=list[ShiftTemplateResponse])
 async def list_shift_templates(
+    include_overrides: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[ShiftTemplateResponse]:
-    result = await db.execute(
-        select(ShiftTemplate).where(ShiftTemplate.company_id == current_user.company_id)
+    """List shift templates for the current company.
+
+    By default returns only recurring templates (rows where ``specific_date IS
+    NULL``). Override rows (specific-date clones produced by the special-hours
+    flow) are not picker-eligible — the scheduler resolves them automatically
+    via ``resolve_templates_for_week``, and surfacing them in the picker would
+    let a manager select an override and silently have the recurring filter in
+    ``_load_initial_state`` drop it.
+
+    Pass ``include_overrides=true`` from the ShiftTemplates management page so
+    cloned overrides remain visible for inspection/edit.
+    """
+    query = select(ShiftTemplate).where(
+        ShiftTemplate.company_id == current_user.company_id
     )
+    if not include_overrides:
+        query = query.where(ShiftTemplate.specific_date.is_(None))
+    result = await db.execute(query)
     templates = result.scalars().all()
     return [ShiftTemplateResponse.model_validate(t) for t in templates]
 

@@ -232,3 +232,49 @@ async def test_pipeline_uses_specific_date_template_when_present(
     for d in week:
         if d != date(2026, 12, 24):
             assert result[d].id == seed_shift_template.id
+
+
+async def test_load_initial_state_fuses_override_into_weekly_schedule(
+    db_session, seed_company, seed_location, seed_shift_template,
+):
+    """End-to-end: when an override template exists for a date in the window,
+    _load_initial_state should pull the override's slots and place them under
+    the matching day-name key in the fused weekly_schedule dict, going through
+    the day-name-keyed fusion path and the slot normalizer."""
+    from datetime import date
+    from backend.models import ShiftTemplate
+    from backend.scheduling.graph import _load_initial_state
+
+    # Override on Thursday 2026-12-24 (dow=3) with one role using the new
+    # per-dow shape (day_of_week + roles + HH:MM:SS times) so we exercise the
+    # normalizer's shape-(3) branch.
+    override = ShiftTemplate(
+        company_id=seed_company.id,
+        location_id=seed_location.id,
+        name="Override",
+        weekly_schedule=[{"day_of_week": 3, "roles": [
+            {"role_id": "r1", "role_name": "Server",
+             "headcount": 2,
+             "start_time": "09:00:00", "end_time": "14:00:00"},
+        ]}],
+        specific_date=date(2026, 12, 24),
+    )
+    db_session.add(override)
+    await db_session.commit()
+
+    state = await _load_initial_state(
+        company_id=str(seed_company.id),
+        week_start_date="2026-12-21",  # Monday
+        db=db_session,
+        num_days=7,
+    )
+
+    weekly = state["shift_templates"][str(seed_location.id)]["weekly_schedule"]
+    # Thursday (override) should have the Server slot with override times,
+    # normalized to HH:MM.
+    assert "Thursday" in weekly
+    thu_slots = weekly["Thursday"]
+    assert len(thu_slots) == 1
+    assert thu_slots[0]["role_name"] == "Server"
+    assert thu_slots[0]["start_time"] == "09:00"
+    assert thu_slots[0]["end_time"] == "14:00"

@@ -461,7 +461,10 @@ export default function ShiftTemplates() {
   const fetchData = useCallback(async () => {
     try {
       const [tmpl, locs, rls, crs] = await Promise.all([
-        shiftTemplatesApi.listShiftTemplates(),
+        // Include cloned override templates so managers can inspect/edit them
+        // on this page. The Schedule picker leaves this at default (recurring
+        // only) to avoid silent drops in the scheduler.
+        shiftTemplatesApi.listShiftTemplates(true),
         locationsApi.listLocations(),
         rolesApi.listRoles(),
         condensedRolesApi.listCondensedRoles(),

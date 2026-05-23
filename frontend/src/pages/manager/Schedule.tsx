@@ -962,7 +962,7 @@ export default function Schedule() {
             type="date"
             value={endDate}
             min={startDate}
-            max={addDays(startDate, 13)}
+            max={addDays(startDate, 6)}
             onChange={(e) => setEndDate(e.target.value)}
             className="glass-input"
           />

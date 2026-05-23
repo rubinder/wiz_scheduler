@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 from typing import Literal
@@ -14,7 +14,12 @@ class GenerateRequest(BaseModel):
     strategy: Literal["random", "rotation", "rotation_history", "max_hours"] = "random"
     strategy_param: float | None = None
     strategy_param2: float | None = None
-    num_days: int = 7
+    # Capped at 7: the per-day template fusion in
+    # backend.scheduling.graph._load_initial_state keys the fused
+    # weekly_schedule by day name. A window >7 days would contain duplicate
+    # day-names, causing later dates to silently overwrite override slots from
+    # earlier ones. Keep windows to one calendar week.
+    num_days: int = Field(default=7, ge=1, le=7)
 
 
 class ShiftUpdate(BaseModel):

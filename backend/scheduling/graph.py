@@ -1,4 +1,4 @@
-from datetime import date as date_type, datetime, timedelta
+from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List
 
 from langgraph.graph import END, StateGraph
@@ -425,8 +425,6 @@ async def _load_initial_state(
         })
 
     # Load employee availability for the relevant week
-    from datetime import datetime, timedelta, timezone
-
     week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     week_end = week_start + timedelta(days=num_days)
 
