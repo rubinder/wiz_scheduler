@@ -15,12 +15,14 @@ from backend.models import Company, OwnershipGroup, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.schemas.auth import (
+    ForgotPasswordRequest,
     GoogleAuthRequest,
     GoogleAuthResponse,
     GoogleLinkCurrentRequest,
     GoogleLinkRequest,
     LoginRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     SwitchCompanyRequest,
     TokenResponse,
     UserResponse,
@@ -521,6 +523,114 @@ async def google_link_current(
     token = _create_access_token(
         current_user.id, current_user.company_id, current_user.user_role
     )
+    return TokenResponse(access_token=token)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mint a single-use password-reset token and email it to the user.
+
+    Returns 204 regardless of whether the email matches an account, to avoid
+    leaking which addresses are registered. If multiple User rows share the
+    email (same-email-across-companies case), one token covers all of them —
+    the reset endpoint stamps every matching row.
+    """
+    from backend.models import PasswordResetToken
+    from backend.services.password_reset_email import send_password_reset_email
+
+    users = (await db.execute(
+        select(User).where(User.email == body.email)
+    )).scalars().all()
+
+    if not users:
+        logger.info(
+            "forgot_password.no_user email=%s",
+            (body.email[:3] + "***") if body.email else "?",
+        )
+        return  # Still 204 — no leak.
+
+    token_value = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    db.add(PasswordResetToken(
+        user_id=users[0].id,
+        token=token_value,
+        expires_at=now + timedelta(minutes=30),
+    ))
+    await db.commit()
+
+    # Build reset URL from request origin (mirrors the invite-URL helper).
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+    else:
+        base = str(request.base_url).rstrip("/")
+    reset_url = f"{base}/reset-password?token={token_value}"
+
+    await send_password_reset_email(body.email, reset_url)
+    logger.info(
+        "forgot_password.email_sent email=%s users_matched=%d",
+        (body.email[:3] + "***") if body.email else "?",
+        len(users),
+    )
+
+
+@router.post("/reset-password", response_model=TokenResponse)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Validate the token, update the password on every User row with the same
+    email (so multi-company users get one reset), mark the token used.
+    """
+    from backend.models import PasswordResetToken
+
+    if len(body.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters",
+        )
+
+    token_row = (await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token == body.token)
+    )).scalar_one_or_none()
+    if token_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid reset link",
+        )
+
+    now = datetime.now(timezone.utc)
+    expires_at = token_row.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < now:
+        raise HTTPException(status_code=410, detail="Reset link expired")
+    if token_row.used_at is not None:
+        raise HTTPException(status_code=410, detail="Reset link already used")
+
+    owner = (await db.execute(
+        select(User).where(User.id == token_row.user_id)
+    )).scalar_one_or_none()
+    if owner is None:
+        raise HTTPException(status_code=404, detail="User no longer exists")
+
+    new_hash = _hash_password(body.new_password)
+    same_email = (await db.execute(
+        select(User).where(User.email == owner.email)
+    )).scalars().all()
+    for u in same_email:
+        u.hashed_password = new_hash
+
+    token_row.used_at = now
+    await db.commit()
+
+    token = _create_access_token(owner.id, owner.company_id, owner.user_role)
     return TokenResponse(access_token=token)
 
 

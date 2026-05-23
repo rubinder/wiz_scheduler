@@ -73,3 +73,16 @@ class GoogleLinkCurrentRequest(BaseModel):
     inside a logged-in session, e.g. a Dashboard 'Link Google' card.
     """
     id_token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Body for POST /auth/forgot-password. Always returns 204 regardless of
+    whether the email matches a real account, to avoid leaking which addresses
+    have WizScheduler accounts."""
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Body for POST /auth/reset-password."""
+    token: str
+    new_password: str

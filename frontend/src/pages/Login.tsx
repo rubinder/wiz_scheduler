@@ -259,9 +259,17 @@ export default function Login() {
                 />
               </div>
               <div>
-                <label className="glass-label">
-                  {t.common.password}
-                </label>
+                <div className="flex items-baseline justify-between">
+                  <label className="glass-label">
+                    {t.common.password}
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    className={`text-xs ${action.link}`}
+                  >
+                    {t.login.forgotPassword}
+                  </Link>
+                </div>
                 <input
                   type="password"
                   required
