@@ -56,6 +56,7 @@ async def resolve_templates_for_week(
         recurring_q = recurring_q.where(
             ShiftTemplate.id.in_(selected_template_ids)
         )
+    recurring_q = recurring_q.order_by(ShiftTemplate.id.asc())
     recurring_rows = (await db.execute(recurring_q)).scalars().all()
     recurring = recurring_rows[0] if recurring_rows else None
 

@@ -35,13 +35,14 @@ async def _verify_location_in_company(
 
 
 async def _pick_recurring_template(
-    db: AsyncSession, location_id: str
+    db: AsyncSession, location_id: str, company_id: str
 ) -> ShiftTemplate:
     rows = (await db.execute(
         select(ShiftTemplate).where(
+            ShiftTemplate.company_id == company_id,
             ShiftTemplate.location_id == location_id,
             ShiftTemplate.specific_date.is_(None),
-        )
+        ).order_by(ShiftTemplate.id.asc())
     )).scalars().all()
     if not rows:
         raise HTTPException(
@@ -98,7 +99,9 @@ async def create_special_hours_day(
                         "message": "Draft template not found or not a recurring template for this location"},
             )
     else:
-        draft = await _pick_recurring_template(db, body.location_id)
+        draft = await _pick_recurring_template(
+            db, body.location_id, str(current_user.company_id)
+        )
 
     clone = await clone_template_for_date(
         db,
