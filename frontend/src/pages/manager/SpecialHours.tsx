@@ -7,6 +7,7 @@ import {
 import { listLocations } from "../../api/locations";
 import { listShiftTemplates } from "../../api/shiftTemplates";
 import SpecialHoursModal from "../../components/shared/SpecialHoursModal";
+import DuplicateSpecialHoursModal from "../../components/shared/DuplicateSpecialHoursModal";
 import type {
   Location,
   ShiftTemplate,
@@ -33,9 +34,8 @@ export default function SpecialHours() {
   const [locationFilter, setLocationFilter] = useState<string>("all");
   const [editing, setEditing] = useState<SpecialHoursDay | null>(null);
   const [creating, setCreating] = useState<boolean>(false);
-  // Reserved for Task 8: duplicate-to-other-locations modal.
-  const [, setDuplicating] = useState<SpecialHoursDay | null>(null);
-  const [, setNotice] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<SpecialHoursDay | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
 
   const fetchEntries = useCallback(async (filter: string) => {
@@ -153,6 +153,19 @@ export default function SpecialHours() {
         {t.specialHours.description}
       </p>
 
+      {notice && (
+        <div className="glass-alert-success mb-4 flex items-start justify-between gap-3">
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className={`${text.muted} text-sm`}
+          >
+            {t.common.dismiss}
+          </button>
+        </div>
+      )}
+
       {error && <div className="glass-alert-error mb-4">{error}</div>}
 
       {entries.length === 0 ? (
@@ -263,6 +276,45 @@ export default function SpecialHours() {
           editing={editing}
           locations={locations}
           templatesByLocation={templatesByLocation}
+        />
+      )}
+
+      {duplicating && (
+        <DuplicateSpecialHoursModal
+          source={duplicating}
+          locations={locations.filter(
+            (l) => l.id !== duplicating.location_id,
+          )}
+          onClose={() => setDuplicating(null)}
+          onCompleted={(created, errors) => {
+            // Refresh the table from the server to keep state consistent.
+            fetchEntries(locationFilter);
+            if (errors.length > 0) {
+              const lines = errors.map((e) => {
+                const loc = locations.find((l) => l.id === e.location_id);
+                const name = loc?.name ?? e.location_id;
+                const lower = e.message.toLowerCase();
+                if (
+                  lower.includes("no recurring") ||
+                  lower.includes("no_recurring_template")
+                ) {
+                  return t.specialHours.noRecurringTemplate.replace(
+                    "{location}",
+                    name,
+                  );
+                }
+                return `${name}: ${e.message}`;
+              });
+              setNotice(lines.join(" "));
+            } else if (created.length > 0) {
+              setNotice(
+                t.specialHours.duplicateConfirm.replace(
+                  "{count}",
+                  String(created.length),
+                ),
+              );
+            }
+          }}
         />
       )}
     </div>
