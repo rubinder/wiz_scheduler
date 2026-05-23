@@ -4,6 +4,8 @@ import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
 import AcceptInvite from "./pages/AcceptInvite";
 import AcceptManagerInvite from "./pages/AcceptManagerInvite";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Availability from "./pages/employee/Availability";
@@ -79,6 +81,8 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/accept-manager-invite" element={<AcceptManagerInvite />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/dpa" element={<DataProcessingAgreement />} />

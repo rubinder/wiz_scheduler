@@ -16,6 +16,7 @@ from backend.models.consent import UserConsent
 from backend.models.storage_snapshot import StorageSnapshot
 from backend.models.billing_charge import BillingCharge
 from backend.models.manager_invite import ManagerInvite
+from backend.models.password_reset_token import PasswordResetToken
 from backend.models.schedule_lock import ScheduleLock
 
 __all__ = [
@@ -45,5 +46,6 @@ __all__ = [
     "StorageSnapshot",
     "BillingCharge",
     "ManagerInvite",
+    "PasswordResetToken",
     "ScheduleLock",
 ]

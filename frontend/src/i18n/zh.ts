@@ -116,7 +116,40 @@ const zh = {
     enterPasswordToLink: "Enter your password to link",
     linking: "Linking...",
     linkAndSignIn: "Link Google & Sign In",
+    forgotPassword: "Forgot password?",
   },
+  // ── Forgot Password ──
+  forgotPassword: {
+    title: "Forgot your password?",
+    description: "Enter the email you sign in with and we'll send you a reset link. The link expires in 30 minutes.",
+    emailPlaceholder: "you@example.com",
+    submit: "Send reset link",
+    submitting: "Sending…",
+    failed: "Could not send reset link.",
+    confirmTitle: "Check your inbox",
+    confirmBody: "If an account exists for that email, a reset link is on its way. Didn't get it? Check spam or try again in a few minutes.",
+    backToLogin: "Back to sign in",
+  },
+
+  // ── Reset Password ──
+  resetPassword: {
+    title: "Set a new password",
+    description: "Choose a new password for your WizScheduler account. After saving, you'll be signed in automatically.",
+    newPassword: "New password",
+    confirmPassword: "Confirm new password",
+    atLeast6: "At least 6 characters",
+    reenterPassword: "Re-enter password",
+    submit: "Save new password",
+    submitting: "Saving…",
+    passwordMin: "Password must be at least 6 characters.",
+    passwordMismatch: "Passwords do not match.",
+    expired: "This reset link has expired. Please request a new one.",
+    invalidLink: "Invalid reset link",
+    invalidLinkDesc: "This reset link is missing, malformed, or has already been used.",
+    failed: "Could not save the new password.",
+    backToLogin: "Back to sign in",
+  },
+
 
   // ── Register ──
   register: {

@@ -37,3 +37,20 @@ export function switchCompany(companyId: string): Promise<TokenResponse> {
     body: JSON.stringify({ company_id: companyId }),
   });
 }
+
+export function forgotPassword(email: string): Promise<void> {
+  return apiFetch<void>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(
+  token: string,
+  newPassword: string,
+): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
