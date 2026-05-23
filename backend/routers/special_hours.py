@@ -4,6 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
@@ -118,7 +119,15 @@ async def create_special_hours_day(
         shift_template_id=clone.id,
     )
     db.add(row)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "duplicate",
+                    "message": "Special hours already exist for this date"},
+        )
     await db.refresh(row)
     return SpecialHoursDayResponse.model_validate(row)
 
@@ -175,6 +184,15 @@ async def update_special_hours_day(
     )
     date_changed = body.date is not None and body.date != row.date
 
+    # Pre-fetch the linked template BEFORE mutating `row`, so the autoflush
+    # triggered by this SELECT doesn't try to flush a dirty (and potentially
+    # UNIQUE-violating) row update prematurely.
+    tmpl: ShiftTemplate | None = None
+    if row.shift_template_id and (times_changed or date_changed):
+        tmpl = (await db.execute(
+            select(ShiftTemplate).where(ShiftTemplate.id == row.shift_template_id)
+        )).scalar_one_or_none()
+
     if body.date is not None:
         row.date = body.date
     if body.open_time is not None:
@@ -184,24 +202,28 @@ async def update_special_hours_day(
     if body.label is not None:
         row.label = body.label
 
-    if row.shift_template_id and (times_changed or date_changed):
-        tmpl = (await db.execute(
-            select(ShiftTemplate).where(ShiftTemplate.id == row.shift_template_id)
-        )).scalar_one_or_none()
-        if tmpl is not None:
-            if date_changed:
-                tmpl.specific_date = row.date
-            if times_changed and tmpl.weekly_schedule:
-                day0 = tmpl.weekly_schedule[0]
-                open_str = row.open_time.strftime("%H:%M:%S")
-                close_str = row.close_time.strftime("%H:%M:%S")
-                for r in day0.get("roles", []):
-                    r["start_time"] = open_str
-                    r["end_time"] = close_str
-                from sqlalchemy.orm.attributes import flag_modified
-                flag_modified(tmpl, "weekly_schedule")
+    if tmpl is not None:
+        if date_changed:
+            tmpl.specific_date = row.date
+        if times_changed and tmpl.weekly_schedule:
+            day0 = tmpl.weekly_schedule[0]
+            open_str = row.open_time.strftime("%H:%M:%S")
+            close_str = row.close_time.strftime("%H:%M:%S")
+            for r in day0.get("roles", []):
+                r["start_time"] = open_str
+                r["end_time"] = close_str
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(tmpl, "weekly_schedule")
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "duplicate",
+                    "message": "Special hours already exist for this date"},
+        )
     await db.refresh(row)
     return SpecialHoursDayResponse.model_validate(row)
 

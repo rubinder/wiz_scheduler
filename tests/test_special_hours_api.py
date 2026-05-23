@@ -144,9 +144,64 @@ async def test_list_filters_by_location_and_date_range(
 @pytest.mark.asyncio
 async def test_put_updates_times_and_propagates_to_template(
     client: AsyncClient, db_session: AsyncSession,
+    manager_token: str, seed_location, seed_company
+):
+    from backend.models import ShiftTemplate
+    src = ShiftTemplate(
+        company_id=seed_company.id,
+        location_id=seed_location.id,
+        name="DowShaped",
+        weekly_schedule=[
+            {"day_of_week": 3, "roles": [
+                {"role_id": "r1", "role_name": "Server",
+                 "required_headcount": 2,
+                 "start_time": "11:00", "end_time": "23:00"},
+            ]},
+        ],
+    )
+    db_session.add(src)
+    await db_session.commit()
+
+    create = await client.post(
+        "/api/v1/special-hours/",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={
+            "location_id": seed_location.id,
+            "date": "2026-12-24",  # Thursday → dow=3
+            "open_time": "09:00",
+            "close_time": "14:00",
+            "draft_template_id": src.id,
+        },
+    )
+    assert create.status_code == 200
+    sh_id = create.json()["id"]
+    tmpl_id = create.json()["shift_template_id"]
+
+    upd = await client.put(
+        f"/api/v1/special-hours/{sh_id}",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"open_time": "10:00", "close_time": "13:00", "label": "Half day"},
+    )
+    assert upd.status_code == 200
+
+    from sqlalchemy import select
+    tmpl = (await db_session.execute(
+        select(ShiftTemplate).where(ShiftTemplate.id == tmpl_id)
+    )).scalar_one()
+    roles = tmpl.weekly_schedule[0]["roles"]
+    assert len(roles) == 1
+    assert roles[0]["start_time"] == "10:00:00"
+    assert roles[0]["end_time"] == "13:00:00"
+
+
+@pytest.mark.asyncio
+async def test_put_409_on_duplicate_date(
+    client: AsyncClient, db_session: AsyncSession,
     manager_token: str, seed_location, seed_shift_template
 ):
-    create = await client.post(
+    """Changing the date to one that already has a SHD for the same location
+    must return 409 duplicate, not 500."""
+    a = await client.post(
         "/api/v1/special-hours/",
         headers={"Authorization": f"Bearer {manager_token}"},
         json={
@@ -157,23 +212,25 @@ async def test_put_updates_times_and_propagates_to_template(
             "draft_template_id": seed_shift_template.id,
         },
     )
-    sh_id = create.json()["id"]
-
-    upd = await client.put(
-        f"/api/v1/special-hours/{sh_id}",
+    b = await client.post(
+        "/api/v1/special-hours/",
         headers={"Authorization": f"Bearer {manager_token}"},
-        json={"open_time": "10:00", "close_time": "13:00", "label": "Half day"},
+        json={
+            "location_id": seed_location.id,
+            "date": "2026-12-25",
+            "open_time": "10:00",
+            "close_time": "15:00",
+            "draft_template_id": seed_shift_template.id,
+        },
     )
-    assert upd.status_code == 200
-
-    tmpl_id = upd.json()["shift_template_id"]
-    tmpl = (await db_session.execute(
-        select(ShiftTemplate).where(ShiftTemplate.id == tmpl_id)
-    )).scalar_one()
-    roles = tmpl.weekly_schedule[0]["roles"]
-    if roles:
-        assert roles[0]["start_time"] == "10:00:00"
-        assert roles[0]["end_time"] == "13:00:00"
+    a_id = a.json()["id"]
+    resp = await client.put(
+        f"/api/v1/special-hours/{a_id}",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"date": "2026-12-25"},
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "duplicate"
 
 
 @pytest.mark.asyncio
