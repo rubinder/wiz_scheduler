@@ -14,7 +14,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, StorageSnapshot, TokenUsage
+from backend.models import Company, Employee, StorageSnapshot, TokenUsage, TokenUsageDaily
 from backend.models.ownership_group import OwnershipGroup
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,51 @@ async def get_ownership_group_id(db: AsyncSession, company_id: str) -> str | Non
         select(Company.ownership_group_id).where(Company.id == company_id)
     )
     return result.scalar_one_or_none()
+
+
+async def get_og_anthropic_spend_24h(
+    db: AsyncSession,
+    ownership_group_id: str,
+) -> float:
+    """Sum raw Anthropic cost (USD) charged to this OG over the last 24h.
+
+    Reads the per-day aggregate (token_usage_daily). With 24h windows
+    that may straddle midnight UTC, today's row contributes its full
+    cost_usd and yesterday's row contributes a proportional share
+    derived from how much of yesterday lies inside the 24h window.
+
+    The proportional split is intentionally cheap (no per-call timestamps
+    exist) — it's a defensive ceiling, not a tax calculation.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    yesterday = today - timedelta(days=1)
+    rows = (await db.execute(
+        select(TokenUsageDaily).where(
+            TokenUsageDaily.ownership_group_id == ownership_group_id,
+            TokenUsageDaily.usage_date.in_((today, yesterday)),
+        )
+    )).scalars().all()
+
+    today_cost = 0.0
+    yesterday_cost = 0.0
+    for row in rows:
+        if row.usage_date == today:
+            today_cost = row.cost_usd
+        else:
+            yesterday_cost = row.cost_usd
+
+    # Fraction of yesterday inside the 24h window: hours elapsed today /
+    # 24. At 03:00 UTC, that's 3/24 = 0.125 — yesterday contributes 87.5%
+    # of its total to "last 24h".
+    seconds_into_today = (
+        now - now.replace(hour=0, minute=0, second=0, microsecond=0)
+    ).total_seconds()
+    yesterday_fraction = max(0.0, 1.0 - (seconds_into_today / 86400.0))
+
+    return round(today_cost + yesterday_cost * yesterday_fraction, 6)
 
 
 async def _get_company_ids_for_group(db: AsyncSession, og_id: str) -> list[str]:
@@ -157,8 +202,35 @@ async def check_and_record_usage(
         )
         db.add(usage)
 
+    # Mirror into the per-day aggregate so the daily circuit breaker
+    # (#43) has a rolling-24h figure to query. The monthly aggregate
+    # above is the source of truth for billing; daily exists purely for
+    # the cap query.
+    today = now.date()
+    daily = (await db.execute(
+        select(TokenUsageDaily).where(
+            TokenUsageDaily.ownership_group_id == og_id,
+            TokenUsageDaily.usage_date == today,
+        )
+    )).scalar_one_or_none()
+    if daily is None:
+        daily = TokenUsageDaily(
+            ownership_group_id=og_id,
+            usage_date=today,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            cost_usd=this_cost,
+        )
+        db.add(daily)
+    else:
+        daily.input_tokens += input_tokens
+        daily.output_tokens += output_tokens
+        daily.total_tokens += input_tokens + output_tokens
+        daily.cost_usd += this_cost
+        daily.updated_at = now
+
     if this_charge > 0:
-        from sqlalchemy import select
         og_result = await db.execute(
             select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
         )
@@ -1086,6 +1158,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.models.employee_role_minutes import EmployeeRoleMinutes
     from backend.models.failure_log import FailureLog
     from backend.models.token_usage import TokenUsage
+    from backend.models.token_usage_daily import TokenUsageDaily
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1135,6 +1208,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
 
     # 21. token_usage (OG-level, no FK cascade)
     await db.execute(delete(TokenUsage).where(TokenUsage.ownership_group_id == og.id))
+    # 22. token_usage_daily (OG-level, no FK cascade)
+    await db.execute(delete(TokenUsageDaily).where(TokenUsageDaily.ownership_group_id == og.id))
 
     # storage_snapshots + billing_charges cascade automatically.
 

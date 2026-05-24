@@ -622,3 +622,97 @@ async def test_generate_local_mode_bypasses_burst_cap(
         assert resp.status_code == 200
         async for _ in resp.aiter_lines():
             pass
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/generate — daily Anthropic cost circuit breaker (#43)
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """If today's TokenUsageDaily.cost_usd is at or past the cap, AI-mode
+    generation returns 402 daily_cost_cap_exceeded before any LLM call."""
+    from datetime import date as _date
+    from backend.config import settings
+    from backend.models import OwnershipGroup, TokenUsageDaily
+    from backend.services.rate_limit import schedule_generate_ai_limiter
+
+    schedule_generate_ai_limiter.reset()
+
+    # Cap is keyed on OG. Attach an OG to the seeded Company first.
+    og = OwnershipGroup(name="CapTestOG", ai_credits_usd=0.0)
+    db_session.add(og)
+    await db_session.flush()
+
+    from sqlalchemy import select
+    from backend.models import Company
+    company = (await db_session.execute(
+        select(Company).where(Company.id == seeded_company.company_id)
+    )).scalar_one()
+    company.ownership_group_id = og.id
+
+    db_session.add(TokenUsageDaily(
+        ownership_group_id=og.id,
+        usage_date=_date.today(),
+        input_tokens=0, output_tokens=0, total_tokens=0,
+        cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD + 0.01,
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": False},
+    )
+    assert resp.status_code == 402
+    body = resp.json()
+    assert body["detail"]["code"] == "daily_cost_cap_exceeded"
+    assert "resets_at" in body["detail"]
+    assert body["detail"]["cap_usd"] == settings.OG_ANTHROPIC_DAILY_CAP_USD
+
+
+async def test_generate_local_mode_bypasses_daily_cost_cap(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """Local-mode generation never touches Anthropic, so the daily cap
+    must not gate it."""
+    from datetime import date as _date
+    from backend.config import settings
+    from backend.models import OwnershipGroup, TokenUsageDaily
+
+    og = OwnershipGroup(name="CapTestOG2", ai_credits_usd=0.0)
+    db_session.add(og)
+    await db_session.flush()
+    from sqlalchemy import select
+    from backend.models import Company
+    company = (await db_session.execute(
+        select(Company).where(Company.id == seeded_company.company_id)
+    )).scalar_one()
+    company.ownership_group_id = og.id
+
+    db_session.add(TokenUsageDaily(
+        ownership_group_id=og.id,
+        usage_date=_date.today(),
+        input_tokens=0, output_tokens=0, total_tokens=0,
+        cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD * 10,  # way over
+    ))
+    await db_session.commit()
+
+    async def empty_pipeline(**kwargs):
+        if False:
+            yield {}
+        return
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", empty_pipeline
+    )
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": True},
+    )
+    assert resp.status_code == 200

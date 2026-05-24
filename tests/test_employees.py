@@ -122,3 +122,68 @@ async def test_company_isolation(client: AsyncClient, db_session, seed_employees
     )
     assert resp.status_code == 200
     assert len(resp.json()) == 0
+
+
+# ---------------------------------------------------------------------------
+# /employees/bulk-upload size + row caps (#46)
+# ---------------------------------------------------------------------------
+
+
+async def test_bulk_upload_rejects_oversize_body(
+    client: AsyncClient, manager_token: str, seed_roles, seed_location,
+):
+    """A body larger than 5 MB returns 413 before any parsing happens."""
+    # Build a CSV that's just over 5 MB. Header + N narrow rows of a fixed
+    # length is the cheapest way to land deterministically over the cap.
+    header = "full_name,email,role_names,skill_levels,location_names\n"
+    row = "X" * 200 + "\n"
+    target_bytes = 5 * 1024 * 1024 + 1024  # 5MB + 1KB
+    body = header + row * ((target_bytes // len(row)) + 1)
+    assert len(body) > 5 * 1024 * 1024
+
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        files={"file": ("big.csv", body, "text/csv")},
+    )
+    assert resp.status_code == 413
+    assert "exceeds" in resp.json()["detail"].lower()
+
+
+async def test_bulk_upload_accepts_under_size_cap(
+    client: AsyncClient, manager_token: str, seed_roles, seed_location,
+):
+    """An under-5MB CSV still processes normally."""
+    header = "full_name,email,role_names,skill_levels,location_names\n"
+    rows = "\n".join(
+        f"User{i},user{i}@x.com,Floor Associate,2,Downtown Store"
+        for i in range(50)
+    )
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        files={"file": ("ok.csv", header + rows, "text/csv")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["created"] == 50
+
+
+async def test_bulk_upload_rejects_over_10k_rows(
+    client: AsyncClient, manager_token: str, seed_roles, seed_location,
+):
+    """A small-bytes CSV with >10,000 rows returns 400."""
+    header = "full_name,email,role_names,skill_levels,location_names\n"
+    # ~30 bytes/row × 10,001 ≈ 300 KB — well under the 5MB body cap.
+    body = header + "\n".join(
+        f"u{i},u{i}@x.com,Floor Associate,2,Downtown Store"
+        for i in range(10_001)
+    )
+    assert len(body) < 5 * 1024 * 1024
+
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        files={"file": ("many.csv", body, "text/csv")},
+    )
+    assert resp.status_code == 400
+    assert "10000" in resp.json()["detail"] or "10,000" in resp.json()["detail"]

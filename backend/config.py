@@ -114,6 +114,18 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_PER_5MIN: int = 15
     REGISTER_RATE_LIMIT_PER_HOUR: int = 3
 
+    # Per-OG daily Anthropic spend circuit breaker (Tier 2E).
+    #
+    # Backstop for runaway scenarios the credit system can't catch: a
+    # mis-tracked cost (free tier never depletes), a pipeline retry loop,
+    # or a customer with autoreload generating around the clock past any
+    # reasonable monthly budget. Trips POST /schedules/generate (AI mode
+    # only) with 402 daily_cost_cap_exceeded once the rolling-24h
+    # Anthropic cost on the OG crosses this dollar threshold. Counter
+    # source: token_usage_daily (one row per OG per day; AI mode never
+    # bypasses the write path).
+    OG_ANTHROPIC_DAILY_CAP_USD: float = 50.00
+
     # Schedule generation/approval temporal lock.
     #
     # The lock has no heartbeat — once acquired it sits until release() OR

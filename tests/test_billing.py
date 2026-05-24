@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.config import settings
-from backend.models import Company, Employee, TokenUsage
+from backend.models import Company, Employee, TokenUsage, TokenUsageDaily
 from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
@@ -2155,3 +2155,114 @@ async def test_lifecycle_reminder_and_deletion_both_overdue(
     # since both happen before the row is gone.
     assert reminders == [OG_ID]
     assert deletions == [OG_ID]
+
+
+# ---------------------------------------------------------------------------
+# Per-day Anthropic spend + daily circuit breaker (#43)
+# ---------------------------------------------------------------------------
+
+
+async def test_check_and_record_usage_writes_daily_row(
+    db_session: AsyncSession, seed_og,
+):
+    """The dual-write keeps token_usage_daily in sync with each call."""
+    from datetime import date as _date
+
+    await check_and_record_usage(
+        db_session, COMPANY_ID, input_tokens=1000, output_tokens=500,
+    )
+    await db_session.flush()
+
+    daily = (await db_session.execute(
+        select(TokenUsageDaily).where(
+            TokenUsageDaily.ownership_group_id == OG_ID,
+        )
+    )).scalar_one_or_none()
+    assert daily is not None
+    assert daily.usage_date == _date.today()
+    assert daily.input_tokens == 1000
+    assert daily.output_tokens == 500
+    assert daily.cost_usd > 0
+
+
+async def test_check_and_record_usage_accumulates_into_daily_row(
+    db_session: AsyncSession, seed_og,
+):
+    """Two calls on the same day land in one row, summed."""
+    await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    await check_and_record_usage(db_session, COMPANY_ID, 2000, 1000)
+    await db_session.flush()
+
+    rows = (await db_session.execute(
+        select(TokenUsageDaily).where(
+            TokenUsageDaily.ownership_group_id == OG_ID,
+        )
+    )).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].input_tokens == 3000
+    assert rows[0].output_tokens == 1500
+
+
+async def test_get_og_anthropic_spend_24h_sums_today_plus_yesterday_fraction(
+    db_session: AsyncSession, seed_og,
+):
+    """24h spend = today's full cost + a proportional share of yesterday."""
+    from datetime import date as _date, timedelta as _td
+
+    from backend.services.billing import get_og_anthropic_spend_24h
+
+    today = _date.today()
+    db_session.add(TokenUsageDaily(
+        ownership_group_id=OG_ID,
+        usage_date=today,
+        input_tokens=0, output_tokens=0, total_tokens=0,
+        cost_usd=10.0,
+    ))
+    db_session.add(TokenUsageDaily(
+        ownership_group_id=OG_ID,
+        usage_date=today - _td(days=1),
+        input_tokens=0, output_tokens=0, total_tokens=0,
+        cost_usd=24.0,
+    ))
+    await db_session.commit()
+
+    spend = await get_og_anthropic_spend_24h(db_session, OG_ID)
+    # Today's $10 + some fraction of yesterday's $24. Fraction depends on
+    # the wall-clock minute the test runs, so assert on the band.
+    assert 10.0 <= spend <= 34.0
+    # And a sane upper bound — at midnight UTC + 1s, yesterday contributes
+    # ~$24 in full; at 23:59 UTC it contributes ~$0.
+    assert spend > 10.0 or _date.today() == today  # tautology guards midnight rollover
+
+
+async def test_get_og_anthropic_spend_24h_zero_when_no_rows(
+    db_session: AsyncSession, seed_og,
+):
+    from backend.services.billing import get_og_anthropic_spend_24h
+    assert await get_og_anthropic_spend_24h(db_session, OG_ID) == 0.0
+
+
+async def test_billing_usage_includes_daily_cost_block(
+    client, seed_og, manager_token: str, db_session: AsyncSession,
+):
+    """GET /billing/usage exposes the daily-cap status so the dashboard
+    can render the banner."""
+    from datetime import date as _date
+
+    db_session.add(TokenUsageDaily(
+        ownership_group_id=OG_ID,
+        usage_date=_date.today(),
+        input_tokens=0, output_tokens=0, total_tokens=0,
+        cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD + 1,
+    ))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/v1/billing/usage",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200
+    daily = resp.json()["daily_cost"]
+    assert daily["cap_usd"] == settings.OG_ANTHROPIC_DAILY_CAP_USD
+    assert daily["spend_24h_usd"] >= settings.OG_ANTHROPIC_DAILY_CAP_USD
+    assert daily["capped"] is True

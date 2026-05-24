@@ -314,7 +314,22 @@ async def bulk_upload(
     Location names are matched case-insensitively against the locations table.
     Returns a summary of created, skipped, and errors.
     """
+    # Body size + row-count caps (#46). The body cap stops oversize uploads
+    # before they consume async worker time or risk OOM on small memory
+    # limits; the row cap stops a tightly-packed 5MB file from still
+    # creating ~50k DB rows.
+    _MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+    _MAX_ROWS = 10_000
+
     content = await file.read()
+    if len(content) > _MAX_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"Upload exceeds {_MAX_BODY_BYTES // (1024 * 1024)} MB limit "
+                f"({len(content)} bytes)."
+            ),
+        )
     text = content.decode("utf-8-sig")
 
     # Determine format from content type or filename
@@ -339,6 +354,15 @@ async def bulk_upload(
     else:
         reader = csv.DictReader(io.StringIO(text))
         rows = list(reader)
+
+    if len(rows) > _MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Upload contains {len(rows)} rows; the per-request maximum "
+                f"is {_MAX_ROWS}. Split the file and retry."
+            ),
+        )
 
     # Pre-fetch company roles and locations for case-insensitive matching
     role_result = await db.execute(

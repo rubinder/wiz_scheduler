@@ -9,6 +9,7 @@ from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, Em
 from backend.models.shift_template import ShiftTemplate
 from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
+from backend.models.token_usage_daily import TokenUsageDaily
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 from backend.models.failure_log import FailureLog
 from backend.models.employee_role_minutes import EmployeeRoleMinutes
@@ -41,6 +42,7 @@ __all__ = [
     "CondensedRole",
     "CondensedRoleMapping",
     "TokenUsage",
+    "TokenUsageDaily",
     "FailureLog",
     "EmployeeRoleMinutes",
     "UserConsent",
