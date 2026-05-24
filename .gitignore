@@ -23,3 +23,9 @@ terraform/plan.out
 
 # Frontend build output (CI artifact, should not be tracked)
 frontend/dist/
+
+# Claude Code per-developer overrides (project .claude/settings.json IS tracked).
+.claude/settings.local.json
+
+# code-review-graph index (rebuilt locally by the PreToolUse hook on git push / gh pr create).
+.code-review-graph/
