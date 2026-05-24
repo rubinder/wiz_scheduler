@@ -159,6 +159,27 @@ async def generate_schedule(
                 detail="AI credits exhausted. Please purchase additional credits to continue.",
             )
 
+        # Per-Company burst cap on AI-mode generation. The schedule_lock
+        # prevents *concurrent* runs but not sequential trigger-spam after
+        # each release — this is the counter that stops that. Local mode
+        # is exempt (sub-second compute, no Anthropic cost).
+        from backend.services.rate_limit import schedule_generate_ai_limiter
+
+        if not schedule_generate_ai_limiter.check_and_record(
+            str(current_user.company_id)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "schedule_burst_limit",
+                    "message": (
+                        "Too many AI schedule generations this hour. "
+                        "Try again later or switch to local mode."
+                    ),
+                    "retry_after_seconds": 3600,
+                },
+            )
+
     template_ids = (
         [str(tid) for tid in body.template_ids] if body.template_ids else None
     )

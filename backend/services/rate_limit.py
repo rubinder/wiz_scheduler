@@ -1,10 +1,14 @@
-"""In-memory sliding-window per-IP rate limiter.
+"""In-memory sliding-window rate limiter.
 
 Sized for protecting low-volume sensitive endpoints (e.g.
-/auth/forgot-password) where a precise burst limit is needed and the AWS
-WAF minimum (100 req / 5 min per IP) is too loose. For shared state
-across uvicorn workers, replace the in-process dict with a Redis-backed
-implementation; we don't pay that complexity yet.
+/auth/forgot-password, /auth/login, /auth/register, /schedules/generate)
+where a precise burst limit is needed and the AWS WAF minimum
+(100 req / 5 min per IP) is too loose. For shared state across uvicorn
+workers, replace the in-process dict with a Redis-backed implementation;
+we don't pay that complexity yet.
+
+The limiter is keyed on an arbitrary string — typically a source IP, but
+the schedule-generate burst cap keys on company_id instead.
 """
 from __future__ import annotations
 
@@ -14,8 +18,8 @@ from collections import defaultdict, deque
 from typing import Deque, Dict
 
 
-class IpRateLimiter:
-    """Sliding-window counter per source IP.
+class SlidingWindowLimiter:
+    """Sliding-window counter per arbitrary string key.
 
     Trade-offs:
       - In-memory: doesn't survive process restart; a malicious actor can
@@ -69,11 +73,53 @@ class IpRateLimiter:
             self._hits.clear()
 
 
-# Module-level singleton used by the /auth/forgot-password endpoint.
-# Configured at import time from settings; tests reset via .reset().
+# Backwards-compatible alias. The original class name described its
+# original (only) caller; the limiter itself is generic.
+IpRateLimiter = SlidingWindowLimiter
+
+
+def source_ip_from_request(request) -> str:
+    """Extract the client source IP from a Starlette/FastAPI Request.
+
+    Trusts the leftmost X-Forwarded-For entry, which AWS ALB sets to the
+    original client IP. Falls back to request.client.host when XFF is
+    absent (local dev, tests). Returns "unknown" as a last-resort key so
+    the limiter never receives an empty string.
+    """
+    xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if xff:
+        return xff
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+# Module-level singletons. Configured at import time from settings; tests
+# reset via .reset() (see tests/conftest.py).
 from backend.config import settings  # noqa: E402
 
-forgot_password_limiter = IpRateLimiter(
+forgot_password_limiter = SlidingWindowLimiter(
     max_requests=settings.FORGOT_PASSWORD_RATE_LIMIT_PER_5MIN,
     window_seconds=300,
+)
+
+# Per-IP login cap. bcrypt-DoS + credential-stuffing protection.
+login_limiter = SlidingWindowLimiter(
+    max_requests=settings.LOGIN_RATE_LIMIT_PER_5MIN,
+    window_seconds=300,
+)
+
+# Per-IP register cap. Cost of a registration is high (Stripe customer +
+# DB rows + welcome email) so the threshold is intentionally tight.
+register_limiter = SlidingWindowLimiter(
+    max_requests=settings.REGISTER_RATE_LIMIT_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Per-Company burst cap on AI-mode schedule generation. Keyed on
+# company_id, not IP, so a single OG can't sequentially trigger after
+# each lock release.
+schedule_generate_ai_limiter = SlidingWindowLimiter(
+    max_requests=settings.SCHEDULE_GENERATE_AI_BURST_PER_HOUR,
+    window_seconds=3600,
 )

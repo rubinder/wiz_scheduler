@@ -99,10 +99,27 @@ async def setup_database():
 def reset_in_process_rate_limiters():
     """Reset in-memory rate-limit counters between tests so state from one
     test doesn't bleed into another and trip 429s on unrelated requests."""
-    from backend.services.rate_limit import forgot_password_limiter
-    forgot_password_limiter.reset()
+    from backend.services.rate_limit import (
+        forgot_password_limiter,
+        login_limiter,
+        register_limiter,
+        schedule_generate_ai_limiter,
+    )
+    for lim in (
+        forgot_password_limiter,
+        login_limiter,
+        register_limiter,
+        schedule_generate_ai_limiter,
+    ):
+        lim.reset()
     yield
-    forgot_password_limiter.reset()
+    for lim in (
+        forgot_password_limiter,
+        login_limiter,
+        register_limiter,
+        schedule_generate_ai_limiter,
+    ):
+        lim.reset()
 
 
 @pytest_asyncio.fixture

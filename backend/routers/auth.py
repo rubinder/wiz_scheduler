@@ -96,6 +96,21 @@ async def register(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
+    # Per-IP rate limit. Slot is consumed before any DB / Stripe / Resend
+    # work so bots can't burn third-party quota even on rejected attempts.
+    from backend.services.rate_limit import register_limiter, source_ip_from_request
+
+    source_ip = source_ip_from_request(request)
+    if not register_limiter.check_and_record(source_ip):
+        logger.info("register.rate_limited ip=%s", source_ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "rate_limited",
+                "message": "Too many registration attempts. Try again later.",
+            },
+        )
+
     if not body.privacy_accepted or not body.terms_accepted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -209,8 +224,26 @@ async def register(
 @router.post("/login")
 async def login(
     body: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
+    # Per-IP rate limit. Slot is consumed BEFORE bcrypt runs so an
+    # attacker can't pin an async worker with brute-force traffic, and a
+    # successful login above the threshold is also blocked (a real user
+    # over the cap is almost certainly automation).
+    from backend.services.rate_limit import login_limiter, source_ip_from_request
+
+    source_ip = source_ip_from_request(request)
+    if not login_limiter.check_and_record(source_ip):
+        logger.info("login.rate_limited ip=%s", source_ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "rate_limited",
+                "message": "Too many login attempts. Try again in a few minutes.",
+            },
+        )
+
     result = await db.execute(select(User).where(User.email == body.email))
     users = result.scalars().all()
 
@@ -545,13 +578,11 @@ async def forgot_password(
     """
     from backend.models import PasswordResetToken
     from backend.services.password_reset_email import send_password_reset_email
-    from backend.services.rate_limit import forgot_password_limiter
+    from backend.services.rate_limit import forgot_password_limiter, source_ip_from_request
 
     # Per-IP rate limit. We pull the IP straight from request.client; behind
     # the ALB this is the ALB's private IP unless we trust X-Forwarded-For.
-    # Use the leftmost X-Forwarded-For entry when present (set by ALB).
-    xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    source_ip = xff or (request.client.host if request.client else "unknown")
+    source_ip = source_ip_from_request(request)
     if not forgot_password_limiter.check_and_record(source_ip):
         logger.info(
             "forgot_password.rate_limited ip=%s",
