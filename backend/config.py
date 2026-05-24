@@ -88,8 +88,8 @@ class Settings(BaseSettings):
     # will stale-sweep the still-running lock and a race condition kicks in.
     #
     # SCHEDULE_LOCK_TTL_SECONDS                — default for approve and any
-    #     non-generate caller. Approve is sub-second, so anything > a few
-    #     seconds is safe; 5 min was historical and remains the safe default.
+    #     non-generate caller. Approve is sub-second, so 120s is a 100×+
+    #     safety margin while keeping dead-browser recovery responsive.
     # SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS    — generate in AI mode. One
     #     Anthropic Claude call per location at ~30-80s typical. 80 covers
     #     the single-location p99; tune higher if monitoring shows
@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     #     Python computation, usually completes well under 1s. 15s is a
     #     comfortable safety margin while keeping dead-browser recovery
     #     quick.
-    SCHEDULE_LOCK_TTL_SECONDS: int = 300
+    SCHEDULE_LOCK_TTL_SECONDS: int = 120
     SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS: int = 80
     SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS: int = 15
 

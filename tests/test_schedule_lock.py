@@ -144,13 +144,13 @@ def test_production_ttl_values_match_documented_choices():
     """Pin the production TTL values so future tuning is intentional.
 
     AI=80 covers single-location Anthropic p99; LOCAL=15 is a safety margin
-    over sub-second local computation; default=300 is for approve and any
+    over sub-second local computation; default=120 is for approve and any
     future caller that doesn't pass an explicit TTL.
     """
     from backend.config import settings
     assert settings.SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS == 80
     assert settings.SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS == 15
-    assert settings.SCHEDULE_LOCK_TTL_SECONDS == 300
+    assert settings.SCHEDULE_LOCK_TTL_SECONDS == 120
 
 
 @pytest.mark.asyncio
