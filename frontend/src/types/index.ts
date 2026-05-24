@@ -183,6 +183,7 @@ export interface ShiftTemplate {
   location_id: string;
   name: string;
   weekly_schedule: Record<string, unknown>[];
+  specific_date: string | null;
 }
 
 // ── Schedule ──
