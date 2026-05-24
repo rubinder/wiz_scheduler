@@ -80,8 +80,11 @@ class Settings(BaseSettings):
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
 
-    # Schedule generation/approval temporal lock
-    SCHEDULE_LOCK_TTL_SECONDS: int = 300  # 5 minutes
+    # Schedule generation/approval temporal lock.
+    # 180s covers AI-mode generate worst-case (multi-location LangGraph runs
+    # around 90-150s) while halving the dead-browser recovery wait vs. the
+    # original 5 minute default.
+    SCHEDULE_LOCK_TTL_SECONDS: int = 180
 
     # Monitoring
     MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval
