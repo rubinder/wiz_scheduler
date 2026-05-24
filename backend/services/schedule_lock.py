@@ -36,8 +36,14 @@ async def acquire(
     company_id: str,
     user_id: str,
     operation: str,
+    ttl_seconds: int | None = None,
 ) -> ScheduleLock:
     """Acquire the per-Company lock or raise LockHeld.
+
+    ``ttl_seconds`` overrides the default ``settings.SCHEDULE_LOCK_TTL_SECONDS``
+    so callers can scope the lock to the wall-clock of the operation they're
+    about to run (e.g. 30s for a sub-second local-mode generate, 90s for an
+    AI-mode generate that may take a minute and a half).
 
     Strategy:
       1. Sweep stale (expired) rows for this Company.
@@ -49,8 +55,9 @@ async def acquire(
          SELECT check and one loses the UNIQUE-constraint race at INSERT
          time. On that race, reload + raise LockHeld.
     """
+    ttl = ttl_seconds if ttl_seconds is not None else settings.SCHEDULE_LOCK_TTL_SECONDS
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(seconds=settings.SCHEDULE_LOCK_TTL_SECONDS)
+    expires_at = now + timedelta(seconds=ttl)
 
     # 1. Sweep stale rows for this company.
     await db.execute(

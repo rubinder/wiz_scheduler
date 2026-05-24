@@ -95,3 +95,47 @@ async def test_release_idempotent(db_session: AsyncSession, seeded_company):
         select(ScheduleLock).where(ScheduleLock.company_id == seeded_company.company_id)
     )).scalars().all()
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_acquire_honours_ttl_seconds_override(
+    db_session: AsyncSession, seeded_company
+):
+    """When ttl_seconds is passed, expires_at = now + that value (not the
+    default SCHEDULE_LOCK_TTL_SECONDS)."""
+    before = datetime.now(timezone.utc)
+    lock = await acquire(
+        db_session,
+        company_id=seeded_company.company_id,
+        user_id=seeded_company.manager_user_id,
+        operation="generate",
+        ttl_seconds=30,
+    )
+    exp = lock.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    delta = (exp - before).total_seconds()
+    assert 28 <= delta <= 32, f"expected ~30s TTL, got {delta:.1f}s"
+
+
+@pytest.mark.asyncio
+async def test_acquire_default_ttl_uses_settings(
+    db_session: AsyncSession, seeded_company
+):
+    """When no ttl_seconds is passed, expires_at falls back to settings."""
+    from backend.config import settings
+    before = datetime.now(timezone.utc)
+    lock = await acquire(
+        db_session,
+        company_id=seeded_company.company_id,
+        user_id=seeded_company.manager_user_id,
+        operation="approve",
+    )
+    exp = lock.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    delta = (exp - before).total_seconds()
+    expected = settings.SCHEDULE_LOCK_TTL_SECONDS
+    assert (expected - 5) <= delta <= (expected + 5), (
+        f"expected ~{expected}s TTL, got {delta:.1f}s"
+    )
