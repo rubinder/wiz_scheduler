@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 
 def _build_date_map(week_start_date: str, num_days: int = 7) -> Dict[str, str]:
@@ -16,13 +17,30 @@ def _build_date_map(week_start_date: str, num_days: int = 7) -> Dict[str, str]:
 def _parse_avail_by_day(
     windows: List[Dict[str, str]],
     date_to_day: Dict[str, str],
+    location_tz: Optional[str] = None,
 ) -> Dict[str, List[Tuple[str, str]]]:
-    """Convert ISO windows to {day_name: [(start_HH:MM, end_HH:MM), ...]}."""
+    """Convert ISO windows to {day_name: [(start_HH:MM, end_HH:MM), ...]}.
+
+    Availability rows are stored as UTC ``timestamptz`` in Postgres
+    (Pydantic ISO-serializes them with a ``+00:00`` offset). Template slot
+    times are stored as plain ``HH:MM`` strings in the location's local
+    wall-clock. To compare them, this function converts the avail window
+    into the location's local timezone before extracting HH:MM. The
+    ``date_to_day`` lookup also uses the local-date.
+
+    For backwards-compatibility (and to keep tests that don't care about
+    the timezone working), ``location_tz`` is optional. When ``None``,
+    falls back to the previous behaviour (no conversion).
+    """
+    tz = ZoneInfo(location_tz) if location_tz else None
     day_windows: Dict[str, List[Tuple[str, str]]] = {}
     for w in windows:
         try:
             start_dt = datetime.fromisoformat(w.get("start", ""))
             end_dt = datetime.fromisoformat(w.get("end", ""))
+            if tz is not None and start_dt.tzinfo is not None:
+                start_dt = start_dt.astimezone(tz)
+                end_dt = end_dt.astimezone(tz)
             date_str = start_dt.strftime("%Y-%m-%d")
             day_name = date_to_day.get(date_str)
             if day_name:
@@ -118,7 +136,11 @@ def build_schedule_prompt(
         # Only include employees who have at least one required role
         if not role_names & required_roles:
             continue
-        day_windows = _parse_avail_by_day(emp.get("available_windows", []), date_to_day)
+        day_windows = _parse_avail_by_day(
+            emp.get("available_windows", []),
+            date_to_day,
+            location_tz=location.get("timezone"),
+        )
         # Filter availability to only scheduled days
         day_windows = {d: w for d, w in day_windows.items() if d in scheduled_days}
         emp_data.append({

@@ -42,6 +42,7 @@ def _build_eligible_map(
     employees: List[Dict[str, Any]],
     weekly_schedule: Dict[str, List[dict]],
     date_to_day: Dict[str, str],
+    location_tz: str | None = None,
 ) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
     """Pre-compute eligible employees for each (day, role_name) slot."""
     required_roles: set[str] = set()
@@ -56,7 +57,11 @@ def _build_eligible_map(
         role_names = {r.get("role_name", "") for r in emp.get("roles", [])}
         if not role_names & required_roles:
             continue
-        day_windows = _parse_avail_by_day(emp.get("available_windows", []), date_to_day)
+        day_windows = _parse_avail_by_day(
+            emp.get("available_windows", []),
+            date_to_day,
+            location_tz=location_tz,
+        )
         emp_prepared.append({
             **emp,
             "_role_names": role_names,
@@ -133,7 +138,9 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
             if rname and rid:
                 role_name_to_id[rname] = rid
 
-    eligible_map = _build_eligible_map(employees, weekly_schedule, date_to_day)
+    eligible_map = _build_eligible_map(
+        employees, weekly_schedule, date_to_day, location_tz=timezone_str,
+    )
     affinity_lookup = _build_affinity_lookup(employees)
 
     # For rotation_history, the history data is pre-loaded into state by the graph node.
