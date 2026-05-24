@@ -95,6 +95,16 @@ async def setup_database():
         await conn.run_sync(Base.metadata.drop_all)
 
 
+@pytest.fixture(autouse=True)
+def reset_in_process_rate_limiters():
+    """Reset in-memory rate-limit counters between tests so state from one
+    test doesn't bleed into another and trip 429s on unrelated requests."""
+    from backend.services.rate_limit import forgot_password_limiter
+    forgot_password_limiter.reset()
+    yield
+    forgot_password_limiter.reset()
+
+
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with TestSessionLocal() as session:

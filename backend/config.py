@@ -80,6 +80,22 @@ class Settings(BaseSettings):
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
 
+    # Forgot-password rate limiting.
+    #
+    # FORGOT_PASSWORD_COOLDOWN_MINUTES — per-email cooldown. Within this
+    #     window, /auth/forgot-password skips minting a new token and
+    #     sending a new email — still returns 204 either way (preserves
+    #     no-leak). Targets the email-bombing-a-known-victim threat.
+    # FORGOT_PASSWORD_RATE_LIMIT_PER_5MIN — per-source-IP rate limit
+    #     enforced by an in-process sliding-window counter. AWS WAFv2's
+    #     minimum is 100 req/5min, too loose for our threat. Tighter
+    #     limits live at the app layer. Targets the cross-email
+    #     enumeration / cost-bombing threat. Returns 429 to the attacker
+    #     (does leak that the IP is rate-limited, but the IP-level signal
+    #     was already public).
+    FORGOT_PASSWORD_COOLDOWN_MINUTES: int = 5
+    FORGOT_PASSWORD_RATE_LIMIT_PER_5MIN: int = 5
+
     # Schedule generation/approval temporal lock.
     #
     # The lock has no heartbeat — once acquired it sits until release() OR
