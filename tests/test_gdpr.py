@@ -134,6 +134,73 @@ async def test_export_data_no_employee_profile(
 
 
 # ---------------------------------------------------------------------------
+# /gdpr/export per-user cooldown (#45)
+# ---------------------------------------------------------------------------
+
+
+async def test_export_cooldown_returns_429_on_second_call(
+    client: AsyncClient, manager_token: str, seed_manager,
+):
+    """First export succeeds; second within the cooldown returns 429."""
+    r1 = await client.get(
+        "/api/v1/gdpr/export",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert r1.status_code == 200
+
+    r2 = await client.get(
+        "/api/v1/gdpr/export",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert r2.status_code == 429
+    body = r2.json()
+    assert body["detail"]["code"] == "export_cooldown"
+    assert body["detail"]["retry_after_seconds"] > 0
+
+
+async def test_export_cooldown_per_user_isolation(
+    client: AsyncClient, db_session: AsyncSession, seed_manager,
+    seed_employee_user, manager_token: str, employee_token: str,
+):
+    """One user's cooldown doesn't gate a different user."""
+    r1 = await client.get(
+        "/api/v1/gdpr/export",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert r1.status_code == 200
+
+    r2 = await client.get(
+        "/api/v1/gdpr/export",
+        headers={"Authorization": f"Bearer {employee_token}"},
+    )
+    assert r2.status_code == 200
+
+
+async def test_export_cooldown_expires(
+    client: AsyncClient, db_session: AsyncSession, seed_manager, manager_token: str,
+):
+    """A log row older than the cooldown window doesn't block a new export."""
+    from datetime import datetime, timedelta, timezone
+    from backend.config import settings
+    from backend.models.gdpr_export_log import GdprExportLog
+
+    db_session.add(GdprExportLog(
+        user_id=seed_manager.id,
+        exported_at=(
+            datetime.now(timezone.utc)
+            - timedelta(minutes=settings.GDPR_EXPORT_COOLDOWN_MINUTES + 1)
+        ),
+    ))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/v1/gdpr/export",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
 # GET /gdpr/consents
 # ---------------------------------------------------------------------------
 

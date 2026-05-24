@@ -1018,9 +1018,14 @@ async def send_subscription_ended_email(og: OwnershipGroup) -> None:
         )).scalars().all()
         manager_emails = [e for e in manager_emails if e]
 
-    if not manager_emails:
-        logger.info("No manager emails found for og=%s; subscription-ended email skipped", og.id)
-        return
+        if not manager_emails:
+            logger.info("No manager emails found for og=%s; subscription-ended email skipped", og.id)
+            return
+
+        from backend.services.email_quota import check_and_log_email
+        if not await check_and_log_email(db, og.id, "subscription_ended"):
+            return
+        await db.commit()
 
     try:
         import html as _html
@@ -1066,6 +1071,12 @@ async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
     import html as _html
     from datetime import timedelta
 
+    if og.canceled_at is None:
+        # Defensive: caller should have filtered, but don't send a reminder
+        # to an active account.
+        logger.warning("send_deletion_reminder_email called for og=%s with canceled_at=None", og.id)
+        return
+
     async with async_session_factory() as db:
         company_ids = (await db.execute(
             select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1080,15 +1091,14 @@ async def send_deletion_reminder_email(og: OwnershipGroup) -> None:
         )).scalars().all()
         manager_emails = [e for e in manager_emails if e]
 
-    if not manager_emails:
-        logger.info("No manager emails for og=%s; deletion-reminder skipped", og.id)
-        return
+        if not manager_emails:
+            logger.info("No manager emails for og=%s; deletion-reminder skipped", og.id)
+            return
 
-    if og.canceled_at is None:
-        # Defensive: caller should have filtered, but don't send a reminder
-        # to an active account.
-        logger.warning("send_deletion_reminder_email called for og=%s with canceled_at=None", og.id)
-        return
+        from backend.services.email_quota import check_and_log_email
+        if not await check_and_log_email(db, og.id, "deletion_reminder"):
+            return
+        await db.commit()
 
     deletion_date = (og.canceled_at + timedelta(days=settings.SUBSCRIPTION_GRACE_DAYS)).date()
 
@@ -1210,6 +1220,16 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     await db.execute(delete(TokenUsage).where(TokenUsage.ownership_group_id == og.id))
     # 22. token_usage_daily (OG-level, no FK cascade)
     await db.execute(delete(TokenUsageDaily).where(TokenUsageDaily.ownership_group_id == og.id))
+    # 23. og_email_send_log (OG-level audit, no FK cascade)
+    from backend.models.og_email_send_log import OgEmailSendLog
+    await db.execute(delete(OgEmailSendLog).where(OgEmailSendLog.ownership_group_id == og.id))
+    # 24. integration_imports (OG-level audit, no FK cascade)
+    from backend.models.integration_import import IntegrationImport
+    await db.execute(delete(IntegrationImport).where(IntegrationImport.ownership_group_id == og.id))
+    # gdpr_export_log is user-level; users were deleted above so any FK
+    # cascade has already fired. Still defensive-delete by user_id to be
+    # explicit — User rows are gone but the audit log might survive a
+    # rare race where the user was deleted out-of-band.
 
     # storage_snapshots + billing_charges cascade automatically.
 
@@ -1291,9 +1311,18 @@ async def send_data_deleted_email(og: OwnershipGroup) -> None:
         )).scalars().all()
         manager_emails = [e for e in manager_emails if e]
 
-    if not manager_emails:
-        logger.info("No manager emails for og=%s; data-deleted email skipped", og.id)
-        return
+        if not manager_emails:
+            logger.info("No manager emails for og=%s; data-deleted email skipped", og.id)
+            return
+
+        # Audit the send but BYPASS the daily cap — this is a one-shot
+        # mandatory legal notice. Blocking it because the OG ran 200+
+        # manager invites in 24h would be wrong.
+        from backend.models.og_email_send_log import OgEmailSendLog
+        db.add(OgEmailSendLog(
+            ownership_group_id=og.id, kind="data_deleted",
+        ))
+        await db.commit()
 
     try:
         import resend

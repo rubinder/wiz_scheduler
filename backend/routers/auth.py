@@ -65,10 +65,20 @@ def _create_access_token(
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-async def _send_welcome_email(email: str, full_name: str) -> None:
+async def _send_welcome_email(
+    email: str,
+    full_name: str,
+    db: AsyncSession,
+    ownership_group_id: str | None,
+) -> None:
     """Send welcome email via Resend if API key is configured."""
     if not settings.RESEND_API_KEY:
         return
+
+    from backend.services.email_quota import check_and_log_email
+    if not await check_and_log_email(db, ownership_group_id, "welcome"):
+        return
+
     try:
         import resend
 
@@ -215,7 +225,13 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
-    await _send_welcome_email(body.email, body.full_name)
+    await _send_welcome_email(
+        body.email,
+        body.full_name,
+        db=db,
+        ownership_group_id=str(ownership_group.id),
+    )
+    await db.commit()
 
     token = _create_access_token(user.id, company.id, user.user_role)
     return TokenResponse(access_token=token)
@@ -646,6 +662,23 @@ async def forgot_password(
     else:
         base = str(request.base_url).rstrip("/")
     reset_url = f"{base}/reset-password?token={token_value}"
+
+    # Per-OG email cap (#42). Resolve OG from the matched user's company.
+    # If the user has no OG (single-Company dev/test state), skip the cap.
+    from backend.models import Company
+    from backend.services.email_quota import check_and_log_email
+    og_id_for_email: str | None = None
+    company_row = (await db.execute(
+        select(Company.ownership_group_id).where(Company.id == users[0].company_id)
+    )).first()
+    if company_row is not None:
+        og_id_for_email = company_row[0]
+
+    if not await check_and_log_email(db, og_id_for_email, "password_reset"):
+        # Caller still sees 204 — preserves the no-leak property.
+        await db.commit()
+        return
+    await db.commit()
 
     await send_password_reset_email(body.email, reset_url)
     logger.info(

@@ -92,9 +92,14 @@ async def create_manager_invite(
     await db.refresh(invite)
 
     invite_url = _invite_url_for(request, token)
-    await send_manager_invite_email(
-        email=body.email, group_name=og.name, invite_url=invite_url
-    )
+    from backend.services.email_quota import check_and_log_email
+    if await check_and_log_email(db, og.id, "manager_invite"):
+        await db.commit()
+        await send_manager_invite_email(
+            email=body.email, group_name=og.name, invite_url=invite_url
+        )
+    else:
+        await db.commit()
 
     return ManagerInviteResponse(
         id=invite.id,
