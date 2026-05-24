@@ -80,8 +80,27 @@ class Settings(BaseSettings):
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
 
-    # Schedule generation/approval temporal lock
-    SCHEDULE_LOCK_TTL_SECONDS: int = 300  # 5 minutes
+    # Schedule generation/approval temporal lock.
+    #
+    # The lock has no heartbeat — once acquired it sits until release() OR
+    # until expires_at. The TTL must therefore cover the worst legitimate
+    # wall-clock of the operation it gates, OR a second manager's request
+    # will stale-sweep the still-running lock and a race condition kicks in.
+    #
+    # SCHEDULE_LOCK_TTL_SECONDS                — default for approve and any
+    #     non-generate caller. Approve is sub-second, so 120s is a 100×+
+    #     safety margin while keeping dead-browser recovery responsive.
+    # SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS    — generate in AI mode. One
+    #     Anthropic Claude call per location at ~30-80s typical. 80 covers
+    #     the single-location p99; tune higher if monitoring shows
+    #     multi-location runs hitting the cap.
+    # SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS — generate in local mode. Pure
+    #     Python computation, usually completes well under 1s. 15s is a
+    #     comfortable safety margin while keeping dead-browser recovery
+    #     quick.
+    SCHEDULE_LOCK_TTL_SECONDS: int = 120
+    SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS: int = 80
+    SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS: int = 15
 
     # Monitoring
     MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval

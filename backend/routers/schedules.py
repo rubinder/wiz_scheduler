@@ -164,12 +164,21 @@ async def generate_schedule(
     )
 
     # Acquire per-Company schedule lock before starting the stream.
+    # TTL is scoped to the mode: local mode is sub-second computation,
+    # AI mode may take up to ~90s per Anthropic call.
+    from backend.config import settings as _settings
+    lock_ttl = (
+        _settings.SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS
+        if body.use_local
+        else _settings.SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS
+    )
     try:
         lock = await acquire_lock(
             db,
             company_id=str(current_user.company_id),
             user_id=str(current_user.id),
             operation="generate",
+            ttl_seconds=lock_ttl,
         )
     except LockHeld as e:
         raise HTTPException(
