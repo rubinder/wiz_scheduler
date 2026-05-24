@@ -531,3 +531,94 @@ async def test_approve_rolls_back_status_on_parse_error(
     # Reload and assert status was rolled back to 'draft'.
     await db_session.refresh(sched)
     assert sched.status == "draft"
+
+
+# ---------------------------------------------------------------------------
+# POST /schedules/generate — per-Company AI-mode burst cap (Tier 1A)
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_ai_burst_cap_returns_429(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """After SCHEDULE_GENERATE_AI_BURST_PER_HOUR AI-mode generations from
+    the same Company, the next AI request returns 429."""
+    from backend.services.rate_limit import schedule_generate_ai_limiter
+
+    schedule_generate_ai_limiter.reset()
+    # Reduce the cap so the test doesn't have to issue 30+ requests. The
+    # limiter is a module-level singleton; mutating max_requests directly
+    # is the cheapest way to override for one test (reset() runs again in
+    # the autouse fixture teardown).
+    monkeypatch.setattr(schedule_generate_ai_limiter, "max_requests", 2)
+
+    async def empty_pipeline(**kwargs):
+        if False:
+            yield {}
+        return
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", empty_pipeline
+    )
+
+    for i in range(2):
+        resp = await client.post(
+            "/api/v1/schedules/generate",
+            headers={"Authorization": f"Bearer {manager_token}"},
+            json={"week_start_date": "2026-05-18", "use_local": False},
+        )
+        assert resp.status_code == 200, f"AI gen {i + 1}/2 should pass"
+        async for _ in resp.aiter_lines():
+            pass
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": False},
+    )
+    assert resp.status_code == 429
+    body = resp.json()
+    assert body["detail"]["code"] == "schedule_burst_limit"
+    assert "retry_after_seconds" in body["detail"]
+
+
+async def test_generate_local_mode_bypasses_burst_cap(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """Local-mode generation must not consume the AI burst counter, and
+    must not be blocked even when the counter is exhausted."""
+    from backend.services.rate_limit import schedule_generate_ai_limiter
+
+    schedule_generate_ai_limiter.reset()
+    monkeypatch.setattr(schedule_generate_ai_limiter, "max_requests", 1)
+
+    async def empty_pipeline(**kwargs):
+        if False:
+            yield {}
+        return
+    monkeypatch.setattr(
+        "backend.scheduling.graph.run_scheduling_pipeline", empty_pipeline
+    )
+
+    # Saturate the AI counter.
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": False},
+    )
+    assert resp.status_code == 200
+    async for _ in resp.aiter_lines():
+        pass
+
+    # Several local-mode runs all succeed — they neither check the counter
+    # nor consume from it.
+    for _ in range(3):
+        resp = await client.post(
+            "/api/v1/schedules/generate",
+            headers={"Authorization": f"Bearer {manager_token}"},
+            json={"week_start_date": "2026-05-18", "use_local": True},
+        )
+        assert resp.status_code == 200
+        async for _ in resp.aiter_lines():
+            pass

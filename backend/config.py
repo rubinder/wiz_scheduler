@@ -96,6 +96,24 @@ class Settings(BaseSettings):
     FORGOT_PASSWORD_COOLDOWN_MINUTES: int = 5
     FORGOT_PASSWORD_RATE_LIMIT_PER_5MIN: int = 5
 
+    # Additional abuse / cost-control rate limits (all share the in-memory
+    # SlidingWindowLimiter; see backend/services/rate_limit.py for the
+    # per-worker caveat).
+    #
+    # SCHEDULE_GENERATE_AI_BURST_PER_HOUR — per-Company burst cap on
+    #     /schedules/generate in AI mode. Backstop against sequential abuse
+    #     that the schedule_lock can't catch (trigger → wait release →
+    #     trigger). Local-mode generation bypasses this counter.
+    # LOGIN_RATE_LIMIT_PER_5MIN — per-source-IP cap on /auth/login. bcrypt
+    #     at cost factor 12 burns ~250ms of CPU per attempt; an unthrottled
+    #     attacker can pin an async worker. Also blocks credential stuffing.
+    # REGISTER_RATE_LIMIT_PER_HOUR — per-source-IP cap on /auth/register.
+    #     Each registration creates Company+User rows, a Stripe customer,
+    #     and sends a Resend welcome email — bots are expensive to absorb.
+    SCHEDULE_GENERATE_AI_BURST_PER_HOUR: int = 30
+    LOGIN_RATE_LIMIT_PER_5MIN: int = 15
+    REGISTER_RATE_LIMIT_PER_HOUR: int = 3
+
     # Schedule generation/approval temporal lock.
     #
     # The lock has no heartbeat — once acquired it sits until release() OR

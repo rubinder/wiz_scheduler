@@ -349,3 +349,151 @@ async def test_me_returns_has_google(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert resp.json()["has_google"] is True
+
+
+# ---------------------------------------------------------------------------
+# Per-IP rate limits (Tier 1B + 1C)
+# ---------------------------------------------------------------------------
+
+
+async def test_login_per_ip_rate_limit_returns_429(client: AsyncClient):
+    """After LOGIN_RATE_LIMIT_PER_5MIN attempts from the same IP, the next
+    one returns 429 with the structured rate_limited code.
+
+    Uses non-existent emails so no bcrypt verify runs — keeps the test fast.
+    """
+    from backend.config import settings
+    from backend.services.rate_limit import login_limiter
+    login_limiter.reset()
+
+    limit = settings.LOGIN_RATE_LIMIT_PER_5MIN
+
+    for i in range(limit):
+        r = await client.post(
+            "/api/v1/auth/login",
+            json={"email": f"nobody-{i}@example.test", "password": "x"},
+        )
+        # Unknown email returns 401 — slot still consumed.
+        assert r.status_code == 401, f"attempt {i + 1}/{limit} should reach the handler"
+
+    r = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "another-nobody@example.test", "password": "x"},
+    )
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "rate_limited"
+
+
+async def test_login_rate_limit_isolated_per_ip(client: AsyncClient):
+    """A second IP isn't affected by the first IP's blocks."""
+    from backend.config import settings
+    from backend.services.rate_limit import login_limiter
+    login_limiter.reset()
+
+    # Burn the limit from IP A.
+    for i in range(settings.LOGIN_RATE_LIMIT_PER_5MIN):
+        await client.post(
+            "/api/v1/auth/login",
+            json={"email": f"a-{i}@example.test", "password": "x"},
+            headers={"X-Forwarded-For": "10.0.0.1"},
+        )
+
+    # IP A is blocked.
+    blocked = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "a-extra@example.test", "password": "x"},
+        headers={"X-Forwarded-For": "10.0.0.1"},
+    )
+    assert blocked.status_code == 429
+
+    # IP B is still free.
+    ok = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "b@example.test", "password": "x"},
+        headers={"X-Forwarded-For": "10.0.0.2"},
+    )
+    assert ok.status_code == 401  # reached the handler
+
+
+async def test_register_per_ip_rate_limit_returns_429(client: AsyncClient):
+    """After REGISTER_RATE_LIMIT_PER_HOUR registrations from the same IP,
+    the next one returns 429."""
+    from backend.config import settings
+    from backend.services.rate_limit import register_limiter
+    register_limiter.reset()
+
+    limit = settings.REGISTER_RATE_LIMIT_PER_HOUR
+
+    for i in range(limit):
+        r = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"new-{i}@example.com",
+                "password": "secret123",
+                "full_name": f"New {i}",
+                "company_name": f"Co{i}",
+                "privacy_accepted": True,
+                "terms_accepted": True,
+            },
+        )
+        assert r.status_code == 201, f"registration {i + 1}/{limit} should succeed"
+
+    r = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "overflow@example.com",
+            "password": "secret123",
+            "full_name": "Overflow",
+            "company_name": "OverflowCo",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+        },
+    )
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "rate_limited"
+
+
+async def test_register_rate_limit_blocks_before_any_work(
+    client: AsyncClient, db_session
+):
+    """Rate-limited register must not create a User, Company, or call Stripe."""
+    from sqlalchemy import select
+    from backend.config import settings
+    from backend.models import Company, User
+    from backend.services.rate_limit import register_limiter
+    register_limiter.reset()
+
+    # Burn the slots with successful registrations.
+    for i in range(settings.REGISTER_RATE_LIMIT_PER_HOUR):
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"burn-{i}@example.com",
+                "password": "secret123",
+                "full_name": "Burn",
+                "company_name": f"BurnCo{i}",
+                "privacy_accepted": True,
+                "terms_accepted": True,
+            },
+        )
+
+    pre_users = (await db_session.execute(select(User))).scalars().all()
+    pre_companies = (await db_session.execute(select(Company))).scalars().all()
+
+    r = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "blocked@example.com",
+            "password": "secret123",
+            "full_name": "Blocked",
+            "company_name": "ShouldNotExist",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+        },
+    )
+    assert r.status_code == 429
+
+    post_users = (await db_session.execute(select(User))).scalars().all()
+    post_companies = (await db_session.execute(select(Company))).scalars().all()
+    assert len(post_users) == len(pre_users)
+    assert len(post_companies) == len(pre_companies)

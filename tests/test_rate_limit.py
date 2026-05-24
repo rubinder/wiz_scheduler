@@ -1,7 +1,13 @@
-"""Unit tests for the IpRateLimiter sliding window."""
+"""Unit tests for the sliding-window rate limiter."""
 import pytest
 
-from backend.services.rate_limit import IpRateLimiter
+from backend.services.rate_limit import IpRateLimiter, SlidingWindowLimiter
+
+
+def test_ip_rate_limiter_is_sliding_window_alias():
+    """IpRateLimiter is kept as a backwards-compat alias for the generic
+    SlidingWindowLimiter so existing call sites keep working."""
+    assert IpRateLimiter is SlidingWindowLimiter
 
 
 def test_under_limit_records_and_allows():
