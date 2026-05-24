@@ -150,7 +150,8 @@ async def generate_schedule(
 
     # Pre-generation credit check for AI mode
     if not body.use_local:
-        from backend.services.billing import check_ai_credits
+        from backend.config import settings as _settings_cap
+        from backend.services.billing import check_ai_credits, get_og_anthropic_spend_24h, get_ownership_group_id
 
         credit_status = await check_ai_credits(db, str(current_user.company_id))
         if not credit_status["can_generate"]:
@@ -158,6 +159,33 @@ async def generate_schedule(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail="AI credits exhausted. Please purchase additional credits to continue.",
             )
+
+        # Per-OG daily Anthropic cost circuit breaker (Tier 2E). Independent
+        # of the credit system — covers the runaway-loop / pricing-config-bug
+        # scenarios where credits never deplete. Skipped when the OG isn't
+        # set yet (single-Company demo state) since the daily aggregate is
+        # keyed by OG.
+        og_id_for_cap = await get_ownership_group_id(db, str(current_user.company_id))
+        if og_id_for_cap:
+            spend_24h = await get_og_anthropic_spend_24h(db, og_id_for_cap)
+            if spend_24h >= _settings_cap.OG_ANTHROPIC_DAILY_CAP_USD:
+                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+                resets_at = _dt.now(_tz.utc) + _td(hours=24)
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "code": "daily_cost_cap_exceeded",
+                        "message": (
+                            f"Daily Anthropic spend cap of "
+                            f"${_settings_cap.OG_ANTHROPIC_DAILY_CAP_USD:.2f} reached for "
+                            f"this account. Resets within 24 hours."
+                        ),
+                        "spend_24h_usd": spend_24h,
+                        "cap_usd": _settings_cap.OG_ANTHROPIC_DAILY_CAP_USD,
+                        "resets_at": resets_at.isoformat(),
+                    },
+                )
 
         # Per-Company burst cap on AI-mode generation. The schedule_lock
         # prevents *concurrent* runs but not sequential trigger-spam after

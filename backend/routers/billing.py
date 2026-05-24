@@ -82,6 +82,11 @@ async def get_usage(
                           "block_size": settings.SCHEDULE_BLOCK_SIZE, "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK, "charged_usd": 0},
             "total_monthly_charge_usd": settings.BASE_MONTHLY_USD,
             "pending_invoice_items": [],
+            "daily_cost": {
+                "spend_24h_usd": 0.0,
+                "cap_usd": settings.OG_ANTHROPIC_DAILY_CAP_USD,
+                "capped": False,
+            },
             "is_read_only": False,
             "canceled_at": None,
             "scheduled_deletion_at": None,
@@ -101,6 +106,18 @@ async def get_usage(
         {"kind": r.kind, "amount_usd": float(r.amount_usd), "period": r.period}
         for r in rows
     ]
+
+    # Daily Anthropic spend circuit breaker (#43). Surface so the
+    # dashboard can render a banner when AI generation is temporarily
+    # blocked by the cap rather than the credit/quota system.
+    from backend.services.billing import get_og_anthropic_spend_24h
+
+    spend_24h = await get_og_anthropic_spend_24h(db, og_id)
+    summary["daily_cost"] = {
+        "spend_24h_usd": spend_24h,
+        "cap_usd": settings.OG_ANTHROPIC_DAILY_CAP_USD,
+        "capped": spend_24h >= settings.OG_ANTHROPIC_DAILY_CAP_USD,
+    }
 
     og = await db.get(OwnershipGroup, og_id)
     if og and og.canceled_at is not None:
@@ -245,6 +262,8 @@ async def get_billing_charges(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> BillingChargesResponse:
+    from backend.utils.pagination import clamp_limit
+
     og_id = await get_ownership_group_id(db, str(current_user.company_id))
     if not og_id:
         return BillingChargesResponse(charges=[])
@@ -253,7 +272,7 @@ async def get_billing_charges(
         select(BillingCharge)
         .where(BillingCharge.ownership_group_id == og_id)
         .order_by(BillingCharge.created_at.desc())
-        .limit(min(limit, 200))
+        .limit(clamp_limit(limit, default=50, max=200))
     )
     rows = list(result.scalars())
     return BillingChargesResponse(charges=[
