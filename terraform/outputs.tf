@@ -47,3 +47,13 @@ output "cloudfront_domain_name" {
   description = "CloudFront distribution domain name (use if no custom domain)"
   value       = aws_cloudfront_distribution.frontend.domain_name
 }
+
+output "ops_alerts_sns_topic_arn" {
+  description = "SNS topic for CloudWatch alarms. Subscribe a second endpoint (PagerDuty, Slack via Lambda, etc.) by attaching to this ARN."
+  value       = aws_sns_topic.ops_alerts.arn
+}
+
+output "waf_web_acl_arn" {
+  description = "WAFv2 Web ACL applied to the ALB."
+  value       = aws_wafv2_web_acl.main.arn
+}

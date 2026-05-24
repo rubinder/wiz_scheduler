@@ -124,3 +124,11 @@ variable "google_client_id" {
   type        = string
   default     = ""
 }
+
+# --- Ops alerting ---
+
+variable "ops_alert_email" {
+  description = "Email address subscribed to the ops SNS topic for CloudWatch alarms (#49). AWS sends a confirmation link to this address on first apply — the recipient must click it before notifications begin. Leave empty to skip the subscription (alarms still publish to SNS, just nothing listens)."
+  type        = string
+  default     = ""
+}
