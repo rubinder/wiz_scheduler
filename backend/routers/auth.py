@@ -538,9 +538,32 @@ async def forgot_password(
     leaking which addresses are registered. If multiple User rows share the
     email (same-email-across-companies case), one token covers all of them —
     the reset endpoint stamps every matching row.
+
+    Two rate-limit layers stop abuse:
+      1. Per-source-IP sliding window (returns 429 above the threshold).
+      2. Per-email cooldown (silently no-ops, still returns 204).
     """
     from backend.models import PasswordResetToken
     from backend.services.password_reset_email import send_password_reset_email
+    from backend.services.rate_limit import forgot_password_limiter
+
+    # Per-IP rate limit. We pull the IP straight from request.client; behind
+    # the ALB this is the ALB's private IP unless we trust X-Forwarded-For.
+    # Use the leftmost X-Forwarded-For entry when present (set by ALB).
+    xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    source_ip = xff or (request.client.host if request.client else "unknown")
+    if not forgot_password_limiter.check_and_record(source_ip):
+        logger.info(
+            "forgot_password.rate_limited ip=%s",
+            source_ip,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "rate_limited",
+                "message": "Too many password reset attempts. Try again in a few minutes.",
+            },
+        )
 
     users = (await db.execute(
         select(User).where(User.email == body.email)
@@ -553,8 +576,29 @@ async def forgot_password(
         )
         return  # Still 204 — no leak.
 
-    token_value = secrets.token_urlsafe(32)
+    # Per-email cooldown: if a still-unused, still-unexpired token was
+    # minted in the last RESET_COOLDOWN_MINUTES, return 204 WITHOUT minting
+    # another or sending another email. Caller sees the same 204 either way
+    # (preserves the no-leak property) but we don't email-bomb the user or
+    # burn Resend quota on a rapid-fire attacker.
     now = datetime.now(timezone.utc)
+    cooldown_start = now - timedelta(minutes=settings.FORGOT_PASSWORD_COOLDOWN_MINUTES)
+    recent = (await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == users[0].id,
+            PasswordResetToken.created_at > cooldown_start,
+            PasswordResetToken.used_at.is_(None),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if recent is not None:
+        logger.info(
+            "forgot_password.cooldown_hit email=%s last_token_at=%s",
+            (body.email[:3] + "***") if body.email else "?",
+            recent.created_at.isoformat() if recent.created_at else "?",
+        )
+        return  # Still 204 — no email sent, no new token row.
+
+    token_value = secrets.token_urlsafe(32)
     db.add(PasswordResetToken(
         user_id=users[0].id,
         token=token_value,
