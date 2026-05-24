@@ -102,20 +102,55 @@ async def test_acquire_honours_ttl_seconds_override(
     db_session: AsyncSession, seeded_company
 ):
     """When ttl_seconds is passed, expires_at = now + that value (not the
-    default SCHEDULE_LOCK_TTL_SECONDS)."""
+    default SCHEDULE_LOCK_TTL_SECONDS). Uses 15 to match the production
+    LOCAL generate value."""
     before = datetime.now(timezone.utc)
     lock = await acquire(
         db_session,
         company_id=seeded_company.company_id,
         user_id=seeded_company.manager_user_id,
         operation="generate",
-        ttl_seconds=30,
+        ttl_seconds=15,
     )
     exp = lock.expires_at
     if exp.tzinfo is None:
         exp = exp.replace(tzinfo=timezone.utc)
     delta = (exp - before).total_seconds()
-    assert 28 <= delta <= 32, f"expected ~30s TTL, got {delta:.1f}s"
+    assert 13 <= delta <= 17, f"expected ~15s TTL, got {delta:.1f}s"
+
+
+@pytest.mark.asyncio
+async def test_acquire_honours_ai_ttl_value(
+    db_session: AsyncSession, seeded_company
+):
+    """Symmetric test for the AI value (80s) so any future regression on
+    either setting flips one of these two tests."""
+    before = datetime.now(timezone.utc)
+    lock = await acquire(
+        db_session,
+        company_id=seeded_company.company_id,
+        user_id=seeded_company.manager_user_id,
+        operation="generate",
+        ttl_seconds=80,
+    )
+    exp = lock.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    delta = (exp - before).total_seconds()
+    assert 78 <= delta <= 82, f"expected ~80s TTL, got {delta:.1f}s"
+
+
+def test_production_ttl_values_match_documented_choices():
+    """Pin the production TTL values so future tuning is intentional.
+
+    AI=80 covers single-location Anthropic p99; LOCAL=15 is a safety margin
+    over sub-second local computation; default=300 is for approve and any
+    future caller that doesn't pass an explicit TTL.
+    """
+    from backend.config import settings
+    assert settings.SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS == 80
+    assert settings.SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS == 15
+    assert settings.SCHEDULE_LOCK_TTL_SECONDS == 300
 
 
 @pytest.mark.asyncio

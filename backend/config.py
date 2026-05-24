@@ -91,15 +91,16 @@ class Settings(BaseSettings):
     #     non-generate caller. Approve is sub-second, so anything > a few
     #     seconds is safe; 5 min was historical and remains the safe default.
     # SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS    — generate in AI mode. One
-    #     Anthropic Claude call per location at ~30-90s; 3-location runs
-    #     can hit ~150s. 90 covers the single-location case; tune higher if
-    #     monitoring shows multi-location runs hitting the cap.
+    #     Anthropic Claude call per location at ~30-80s typical. 80 covers
+    #     the single-location p99; tune higher if monitoring shows
+    #     multi-location runs hitting the cap.
     # SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS — generate in local mode. Pure
-    #     Python computation, usually completes well under 1s. 30s is a
-    #     generous safety margin.
+    #     Python computation, usually completes well under 1s. 15s is a
+    #     comfortable safety margin while keeping dead-browser recovery
+    #     quick.
     SCHEDULE_LOCK_TTL_SECONDS: int = 300
-    SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS: int = 90
-    SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS: int = 30
+    SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS: int = 80
+    SCHEDULE_LOCK_TTL_LOCAL_GENERATE_SECONDS: int = 15
 
     # Monitoring
     MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval
