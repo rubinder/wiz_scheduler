@@ -13,85 +13,105 @@ from backend.models import ShiftTemplate
 _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-def _format_time(t: time) -> str:
-    """Render as HH:MM:SS to match the format already stored in weekly_schedule."""
-    return t.strftime("%H:%M:%S")
+def _format_hhmm(t: time) -> str:
+    """Render as HH:MM to match the format used by the seed / production
+    weekly_schedule flat entries (the ShiftTemplates UI renderer expects this
+    exact shape)."""
+    return t.strftime("%H:%M")
 
 
-def _extract_roles_for_dow(
+def _flat_entries_for_dow(
     src_days: list[dict], target_dow: int
 ) -> list[dict]:
-    """Return the list of role-requirement dicts that should drive the clone's
-    one-day entry, regardless of which storage shape `src_days` is in.
+    """Return a list of flat per-role entries (one per role) that should
+    populate the clone's weekly_schedule for ``target_dow``.
 
-    Two shapes exist in production:
+    The output shape matches the legacy / production shape that every other
+    ShiftTemplate row uses and that the ``/manager/shift-templates`` UI knows
+    how to render:
 
-    (a) **Dow-grouped** (`clone_template_for_date` and the design spec):
-        ``[{"day_of_week": int, "roles": [{role_id, role_name, ...}, ...]}, ...]``
+    ``[{"day": "Thursday", "role_id": "r1", "role_name": "Server",
+        "headcount": 3, "start_time": "10:00", "end_time": "13:00"}, ...]``
 
-    (b) **Flat list** (the legacy/seed shape — every existing customer):
+    The input can be in EITHER shape:
+
+    (a) Legacy / production flat list:
         ``[{"day": "Monday", "role_id": ..., "role_name": ..., "headcount": N,
             "start_time": "HH:MM", "end_time": "HH:MM"}, ...]``
+        → matching entries by ``day == day_name(target_dow)`` are taken as-is.
 
-    For (b), we group by day name and return entries for the target dow
-    converted into the dow-grouped role shape (so the clone's
-    ``weekly_schedule[0].roles`` is uniform with shape (a)).
+    (b) Dow-grouped (the shape introduced by an earlier iteration of this
+        helper, still valid for any externally-built templates):
+        ``[{"day_of_week": int, "roles": [{role_id, role_name, ...}, ...]}, ...]``
+        → roles for ``day_of_week == target_dow`` are unrolled into flat entries.
 
-    Fallback: if no entry matches the target dow, return the first non-empty
-    day's roles. Manager can edit the clone afterwards.
+    Fallback if the target dow has no entries: pick the busiest day (by entry
+    count for flat shape, or any roles-bearing entry for dow-grouped shape).
+    The manager can edit the clone afterwards.
     """
-    matching_dow_grouped = next(
-        (copy.deepcopy(d) for d in src_days
-         if isinstance(d, dict) and d.get("day_of_week") == target_dow),
-        None,
-    )
-    if matching_dow_grouped is not None and matching_dow_grouped.get("roles"):
-        return matching_dow_grouped["roles"]
-
     target_day_name = _DAY_NAMES[target_dow]
-    flat_for_target = [
+
+    # Shape (a) — direct match by day name.
+    flat_match = [
         copy.deepcopy(d) for d in src_days
         if isinstance(d, dict) and d.get("day") == target_day_name
     ]
-    if flat_for_target:
-        return [
-            {
-                "role_id": e.get("role_id"),
-                "role_name": e.get("role_name"),
-                "required_headcount": e.get("required_headcount", e.get("headcount", 1)),
-                "start_time": e.get("start_time"),
-                "end_time": e.get("end_time"),
-            }
-            for e in flat_for_target
-        ]
+    if flat_match:
+        return [_flat_from_legacy(e, target_day_name) for e in flat_match]
 
-    fallback_dow_grouped = next(
+    # Shape (b) — dow-grouped match.
+    dow_match = next(
         (copy.deepcopy(d) for d in src_days
-         if isinstance(d, dict) and d.get("roles")),
+         if isinstance(d, dict) and d.get("day_of_week") == target_dow
+         and d.get("roles")),
         None,
     )
-    if fallback_dow_grouped is not None:
-        return fallback_dow_grouped["roles"]
+    if dow_match is not None:
+        return [_flat_from_dow_role(r, target_day_name) for r in dow_match["roles"]]
 
-    # Fallback to the flat shape: take whichever day has the most entries.
+    # Fallback (a) — busiest day in the legacy shape.
     flat_by_day: dict[str, list[dict]] = {}
     for d in src_days:
         if isinstance(d, dict) and d.get("day"):
             flat_by_day.setdefault(d["day"], []).append(copy.deepcopy(d))
     if flat_by_day:
         best_day = max(flat_by_day, key=lambda k: len(flat_by_day[k]))
-        return [
-            {
-                "role_id": e.get("role_id"),
-                "role_name": e.get("role_name"),
-                "required_headcount": e.get("required_headcount", e.get("headcount", 1)),
-                "start_time": e.get("start_time"),
-                "end_time": e.get("end_time"),
-            }
-            for e in flat_by_day[best_day]
-        ]
+        return [_flat_from_legacy(e, target_day_name) for e in flat_by_day[best_day]]
+
+    # Fallback (b) — any roles-bearing dow-grouped entry.
+    fallback_dow = next(
+        (copy.deepcopy(d) for d in src_days
+         if isinstance(d, dict) and d.get("roles")),
+        None,
+    )
+    if fallback_dow is not None:
+        return [_flat_from_dow_role(r, target_day_name) for r in fallback_dow["roles"]]
 
     return []
+
+
+def _flat_from_legacy(e: dict, day_name: str) -> dict:
+    """Copy a legacy flat-shape entry, normalising the ``day`` to the target."""
+    return {
+        "day": day_name,
+        "role_id": e.get("role_id"),
+        "role_name": e.get("role_name"),
+        "headcount": e.get("headcount", e.get("required_headcount", 1)),
+        "start_time": e.get("start_time"),
+        "end_time": e.get("end_time"),
+    }
+
+
+def _flat_from_dow_role(r: dict, day_name: str) -> dict:
+    """Convert a dow-grouped role dict into the legacy flat-shape entry."""
+    return {
+        "day": day_name,
+        "role_id": r.get("role_id"),
+        "role_name": r.get("role_name"),
+        "headcount": r.get("headcount", r.get("required_headcount", 1)),
+        "start_time": r.get("start_time"),
+        "end_time": r.get("end_time"),
+    }
 
 
 async def clone_template_for_date(
@@ -103,33 +123,35 @@ async def clone_template_for_date(
     close_time: time,
     label: str | None,
 ) -> ShiftTemplate:
-    """Clone `source` into a single-day variant for `target_date`.
+    """Clone ``source`` into a single-day variant for ``target_date``.
 
-    - The clone's `weekly_schedule` is a 1-element list whose `day_of_week`
-      is `target_date.weekday()`.
-    - Roles are copied from the source — handling both the dow-grouped shape
-      and the legacy flat-list shape (see `_extract_roles_for_dow`).
-    - Every role's `start_time` / `end_time` is replaced with the special
-      open / close.
-    - `name = f"{source.name} — {label or target_date.isoformat()}"`.
-    - `specific_date` is set on the clone.
-    - The clone is added to the session and flushed (so callers see an `id`).
+    - The clone's ``weekly_schedule`` uses the **legacy flat-list shape** so
+      the ``/manager/shift-templates`` UI renderer (which expects that shape)
+      can display the clone alongside the recurring templates.
+    - Roles are copied from the source via ``_flat_entries_for_dow``, which
+      handles both the legacy flat shape and the dow-grouped shape on input.
+    - Every entry's ``start_time`` / ``end_time`` is replaced with the
+      special open / close in ``HH:MM`` format.
+    - ``name = f"{source.name} — {label or target_date.isoformat()}"``.
+    - ``specific_date`` is set on the clone — this is the load-bearing
+      column the scheduler's per-day resolver uses to pick the override.
+    - The clone is added to the session and flushed (so callers see an ``id``).
     """
     target_dow = target_date.weekday()
     src_days = source.weekly_schedule or []
-    roles = _extract_roles_for_dow(src_days, target_dow)
+    entries = _flat_entries_for_dow(src_days, target_dow)
 
-    open_str = _format_time(open_time)
-    close_str = _format_time(close_time)
-    for role in roles:
-        role["start_time"] = open_str
-        role["end_time"] = close_str
+    open_str = _format_hhmm(open_time)
+    close_str = _format_hhmm(close_time)
+    for e in entries:
+        e["start_time"] = open_str
+        e["end_time"] = close_str
 
     clone = ShiftTemplate(
         company_id=source.company_id,
         location_id=source.location_id,
         name=f"{source.name} — {label or target_date.isoformat()}",
-        weekly_schedule=[{"day_of_week": target_dow, "roles": roles}],
+        weekly_schedule=entries,
         specific_date=target_date,
     )
     db.add(clone)

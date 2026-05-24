@@ -188,10 +188,15 @@ async def test_put_updates_times_and_propagates_to_template(
     tmpl = (await db_session.execute(
         select(ShiftTemplate).where(ShiftTemplate.id == tmpl_id)
     )).scalar_one()
-    roles = tmpl.weekly_schedule[0]["roles"]
-    assert len(roles) == 1
-    assert roles[0]["start_time"] == "10:00:00"
-    assert roles[0]["end_time"] == "13:00:00"
+    # Clone uses the legacy flat-list shape so the ShiftTemplates UI can
+    # render it. After PUT, every entry's start/end is updated to the new
+    # open/close in HH:MM format.
+    entries = tmpl.weekly_schedule
+    assert len(entries) == 1
+    assert entries[0]["day"] == "Thursday"
+    assert entries[0]["role_name"] == "Server"
+    assert entries[0]["start_time"] == "10:00"
+    assert entries[0]["end_time"] == "13:00"
 
 
 @pytest.mark.asyncio

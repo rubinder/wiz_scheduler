@@ -209,12 +209,24 @@ async def update_special_hours_day(
         if date_changed:
             tmpl.specific_date = row.date
         if times_changed and tmpl.weekly_schedule:
-            day0 = tmpl.weekly_schedule[0]
-            open_str = row.open_time.strftime("%H:%M:%S")
-            close_str = row.close_time.strftime("%H:%M:%S")
-            for r in day0.get("roles", []):
-                r["start_time"] = open_str
-                r["end_time"] = close_str
+            # Clones are stored in the legacy flat-list shape
+            #   [{"day": "Thursday", "role_id": ..., "start_time": "HH:MM", ...}, ...]
+            # so the ShiftTemplates UI renderer can display them. Update every
+            # entry's start/end. For belt-and-braces, also patch the (now
+            # legacy) dow-grouped shape in case a clone predates the shape
+            # consolidation.
+            open_str = row.open_time.strftime("%H:%M")
+            close_str = row.close_time.strftime("%H:%M")
+            for entry in tmpl.weekly_schedule:
+                if not isinstance(entry, dict):
+                    continue
+                if "roles" in entry:  # dow-grouped legacy shape
+                    for r in entry.get("roles", []):
+                        r["start_time"] = open_str
+                        r["end_time"] = close_str
+                else:  # flat shape (current)
+                    entry["start_time"] = open_str
+                    entry["end_time"] = close_str
             from sqlalchemy.orm.attributes import flag_modified
             flag_modified(tmpl, "weekly_schedule")
 
