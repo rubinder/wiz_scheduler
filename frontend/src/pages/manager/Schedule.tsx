@@ -1316,6 +1316,50 @@ export default function Schedule() {
         </div>
       )}
 
+      {specialHours.length > 0 && (
+        <div className={`mb-6 glass-card p-4`}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={`text-sm font-semibold ${text.heading}`}>
+              ★ {t.specialHours.schedulePreviewTitle}
+            </h3>
+          </div>
+          <p className={`text-xs ${text.muted} mb-3`}>
+            {t.specialHours.schedulePreviewHelp}
+          </p>
+          <div className="space-y-1">
+            {Object.entries(
+              specialHours.reduce<Record<string, SpecialHoursDay[]>>((acc, sh) => {
+                (acc[sh.location_id] ??= []).push(sh);
+                return acc;
+              }, {}),
+            )
+              .map(([loc_id, rows]) => {
+                const loc = locations.find((l) => l.id === loc_id);
+                const name = loc?.name ?? loc_id.slice(0, 8);
+                rows.sort((a, b) => a.date.localeCompare(b.date));
+                return (
+                  <div key={loc_id} className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs font-medium ${text.body} min-w-[140px]`}>
+                      {name}
+                    </span>
+                    {rows.map((sh) => (
+                      <span
+                        key={sh.id}
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-900"
+                        title={`${sh.label ?? t.specialHours.scheduleBadge} · ${fmtHM(sh.open_time)}–${fmtHM(sh.close_time)} on ${sh.date}`}
+                      >
+                        ★ {sh.label ?? t.specialHours.scheduleBadge} ·{" "}
+                        {fmtHM(sh.open_time)}–{fmtHM(sh.close_time)} ·{" "}
+                        {sh.date}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         {results.map((locationResult) => {
           const isApproved = approvedLocations.has(

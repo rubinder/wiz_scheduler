@@ -266,6 +266,8 @@ const bn = {
     noRecurringTemplate: "{location} has no recurring template — create one before adding special hours.",
     closeAfterOpen: "Close time must be after open time.",
     scheduleBadge: "Special hours",
+    schedulePreviewTitle: "Special hours in this week",
+    schedulePreviewHelp: "The scheduler will apply the linked override template on each of these days.",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
     editTitle: "Edit special hours",
