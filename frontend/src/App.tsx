@@ -24,6 +24,7 @@ import DayBlackouts from "./pages/manager/DayBlackouts";
 import ExportSchedules from "./pages/manager/ExportSchedules";
 import HourRestrictions from "./pages/manager/HourRestrictions";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
+import SpecialHours from "./pages/manager/SpecialHours";
 import Team from "./pages/manager/Team";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="employee-availability" element={<EmployeeAvailability />} />
           <Route path="employee-association" element={<EmployeeAssociation />} />
           <Route path="shift-templates" element={<ShiftTemplates />} />
+          <Route path="special-hours" element={<SpecialHours />} />
           <Route path="schedule" element={<Schedule />} />
           <Route path="export-schedules" element={<ExportSchedules />} />
           <Route path="data-privacy" element={<ManagerDataPrivacy />} />

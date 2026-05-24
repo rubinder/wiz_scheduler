@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -18,5 +20,6 @@ class ShiftTemplateResponse(BaseModel):
     location_id: str
     name: str
     weekly_schedule: list[dict]
+    specific_date: date | None = None
 
     model_config = {"from_attributes": True}

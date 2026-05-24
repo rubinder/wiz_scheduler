@@ -183,6 +183,7 @@ export interface ShiftTemplate {
   location_id: string;
   name: string;
   weekly_schedule: Record<string, unknown>[];
+  specific_date: string | null;
 }
 
 // ── Schedule ──
@@ -292,4 +293,18 @@ export interface ManagerInviteInfo {
   group_name: string;
   expired: boolean;
   companies: { id: string; name: string }[];
+}
+
+// ── Special Hours ──
+
+export interface SpecialHoursDay {
+  id: string;
+  company_id: string;
+  location_id: string;
+  date: string;          // YYYY-MM-DD
+  open_time: string;     // HH:MM:SS
+  close_time: string;    // HH:MM:SS
+  label: string | null;
+  shift_template_id: string | null;
+  created_at: string;
 }

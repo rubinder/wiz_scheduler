@@ -16,6 +16,7 @@ const baseManagerLinks: NavItem[] = [
   { to: "/manager/team", labelKey: "team" },
   { to: "/manager/regions", labelKey: "regions" },
   { to: "/manager/locations", labelKey: "locations" },
+  { to: "/manager/special-hours", labelKey: "specialHours" },
   { to: "/manager/roles", labelKey: "roles" },
   { to: "/manager/role-equivalents", labelKey: "roleEquivalents" },
   { to: "/manager/employees", labelKey: "employees" },

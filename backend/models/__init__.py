@@ -18,6 +18,7 @@ from backend.models.billing_charge import BillingCharge
 from backend.models.manager_invite import ManagerInvite
 from backend.models.password_reset_token import PasswordResetToken
 from backend.models.schedule_lock import ScheduleLock
+from backend.models.special_hours_day import SpecialHoursDay
 
 __all__ = [
     "OwnershipGroup",
@@ -48,4 +49,5 @@ __all__ = [
     "ManagerInvite",
     "PasswordResetToken",
     "ScheduleLock",
+    "SpecialHoursDay",
 ]

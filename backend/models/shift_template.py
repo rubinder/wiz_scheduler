@@ -1,4 +1,5 @@
-from sqlalchemy import ForeignKey, String
+from datetime import date
+from sqlalchemy import Date, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,3 +21,4 @@ class ShiftTemplate(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     weekly_schedule: Mapped[dict] = mapped_column(JSON, nullable=False)
+    specific_date: Mapped[date | None] = mapped_column(Date, nullable=True)

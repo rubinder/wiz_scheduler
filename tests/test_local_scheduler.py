@@ -37,9 +37,16 @@ def _make_state(
     week_start_date: str = "2026-03-30",  # Monday
     location_id: str = "loc00001",
     location_name: str = "Test Location",
-    timezone: str = "America/New_York",
+    timezone: str = "UTC",
 ) -> SchedulingState:
-    """Construct a minimal SchedulingState for local_schedule."""
+    """Construct a minimal SchedulingState for local_schedule.
+
+    Default timezone is UTC so the existing test data — which pairs naive
+    template slot times (e.g. "09:00") with availability ISO strings in
+    UTC (e.g. "2026-03-30T09:00:00+00:00") — converts to the same hours
+    in either direction. Tests that care about timezone correctness
+    override this explicitly.
+    """
     location = {"id": location_id, "name": location_name, "timezone": timezone}
     shift_template = {
         "id": "tmpl0001",

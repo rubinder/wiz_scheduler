@@ -1,8 +1,11 @@
 import type { ShiftTemplate } from "../types";
 import { apiFetch } from "./client";
 
-export function listShiftTemplates(): Promise<ShiftTemplate[]> {
-  return apiFetch<ShiftTemplate[]>("/shift-templates/");
+export function listShiftTemplates(
+  includeOverrides: boolean = false,
+): Promise<ShiftTemplate[]> {
+  const qs = includeOverrides ? "?include_overrides=true" : "";
+  return apiFetch<ShiftTemplate[]>(`/shift-templates/${qs}`);
 }
 
 export function createShiftTemplate(body: {

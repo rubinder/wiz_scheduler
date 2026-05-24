@@ -34,7 +34,11 @@ class SchedulingState(TypedDict):
     company_id: str
     week_start_date: str
     locations: List[dict]
-    shift_templates: dict        # keyed by location_id
+    # location_id -> fused ShiftTemplate dict (day-name keyed weekly_schedule).
+    # Built by graph._load_initial_state using resolve_templates_for_week so
+    # that specific-date override templates supplant the recurring template on
+    # the matching calendar dates within the schedule window.
+    shift_templates: dict
     employees: List[dict]
     availability_draft: dict     # employee_id -> list of consumed {"start": str, "end": str}
     current_location_index: int

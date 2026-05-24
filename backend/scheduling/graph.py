@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List
 
 from langgraph.graph import END, StateGraph
@@ -28,6 +28,89 @@ from backend.scheduling.nodes import (
     validate_and_update_availability,
 )
 from backend.scheduling.state import FailureEntry, LocationResult, SchedulingState
+from backend.scheduling.template_resolver import (
+    LocationMissingTemplate,
+    resolve_templates_for_week,
+)
+
+
+_DAY_NAMES = [
+    "Monday", "Tuesday", "Wednesday", "Thursday",
+    "Friday", "Saturday", "Sunday",
+]
+
+
+def _hhmm(value: Any) -> str:
+    """Coerce a stored time string ('HH:MM' or 'HH:MM:SS') to 'HH:MM'."""
+    if not isinstance(value, str) or len(value) < 5:
+        return str(value or "")
+    return value[:5]
+
+
+def _normalize_template_slots_for_dow(
+    weekly_schedule_raw: Any,
+    target_dow: int,
+    role_map: Dict[str, str],
+) -> List[Dict[str, Any]]:
+    """Extract the slot list for *target_dow* from a ShiftTemplate.weekly_schedule.
+
+    Handles three storage shapes seen in the codebase:
+      1. Legacy flat list of per-day slots:
+         [{"day": "Monday", "role_name": "...", "role_id": "...",
+           "headcount": N, "start_time": "HH:MM", "end_time": "HH:MM"}, ...]
+      2. Legacy dict keyed by day name:
+         {"Monday": [{...slot...}, ...], ...}
+      3. New per-dow shape (used by clone_template_for_date for specific-date
+         overrides and by future UI saves):
+         [{"day_of_week": int, "roles": [{"role_name": "...", "role_id": "...",
+           "headcount": N, "start_time": "HH:MM:SS", "end_time": "HH:MM:SS"}]}]
+
+    Returns the canonical list-of-slots in the legacy slot shape that the rest
+    of the scheduling pipeline already understands.
+    """
+    day_name = _DAY_NAMES[target_dow % 7]
+    raw_slots: List[Dict[str, Any]] = []
+
+    if isinstance(weekly_schedule_raw, list):
+        # Distinguish shape (3) from shape (1): shape (3) entries have
+        # "day_of_week" + "roles"; shape (1) entries have "day" + flat fields.
+        if weekly_schedule_raw and isinstance(weekly_schedule_raw[0], dict) and (
+            "day_of_week" in weekly_schedule_raw[0]
+            or "roles" in weekly_schedule_raw[0]
+        ):
+            for entry in weekly_schedule_raw:
+                if entry.get("day_of_week") != target_dow:
+                    continue
+                for role in entry.get("roles", []) or []:
+                    raw_slots.append({
+                        "role_name": role.get("role_name", ""),
+                        "role_id": role.get("role_id", ""),
+                        "headcount": role.get("headcount", 1),
+                        "start_time": _hhmm(role.get("start_time", "")),
+                        "end_time": _hhmm(role.get("end_time", "")),
+                    })
+        else:
+            for slot in weekly_schedule_raw:
+                if slot.get("day") != day_name:
+                    continue
+                raw_slots.append(dict(slot))
+    elif isinstance(weekly_schedule_raw, dict):
+        for slot in weekly_schedule_raw.get(day_name, []) or []:
+            raw_slots.append(dict(slot))
+
+    # Enrich each slot with role_name from the role_map if missing.
+    enriched: List[Dict[str, Any]] = []
+    for slot in raw_slots:
+        rid = slot.get("role_id", "")
+        if rid and rid in role_map and not slot.get("role_name"):
+            slot["role_name"] = role_map[rid]
+        # Normalise time fields (some shapes use HH:MM:SS).
+        if "start_time" in slot:
+            slot["start_time"] = _hhmm(slot["start_time"])
+        if "end_time" in slot:
+            slot["end_time"] = _hhmm(slot["end_time"])
+        enriched.append(slot)
+    return enriched
 
 
 def _should_retry_or_emit(state: SchedulingState) -> str:
@@ -186,53 +269,109 @@ async def _load_initial_state(
     # that reference condensed role IDs resolve to a name
     role_map.update(condensed_role_name_map)
 
-    # Load shift templates, optionally filtered by template_ids
-    st_query = select(ShiftTemplate).where(ShiftTemplate.company_id == company_id)
+    # Determine which locations need scheduling.
+    #
+    # The legacy behaviour drove this from ShiftTemplate.id matches against
+    # template_ids. Per-day templates change that: a manager selects
+    # *recurring* templates (one per location to schedule) and the resolver
+    # picks specific_date overrides automatically. So we resolve "locations to
+    # schedule" from the recurring templates that match template_ids (or all
+    # recurring templates if none provided), then call resolve_templates_for_
+    # week per location to fuse in any overrides.
+    recurring_q = select(ShiftTemplate).where(
+        ShiftTemplate.company_id == company_id,
+        ShiftTemplate.specific_date.is_(None),
+    )
     if template_ids:
-        st_query = st_query.where(ShiftTemplate.id.in_(template_ids))
-    st_result = await db.execute(st_query)
-    templates_orm = st_result.scalars().all()
+        recurring_q = recurring_q.where(ShiftTemplate.id.in_(template_ids))
+    recurring_rows = (await db.execute(recurring_q)).scalars().all()
 
-    shift_templates: Dict[str, Dict[str, Any]] = {}
-    selected_location_ids: set[str] = set()
-    for tmpl in templates_orm:
+    # Build the list of dates in the schedule window once; we'll use it per
+    # location for resolver lookups and per-day fusion.
+    week_start_d = date_type.fromisoformat(week_start_date)
+    week_dates: List[date_type] = [
+        week_start_d + timedelta(days=i) for i in range(num_days)
+    ]
+
+    # Group recurring template ids per location. Each location should normally
+    # have at most one selected recurring template, but the resolver picks the
+    # first deterministically if there are several.
+    location_to_template_ids: Dict[str, List[str]] = {}
+    for tmpl in recurring_rows:
         loc_id = str(tmpl.location_id)
-        selected_location_ids.add(loc_id)
-        weekly_schedule_raw = tmpl.weekly_schedule or {}
+        location_to_template_ids.setdefault(loc_id, []).append(str(tmpl.id))
 
-        # Normalize weekly_schedule to {day: [slots]} dict.
-        # It may be stored as either:
-        #   - a dict keyed by day name: {"Monday": [{...}, ...], ...}
-        #   - a flat list with "day" field:  [{"day": "Monday", ...}, ...]
-        if isinstance(weekly_schedule_raw, list):
-            weekly_schedule: Dict[str, List[Dict[str, Any]]] = {}
-            for slot in weekly_schedule_raw:
-                day = slot.get("day", "")
-                if day:
-                    weekly_schedule.setdefault(day, []).append(slot)
-        else:
-            weekly_schedule = dict(weekly_schedule_raw)
+    selected_location_ids: set[str] = set(location_to_template_ids.keys())
 
-        # Enrich weekly_schedule slots with role_name from the role lookup
-        enriched_schedule: Dict[str, List[Dict[str, Any]]] = {}
-        for day, slots in weekly_schedule.items():
-            enriched_slots: List[Dict[str, Any]] = []
-            for slot in slots:
-                enriched_slot = dict(slot)
-                rid = enriched_slot.get("role_id", "")
-                if rid and rid in role_map and "role_name" not in enriched_slot:
-                    enriched_slot["role_name"] = role_map[rid]
-                enriched_slots.append(enriched_slot)
-            enriched_schedule[day] = enriched_slots
+    pipeline_errors: List[str] = []
+    pipeline_failure_entries: List[Dict[str, Any]] = []
+    shift_templates: Dict[str, Dict[str, Any]] = {}
+
+    for loc_id, tmpl_ids in location_to_template_ids.items():
+        try:
+            per_date_templates = await resolve_templates_for_week(
+                db,
+                location_id=loc_id,
+                week_dates=week_dates,
+                selected_template_ids=tmpl_ids,
+            )
+        except LocationMissingTemplate as exc:
+            error_msg = (
+                f"TEMPLATE_RESOLVE_ERROR for location {loc_id}: "
+                f"{exc}"
+            )
+            pipeline_errors.append(error_msg)
+            pipeline_failure_entries.append({
+                "category": "SCHEDULING",
+                "severity": "error",
+                "source": "scheduling.graph._load_initial_state",
+                "message": error_msg,
+                "detail": {
+                    "location_id": loc_id,
+                    "missing_date": exc.missing_date.isoformat(),
+                },
+            })
+            # Skip this location entirely — drop it from the selection set so
+            # the locations query below doesn't include it.
+            selected_location_ids.discard(loc_id)
+            continue
+
+        # Fuse the per-date templates into a single day-name-keyed
+        # weekly_schedule. Because the schedule window contains at most one
+        # date per day-of-week (num_days <= 7 by convention), each day-name
+        # slot comes from whichever template the resolver chose for that date.
+        fused_weekly: Dict[str, List[Dict[str, Any]]] = {}
+        # Track which templates contributed so we can record their ids in the
+        # fused header (used for diagnostics and id_to_name fallback).
+        contributing_ids: List[str] = []
+        contributing_names: List[str] = []
+        for d in week_dates:
+            tmpl = per_date_templates[d]
+            tmpl_id = str(tmpl.id)
+            if tmpl_id not in contributing_ids:
+                contributing_ids.append(tmpl_id)
+                contributing_names.append(tmpl.name)
+            day_name = _DAY_NAMES[d.weekday()]
+            slots = _normalize_template_slots_for_dow(
+                tmpl.weekly_schedule, d.weekday(), role_map,
+            )
+            # If multiple dates in the window resolve to the same day-name
+            # (e.g. num_days > 7), the later date wins. This matches existing
+            # day-name-keyed semantics and is the same constraint pre-existing
+            # downstream code already assumed.
+            fused_weekly[day_name] = slots
 
         shift_templates[loc_id] = {
-            "id": str(tmpl.id),
-            "name": tmpl.name,
+            "id": contributing_ids[0] if contributing_ids else "",
+            "name": contributing_names[0] if contributing_names else "",
             "location_id": loc_id,
-            "weekly_schedule": enriched_schedule,
+            "weekly_schedule": fused_weekly,
+            # Diagnostic: list of distinct ShiftTemplate ids that contributed
+            # to the fused schedule for this location across the window.
+            "contributing_template_ids": contributing_ids,
         }
 
-    # Load locations — only those that have a selected template
+    # Load locations — only those that have a successfully resolved template
     loc_query = select(Location).where(Location.company_id == company_id)
     if selected_location_ids:
         loc_query = loc_query.where(Location.id.in_(selected_location_ids))
@@ -286,8 +425,6 @@ async def _load_initial_state(
         })
 
     # Load employee availability for the relevant week
-    from datetime import datetime, timedelta, timezone
-
     week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     week_end = week_start + timedelta(days=num_days)
 
@@ -390,7 +527,7 @@ async def _load_initial_state(
         "completed_location_ids": [],
         "retry_count": 0,
         "draft_schedules": [],
-        "errors": [],
+        "errors": list(pipeline_errors),
         "current_prompt": "",
         "current_raw_response": "",
         "current_parsed_shifts": [],
@@ -400,7 +537,7 @@ async def _load_initial_state(
         "current_location": {},
         "current_shift_template": {},
         "current_employees": [],
-        "failure_entries": [],
+        "failure_entries": list(pipeline_failure_entries),
         "role_equivalents": {k: list(v) for k, v in role_equivalents.items()},
         "num_days": num_days,
     }
