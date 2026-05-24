@@ -90,6 +90,17 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 
 **Keeping it current:** After significant code changes, run `/graphify . --update` to incrementally re-extract only changed files. Code-only changes don't need LLM calls (AST-only rebuild).
 
+## Pre-PR refresh hook
+
+`.claude/settings.json` registers a `PreToolUse` hook on `Bash` that fires whenever a command contains `git push` or `gh pr create`. The hook:
+
+1. Runs `code-review-graph update` to refresh the local `.code-review-graph/` index (used by code-review tooling for token-efficient impact analysis).
+2. Prints a reminder to run `/graphify . --update` in-session — the `/graphify` skill can't be invoked from a hook (only Claude can run skills).
+
+**Prereq:** `pip install code-review-graph`. If the CLI isn't installed the hook prints a one-line skip notice and continues — pushing is never blocked.
+
+**Personal overrides** live in `.claude/settings.local.json` (gitignored). The committed `.claude/settings.json` is shared across contributors.
+
 ## Conventions
 
 - **Roles are never hardcoded.** No role name string literal may appear outside `seed.py`. Every role reference must come from the `roles` table.
