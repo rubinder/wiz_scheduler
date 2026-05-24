@@ -20,6 +20,9 @@ from backend.models.manager_invite import ManagerInvite
 from backend.models.password_reset_token import PasswordResetToken
 from backend.models.schedule_lock import ScheduleLock
 from backend.models.special_hours_day import SpecialHoursDay
+from backend.models.og_email_send_log import OgEmailSendLog
+from backend.models.integration_import import IntegrationImport
+from backend.models.gdpr_export_log import GdprExportLog
 
 __all__ = [
     "OwnershipGroup",
@@ -52,4 +55,7 @@ __all__ = [
     "PasswordResetToken",
     "ScheduleLock",
     "SpecialHoursDay",
+    "OgEmailSendLog",
+    "IntegrationImport",
+    "GdprExportLog",
 ]

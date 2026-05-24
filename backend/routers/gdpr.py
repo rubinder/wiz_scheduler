@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,43 @@ async def export_data(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     user_id = current_user.id
+
+    # Per-user cooldown (#45). DB-backed for two reasons: doubles as the
+    # permanent GDPR audit trail (who exported their data, when), and
+    # survives uvicorn restart unlike the in-memory rate limiter.
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    from backend.config import settings as _settings
+    from backend.models.gdpr_export_log import GdprExportLog
+
+    now = _dt.now(_tz.utc)
+    cooldown = _td(minutes=_settings.GDPR_EXPORT_COOLDOWN_MINUTES)
+    recent = (await db.execute(
+        select(GdprExportLog).where(
+            GdprExportLog.user_id == user_id,
+            GdprExportLog.exported_at > now - cooldown,
+        ).order_by(GdprExportLog.exported_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    if recent is not None:
+        recent_at = recent.exported_at
+        if recent_at.tzinfo is None:
+            recent_at = recent_at.replace(tzinfo=_tz.utc)
+        retry_after = int((recent_at + cooldown - now).total_seconds())
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "export_cooldown",
+                "message": (
+                    f"Data export was run "
+                    f"{int((now - recent_at).total_seconds() // 60)} "
+                    f"minutes ago. Wait {max(retry_after // 60, 1)} more "
+                    f"minute(s) and retry."
+                ),
+                "retry_after_seconds": max(retry_after, 1),
+            },
+        )
+
+    db.add(GdprExportLog(user_id=user_id, exported_at=now))
+    await db.commit()
 
     # User profile
     user_data = {

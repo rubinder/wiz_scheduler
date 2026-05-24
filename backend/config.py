@@ -126,6 +126,24 @@ class Settings(BaseSettings):
     # bypasses the write path).
     OG_ANTHROPIC_DAILY_CAP_USD: float = 50.00
 
+    # Quota guards for shared external resources.
+    #
+    # OG_EMAIL_DAILY_CAP — total emails Resend may send for one OG in a
+    #     rolling 24h window. Above this, sender helpers short-circuit
+    #     and log resend.skipped. Caller still gets the normal response
+    #     (no leak about whether the email was actually sent). Protects
+    #     against runaway loops + Resend reputation damage from spiky
+    #     volume.
+    # INTEGRATION_IMPORT_COOLDOWN_MINUTES — minimum gap between two
+    #     bulk imports from the same OG for the same integration
+    #     (7shifts, Deputy). Returns 429 import_cooldown above this.
+    # GDPR_EXPORT_COOLDOWN_MINUTES — minimum gap between two
+    #     /gdpr/export calls by the same user. Returns 429
+    #     export_cooldown above this.
+    OG_EMAIL_DAILY_CAP: int = 200
+    INTEGRATION_IMPORT_COOLDOWN_MINUTES: int = 10
+    GDPR_EXPORT_COOLDOWN_MINUTES: int = 60
+
     # Schedule generation/approval temporal lock.
     #
     # The lock has no heartbeat — once acquired it sits until release() OR

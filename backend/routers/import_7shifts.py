@@ -549,6 +549,12 @@ async def import_from_7shifts(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> ImportResult:
+    # Per-OG cooldown (#44).
+    from backend.services.billing import get_ownership_group_id
+    from backend.services.integration_import_quota import begin_integration_import
+    og_id_for_cooldown = await get_ownership_group_id(db, str(current_user.company_id))
+    await begin_integration_import(db, og_id_for_cooldown, "7shifts")
+
     headers = {
         "Authorization": f"Bearer {body.access_token}",
         "Accept": "application/json",
@@ -828,6 +834,13 @@ async def import_availabilities_from_7shifts(
     db: AsyncSession = Depends(get_db),
 ) -> ImportAvailabilitiesResult:
     """Import employee availabilities from 7shifts for the specified date range."""
+    # Per-OG cooldown (#44). Same integration key as the full import — running
+    # either burns the slot for both, since both hit 7shifts.
+    from backend.services.billing import get_ownership_group_id
+    from backend.services.integration_import_quota import begin_integration_import
+    og_id_for_cooldown = await get_ownership_group_id(db, str(current_user.company_id))
+    await begin_integration_import(db, og_id_for_cooldown, "7shifts")
+
     headers = {
         "Authorization": f"Bearer {body.access_token}",
         "Accept": "application/json",

@@ -163,7 +163,14 @@ async def create_invite(
         if og:
             group_name = og.name
 
-    await _send_invite_email(employee.email, employee.full_name, invite_url, group_name)
+    from backend.services.email_quota import check_and_log_email
+    if await check_and_log_email(
+        db, company.ownership_group_id, "employee_invite",
+    ):
+        await db.commit()
+        await _send_invite_email(employee.email, employee.full_name, invite_url, group_name)
+    else:
+        await db.commit()
 
     return InviteResponse(
         id=invite.id,
