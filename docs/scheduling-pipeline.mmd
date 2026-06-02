@@ -1,0 +1,41 @@
+%%{init: {'theme':'base','themeVariables':{'fontSize':'15px','lineColor':'#64748b','primaryColor':'#eff6ff','primaryBorderColor':'#3b82f6','primaryTextColor':'#0f172a'}}}%%
+flowchart TD
+    START([POST /schedules/generate]) --> INIT["_load_initial_state<br/><i>query DB → SchedulingState</i><br/>roles · condensed roles · templates<br/>employees · availability · blackouts · affinities"]
+    INIT --> COMPILE{{"build_scheduling_graph()<br/>graph.compile() · astream()"}}
+    COMPILE --> LLC
+
+    subgraph LOOP["per-location loop &nbsp;(serial, shares availability_draft)"]
+        direction TB
+        LLC["load_location_context<br/><i>filter employees + availability<br/>against availability_draft</i>"]
+
+        LLC -->|"use_local = False (LLM path)"| BP["build_prompt<br/><i>parameterized, zero hardcoded roles</i>"]
+        BP --> LLM["call_llm<br/><i>Anthropic Claude, tool-use<br/>submit_schedule (streamed)</i>"]
+        LLM --> PARSE["parse_schedule<br/><i>extract JSON shifts · never raises<br/>set PARSE_ERROR on failure</i>"]
+        PARSE --> VS
+
+        LLC -->|"use_local = True (local path)"| LOCAL["local_schedule<br/><i>algorithmic: random /<br/>rotation / rotation_history</i>"]
+        LOCAL --> VS
+
+        VS["validate_schedule<br/><i>known employee · role qualified<br/>time bounds · slot coverage</i>"]
+        VS --> VUA["validate_and_update_availability<br/><i>overlap check vs availability_draft</i>"]
+
+        VUA -->|"conflict & retry_count == 0<br/>(LLM only)"| BP
+        VUA -->|"no conflict → commit windows<br/>or conflict after retry → CONFLICT"| EMIT["emit_result<br/><i>build LocationResult<br/>append to draft_schedules</i>"]
+    end
+
+    EMIT -->|"more locations<br/>(index++)"| LLC
+    EMIT -->|"all done"| DONE([END])
+    DONE --> STREAM["StreamingResponse<br/>application/x-ndjson<br/><i>one line per location</i>"]
+    STREAM --> PERSIST["log_failure_batch<br/>check_and_record_usage<br/>deduct_credits_for_overage"]
+
+    classDef startNode fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    classDef llmNode fill:#fef9c3,stroke:#ca8a04,color:#713f12;
+    classDef localNode fill:#e0e7ff,stroke:#6366f1,color:#312e81;
+    classDef valNode fill:#fee2e2,stroke:#dc2626,color:#7f1d1d;
+    classDef ioNode fill:#cffafe,stroke:#0891b2,color:#164e63;
+
+    class START,DONE startNode;
+    class BP,LLM,PARSE llmNode;
+    class LOCAL localNode;
+    class VS,VUA valNode;
+    class START,STREAM,PERSIST,INIT,COMPILE ioNode;
