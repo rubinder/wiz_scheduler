@@ -186,6 +186,14 @@ resource "aws_ecs_task_definition" "app" {
           name  = "GOOGLE_CLIENT_ID"
           value = var.google_client_id
         },
+        {
+          # Sender for all transactional email. MUST be on a Resend-verified
+          # domain — an unverified domain makes every send throw (see the
+          # placeholder default in backend/config.py). Explicit var.from_email
+          # wins; otherwise derive noreply@<domain_name>.
+          name  = "FROM_EMAIL"
+          value = var.from_email != "" ? var.from_email : (var.domain_name != "" ? "noreply@${var.domain_name}" : "")
+        },
       ]
 
       logConfiguration = {

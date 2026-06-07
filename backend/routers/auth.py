@@ -680,9 +680,10 @@ async def forgot_password(
         return
     await db.commit()
 
-    await send_password_reset_email(body.email, reset_url)
+    sent = await send_password_reset_email(body.email, reset_url)
     logger.info(
-        "forgot_password.email_sent email=%s users_matched=%d",
+        "forgot_password.%s email=%s users_matched=%d",
+        "email_sent" if sent else "email_failed",
         (body.email[:3] + "***") if body.email else "?",
         len(users),
     )
