@@ -12,8 +12,13 @@ def _mask(email: str) -> str:
     return (email[:3] + "***") if email else "?"
 
 
-async def send_password_reset_email(email: str, reset_url: str) -> None:
+async def send_password_reset_email(email: str, reset_url: str) -> bool:
     """Send the password-reset email. No-op when RESEND_API_KEY is unset.
+
+    Returns True only when Resend accepted the send; False on a missing API
+    key or a swallowed send failure (e.g. unverified FROM_EMAIL domain). The
+    caller logs success/failure off this so a broken email pipeline isn't
+    masked as success in the logs.
 
     Mirrors the visual style of the existing manager-invite email
     (backend/services/manager_invite_email.py).
@@ -23,7 +28,7 @@ async def send_password_reset_email(email: str, reset_url: str) -> None:
             "RESEND_API_KEY not set — skipping password-reset email to %s",
             _mask(email),
         )
-        return
+        return False
 
     try:
         import resend
@@ -50,7 +55,9 @@ async def send_password_reset_email(email: str, reset_url: str) -> None:
                 f"</div>"
             ),
         })
+        return True
     except Exception:
         logger.exception(
             "Failed to send password-reset email to %s", _mask(email)
         )
+        return False

@@ -160,6 +160,7 @@ async def test_forgot_password_per_email_cooldown_skips_second_send(
 
     async def fake_send(email: str, reset_url: str):
         sent.append((email, reset_url))
+        return True
 
     monkeypatch.setattr(
         "backend.services.password_reset_email.send_password_reset_email",
@@ -210,7 +211,7 @@ async def test_forgot_password_cooldown_expires_lets_new_token_mint(
     await db_session.commit()
 
     async def fake_send(email: str, reset_url: str):
-        pass
+        return True
     monkeypatch.setattr(
         "backend.services.password_reset_email.send_password_reset_email",
         fake_send,
@@ -272,7 +273,7 @@ async def test_forgot_password_used_token_does_not_block_cooldown(
     await db_session.commit()
 
     async def fake_send(email, reset_url):
-        pass
+        return True
     monkeypatch.setattr(
         "backend.services.password_reset_email.send_password_reset_email",
         fake_send,

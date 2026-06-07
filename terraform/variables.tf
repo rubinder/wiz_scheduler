@@ -70,6 +70,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "from_email" {
+  description = "Sender address for transactional email (Resend). MUST be on a Resend-verified domain or every send fails. Leave empty to derive noreply@<domain_name>."
+  type        = string
+  default     = ""
+}
+
 # --- RDS ---
 
 variable "db_instance_class" {
