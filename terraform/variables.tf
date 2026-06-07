@@ -71,7 +71,11 @@ variable "domain_name" {
 }
 
 variable "from_email" {
-  description = "Sender address for transactional email (Resend). MUST be on a Resend-verified domain or every send fails. Leave empty to derive noreply@<domain_name>."
+  # Supplied in CI via TF_VAR_from_email (see .github/workflows/deploy.yml).
+  # The local terraform.tfvars is gitignored and NOT read by CI, so set it
+  # there — not in tfvars. MUST be on a Resend-verified domain or every send
+  # fails. Leave empty to derive noreply@<domain_name>.
+  description = "Sender address for transactional email (Resend)."
   type        = string
   default     = ""
 }

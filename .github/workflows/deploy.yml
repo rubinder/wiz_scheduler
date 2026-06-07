@@ -119,6 +119,9 @@ jobs:
           # are public; switch to GitHub secrets if a new environment needs
           # different values.
           TF_VAR_domain_name: "wizscheduler.com"
+          # Sender for transactional email. MUST be on a Resend-verified
+          # domain — suggestival.com is verified; wizscheduler.com is not.
+          TF_VAR_from_email: "wizscheduler@suggestival.com"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -193,6 +196,9 @@ jobs:
           # are public; switch to GitHub secrets if a new environment needs
           # different values.
           TF_VAR_domain_name: "wizscheduler.com"
+          # Sender for transactional email. MUST be on a Resend-verified
+          # domain — suggestival.com is verified; wizscheduler.com is not.
+          TF_VAR_from_email: "wizscheduler@suggestival.com"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
