@@ -134,13 +134,19 @@ class Settings(BaseSettings):
     #     (no leak about whether the email was actually sent). Protects
     #     against runaway loops + Resend reputation damage from spiky
     #     volume.
-    # INTEGRATION_IMPORT_COOLDOWN_MINUTES — minimum gap between two
-    #     bulk imports from the same OG for the same integration
-    #     (7shifts, Deputy). Returns 429 import_cooldown above this.
+    # INTEGRATION_IMPORT_BURST — how many bulk imports the same OG may run
+    #     for the same integration (7shifts, Deputy) inside one rolling
+    #     cooldown window before the cooldown applies. The window is a
+    #     sliding INTEGRATION_IMPORT_COOLDOWN_MINUTES; the Nth+1 import
+    #     returns 429 import_cooldown until the oldest of the N ages out.
+    # INTEGRATION_IMPORT_COOLDOWN_MINUTES — length of the rolling window
+    #     over which INTEGRATION_IMPORT_BURST imports are counted. Once the
+    #     burst is exhausted, retry_after counts down to the next free slot.
     # GDPR_EXPORT_COOLDOWN_MINUTES — minimum gap between two
     #     /gdpr/export calls by the same user. Returns 429
     #     export_cooldown above this.
     OG_EMAIL_DAILY_CAP: int = 200
+    INTEGRATION_IMPORT_BURST: int = 10
     INTEGRATION_IMPORT_COOLDOWN_MINUTES: int = 10
     GDPR_EXPORT_COOLDOWN_MINUTES: int = 60
 

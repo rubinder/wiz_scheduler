@@ -20,7 +20,13 @@ async def begin_integration_import(
     integration: str,
     location_id: str | None = None,
 ) -> IntegrationImport | None:
-    """Reserve an import slot, or raise 429 if still inside the cooldown.
+    """Reserve an import slot, or raise 429 once the burst is exhausted.
+
+    Up to ``INTEGRATION_IMPORT_BURST`` imports may run for the same
+    (OG, integration) inside a rolling
+    ``INTEGRATION_IMPORT_COOLDOWN_MINUTES`` window. The next import is
+    blocked with 429 import_cooldown until the oldest of the burst ages
+    out of the window, freeing a slot.
 
     Returns the newly-inserted IntegrationImport row so the caller can
     stamp ``finished_at`` once the import completes (purely for audit;
@@ -38,35 +44,43 @@ async def begin_integration_import(
 
     now = datetime.now(timezone.utc)
     cooldown = timedelta(minutes=settings.INTEGRATION_IMPORT_COOLDOWN_MINUTES)
+    burst = settings.INTEGRATION_IMPORT_BURST
     cutoff = now - cooldown
     recent = (await db.execute(
         select(IntegrationImport).where(
             IntegrationImport.ownership_group_id == ownership_group_id,
             IntegrationImport.integration == integration,
             IntegrationImport.started_at > cutoff,
-        ).order_by(IntegrationImport.started_at.desc()).limit(1)
-    )).scalar_one_or_none()
-    if recent is not None:
+        ).order_by(IntegrationImport.started_at.asc())
+    )).scalars().all()
+    if len(recent) >= burst:
+        # Burst exhausted inside the window. A slot frees when the oldest
+        # of the burst-filling imports ages out, so count retry_after from
+        # that row's start. (If len > burst, index back so that once it
+        # expires the remaining count drops below the burst.)
+        oldest = recent[len(recent) - burst]
         # SQLite returns naive datetimes; PostgreSQL returns aware. Normalize
         # before doing arithmetic so the production+test math agrees.
-        recent_at = recent.started_at
-        if recent_at.tzinfo is None:
-            recent_at = recent_at.replace(tzinfo=timezone.utc)
-        retry_after = int((recent_at + cooldown - now).total_seconds())
+        oldest_at = oldest.started_at
+        if oldest_at.tzinfo is None:
+            oldest_at = oldest_at.replace(tzinfo=timezone.utc)
+        retry_after = int((oldest_at + cooldown - now).total_seconds())
         retry_after = max(retry_after, 1)
         logger.info(
-            "integration_import.cooldown og=%s integration=%s last_at=%s retry_after=%ds",
-            ownership_group_id, integration,
-            recent_at.isoformat(), retry_after,
+            "integration_import.cooldown og=%s integration=%s count=%d/%d "
+            "oldest_at=%s retry_after=%ds",
+            ownership_group_id, integration, len(recent), burst,
+            oldest_at.isoformat(), retry_after,
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "import_cooldown",
                 "message": (
-                    f"This integration import was run "
-                    f"{int((now - recent_at).total_seconds())}s ago. "
-                    f"Wait {retry_after}s and try again."
+                    f"You've run {len(recent)} {integration} imports in the "
+                    f"last {settings.INTEGRATION_IMPORT_COOLDOWN_MINUTES} "
+                    f"minutes (limit {burst}). Wait {retry_after}s and try "
+                    f"again."
                 ),
                 "retry_after_seconds": retry_after,
             },
