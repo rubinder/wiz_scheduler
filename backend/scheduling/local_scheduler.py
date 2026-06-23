@@ -42,7 +42,6 @@ def _build_eligible_map(
     employees: List[Dict[str, Any]],
     weekly_schedule: Dict[str, List[dict]],
     date_to_day: Dict[str, str],
-    location_tz: str | None = None,
 ) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
     """Pre-compute eligible employees for each (day, role_name) slot."""
     required_roles: set[str] = set()
@@ -60,7 +59,6 @@ def _build_eligible_map(
         day_windows = _parse_avail_by_day(
             emp.get("available_windows", []),
             date_to_day,
-            location_tz=location_tz,
         )
         emp_prepared.append({
             **emp,
@@ -139,7 +137,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 role_name_to_id[rname] = rid
 
     eligible_map = _build_eligible_map(
-        employees, weekly_schedule, date_to_day, location_tz=timezone_str,
+        employees, weekly_schedule, date_to_day,
     )
     affinity_lookup = _build_affinity_lookup(employees)
 

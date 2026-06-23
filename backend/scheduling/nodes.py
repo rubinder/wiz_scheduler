@@ -516,10 +516,12 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
         # 3. Availability window check — shift must fall within an available window.
         #    Employees are unavailable by default: a shift is only valid if the
         #    employee has an explicit availability window that covers it.
-        #    Both sides (shift and window) are tz-aware ISO strings. Convert
-        #    both to the location's local timezone before HH:MM compare —
-        #    otherwise UTC-stored avail windows won't match local-stored shift
-        #    times even when they refer to the same wall-clock instant.
+        #    Availability is stored as local wall-clock tagged UTC and shift
+        #    times carry the location offset, but both encode the same naive
+        #    local wall-clock. Compare date + HH:MM directly WITHOUT timezone
+        #    conversion — astimezone()ing the avail window (which only looks
+        #    UTC) would shift it off the template slots and drop every shift
+        #    at non-UTC locations. See tests/test_avail_local_wallclock.py.
         if emp_id in emp_by_id and not issues:
             emp_windows = emp_by_id[emp_id].get("available_windows", [])
             if not emp_windows:
@@ -529,24 +531,15 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                 )
             else:
                 try:
-                    from zoneinfo import ZoneInfo
-                    loc_tz_name = location.get("timezone")
-                    loc_tz = ZoneInfo(loc_tz_name) if loc_tz_name else None
-
-                    def _local(dt: datetime) -> datetime:
-                        if loc_tz is not None and dt.tzinfo is not None:
-                            return dt.astimezone(loc_tz)
-                        return dt
-
-                    shift_start = _local(datetime.fromisoformat(shift["start_time"]))
-                    shift_end = _local(datetime.fromisoformat(shift["end_time"]))
+                    shift_start = datetime.fromisoformat(shift["start_time"])
+                    shift_end = datetime.fromisoformat(shift["end_time"])
                     shift_date_str = shift_start.strftime("%Y-%m-%d")
                     shift_start_hm = shift_start.strftime("%H:%M")
                     shift_end_hm = shift_end.strftime("%H:%M")
                     covered = False
                     for w in emp_windows:
-                        w_start = _local(datetime.fromisoformat(w["start"]))
-                        w_end = _local(datetime.fromisoformat(w["end"]))
+                        w_start = datetime.fromisoformat(w["start"])
+                        w_end = datetime.fromisoformat(w["end"])
                         w_date_str = w_start.strftime("%Y-%m-%d")
                         if w_date_str != shift_date_str:
                             continue
