@@ -46,15 +46,26 @@ async def test_no_og_skips_log_and_succeeds(db_session: AsyncSession):
     assert rows == []
 
 
-async def test_second_call_within_cooldown_returns_429(db_session: AsyncSession):
+async def test_burst_allows_n_calls_then_429(db_session: AsyncSession):
+    """The first INTEGRATION_IMPORT_BURST calls succeed; the next is gated."""
     og_id = await _make_og(db_session)
-    await begin_integration_import(db_session, og_id, "7shifts")
+    for _ in range(settings.INTEGRATION_IMPORT_BURST):
+        row = await begin_integration_import(db_session, og_id, "7shifts")
+        assert row is not None
 
     with pytest.raises(HTTPException) as exc:
         await begin_integration_import(db_session, og_id, "7shifts")
     assert exc.value.status_code == 429
     assert exc.value.detail["code"] == "import_cooldown"
     assert exc.value.detail["retry_after_seconds"] > 0
+
+
+async def test_second_call_within_burst_succeeds(db_session: AsyncSession):
+    """A single follow-up import no longer trips the cooldown (burst > 1)."""
+    og_id = await _make_og(db_session)
+    await begin_integration_import(db_session, og_id, "7shifts")
+    row = await begin_integration_import(db_session, og_id, "7shifts")
+    assert row is not None
 
 
 async def test_different_integrations_have_separate_cooldowns(
