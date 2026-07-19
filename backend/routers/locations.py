@@ -38,6 +38,7 @@ async def create_location(
         address=body.address,
         geo_coord=body.geo_coord,
         timezone=body.timezone,
+        min_rest_hours=body.min_rest_hours,
     )
     db.add(location)
     await db.commit()
@@ -72,6 +73,9 @@ async def update_location(
         location.geo_coord = body.geo_coord
     if body.timezone is not None:
         location.timezone = body.timezone
+    # Nullable + clearable: send {"min_rest_hours": null} to remove the rule.
+    if "min_rest_hours" in body.model_fields_set:
+        location.min_rest_hours = body.min_rest_hours
 
     await db.commit()
     await db.refresh(location)

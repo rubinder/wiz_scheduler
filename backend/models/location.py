@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,3 +23,7 @@ class Location(Base):
     geo_coord: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     timezone: Mapped[str] = mapped_column(String, nullable=False)
     external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Minimum rest (hours) required between an employee's shifts on different
+    # days. NULL = no constraint. Set to 11 for NYC Fair Workweek "clopening"
+    # compliance (fast food). Enforced as a hard constraint by the scheduler.
+    min_rest_hours: Mapped[float | None] = mapped_column(Float, nullable=True)

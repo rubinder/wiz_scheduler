@@ -383,6 +383,7 @@ async def _load_initial_state(
             "name": loc.name,
             "timezone": loc.timezone,
             "address": loc.address,
+            "min_rest_hours": loc.min_rest_hours,
         }
         for loc in locations_orm
     ]
