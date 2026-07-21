@@ -82,6 +82,9 @@ export interface Location {
   address: string | null;
   geo_coord: Record<string, unknown> | null;
   timezone: string;
+  /** Minimum rest hours between shifts on different days (NYC Fair Workweek
+   * clopening rule = 11). null = no constraint. */
+  min_rest_hours: number | null;
 }
 
 // ── Role ──

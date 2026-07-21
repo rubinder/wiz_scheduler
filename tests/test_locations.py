@@ -87,6 +87,43 @@ async def test_create_location_with_address(
     assert resp.json()["address"] == "123 Main St"
 
 
+async def test_create_location_with_min_rest_hours(
+    client: AsyncClient,
+    manager_token: str,
+    seed_region,
+):
+    resp = await client.post(
+        "/api/v1/locations/",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={
+            "region_id": REGION_ID,
+            "name": "NYC Fast Food",
+            "timezone": "America/New_York",
+            "min_rest_hours": 11,
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["min_rest_hours"] == 11
+
+
+async def test_create_location_defaults_min_rest_hours_null(
+    client: AsyncClient,
+    manager_token: str,
+    seed_region,
+):
+    resp = await client.post(
+        "/api/v1/locations/",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={
+            "region_id": REGION_ID,
+            "name": "No Rule Store",
+            "timezone": "UTC",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["min_rest_hours"] is None
+
+
 async def test_create_location_requires_manager(
     client: AsyncClient,
     employee_token: str,
@@ -121,6 +158,30 @@ async def test_update_location(
     )
     assert resp.status_code == 200
     assert resp.json()["name"] == "Renamed Store"
+
+
+async def test_update_location_sets_and_clears_min_rest_hours(
+    client: AsyncClient,
+    manager_token: str,
+    seed_location,
+):
+    # Set the rule
+    resp = await client.put(
+        f"/api/v1/locations/{LOCATION_ID}",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"min_rest_hours": 11},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["min_rest_hours"] == 11
+
+    # Clear it back to null (explicit null must clear, not be ignored)
+    resp = await client.put(
+        f"/api/v1/locations/{LOCATION_ID}",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"min_rest_hours": None},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["min_rest_hours"] is None
 
 
 async def test_update_location_not_found(

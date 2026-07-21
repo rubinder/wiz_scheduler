@@ -6,8 +6,12 @@ import { text, bg, border, action } from "../../theme";
 export interface Column {
   key: string;
   label: string;
-  type: "text" | "select" | "date" | "readonly";
+  type: "text" | "select" | "date" | "readonly" | "number";
   options?: { value: string; label: string }[];
+  /** Optional hover tooltip shown on the column header. */
+  title?: string;
+  /** Placeholder for text/number inputs while editing. */
+  placeholder?: string;
 }
 
 interface DataTableProps {
@@ -97,9 +101,24 @@ export default function DataTable({
       );
     }
 
+    if (col.type === "number") {
+      return (
+        <input
+          type="number"
+          step="any"
+          min="0"
+          placeholder={col.placeholder}
+          className="w-full glass-input-sm"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(col.key, e.target.value)}
+        />
+      );
+    }
+
     return (
       <input
         type={col.type === "date" ? "date" : "text"}
+        placeholder={col.placeholder}
         className="w-full glass-input-sm"
         value={String(value ?? "")}
         onChange={(e) => onChange(col.key, e.target.value)}
@@ -115,6 +134,7 @@ export default function DataTable({
             {columns.map((col) => (
               <th
                 key={col.key}
+                title={col.title}
                 className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
               >
                 {col.label}
