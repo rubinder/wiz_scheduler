@@ -43,9 +43,25 @@ export default function Locations() {
       },
       { key: "address", label: "Address", type: "text" },
       { key: "timezone", label: "Timezone", type: "text" },
+      {
+        key: "min_rest_hours",
+        label: "Min rest (h)",
+        type: "number",
+        placeholder: "e.g. 11",
+        title:
+          "Minimum hours of rest between an employee's shifts on different days. " +
+          "Set 11 for NYC Fair Workweek compliance (no clopenings). Leave blank for no limit.",
+      },
     ],
     [regions]
   );
+
+  // Blank/invalid → null (no constraint); otherwise a non-negative number.
+  const parseMinRest = (val: unknown): number | null => {
+    if (val === null || val === undefined || String(val).trim() === "") return null;
+    const n = Number(val);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
 
   const handleSave = async (idx: number, row: Record<string, unknown>) => {
     try {
@@ -54,6 +70,7 @@ export default function Locations() {
         region_id: row.region_id as string,
         address: (row.address as string) || null,
         timezone: row.timezone as string,
+        min_rest_hours: parseMinRest(row.min_rest_hours),
       });
       await fetchData();
     } catch (err: unknown) {
@@ -83,6 +100,7 @@ export default function Locations() {
         region_id: row.region_id as string,
         address: (row.address as string) || null,
         timezone: (row.timezone as string) || "UTC",
+        min_rest_hours: parseMinRest(row.min_rest_hours),
       });
       await fetchData();
     } catch (err: unknown) {

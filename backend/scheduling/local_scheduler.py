@@ -163,6 +163,16 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
         state.get("employee_weekly_hours_draft", {}) or {}
     )
 
+    # Minimum-rest ("clopening") constraint for this location. NULL = off.
+    # Seed each employee's committed shift windows from prior locations in
+    # this run so rest is enforced across locations, then grow it as we
+    # assign shifts here.
+    min_rest_hours = location.get("min_rest_hours")
+    employee_shift_windows: Dict[str, List[Dict[str, str]]] = {
+        eid: list(windows)
+        for eid, windows in (state.get("availability_draft", {}) or {}).items()
+    }
+
     shifts: List[ShiftAssignment] = []
 
     for day, slots in weekly_schedule.items():
@@ -219,6 +229,24 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 if not available:
                     break
 
+                # Hard minimum-rest ("clopening") constraint. Exclude any
+                # candidate for whom this shift would leave less than
+                # min_rest_hours of rest before/after a shift on a different
+                # day. Unlike the max_hours cap there is no fall-through:
+                # leaving the slot VACANT is preferable to an illegal
+                # (Fair Workweek) clopening.
+                if min_rest_hours:
+                    available = [
+                        c for c in available
+                        if not _min_rest_violation(
+                            start_iso, end_iso,
+                            employee_shift_windows.get(str(c["id"]), []),
+                            min_rest_hours,
+                        )
+                    ]
+                    if not available:
+                        break
+
                 # Apply hard affinity constraints: remove candidates with
                 # -1.0 affinity against anyone already in this shift window
                 current_coworkers = shift_coworkers.get(coworker_key, set())
@@ -257,6 +285,9 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 role_fill_counts[(eid, role_name)] = role_fill_counts.get((eid, role_name), 0) + 1
                 shift_coworkers.setdefault(coworker_key, set()).add(eid)
                 employee_hours[eid] = employee_hours.get(eid, 0.0) + slot_duration
+                employee_shift_windows.setdefault(eid, []).append(
+                    {"start": start_iso, "end": end_iso}
+                )
 
                 candidates = [c for c in candidates if c["id"] != chosen["id"]]
 
@@ -276,6 +307,57 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
         # to double-count this location's hours against the per-employee cap,
         # dropping every shift as "would exceed max_hours_per_week".
     }
+
+
+def _rest_gap_hours(a_start: str, a_end: str, b_start: str, b_end: str) -> float:
+    """Hours of rest between two shifts given as ISO datetime strings.
+
+    Returns the gap between the earlier shift's end and the later shift's
+    start. Zero or negative when the two shifts overlap.
+    """
+    a0 = datetime.fromisoformat(a_start)
+    a1 = datetime.fromisoformat(a_end)
+    b0 = datetime.fromisoformat(b_start)
+    b1 = datetime.fromisoformat(b_end)
+    if a0 <= b0:
+        return (b0 - a1).total_seconds() / 3600.0
+    return (a0 - b1).total_seconds() / 3600.0
+
+
+def _min_rest_violation(
+    start_iso: str,
+    end_iso: str,
+    other_windows: List[Dict[str, str]],
+    min_rest_hours: float | None,
+) -> bool:
+    """True if a shift would leave less than *min_rest_hours* of rest before
+    or after any of *other_windows* on a different calendar day.
+
+    Shifts on the same calendar day are treated as split shifts and are
+    exempt — the clopening rule only concerns rest across a day boundary.
+    NULL/0 *min_rest_hours* disables the check.
+    """
+    if not min_rest_hours or min_rest_hours <= 0:
+        return False
+    try:
+        s0 = datetime.fromisoformat(start_iso)
+    except (ValueError, TypeError):
+        return False
+    for w in other_windows:
+        w_start = w.get("start")
+        w_end = w.get("end")
+        if not w_start or not w_end:
+            continue
+        try:
+            w0 = datetime.fromisoformat(w_start)
+        except (ValueError, TypeError):
+            continue
+        # Same-day split shift → exempt from the cross-day rest rule.
+        if s0.date() == w0.date():
+            continue
+        if _rest_gap_hours(start_iso, end_iso, w_start, w_end) < float(min_rest_hours):
+            return True
+    return False
 
 
 def _shift_duration_hours(start_hm: str, end_hm: str) -> float:

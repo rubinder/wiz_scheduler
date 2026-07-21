@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 import anthropic
 
 from backend.config import settings
+from backend.scheduling.local_scheduler import _min_rest_violation
 from backend.scheduling.prompts import build_schedule_prompt
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
@@ -492,6 +493,17 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
     )
     location_running_hours: Dict[str, float] = {}
 
+    # Minimum-rest ("clopening") enforcement. Seed each employee's committed
+    # shift windows from prior locations in this run (availability_draft holds
+    # only assigned shifts and is updated *after* this node, so it reflects
+    # earlier locations only), then grow it as shifts here are validated so
+    # later shifts in this pass see the accumulated windows.
+    min_rest_hours = location.get("min_rest_hours")
+    rest_windows: Dict[str, List[Dict[str, str]]] = {
+        eid: list(windows)
+        for eid, windows in (state.get("availability_draft", {}) or {}).items()
+    }
+
     valid_shifts: List[ShiftAssignment] = []
     for shift in shifts:
         emp_id = shift["employee_id"]
@@ -633,6 +645,20 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                 except (ValueError, TypeError):
                     pass  # invalid times already caught in check 4
 
+        # 7. Minimum-rest ("clopening") check. A shift that leaves less than
+        #    the location's min_rest_hours of rest before/after another of the
+        #    employee's shifts on a different day is dropped (Fair Workweek).
+        if emp_id in emp_by_id and not issues and min_rest_hours:
+            if _min_rest_violation(
+                shift["start_time"], shift["end_time"],
+                rest_windows.get(emp_id, []),
+                min_rest_hours,
+            ):
+                issues.append(
+                    f"employee {emp_id} would violate minimum rest of "
+                    f"{float(min_rest_hours):.1f}h between shifts (clopening)"
+                )
+
         if issues:
             # Drop invalid shifts — unfilled slots will become VACANT in step 5
             detail = "; ".join(issues)
@@ -664,6 +690,10 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
                 )
             except (ValueError, TypeError):
                 pass
+            # Record window so later shifts this pass see it for min-rest.
+            rest_windows.setdefault(emp_id, []).append(
+                {"start": shift["start_time"], "end": shift["end_time"]}
+            )
 
     logger.warning(
         "[SCHED-TRACE] validate_schedule: %d valid, %d dropped out of %d total",

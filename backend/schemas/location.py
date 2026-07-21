@@ -7,6 +7,9 @@ class LocationCreate(BaseModel):
     address: str | None = None
     geo_coord: dict | None = None
     timezone: str
+    # Minimum rest hours between shifts on different days (NYC Fair Workweek
+    # clopening rule = 11). NULL/omitted = no constraint.
+    min_rest_hours: float | None = None
 
 
 class LocationUpdate(BaseModel):
@@ -15,6 +18,7 @@ class LocationUpdate(BaseModel):
     address: str | None = None
     geo_coord: dict | None = None
     timezone: str | None = None
+    min_rest_hours: float | None = None
 
 
 class LocationResponse(BaseModel):
@@ -25,6 +29,7 @@ class LocationResponse(BaseModel):
     address: str | None
     geo_coord: dict | None
     timezone: str
+    min_rest_hours: float | None = None
 
     model_config = {"from_attributes": True}
 
