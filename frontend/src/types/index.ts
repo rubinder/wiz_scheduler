@@ -324,6 +324,7 @@ export interface PlanState {
   canceled_at: string | null;
   locations: PlanLimitCount;
   employees: PlanLimitCount;
+  schedules: PlanLimitCount;
   over_limit: boolean;
   can_generate_local: boolean;
   can_generate_ai: boolean;

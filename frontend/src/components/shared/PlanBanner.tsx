@@ -11,12 +11,14 @@ interface PlanBannerProps {
 type ReasonKey =
   | "reasonPlanLimitExceeded"
   | "reasonSubscriptionCanceled"
-  | "reasonAiRequiresPaid";
+  | "reasonAiRequiresPaid"
+  | "reasonScheduleLimitReached";
 
 const REASON_KEYS: Record<string, ReasonKey> = {
   plan_limit_exceeded: "reasonPlanLimitExceeded",
   subscription_canceled: "reasonSubscriptionCanceled",
   ai_requires_paid_plan: "reasonAiRequiresPaid",
+  schedule_limit_reached: "reasonScheduleLimitReached",
 };
 
 /**
@@ -39,11 +41,19 @@ export default function PlanBanner({ plan }: PlanBannerProps) {
     plan.employees.limit != null ? String(plan.employees.limit) : "∞";
   const locationLimit =
     plan.locations.limit != null ? String(plan.locations.limit) : "∞";
-  const usageText = t.planBanner.usage
+  let usageText = t.planBanner.usage
     .replace("{employeeCount}", String(plan.employees.count))
     .replace("{employeeLimit}", employeeLimit)
     .replace("{locationCount}", String(plan.locations.count))
     .replace("{locationLimit}", locationLimit);
+
+  // `limit` is null for paid (unlimited) generations — only free groups
+  // have a monthly cap, so only they get the third usage segment.
+  if (plan.schedules.limit !== null) {
+    usageText += t.planBanner.usageGenerations
+      .replace("{generationCount}", String(plan.schedules.count))
+      .replace("{generationLimit}", String(plan.schedules.limit));
+  }
 
   const handleUpgrade = async () => {
     setLoading(true);

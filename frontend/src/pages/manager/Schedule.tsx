@@ -422,6 +422,15 @@ export default function Schedule() {
   // must fail OPEN on null so a plan-fetch outage never blocks scheduling.
   const { plan, refresh: refreshPlan } = usePlan();
 
+  // Free-plan monthly generation cap. FAIL OPEN: `plan` is null while
+  // loading or on fetch failure, so the optional-chain short-circuits to
+  // `undefined` (falsy) and nothing is disabled — the server remains the
+  // real enforcement point.
+  const generationCapReached =
+    plan?.plan === "free" &&
+    plan.schedules.limit !== null &&
+    plan.schedules.count >= plan.schedules.limit;
+
   // Handle return from Stripe upgrade checkout: confirm the session,
   // refresh plan state, then strip the query param so a page reload
   // doesn't re-trigger confirmation.
@@ -453,6 +462,19 @@ export default function Schedule() {
       setLockExpiresAt(lockedError.expiresAt);
     }
   }, [lockedError]);
+
+  // Refresh plan state once a generation stream finishes successfully, so
+  // the free-tier generation count (and generationCapReached gating) is
+  // current without requiring a page reload. useScheduleStream.generate()
+  // is fire-and-forget with no completion callback, so we watch for the
+  // isStreaming true -> false transition with no error instead.
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && !error && !lockedError) {
+      void refreshPlan();
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, error, lockedError, refreshPlan]);
 
   // AI credit & schedule quota state
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
@@ -1047,7 +1069,14 @@ export default function Schedule() {
         </div>
         <button
           onClick={() => handleGenerateClick("local")}
-          disabled={isStreaming || lockActive || plan?.over_limit === true}
+          disabled={isStreaming || lockActive || plan?.over_limit === true || generationCapReached}
+          title={
+            generationCapReached
+              ? t.schedule.generationCapReachedNotice
+                  .replace("{used}", String(plan?.schedules.count))
+                  .replace("{max}", String(plan?.schedules.limit))
+              : undefined
+          }
           className="glass-btn-success px-5 py-3 rounded-lg font-semibold text-sm"
         >
           {isStreaming && generateMode === "local" ? t.schedule.generating : t.schedule.localGenerate}
@@ -1055,8 +1084,16 @@ export default function Schedule() {
         <DemoGuard>
           <button
             onClick={() => handleGenerateClick("ai")}
-            disabled={isStreaming || lockActive || plan?.can_generate_ai === false}
-            title={plan?.can_generate_ai === false ? t.planBanner.reasonAiRequiresPaid : undefined}
+            disabled={isStreaming || lockActive || plan?.can_generate_ai === false || generationCapReached}
+            title={
+              plan?.can_generate_ai === false
+                ? t.planBanner.reasonAiRequiresPaid
+                : generationCapReached
+                  ? t.schedule.generationCapReachedNotice
+                      .replace("{used}", String(plan?.schedules.count))
+                      .replace("{max}", String(plan?.schedules.limit))
+                  : undefined
+            }
             className="glass-btn-primary px-5 py-3 rounded-lg font-semibold text-sm"
           >
             {isStreaming && generateMode === "ai" ? t.schedule.generating : t.schedule.aiGenerate}
@@ -1074,6 +1111,17 @@ export default function Schedule() {
           </button>
         )}
       </div>
+
+      {/* Free-plan generation cap notice — visible (not just a hover
+          title) per the "disable, don't hide" rule, and only rendered
+          when we positively know the cap is reached (plan !== null). */}
+      {generationCapReached && (
+        <p className={`-mt-4 mb-6 text-sm ${text.muted}`}>
+          {t.schedule.generationCapReachedNotice
+            .replace("{used}", String(plan?.schedules.count))
+            .replace("{max}", String(plan?.schedules.limit))}
+        </p>
+      )}
 
       {/* Template Picker Modal */}
       {showTemplatePicker && (
