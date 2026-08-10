@@ -112,3 +112,71 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
         can_generate_ai=False,
         block_reason=block_reason,
     )
+
+
+def _limit_error(
+    limit: str, max_allowed: int, current: int, attempted: int
+) -> HTTPException:
+    noun = "locations" if limit == "locations" else "employees"
+    return HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail={
+            "code": "plan_limit_exceeded",
+            "message": (
+                f"Free plan allows {max_allowed} {noun}. "
+                f"Upgrade to add more."
+            ),
+            "limit": limit,
+            "max": max_allowed,
+            "current": current,
+            "attempted": attempted,
+        },
+    )
+
+
+async def assert_can_add(
+    db: AsyncSession,
+    company_id: str,
+    *,
+    locations: int = 0,
+    employees: int = 0,
+) -> None:
+    """Raise 402 if adding this many rows would exceed the free plan.
+
+    No-op when the ownership group is paid or absent.
+
+    Takes a row lock on the ownership_groups row before counting: count-then-
+    insert is not atomic, so two managers both sitting at 4/5 employees could
+    otherwise both pass and both insert. The lock is per ownership group and
+    only taken on the free path, so paid tenants pay nothing for it.
+    """
+    og_id = await get_ownership_group_id(db, str(company_id))
+    if not og_id:
+        return
+
+    og = await db.get(OwnershipGroup, og_id)
+    if og is None:
+        return
+    if og.stripe_subscription_id is not None and og.canceled_at is None:
+        return  # paid — unlimited, and no lock taken
+
+    # Serialize concurrent adds for this ownership group.
+    await db.execute(
+        select(OwnershipGroup.id)
+        .where(OwnershipGroup.id == og_id)
+        .with_for_update()
+    )
+
+    if locations:
+        current = await count_locations_for_group(db, og_id)
+        if current + locations > settings.FREE_PLAN_MAX_LOCATIONS:
+            raise _limit_error(
+                "locations", settings.FREE_PLAN_MAX_LOCATIONS, current, locations
+            )
+
+    if employees:
+        current = await count_employees_for_group(db, og_id)
+        if current + employees > settings.FREE_PLAN_MAX_EMPLOYEES:
+            raise _limit_error(
+                "employees", settings.FREE_PLAN_MAX_EMPLOYEES, current, employees
+            )

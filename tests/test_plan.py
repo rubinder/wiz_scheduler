@@ -181,3 +181,92 @@ async def test_free_over_limit_block_reason(
     assert state["over_limit"] is True
     assert state["can_generate_local"] is False
     assert state["block_reason"] == "plan_limit_exceeded"
+
+
+from fastapi import HTTPException
+
+from backend.services.plan import assert_can_add
+
+
+async def test_assert_can_add_allows_up_to_limit(
+    db_session: AsyncSession, free_og: tuple[str, str]
+):
+    _, company_id = free_og
+    for i in range(4):
+        db_session.add(Employee(id=_id(), company_id=company_id,
+                                full_name=f"E{i}"))
+    await db_session.commit()
+
+    # 4 existing + 1 == 5, exactly at the limit.
+    await assert_can_add(db_session, company_id, employees=1)
+
+
+async def test_assert_can_add_refuses_over_limit(
+    db_session: AsyncSession, free_og: tuple[str, str]
+):
+    _, company_id = free_og
+    for i in range(5):
+        db_session.add(Employee(id=_id(), company_id=company_id,
+                                full_name=f"E{i}"))
+    await db_session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await assert_can_add(db_session, company_id, employees=1)
+
+    assert exc.value.status_code == 402
+    assert exc.value.detail["code"] == "plan_limit_exceeded"
+    assert exc.value.detail["limit"] == "employees"
+    assert exc.value.detail["max"] == 5
+    assert exc.value.detail["current"] == 5
+    assert exc.value.detail["attempted"] == 1
+
+
+async def test_assert_can_add_refuses_oversized_bulk(
+    db_session: AsyncSession, free_og: tuple[str, str]
+):
+    """A 12-row upload against an empty free OG is refused whole."""
+    _, company_id = free_og
+    with pytest.raises(HTTPException) as exc:
+        await assert_can_add(db_session, company_id, employees=12)
+    assert exc.value.detail["attempted"] == 12
+    assert exc.value.detail["current"] == 0
+
+
+async def test_assert_can_add_second_location_refused(
+    db_session: AsyncSession, free_og: tuple[str, str]
+):
+    og_id, company_id = free_og
+    region_id = _id()
+    db_session.add(Region(id=region_id, company_id=company_id, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id=_id(), company_id=company_id,
+                            region_id=region_id, name="L1", timezone="UTC"))
+    await db_session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await assert_can_add(db_session, company_id, locations=1)
+    assert exc.value.detail["limit"] == "locations"
+    assert exc.value.detail["max"] == 1
+
+
+async def test_assert_can_add_noop_when_paid(
+    db_session: AsyncSession, free_og: tuple[str, str]
+):
+    og_id, company_id = free_og
+    og = await db_session.get(OwnershipGroup, og_id)
+    og.stripe_subscription_id = "sub_123"
+    for i in range(50):
+        db_session.add(Employee(id=_id(), company_id=company_id,
+                                full_name=f"E{i}"))
+    await db_session.commit()
+
+    await assert_can_add(db_session, company_id, employees=100)
+
+
+async def test_assert_can_add_noop_without_ownership_group(
+    db_session: AsyncSession
+):
+    company_id = _id()
+    db_session.add(Company(id=company_id, name="Orphan", slug=_id()))
+    await db_session.commit()
+    await assert_can_add(db_session, company_id, employees=100)
