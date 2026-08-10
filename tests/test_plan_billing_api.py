@@ -103,6 +103,7 @@ async def test_upgrade_checkout_free_group_uses_customer_email(
     assert captured["customer_email"] == "m@x.test"
     assert captured["mode"] == "subscription"
     assert captured["line_items"] == [{"price": "price_x", "quantity": 1}]
+    assert captured["client_reference_id"] == str(free_tenant["og_id"])
 
 
 async def test_confirm_upgrade_happy_path_attaches_customer_and_subscription(
@@ -119,6 +120,7 @@ async def test_confirm_upgrade_happy_path_attaches_customer_and_subscription(
         payment_status="paid",
         customer="cus_new_upgrade_777",
         subscription="sub_new_upgrade_888",
+        client_reference_id=str(free_tenant["og_id"]),
     )
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
 
@@ -189,6 +191,10 @@ async def test_confirm_upgrade_rejects_session_for_different_customer(
         payment_status="paid",
         customer="cus_someone_else",
         subscription="sub_someone_else",
+        # Matches this group's id, so the failure below is isolated to the
+        # customer-mismatch check (defense in depth), not the reference-id
+        # binding check covered by the hijack test.
+        client_reference_id=str(free_tenant["og_id"]),
     )
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
 
@@ -202,4 +208,75 @@ async def test_confirm_upgrade_rejects_session_for_different_customer(
 
     await db_session.refresh(og)
     assert og.stripe_customer_id == "cus_existing_owner"
+    assert og.stripe_subscription_id is None
+
+
+async def test_confirm_upgrade_rejects_session_for_different_ownership_group(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    """The hijack scenario: a paid session created for a DIFFERENT ownership
+    group (client_reference_id points elsewhere) must not be attachable to
+    the caller's group, even though the caller's group has never touched
+    Stripe (stripe_customer_id is None, so the customer-based check alone
+    would not catch this)."""
+    import stripe
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+
+    other_og_id = _id()
+    db_session.add(OwnershipGroup(id=other_og_id, name="Other Group"))
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_belongs_to_other_group",
+        subscription="sub_belongs_to_other_group",
+        client_reference_id=str(other_og_id),
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_test_hijack"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 400
+
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.stripe_customer_id is None
+    assert og.stripe_subscription_id is None
+
+
+async def test_confirm_upgrade_rejects_missing_client_reference_id(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    """A paid session with no client_reference_id at all is rejected — it
+    cannot be proven to belong to the caller's group."""
+    import stripe
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_whatever",
+        subscription="sub_whatever",
+        client_reference_id=None,
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_test_no_reference"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 400
+
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.stripe_customer_id is None
     assert og.stripe_subscription_id is None

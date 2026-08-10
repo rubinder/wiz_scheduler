@@ -456,6 +456,9 @@ async def upgrade_checkout(
         "line_items": [{"price": settings.STRIPE_PRICE_ID, "quantity": 1}],
         "success_url": success_url,
         "cancel_url": cancel_url,
+        # Binds the session to this ownership group so confirm_upgrade can
+        # verify it wasn't obtained by/leaked to a different tenant.
+        "client_reference_id": str(og.id),
     }
     # Reuse the customer if one exists (e.g. a previously canceled group);
     # otherwise let Checkout create one from the manager's email.
@@ -492,7 +495,18 @@ async def confirm_upgrade(
     if session.payment_status != "paid":
         raise HTTPException(status_code=400, detail="Payment not completed")
 
-    # When the group already had a customer, the session must belong to it.
+    # Unconditional binding check: the session must have been created for
+    # THIS ownership group. This covers the common case of a free group
+    # upgrading for the first time (no stripe_customer_id yet), where the
+    # customer-based check below would otherwise be skipped entirely and let
+    # any authenticated manager attach someone else's paid session.
+    if session.client_reference_id != str(og.id):
+        raise HTTPException(
+            status_code=400, detail="Session does not belong to this account"
+        )
+
+    # Defense in depth: when the group already had a customer, the session's
+    # customer must also match it.
     if og.stripe_customer_id and session.customer != og.stripe_customer_id:
         raise HTTPException(
             status_code=400, detail="Session does not belong to this account"
