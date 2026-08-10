@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 1k employees after free tier
     EMPLOYEE_BLOCK_SIZE: int = 1_000         # employees per billing block
 
+    # Free plan hard limits (distinct from EMPLOYEE_FREE_TIER above, which is
+    # a metered-overage threshold for PAID customers). These are the caps that
+    # decide whether an ownership group must subscribe at all.
+    FREE_PLAN_MAX_LOCATIONS: int = 1
+    FREE_PLAN_MAX_EMPLOYEES: int = 5
+
     # Schedule generation billing
     SCHEDULE_FREE_TIER: int = 50             # free schedules per ownership group per month
     SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 50 schedules after free tier
