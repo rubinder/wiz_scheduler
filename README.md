@@ -55,7 +55,15 @@ The hierarchy maps onto business logic that genuinely lives at different levels:
 - **Company level** — employees, roles, locations, shift templates. Staff belong to a company. This is the scheduling boundary, and it is why the AI pipeline's cross-location double-booking check operates within a company: two stores under one owner share a labor pool, two brands do not.
 - **Ownership group level** — billing and metered consumption. Stripe customer and subscription, `ai_credits_usd`, autoreload configuration and its failure state, cancellation and the read-only grace period, email quota, integration-import quota, storage snapshots. The operator holds one payment relationship regardless of how many companies sit under it.
 
-`get_ownership_group_company_ids` is the fan-out primitive: it resolves the caller's group and returns every company ID in it, so group-scoped reporting can span companies without weakening the per-company default. And `require_active_billing` gates only the paid resources — schedule generation is blocked when the group is canceled, while CRUD, auth, billing, and GDPR export stay open, so an operator in grace can always retrieve their data and reactivate. Billing state suspends the expensive capability, never the customer's access to their own records.
+`get_ownership_group_company_ids` is the fan-out primitive: it resolves the caller's group and returns every company ID in it, so group-scoped reporting can span companies without weakening the per-company default. Billing state suspends the expensive capability, never the customer's access to their own records — an operator in grace can always retrieve their data and reactivate.
+
+### The free plan
+
+Registration is free by default — `stripe_session_id` on `POST /auth/register` is now optional, and an operator can use the product before ever talking to Stripe. Upgrading is a separate, later action: `POST /billing/upgrade-checkout` starts a Stripe Checkout session and `POST /billing/confirm-upgrade` completes it, matched back to the ownership group via `client_reference_id`.
+
+Free, per ownership group: 1 location, 5 employees, 5 schedule generations per calendar month. AI schedule generation and the 7shifts/Deputy importers are paid-only — free tenants get the deterministic local scheduler, which is not a lesser product so much as a different one (see "The same validator guards the AI and deterministic paths" below). Every write path that creates an `Employee` or `Location` calls `assert_can_add` (`backend/services/plan.py`) before inserting, under a row lock on the ownership group so two managers racing to add employee #5 can't both succeed; bulk uploads are all-or-nothing rather than partially applying up to the limit. `POST /schedules/generate` is gated by `check_can_generate`, which replaced `require_active_billing` — that dependency no longer exists.
+
+Plan is *derived*, not stored: `paid` iff `stripe_subscription_id IS NOT NULL AND canceled_at IS NULL` on the ownership group, `free` otherwise. A Company with no `ownership_group_id` at all is treated as unlimited — that state only exists in seed data and tests, no production path creates one. There is deliberately no `plan` column. A stored column is a second source of truth, and it drifts the first time a Stripe webhook is missed, retried out of order, or replayed after a manual fix in the Stripe dashboard — the row says one thing, Stripe says another, and nothing forces them back into agreement. Deriving the plan on every read means there is only ever one fact to be wrong about: the two columns Stripe itself last wrote. This mirrors why plan is billing-owned rather than company-owned in the first place — see "The ownership group hierarchy" above.
 
 ## Tech Stack
 
@@ -95,7 +103,7 @@ The hierarchy maps onto business logic that genuinely lives at different levels:
 
 **Serial location processing, deliberately.** Locations could be scheduled in parallel; they are not. Correctness requires a single consistent view of who is already committed, and `availability_draft` provides it only under serial mutation. Parallelizing would mean distributed reservation over a shared employee pool to solve a problem that takes seconds. The user-facing latency concern is answered by NDJSON streaming instead: results appear per-location as they complete, so the run *feels* incremental while remaining sequentially correct.
 
-**Billing state suspends capability, never data access.** `require_active_billing` gates AI generation alone. A canceled operator retains CRUD, login, billing, and GDPR export — they can always reach their own data and reactivate. Locking customers out of their records to collect payment is both a GDPR problem and a reactivation problem.
+**Billing state suspends capability, never data access.** `check_can_generate` gates schedule generation alone — both the free monthly cap and the paid-only AI path. A canceled or over-limit operator retains CRUD, login, billing, and GDPR export — they can always reach their own data and reactivate. Locking customers out of their records to collect payment is both a GDPR problem and a reactivation problem.
 
 **A queryable knowledge graph of the codebase is checked in.** `graphify-out/` holds 1,160 nodes and 1,831 edges across 155 communities, refreshed incrementally via `/graphify . --update`. It is the first-pass lookup for "how do these parts connect" and is roughly 27x more token-efficient than scanning source. For an AI-assisted codebase, a machine-readable architecture index is developer tooling, not a novelty.
 
@@ -170,3 +178,30 @@ Tests run against in-memory SQLite — no Postgres instance required.
 | `ENV` | `development` / `production` | `development` |
 
 Without `ANTHROPIC_API_KEY`, the deterministic local scheduler still works end to end.
+
+### Pre-deploy checks
+
+Run against production before merging or deploying any change that touches ownership-group billing state (the free-tier plan derivation in particular). Both queries are read-only.
+
+**1. No paying customer may be silently demoted to free.** Expected: `0`.
+
+```sql
+SELECT count(*) FROM ownership_groups
+WHERE stripe_subscription_id IS NULL AND canceled_at IS NULL;
+```
+
+A non-zero result means those ownership groups derive to `free` under the plan logic in `backend/services/plan.py` (see "The free plan" above) and would suddenly be capped at 1 location / 5 employees / 5 generations a month. Investigate every returned row individually — a subscription that's missing here because a webhook was dropped needs to be reconciled with Stripe directly. **Do not blind-backfill** `stripe_subscription_id`; a fabricated value can collide with a real one and, as of migration 0029, will fail to insert.
+
+**2. Uniqueness — this is now a HARD GATE.** Migration 0029 adds partial unique indexes on `ownership_groups.stripe_customer_id` and `ownership_groups.stripe_subscription_id`, and the migration **will fail outright** if either query below returns rows:
+
+```sql
+SELECT stripe_subscription_id, count(*) FROM ownership_groups
+WHERE stripe_subscription_id IS NOT NULL
+GROUP BY 1 HAVING count(*) > 1;
+
+SELECT stripe_customer_id, count(*) FROM ownership_groups
+WHERE stripe_customer_id IS NOT NULL
+GROUP BY 1 HAVING count(*) > 1;
+```
+
+Both must return zero rows before `alembic upgrade head` is run against production. Duplicates here mean the same Stripe customer or subscription somehow got attached to more than one ownership group (webhook replay, a manual DB edit, a bug in an old reactivate/upgrade path) — resolve which row is the true owner and clear or correct the other before migrating, not after.

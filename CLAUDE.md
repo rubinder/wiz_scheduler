@@ -68,7 +68,7 @@ Key concept: `availability_draft` (in `SchedulingState`) is a deep copy of emplo
 - `src/api/` — typed fetch wrappers (one file per domain), shared `apiFetch` with Bearer token
 - `src/pages/manager/` — manager CRUD pages + Schedule page (AI generation + per-location review)
 - `src/pages/employee/` — employee availability self-service
-- `src/components/shared/DataTable.tsx` — reusable inline-editable table (used on Employees, Shift Templates, Schedule)
+- `src/components/shared/DataTable.tsx` — reusable inline-editable table (used on Roles, Locations, Regions). Supports optional `createDisabled` / `createDisabledReason` props to render the "+ Add" control disabled with an explanatory message (e.g. free-plan limit reached) instead of omitting it.
 - `src/hooks/useAuth.ts` — JWT in localStorage, login/logout state
 - `src/hooks/useScheduleStream.ts` — NDJSON stream consumer
 
@@ -104,6 +104,9 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 ## Conventions
 
 - **Roles are never hardcoded.** No role name string literal may appear outside `seed.py`. Every role reference must come from the `roles` table.
+- **Free-plan limits live in `backend/services/plan.py`.** Any new endpoint that
+  creates an `Employee` or `Location` must call `assert_can_add` before writing.
+  Plan is derived from `ownership_groups`, never stored.
 - Use type hints extensively in all Python code.
 - Prefer functional components and hooks in React.
 - All timestamps must carry timezone offsets (derive from `location.timezone` via `zoneinfo.ZoneInfo`).
