@@ -5,6 +5,7 @@ import * as locationsApi from "../../api/locations";
 import * as companyApi from "../../api/company";
 import DemoGuard from "../../components/shared/DemoGuard";
 import ImportModal from "../../components/shared/ImportModal";
+import { usePlan } from "../../hooks/usePlan";
 import type {
   Company,
   Employee,
@@ -21,6 +22,7 @@ interface RoleAssignment {
 
 export default function Employees() {
   const { t } = useLanguage();
+  const { plan, refresh: refreshPlan } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -69,6 +71,14 @@ export default function Employees() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Proactive UX-only check — the API is the security boundary and is
+  // always re-checked server-side (a concurrent add by another manager
+  // on the same ownership group can make this stale).
+  const employeeLimitReached =
+    plan?.plan === "free" &&
+    plan.employees.limit !== null &&
+    plan.employees.count >= plan.employees.limit;
 
   const roleName = (roleId: string) =>
     roles.find((r) => r.id === roleId)?.name ?? roleId;
@@ -131,6 +141,7 @@ export default function Employees() {
     try {
       await employeesApi.deleteEmployee(id);
       await fetchData();
+      await refreshPlan();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
@@ -160,14 +171,47 @@ export default function Employees() {
       });
       setShowAddRow(false);
       await fetchData();
+      await refreshPlan();
     } catch (err: unknown) {
+      // Also surfaces the server's 402 plan_limit_exceeded message inline:
+      // ApiError.message is already normalized from `detail.message` (see
+      // api/client.ts), so this same path covers stale-count rejections
+      // from a concurrent manager on the same ownership group.
       setError(err instanceof Error ? err.message : "Create failed");
     }
   };
 
+  // Count CSV data rows (excluding header and blank lines) so we can
+  // refuse client-side before uploading a file the server would reject
+  // whole. This is a UX nicety only — it is skipped for JSON uploads and
+  // is never authoritative; the server still enforces the real limit.
+  const countCsvRows = async (file: File): Promise<number> => {
+    const text = await file.text();
+    return text
+      .split("\n")
+      .slice(1) // header
+      .filter((line) => line.trim().length > 0).length;
+  };
+
   const handleImportUpload = async (file: File) => {
+    if (
+      file.name.toLowerCase().endsWith(".csv") &&
+      plan?.plan === "free" &&
+      plan.employees.limit !== null
+    ) {
+      const rows = await countCsvRows(file);
+      const remaining = plan.employees.limit - plan.employees.count;
+      if (rows > remaining) {
+        throw new Error(
+          t.employeesPage.csvLimitError
+            .replace("{rows}", String(rows))
+            .replace("{remaining}", String(remaining))
+        );
+      }
+    }
     const result = await employeesApi.bulkUploadEmployees(file);
     await fetchData();
+    await refreshPlan();
     return result;
   };
 
@@ -590,11 +634,20 @@ export default function Employees() {
             <DemoGuard>
               <button
                 onClick={() => setShowAddRow(true)}
+                disabled={employeeLimitReached}
                 className="glass-btn-primary"
               >
                 {t.employeesPage.addRow}
               </button>
             </DemoGuard>
+            {employeeLimitReached && (
+              <p className={`mt-2 text-sm ${text.muted}`}>
+                {t.employeesPage.limitReached.replace(
+                  "{limit}",
+                  String(plan?.employees.limit)
+                )}
+              </p>
+            )}
           </div>
         )}
       </div>

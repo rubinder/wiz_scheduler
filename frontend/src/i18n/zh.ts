@@ -299,6 +299,8 @@ const zh = {
     address: "地址",
     timezone: "时区",
     region: "区域",
+    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
+    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Roles ──
@@ -338,6 +340,8 @@ const zh = {
     addRow: "+ 添加行",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
+    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Employee Onboarding ──

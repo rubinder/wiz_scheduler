@@ -299,6 +299,8 @@ const fr = {
     address: "Adresse",
     timezone: "Fuseau horaire",
     region: "Région",
+    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
+    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Roles ──
@@ -338,6 +340,8 @@ const fr = {
     addRow: "+ Ajouter une ligne",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
+    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Employee Onboarding ──

@@ -299,6 +299,8 @@ const pt = {
     address: "Endereço",
     timezone: "Fuso horário",
     region: "Região",
+    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
+    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Roles ──
@@ -338,6 +340,8 @@ const pt = {
     addRow: "+ Adicionar linha",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
+    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Employee Onboarding ──

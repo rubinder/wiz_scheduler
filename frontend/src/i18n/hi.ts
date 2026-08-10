@@ -299,6 +299,8 @@ const hi = {
     address: "पता",
     timezone: "समय क्षेत्र",
     region: "क्षेत्र",
+    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
+    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Roles ──
@@ -338,6 +340,8 @@ const hi = {
     addRow: "+ पंक्ति जोड़ें",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
+    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Employee Onboarding ──
