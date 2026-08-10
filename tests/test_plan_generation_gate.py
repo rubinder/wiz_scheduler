@@ -6,9 +6,9 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Company, Employee, User
+from backend.models import Company, Employee, ShiftSchedule, User
 from backend.models.ownership_group import OwnershipGroup
-from backend.services.plan import check_can_generate
+from backend.services.plan import check_can_generate, get_plan_state
 from fastapi import HTTPException
 from tests.conftest import _id
 
@@ -103,3 +103,84 @@ async def test_no_ownership_group_can_generate(db_session: AsyncSession):
 
     await check_can_generate(db_session, company_id, use_local=True)
     await check_can_generate(db_session, company_id, use_local=False)
+
+
+async def _add_schedules(db: AsyncSession, company_id: str, n: int) -> None:
+    from datetime import date
+    for _ in range(n):
+        db.add(ShiftSchedule(
+            id=_id(),
+            company_id=company_id,
+            location_id=_id(),
+            week_start_date=date(2026, 8, 10),
+            status="draft",
+        ))
+    await db.commit()
+
+
+async def test_free_under_generation_cap_can_generate_local(
+    db_session: AsyncSession, tenant: dict
+):
+    await _add_schedules(db_session, tenant["company_id"], 4)
+    await check_can_generate(db_session, tenant["company_id"], use_local=True)
+
+
+async def test_free_at_generation_cap_blocks_local(
+    db_session: AsyncSession, tenant: dict
+):
+    await _add_schedules(db_session, tenant["company_id"], 5)
+
+    with pytest.raises(HTTPException) as exc:
+        await check_can_generate(db_session, tenant["company_id"], use_local=True)
+    assert exc.value.status_code == 402
+    assert exc.value.detail["code"] == "schedule_limit_reached"
+    assert exc.value.detail["used"] == 5
+    assert exc.value.detail["max"] == 5
+
+
+async def test_free_at_generation_cap_blocks_ai_too(
+    db_session: AsyncSession, tenant: dict
+):
+    await _add_schedules(db_session, tenant["company_id"], 5)
+
+    with pytest.raises(HTTPException) as exc:
+        await check_can_generate(db_session, tenant["company_id"], use_local=False)
+    assert exc.value.detail["code"] == "schedule_limit_reached"
+
+
+async def test_paid_is_not_subject_to_free_generation_cap(
+    db_session: AsyncSession, tenant: dict
+):
+    """Paid keeps SCHEDULE_FREE_TIER=50-then-metered; the free cap must not apply."""
+    og = await db_session.get(OwnershipGroup, tenant["og_id"])
+    og.stripe_subscription_id = "sub_1"
+    await db_session.commit()
+    await _add_schedules(db_session, tenant["company_id"], 20)
+
+    await check_can_generate(db_session, tenant["company_id"], use_local=True)
+    await check_can_generate(db_session, tenant["company_id"], use_local=False)
+
+
+async def test_over_limit_takes_precedence_over_generation_cap(
+    db_session: AsyncSession, tenant: dict
+):
+    """A downgraded, over-limit tenant is told about the seat limit, not the cap."""
+    og = await db_session.get(OwnershipGroup, tenant["og_id"])
+    og.stripe_subscription_id = "sub_1"
+    og.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    await _make_over_limit(db_session, tenant["company_id"])
+    await _add_schedules(db_session, tenant["company_id"], 5)
+
+    with pytest.raises(HTTPException) as exc:
+        await check_can_generate(db_session, tenant["company_id"], use_local=True)
+    assert exc.value.detail["code"] == "subscription_canceled"
+
+
+async def test_plan_state_reports_schedule_usage(
+    db_session: AsyncSession, tenant: dict
+):
+    await _add_schedules(db_session, tenant["company_id"], 3)
+    state = await get_plan_state(db_session, tenant["company_id"])
+    assert state["schedules"]["count"] == 3
+    assert state["schedules"]["limit"] == 5

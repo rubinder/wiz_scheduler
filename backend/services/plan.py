@@ -28,6 +28,7 @@ from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
     count_employees_for_group,
     count_locations_for_group,
+    count_schedules_this_month,
     get_ownership_group_id,
 )
 
@@ -44,6 +45,7 @@ class PlanState(TypedDict):
     canceled_at: datetime | None
     locations: LimitCount
     employees: LimitCount
+    schedules: LimitCount
     over_limit: bool
     can_generate_local: bool
     can_generate_ai: bool
@@ -56,6 +58,7 @@ def _unlimited(canceled_at: datetime | None = None) -> PlanState:
         canceled_at=canceled_at,
         locations=LimitCount(count=0, limit=None),
         employees=LimitCount(count=0, limit=None),
+        schedules=LimitCount(count=0, limit=None),
         over_limit=False,
         can_generate_local=True,
         can_generate_ai=True,
@@ -80,10 +83,12 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
         state = _unlimited()
         state["locations"]["count"] = await count_locations_for_group(db, og_id)
         state["employees"]["count"] = await count_employees_for_group(db, og_id)
+        state["schedules"]["count"] = await count_schedules_this_month(db, og_id)
         return state
 
     loc_count = await count_locations_for_group(db, og_id)
     emp_count = await count_employees_for_group(db, og_id)
+    sched_count = await count_schedules_this_month(db, og_id)
     over_limit = (
         loc_count > settings.FREE_PLAN_MAX_LOCATIONS
         or emp_count > settings.FREE_PLAN_MAX_EMPLOYEES
@@ -106,6 +111,9 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
         ),
         employees=LimitCount(
             count=emp_count, limit=settings.FREE_PLAN_MAX_EMPLOYEES
+        ),
+        schedules=LimitCount(
+            count=sched_count, limit=settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
         ),
         over_limit=over_limit,
         can_generate_local=not over_limit,
@@ -215,6 +223,25 @@ async def check_can_generate(
                 "message": _BLOCK_MESSAGES[reason],
                 "locations": state["locations"],
                 "employees": state["employees"],
+            },
+        )
+
+    # Free-plan monthly generation cap. Checked after over_limit so a tenant
+    # who is both over-limit and out of generations hears about the limit that
+    # actually requires an upgrade decision. Paid groups never reach here —
+    # they keep SCHEDULE_FREE_TIER metered overage instead.
+    sched = state["schedules"]
+    if sched["limit"] is not None and sched["count"] >= sched["limit"]:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "schedule_limit_reached",
+                "message": (
+                    f"Free plan allows {sched['limit']} schedule generations "
+                    f"per month. Upgrade for more."
+                ),
+                "used": sched["count"],
+                "max": sched["limit"],
             },
         )
 
