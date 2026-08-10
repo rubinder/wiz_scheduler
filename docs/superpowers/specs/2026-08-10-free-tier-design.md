@@ -16,6 +16,7 @@ Two plans, scoped to the **ownership group** (billing has always been per-OG; li
 |---|---|---|
 | Locations | 1 | unlimited (metered) |
 | Employees | 5 | unlimited (metered) |
+| Schedule generations / month | **5 (hard cap)** | 50 free, then metered (unchanged) |
 | Local schedule generation | ✅ | ✅ |
 | AI schedule generation | ❌ | ✅ |
 | 7shifts / Deputy import | ❌ | ✅ |
@@ -113,6 +114,16 @@ The integration importers are paid-only outright rather than limit-checked. They
 }
 ```
 
+### Monthly generation cap on free
+
+Free ownership groups may run **5 schedule generations per calendar month**. The existing paid behavior is unchanged: `SCHEDULE_FREE_TIER = 50` per month then metered overage, enforced by `check_schedule_quota`. The two are independent — the new cap is a hard stop for free groups, not a change to the paid meter.
+
+**Reuses the existing counter.** `billing.count_schedules_this_month(db, og_id)` already counts `ShiftSchedule` rows created since the calendar-month start across every company in the group. No new table, no new tracking.
+
+**Rows vs. runs.** Generation writes one `ShiftSchedule` row *per location per run* (`backend/routers/schedules.py:276`), so in general a row is not a run. They are equivalent for every tenant that can reach this check: a free group is capped at 1 location, and a downgraded multi-location group is already `over_limit` and blocked from generating outright. This equivalence is load-bearing — if the free location limit ever rises above 1, this cap must switch to counting runs rather than rows.
+
+The counter is calendar-month based, matching `count_schedules_this_month`, so it resets at midnight UTC on the 1st.
+
 ### Generation gate
 
 Replaces `require_active_billing`, whose only caller is `POST /schedules/generate`.
@@ -120,14 +131,18 @@ Replaces `require_active_billing`, whose only caller is `POST /schedules/generat
 | Plan | Over limit | Local generate | AI generate |
 |---|---|---|---|
 | paid | — | ✅ | ✅ |
-| free | no | ✅ | `402 ai_requires_paid_plan` |
+| free | no, < 5 gens used | ✅ | `402 ai_requires_paid_plan` |
+| free | no, **≥ 5 gens used** | `402 schedule_limit_reached` | `402 schedule_limit_reached` |
 | free | yes | `402 plan_limit_exceeded` | `402 plan_limit_exceeded` |
-| free, canceled | no | ✅ | `402 ai_requires_paid_plan` |
+| free, canceled | no, < 5 gens used | ✅ | `402 ai_requires_paid_plan` |
+| free, canceled | no, **≥ 5 gens used** | `402 schedule_limit_reached` | `402 schedule_limit_reached` |
 | free, canceled | yes | `402 subscription_canceled` | `402 subscription_canceled` |
 
-Rows 4–5 implement cancel→free: a tenant who shrinks below the free limits keeps working on free instead of being frozen, while an over-limit cancellation retains today's 90-day read-only grace and its deletion lifecycle.
+Precedence: `over_limit` (seat/location limits) is checked **before** the monthly generation cap, so a tenant who is both over-limit and out of generations is told about the limit that actually requires an upgrade decision. Paid is evaluated first and reaches neither check.
 
-**Note on reachability.** Because every write path is now capped, a *free* OG can no longer climb over the limit — rows 3 and 5 are reachable only by a **downgraded** tenant (paid, grew past the limits, then canceled). The gate is narrower than it first appears but must still exist, and its tests must construct that state deliberately.
+The `free, canceled` rows implement cancel→free: a tenant who shrinks below the free limits keeps working on free instead of being frozen, while an over-limit cancellation retains today's 90-day read-only grace and its deletion lifecycle.
+
+**Note on reachability.** Because every write path is capped, a *free* OG can no longer climb over the seat/location limits — the `over_limit` rows are reachable only by a **downgraded** tenant (paid, grew past the limits, then canceled). Those rows must still exist, and their tests must construct that state deliberately. The `≥ 5 gens used` rows, by contrast, are reachable by any ordinary free tenant and are the common case.
 
 **Implementation:** a plain call at the top of `generate_schedule`, alongside the existing `check_schedule_quota` and `check_ai_credits` calls — not a FastAPI dependency. The AI-vs-local branch needs `body.use_local`, which a dependency cannot see. This matches the pattern already in that endpoint.
 
