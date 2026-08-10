@@ -311,3 +311,21 @@ export interface SpecialHoursDay {
   shift_template_id: string | null;
   created_at: string;
 }
+
+// ── Plan (free tier) ──
+
+export interface PlanLimitCount {
+  count: number;
+  limit: number | null; // null == unlimited
+}
+
+export interface PlanState {
+  plan: "free" | "paid";
+  canceled_at: string | null;
+  locations: PlanLimitCount;
+  employees: PlanLimitCount;
+  over_limit: boolean;
+  can_generate_local: boolean;
+  can_generate_ai: boolean;
+  block_reason: string | null;
+}

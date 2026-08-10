@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import type { PlanState } from "../types";
 
 export interface AiCreditStatus {
   can_generate: boolean;
@@ -141,4 +142,21 @@ export function confirmReactivation(
       body: JSON.stringify({ session_id: sessionId }),
     }
   );
+}
+
+export function getPlan(): Promise<PlanState> {
+  return apiFetch<PlanState>("/billing/plan");
+}
+
+export function upgradeCheckout(): Promise<{ session_id: string; url: string }> {
+  return apiFetch<{ session_id: string; url: string }>("/billing/upgrade-checkout", {
+    method: "POST",
+  });
+}
+
+export function confirmUpgrade(sessionId: string): Promise<{ upgraded: boolean }> {
+  return apiFetch<{ upgraded: boolean }>("/billing/confirm-upgrade", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId }),
+  });
 }
