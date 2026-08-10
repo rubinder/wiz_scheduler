@@ -445,10 +445,15 @@ async def upgrade_checkout(
         raise HTTPException(status_code=503, detail="Stripe billing is not configured")
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
+    # Must point at /manager/schedule: that's the only route wired to read
+    # `upgrade_session_id` and call POST /billing/confirm-upgrade (see
+    # frontend/src/pages/manager/Schedule.tsx). Pointing this at the
+    # dashboard silently orphaned the Checkout session — the subscription
+    # was created in Stripe but never attached to the ownership group.
     success_url = settings.STRIPE_SUCCESS_URL.replace(
-        "/register", "/manager/dashboard"
+        "/register", "/manager/schedule"
     ).replace("session_id=", "upgrade_session_id=")
-    cancel_url = settings.STRIPE_CANCEL_URL.replace("/register", "/manager/dashboard")
+    cancel_url = settings.STRIPE_CANCEL_URL.replace("/register", "/manager/schedule")
 
     kwargs: dict = {
         "mode": "subscription",
@@ -515,6 +520,13 @@ async def confirm_upgrade(
     og.stripe_customer_id = session.customer
     og.stripe_subscription_id = session.subscription
     og.canceled_at = None
+    # Mirror confirm_reactivation: an upgrade from a canceled state must
+    # reset the deletion-lifecycle notification markers too, or a group
+    # that upgrades-then-cancels-again is treated as already notified and
+    # skips the day-76 deletion warning before the day-90 hard delete.
+    og.notified_subscription_ended_at = None
+    og.notified_deletion_reminder_at = None
+    og.notified_data_deleted_at = None
     await db.commit()
 
     return {"upgraded": True, "subscription_id": og.stripe_subscription_id}

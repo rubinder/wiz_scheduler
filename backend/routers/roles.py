@@ -80,7 +80,22 @@ async def bulk_upload_roles(
 
     Duplicate role names (case-insensitive) within the company are skipped.
     """
+    # Body size + row-count caps (#46, matching employees.py::bulk_upload).
+    # Free registration removed the paywall that used to sit in front of
+    # this endpoint, so an unauthenticated-cost-free upload must not be
+    # allowed to read an unbounded body or insert unbounded rows.
+    _MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+    _MAX_ROWS = 10_000
+
     content = await file.read()
+    if len(content) > _MAX_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"Upload exceeds {_MAX_BODY_BYTES // (1024 * 1024)} MB limit "
+                f"({len(content)} bytes)."
+            ),
+        )
     text = content.decode("utf-8-sig")
 
     is_json = (
@@ -104,6 +119,15 @@ async def bulk_upload_roles(
     else:
         reader = csv.DictReader(io.StringIO(text))
         rows = list(reader)
+
+    if len(rows) > _MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Upload contains {len(rows)} rows; the per-request maximum "
+                f"is {_MAX_ROWS}. Split the file and retry."
+            ),
+        )
 
     # Pre-fetch existing role names for dedup
     role_result = await db.execute(

@@ -184,3 +184,47 @@ async def test_plan_state_reports_schedule_usage(
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["schedules"]["count"] == 3
     assert state["schedules"]["limit"] == 5
+
+
+async def test_plan_state_block_reason_schedule_limit_reached(
+    db_session: AsyncSession, tenant: dict
+):
+    """A free tenant that is NOT over_limit but has exhausted the monthly
+    generation cap must get block_reason="schedule_limit_reached" (final-
+    review FIX 6), not None. PlanBanner otherwise falls back to its
+    "AI requires a paid plan" copy for any null block_reason, which is
+    wrong for a tenant well within employee/location limits who simply
+    used up their free generations this month."""
+    await _add_schedules(db_session, tenant["company_id"], 5)
+    state = await get_plan_state(db_session, tenant["company_id"])
+    assert state["over_limit"] is False
+    assert state["block_reason"] == "schedule_limit_reached"
+
+
+async def test_plan_state_block_reason_none_under_generation_cap(
+    db_session: AsyncSession, tenant: dict
+):
+    """Sanity check on the other side of the boundary: still under the cap,
+    still no block_reason."""
+    await _add_schedules(db_session, tenant["company_id"], 4)
+    state = await get_plan_state(db_session, tenant["company_id"])
+    assert state["block_reason"] is None
+
+
+async def test_plan_state_over_limit_block_reason_unaffected_by_generation_cap(
+    db_session: AsyncSession, tenant: dict
+):
+    """over_limit must still win: a downgraded, over-limit tenant who has
+    ALSO exhausted the generation cap is told about the seat limit, not the
+    generation cap — over_limit itself and its precedence are unchanged by
+    FIX 6."""
+    og = await db_session.get(OwnershipGroup, tenant["og_id"])
+    og.stripe_subscription_id = "sub_1"
+    og.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    await _make_over_limit(db_session, tenant["company_id"])
+    await _add_schedules(db_session, tenant["company_id"], 5)
+
+    state = await get_plan_state(db_session, tenant["company_id"])
+    assert state["over_limit"] is True
+    assert state["block_reason"] == "subscription_canceled"

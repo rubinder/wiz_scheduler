@@ -1533,7 +1533,7 @@ async def test_generate_allowed_when_canceled_within_limit(
         json={"week_start_date": "2026-06-01", "use_local": True},
         headers={"Authorization": f"Bearer {manager_token}"},
     )
-    assert response.status_code != 402
+    assert response.status_code == 200
 
 
 async def test_employees_list_still_works_when_canceled(

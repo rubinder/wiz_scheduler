@@ -102,6 +102,13 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
             "subscription_canceled" if og.canceled_at is not None
             else "plan_limit_exceeded"
         )
+    elif sched_count >= settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH:
+        # Not over_limit, but the monthly generation cap is exhausted — the
+        # PlanBanner otherwise falls back to "AI requires a paid plan" copy
+        # for ANY non-null-block_reason-less free tenant, which is wrong
+        # for a tenant who is well within employee/location limits and
+        # simply used up their 5 free generations this month.
+        block_reason = "schedule_limit_reached"
 
     return PlanState(
         plan="free",

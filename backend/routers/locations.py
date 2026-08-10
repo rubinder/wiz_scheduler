@@ -99,7 +99,22 @@ async def bulk_upload_locations(
 
     Region names are matched case-insensitively against the regions table.
     """
+    # Body size + row-count caps (#46, matching employees.py::bulk_upload).
+    # Free registration removed the paywall that used to sit in front of
+    # this endpoint, so an unauthenticated-cost-free upload must not be
+    # allowed to read an unbounded body or insert unbounded rows.
+    _MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+    _MAX_ROWS = 10_000
+
     content = await file.read()
+    if len(content) > _MAX_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"Upload exceeds {_MAX_BODY_BYTES // (1024 * 1024)} MB limit "
+                f"({len(content)} bytes)."
+            ),
+        )
     text = content.decode("utf-8-sig")
 
     # Determine format from content type or filename
@@ -124,6 +139,15 @@ async def bulk_upload_locations(
     else:
         reader = csv.DictReader(io.StringIO(text))
         rows = list(reader)
+
+    if len(rows) > _MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Upload contains {len(rows)} rows; the per-request maximum "
+                f"is {_MAX_ROWS}. Split the file and retry."
+            ),
+        )
 
     # Pre-fetch regions for case-insensitive matching
     region_result = await db.execute(

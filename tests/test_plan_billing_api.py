@@ -105,6 +105,14 @@ async def test_upgrade_checkout_free_group_uses_customer_email(
     assert captured["line_items"] == [{"price": "price_x", "quantity": 1}]
     assert captured["client_reference_id"] == str(free_tenant["og_id"])
 
+    # Regression guard (final-review FIX 1): the ONLY frontend code that
+    # reads `upgrade_session_id` and calls POST /billing/confirm-upgrade
+    # lives on /manager/schedule (Schedule.tsx). Pointing success_url at
+    # /manager/dashboard silently orphaned every upgrade Checkout session —
+    # the customer was billed but stripe_subscription_id was never attached.
+    assert "/manager/schedule" in captured["success_url"]
+    assert "upgrade_session_id=" in captured["success_url"]
+
 
 async def test_confirm_upgrade_happy_path_attaches_customer_and_subscription(
     client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
@@ -140,6 +148,53 @@ async def test_confirm_upgrade_happy_path_attaches_customer_and_subscription(
     assert og.stripe_customer_id == "cus_new_upgrade_777"
     assert og.stripe_subscription_id == "sub_new_upgrade_888"
     assert og.canceled_at is None
+
+
+async def test_confirm_upgrade_from_canceled_clears_all_notification_timestamps(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    """A canceled group that upgrades must have canceled_at AND all three
+    deletion-lifecycle notification timestamps reset to None — exactly like
+    confirm_reactivation. Otherwise a canceled-then-upgraded-then-canceled-
+    again customer is treated as already notified, skips the day-76
+    deletion-warning email, and is hard-deleted at day 90 with no warning
+    (see process_cancellation_lifecycle in backend/services/billing.py)."""
+    import stripe
+    from datetime import datetime, timezone as _tz
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    now = datetime.now(_tz.utc)
+    og.canceled_at = now
+    og.notified_subscription_ended_at = now
+    og.notified_deletion_reminder_at = now
+    og.notified_data_deleted_at = now
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_from_canceled",
+        subscription="sub_from_canceled",
+        client_reference_id=str(free_tenant["og_id"]),
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_test_from_canceled"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 200
+
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.canceled_at is None
+    assert og.notified_subscription_ended_at is None
+    assert og.notified_deletion_reminder_at is None
+    assert og.notified_data_deleted_at is None
 
 
 async def test_confirm_upgrade_rejects_unpaid_session_and_leaves_group_unchanged(
