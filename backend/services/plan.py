@@ -182,6 +182,55 @@ async def assert_can_add(
             )
 
 
+_BLOCK_MESSAGES = {
+    "plan_limit_exceeded": (
+        "Your account exceeds the free plan limits. "
+        "Upgrade to resume schedule generation."
+    ),
+    "subscription_canceled": (
+        "Subscription canceled. Reactivate to resume scheduling."
+    ),
+}
+
+
+async def check_can_generate(
+    db: AsyncSession, company_id: str, *, use_local: bool
+) -> None:
+    """Gate POST /schedules/generate. Replaces require_active_billing.
+
+    Blocks generation only — approve, export, CRUD, and GDPR stay open on
+    every row of the table, consistent with suspending capability rather
+    than data access.
+    """
+    state = await get_plan_state(db, company_id)
+
+    # Over-limit blocks BOTH modes. Only reachable by a downgraded tenant,
+    # since every write path is capped.
+    if state["over_limit"]:
+        reason = state["block_reason"] or "plan_limit_exceeded"
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": reason,
+                "message": _BLOCK_MESSAGES[reason],
+                "locations": state["locations"],
+                "employees": state["employees"],
+            },
+        )
+
+    if not use_local and not state["can_generate_ai"]:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "ai_requires_paid_plan",
+                "message": (
+                    "AI schedule generation requires a paid plan. "
+                    "Upgrade, or generate without AI."
+                ),
+            },
+        )
+
+
 async def assert_paid_plan(
     db: AsyncSession, company_id: str, feature: str
 ) -> None:
