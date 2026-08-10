@@ -299,8 +299,8 @@ const ru = {
     address: "Адрес",
     timezone: "Часовой пояс",
     region: "Регион",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Бесплатный план допускает {limit} локаций — перейдите на платный план, чтобы добавить больше.",
+    csvLimitError: "В этом файле {rows} локаций, но в вашем бесплатном плане есть место только для {remaining}. Весь файл будет отклонён — перейдите на платный план или загрузите файл меньшего размера.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ru = {
     addRow: "+ Добавить строку",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Бесплатный план допускает {limit} сотрудников — перейдите на платный план, чтобы добавить больше.",
+    csvLimitError: "В этом файле {rows} сотрудников, но в вашем бесплатном плане есть место только для {remaining}. Весь файл будет отклонён — перейдите на платный план или загрузите файл меньшего размера.",
   },
 
   // ── Employee Onboarding ──

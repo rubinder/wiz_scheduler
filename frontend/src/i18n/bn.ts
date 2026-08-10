@@ -299,8 +299,8 @@ const bn = {
     address: "ঠিকানা",
     timezone: "সময় অঞ্চল",
     region: "অঞ্চল",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "ফ্রি প্ল্যানে {limit}টি অবস্থান রাখা যায় — আরও যোগ করতে আপগ্রেড করুন।",
+    csvLimitError: "এই ফাইলে {rows}টি অবস্থান আছে, কিন্তু আপনার ফ্রি প্ল্যানে মাত্র {remaining}টির জায়গা আছে। পুরো ফাইলটি প্রত্যাখ্যাত হবে — আপগ্রেড করুন, অথবা ছোট ফাইল আপলোড করুন।",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const bn = {
     addRow: "+ সারি যোগ করুন",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "ফ্রি প্ল্যানে {limit} জন কর্মী রাখা যায় — আরও যোগ করতে আপগ্রেড করুন।",
+    csvLimitError: "এই ফাইলে {rows} জন কর্মী আছে, কিন্তু আপনার ফ্রি প্ল্যানে মাত্র {remaining} জনের জায়গা আছে। পুরো ফাইলটি প্রত্যাখ্যাত হবে — আপগ্রেড করুন, অথবা ছোট ফাইল আপলোড করুন।",
   },
 
   // ── Employee Onboarding ──

@@ -299,8 +299,8 @@ const zh = {
     address: "地址",
     timezone: "时区",
     region: "区域",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "免费版最多允许 {limit} 个门店——升级以添加更多。",
+    csvLimitError: "此文件包含 {rows} 个门店，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const zh = {
     addRow: "+ 添加行",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "免费版最多允许 {limit} 名员工——升级以添加更多。",
+    csvLimitError: "此文件包含 {rows} 名员工，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
   },
 
   // ── Employee Onboarding ──

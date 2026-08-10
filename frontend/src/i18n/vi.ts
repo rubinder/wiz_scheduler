@@ -299,8 +299,8 @@ const vi = {
     address: "Địa chỉ",
     timezone: "Múi giờ",
     region: "Khu vực",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Gói miễn phí cho phép {limit} địa điểm — nâng cấp để thêm nhiều hơn.",
+    csvLimitError: "Tệp này có {rows} địa điểm, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const vi = {
     addRow: "+ Thêm hàng",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Gói miễn phí cho phép {limit} nhân viên — nâng cấp để thêm nhiều hơn.",
+    csvLimitError: "Tệp này có {rows} nhân viên, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
   },
 
   // ── Employee Onboarding ──

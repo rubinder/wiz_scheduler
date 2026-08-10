@@ -299,8 +299,8 @@ const ar = {
     address: "العنوان",
     timezone: "المنطقة الزمنية",
     region: "المنطقة",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "الخطة المجانية تسمح بـ {limit} مواقع — قم بالترقية لإضافة المزيد.",
+    csvLimitError: "يحتوي هذا الملف على {rows} مواقع، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ar = {
     addRow: "+ إضافة صف",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "الخطة المجانية تسمح بـ {limit} موظفين — قم بالترقية لإضافة المزيد.",
+    csvLimitError: "يحتوي هذا الملف على {rows} موظفين، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
   },
 
   // ── Employee Onboarding ──

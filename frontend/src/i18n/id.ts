@@ -299,8 +299,8 @@ const ind = {
     address: "Alamat",
     timezone: "Zona Waktu",
     region: "Wilayah",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Paket gratis mengizinkan {limit} lokasi — upgrade untuk menambah lebih banyak.",
+    csvLimitError: "File ini berisi {rows} lokasi, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ind = {
     addRow: "+ Tambah Baris",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Paket gratis mengizinkan {limit} karyawan — upgrade untuk menambah lebih banyak.",
+    csvLimitError: "File ini berisi {rows} karyawan, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
   },
 
   // ── Employee Onboarding ──

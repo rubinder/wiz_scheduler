@@ -299,8 +299,8 @@ const ja = {
     address: "住所",
     timezone: "タイムゾーン",
     region: "地域",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "無料プランでは拠点は{limit}件までです。追加するにはアップグレードしてください。",
+    csvLimitError: "このファイルには{rows}件の拠点が含まれていますが、無料プランの残り枠は{remaining}件分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ja = {
     addRow: "+ 行を追加",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "無料プランでは従業員は{limit}人までです。追加するにはアップグレードしてください。",
+    csvLimitError: "このファイルには{rows}人の従業員が含まれていますが、無料プランの残り枠は{remaining}人分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
   },
 
   // ── Employee Onboarding ──

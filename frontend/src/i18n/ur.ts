@@ -299,8 +299,8 @@ const ur = {
     address: "پتہ",
     timezone: "ٹائم زون",
     region: "علاقہ",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "فری پلان میں صرف {limit} مقامات کی اجازت ہے — مزید شامل کرنے کے لیے اپ گریڈ کریں۔",
+    csvLimitError: "اس فائل میں {rows} مقامات ہیں، لیکن آپ کے فری پلان میں صرف {remaining} کی گنجائش ہے۔ پوری فائل مسترد کر دی جائے گی — اپ گریڈ کریں، یا کوئی چھوٹی فائل اپ لوڈ کریں۔",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ur = {
     addRow: "+ قطار شامل کریں",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "فری پلان میں صرف {limit} ملازمین کی اجازت ہے — مزید شامل کرنے کے لیے اپ گریڈ کریں۔",
+    csvLimitError: "اس فائل میں {rows} ملازمین ہیں، لیکن آپ کے فری پلان میں صرف {remaining} کی گنجائش ہے۔ پوری فائل مسترد کر دی جائے گی — اپ گریڈ کریں، یا کوئی چھوٹی فائل اپ لوڈ کریں۔",
   },
 
   // ── Employee Onboarding ──

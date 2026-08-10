@@ -299,8 +299,8 @@ const te = {
     address: "చిరునామా",
     timezone: "సమయ మండలం",
     region: "ప్రాంతం",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "ఉచిత ప్లాన్‌లో {limit} స్థానాలకు మాత్రమే అనుమతి ఉంది — మరిన్ని జోడించడానికి అప్‌గ్రేడ్ చేయండి.",
+    csvLimitError: "ఈ ఫైల్‌లో {rows} స్థానాలు ఉన్నాయి, కానీ మీ ఉచిత ప్లాన్‌లో {remaining} కి మాత్రమే స్థలం ఉంది. మొత్తం ఫైల్ తిరస్కరించబడుతుంది — అప్‌గ్రేడ్ చేయండి, లేదా చిన్న ఫైల్‌ని అప్‌లోడ్ చేయండి.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const te = {
     addRow: "+ అడ్డు వరుస జోడించు",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "ఉచిత ప్లాన్‌లో {limit} మంది ఉద్యోగులకు మాత్రమే అనుమతి ఉంది — మరిన్ని జోడించడానికి అప్‌గ్రేడ్ చేయండి.",
+    csvLimitError: "ఈ ఫైల్‌లో {rows} మంది ఉద్యోగులు ఉన్నారు, కానీ మీ ఉచిత ప్లాన్‌లో {remaining} మందికి మాత్రమే స్థలం ఉంది. మొత్తం ఫైల్ తిరస్కరించబడుతుంది — అప్‌గ్రేడ్ చేయండి, లేదా చిన్న ఫైల్‌ని అప్‌లోడ్ చేయండి.",
   },
 
   // ── Employee Onboarding ──

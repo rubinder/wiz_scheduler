@@ -182,20 +182,21 @@ export default function Locations() {
         />
       )}
       <div className="glass-card">
-        {locationLimitReached && (
-          <div className="glass-alert-info m-4">
-            {t.locationsPage.limitReached.replace(
-              "{limit}",
-              String(plan?.locations.limit)
-            )}
-          </div>
-        )}
         <DataTable
           columns={columns}
           data={locations as unknown as Record<string, unknown>[]}
           onSave={handleSave}
           onDelete={handleDelete}
-          onCreate={locationLimitReached ? undefined : handleCreate}
+          onCreate={handleCreate}
+          createDisabled={locationLimitReached}
+          createDisabledReason={
+            locationLimitReached
+              ? t.locationsPage.limitReached.replace(
+                  "{limit}",
+                  String(plan?.locations.limit)
+                )
+              : undefined
+          }
         />
       </div>
     </div>

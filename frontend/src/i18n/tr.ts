@@ -299,8 +299,8 @@ const trLang = {
     address: "Adres",
     timezone: "Saat Dilimi",
     region: "Bölge",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Ücretsiz plan {limit} konuma izin verir — daha fazla eklemek için yükseltin.",
+    csvLimitError: "Bu dosyada {rows} konum var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const trLang = {
     addRow: "+ Satır Ekle",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Ücretsiz plan {limit} çalışana izin verir — daha fazla eklemek için yükseltin.",
+    csvLimitError: "Bu dosyada {rows} çalışan var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
   },
 
   // ── Employee Onboarding ──

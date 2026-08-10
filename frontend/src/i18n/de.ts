@@ -299,8 +299,8 @@ const de = {
     address: "Adresse",
     timezone: "Zeitzone",
     region: "Region",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Der kostenlose Plan erlaubt {limit} Standorte — upgraden, um weitere hinzuzufügen.",
+    csvLimitError: "Diese Datei enthält {rows} Standorte, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const de = {
     addRow: "+ Zeile hinzufügen",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Der kostenlose Plan erlaubt {limit} Mitarbeiter — upgraden, um weitere hinzuzufügen.",
+    csvLimitError: "Diese Datei enthält {rows} Mitarbeiter, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
   },
 
   // ── Employee Onboarding ──

@@ -299,8 +299,8 @@ const pcm = {
     address: "Address",
     timezone: "Timezone",
     region: "Region",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Free plan de allow only {limit} locations — upgrade make you fit add more.",
+    csvLimitError: "This file get {rows} locations but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const pcm = {
     addRow: "+ Add Row",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "Free plan de allow only {limit} workers — upgrade make you fit add more.",
+    csvLimitError: "This file get {rows} workers but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
   },
 
   // ── Employee Onboarding ──

@@ -299,8 +299,8 @@ const hi = {
     address: "पता",
     timezone: "समय क्षेत्र",
     region: "क्षेत्र",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "फ्री प्लान में {limit} स्थान तक की अनुमति है — और जोड़ने के लिए अपग्रेड करें।",
+    csvLimitError: "इस फ़ाइल में {rows} स्थान हैं, लेकिन आपके फ्री प्लान में केवल {remaining} के लिए जगह है। पूरी फ़ाइल अस्वीकार कर दी जाएगी — अपग्रेड करें, या कोई छोटी फ़ाइल अपलोड करें।",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const hi = {
     addRow: "+ पंक्ति जोड़ें",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "फ्री प्लान में {limit} कर्मचारी तक की अनुमति है — और जोड़ने के लिए अपग्रेड करें।",
+    csvLimitError: "इस फ़ाइल में {rows} कर्मचारी हैं, लेकिन आपके फ्री प्लान में केवल {remaining} के लिए जगह है। पूरी फ़ाइल अस्वीकार कर दी जाएगी — अपग्रेड करें, या कोई छोटी फ़ाइल अपलोड करें।",
   },
 
   // ── Employee Onboarding ──

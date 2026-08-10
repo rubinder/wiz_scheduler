@@ -299,8 +299,8 @@ const ta = {
     address: "முகவரி",
     timezone: "நேர வலயம்",
     region: "பிராந்தியம்",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "இலவச திட்டத்தில் {limit} இடங்கள் மட்டுமே அனுமதிக்கப்படும் — மேலும் சேர்க்க மேம்படுத்தவும்.",
+    csvLimitError: "இந்த கோப்பில் {rows} இடங்கள் உள்ளன, ஆனால் உங்கள் இலவச திட்டத்தில் {remaining}க்கு மட்டுமே இடம் உள்ளது. முழு கோப்பும் நிராகரிக்கப்படும் — மேம்படுத்தவும் அல்லது சிறிய கோப்பை பதிவேற்றவும்.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const ta = {
     addRow: "+ வரிசையைச் சேர்",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "இலவச திட்டத்தில் {limit} பணியாளர்கள் மட்டுமே அனுமதிக்கப்படுவார்கள் — மேலும் சேர்க்க மேம்படுத்தவும்.",
+    csvLimitError: "இந்த கோப்பில் {rows} பணியாளர்கள் உள்ளனர், ஆனால் உங்கள் இலவச திட்டத்தில் {remaining} பேருக்கு மட்டுமே இடம் உள்ளது. முழு கோப்பும் நிராகரிக்கப்படும் — மேம்படுத்தவும் அல்லது சிறிய கோப்பை பதிவேற்றவும்.",
   },
 
   // ── Employee Onboarding ──

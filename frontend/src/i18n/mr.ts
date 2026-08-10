@@ -299,8 +299,8 @@ const mr = {
     address: "पत्ता",
     timezone: "वेळक्षेत्र",
     region: "प्रदेश",
-    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
-    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "मोफत प्लॅनमध्ये फक्त {limit} स्थाने ठेवता येतात — अधिक जोडण्यासाठी अपग्रेड करा.",
+    csvLimitError: "या फाइलमध्ये {rows} स्थाने आहेत, पण तुमच्या मोफत प्लॅनमध्ये फक्त {remaining} साठी जागा आहे. संपूर्ण फाइल नाकारली जाईल — अपग्रेड करा, किंवा लहान फाइल अपलोड करा.",
   },
 
   // ── Roles ──
@@ -340,8 +340,8 @@ const mr = {
     addRow: "+ ओळ जोडा",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
-    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
-    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    limitReached: "मोफत प्लॅनमध्ये फक्त {limit} कर्मचारी ठेवता येतात — अधिक जोडण्यासाठी अपग्रेड करा.",
+    csvLimitError: "या फाइलमध्ये {rows} कर्मचारी आहेत, पण तुमच्या मोफत प्लॅनमध्ये फक्त {remaining} साठी जागा आहे. संपूर्ण फाइल नाकारली जाईल — अपग्रेड करा, किंवा लहान फाइल अपलोड करा.",
   },
 
   // ── Employee Onboarding ──
