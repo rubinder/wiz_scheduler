@@ -220,6 +220,7 @@ const mr = {
     manager: "व्यवस्थापक",
     importFrom7shifts: "7shifts वरून आयात करा",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "फक्त पेड प्लॅनवर उपलब्ध — आपोआप आयात करण्यासाठी अपग्रेड करा.",
     subtitle: "खालील डॅशबोर्डवरून तुमचे वेळापत्रक व्यवस्थापन करा.",
     companyDesc: "कंपनी सेटिंग्ज पहा आणि संपादित करा",
     regionsDesc: "भौगोलिक प्रदेश व्यवस्थापित करा",
@@ -228,6 +229,17 @@ const mr = {
     employeesDesc: "तुमचे कर्मचारी व्यवस्थापित करा",
     shiftTemplatesDesc: "साप्ताहिक शिफ्ट पॅटर्न कॉन्फिगर करा",
     scheduleDesc: "वेळापत्रके तयार करा आणि मंजूर करा",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "तुमचे खाते मोफत प्लॅनच्या मर्यादेपेक्षा जास्त आहे. वेळापत्रक तयार करणे पुन्हा सुरू करण्यासाठी अपग्रेड करा.",
+    reasonSubscriptionCanceled: "तुमची सदस्यता रद्द करण्यात आली आहे. वेळापत्रक सुरू ठेवण्यासाठी पुन्हा सक्रिय करा.",
+    reasonAiRequiresPaid: "AI वेळापत्रकासाठी पेड प्लॅन आवश्यक आहे. तुम्ही अजूनही AI शिवाय तयार करू शकता.",
+    usage: "{employeeCount} पैकी {employeeLimit} कर्मचारी · {locationCount} पैकी {locationLimit} स्थाने",
+    upgradeButton: "अपग्रेड करा",
+    upgrading: "पुनर्निर्देशित करत आहे…",
+    upgradeFailed: "अपग्रेड चेकआउट सुरू करता आले नाही.",
   },
 
   // ── Link Google account (dashboard card) ──

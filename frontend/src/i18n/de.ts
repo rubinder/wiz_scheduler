@@ -220,6 +220,7 @@ const de = {
     manager: "Manager",
     importFrom7shifts: "Von 7shifts importieren",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Nur in kostenpflichtigen Plänen verfügbar — upgraden, um automatisch zu importieren.",
     subtitle: "Verwalten Sie Ihre Dienstplanung über das Dashboard.",
     companyDesc: "Unternehmenseinstellungen ansehen und bearbeiten",
     regionsDesc: "Geografische Regionen verwalten",
@@ -228,6 +229,17 @@ const de = {
     employeesDesc: "Belegschaft verwalten",
     shiftTemplatesDesc: "Wöchentliche Schichtmuster konfigurieren",
     scheduleDesc: "Dienstpläne generieren und genehmigen",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Ihr Konto überschreitet die Grenzen des kostenlosen Plans. Upgraden, um die Dienstplanerstellung fortzusetzen.",
+    reasonSubscriptionCanceled: "Ihr Abonnement wurde gekündigt. Reaktivieren Sie es, um die Planung fortzusetzen.",
+    reasonAiRequiresPaid: "Die KI-Planung erfordert einen kostenpflichtigen Plan. Sie können weiterhin ohne KI generieren.",
+    usage: "{employeeCount} von {employeeLimit} Mitarbeitern · {locationCount} von {locationLimit} Standorten",
+    upgradeButton: "Upgraden",
+    upgrading: "Weiterleitung…",
+    upgradeFailed: "Upgrade-Checkout konnte nicht gestartet werden.",
   },
 
   // ── Link Google account (dashboard card) ──

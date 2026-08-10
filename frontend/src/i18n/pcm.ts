@@ -220,6 +220,7 @@ const pcm = {
     manager: "Manager",
     importFrom7shifts: "Bring from 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "E dey available for paid plan only — upgrade make you fit import am automatic.",
     subtitle: "Manage your scheduling from this dashboard.",
     companyDesc: "See and edit company settings",
     regionsDesc: "Manage geographic regions",
@@ -228,6 +229,17 @@ const pcm = {
     employeesDesc: "Manage your workers",
     shiftTemplatesDesc: "Set up weekly shift patterns",
     scheduleDesc: "Generate and approve schedules",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Your account don pass wetin free plan allow. Upgrade make you fit continue to generate schedule.",
+    reasonSubscriptionCanceled: "Dem don cancel your subscription. Reactivate am make you fit continue scheduling.",
+    reasonAiRequiresPaid: "AI scheduling need paid plan. You fit still generate am without AI.",
+    usage: "{employeeCount} out of {employeeLimit} workers · {locationCount} out of {locationLimit} locations",
+    upgradeButton: "Upgrade",
+    upgrading: "E dey redirect…",
+    upgradeFailed: "E no fit start upgrade checkout.",
   },
 
   // ── Link Google account (dashboard card) ──

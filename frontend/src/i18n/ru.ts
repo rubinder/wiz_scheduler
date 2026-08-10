@@ -220,6 +220,7 @@ const ru = {
     manager: "Менеджер",
     importFrom7shifts: "Импорт из 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Доступно только на платных планах — перейдите на платный план для автоматического импорта.",
     subtitle: "Управляйте расписанием с помощью панели ниже.",
     companyDesc: "Просмотр и редактирование настроек компании",
     regionsDesc: "Управление географическими регионами",
@@ -228,6 +229,17 @@ const ru = {
     employeesDesc: "Управление персоналом",
     shiftTemplatesDesc: "Настройка еженедельных шаблонов смен",
     scheduleDesc: "Генерация и утверждение расписаний",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Ваш аккаунт превышает лимиты бесплатного плана. Перейдите на платный план, чтобы возобновить генерацию расписаний.",
+    reasonSubscriptionCanceled: "Ваша подписка была отменена. Возобновите её, чтобы продолжить планирование.",
+    reasonAiRequiresPaid: "Планирование с ИИ требует платного плана. Вы всё ещё можете генерировать расписание без ИИ.",
+    usage: "{employeeCount} из {employeeLimit} сотрудников · {locationCount} из {locationLimit} локаций",
+    upgradeButton: "Перейти на платный план",
+    upgrading: "Перенаправление…",
+    upgradeFailed: "Не удалось начать оформление перехода на платный план.",
   },
 
   // ── Link Google account (dashboard card) ──

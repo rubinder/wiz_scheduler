@@ -220,6 +220,7 @@ const te = {
     manager: "మేనేజర్",
     importFrom7shifts: "7shifts నుండి దిగుమతి చేయి",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "పెయిడ్ ప్లాన్‌లలో మాత్రమే అందుబాటులో ఉంది — ఆటోమెటిక్‌గా దిగుమతి చేయడానికి అప్‌గ్రేడ్ చేయండి.",
     subtitle: "దిగువ డాష్‌బోర్డ్ నుండి మీ షెడ్యూలింగ్‌ను నిర్వహించండి.",
     companyDesc: "సంస్థ సెట్టింగ్‌లను చూడండి మరియు మార్చండి",
     regionsDesc: "భౌగోళిక ప్రాంతాలను నిర్వహించండి",
@@ -228,6 +229,17 @@ const te = {
     employeesDesc: "మీ సిబ్బందిని నిర్వహించండి",
     shiftTemplatesDesc: "వారపు షిఫ్ట్ నమూనాలను కాన్ఫిగర్ చేయండి",
     scheduleDesc: "షెడ్యూల్‌లను రూపొందించి ఆమోదించండి",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "మీ ఖాతా ఉచిత ప్లాన్ పరిమితులను మించిపోయింది. షెడ్యూల్ జనరేషన్ కొనసాగించడానికి అప్‌గ్రేడ్ చేయండి.",
+    reasonSubscriptionCanceled: "మీ సభ్యత్థం రద్దు చేయబడింది. షెడ్యూలింగ్ కొనసాగించడానికి తిరిగి యాక్టివేట్ చేయండి.",
+    reasonAiRequiresPaid: "AI షెడ్యూలింగ్కు పెయిడ్ ప్లాన్ అవసరం. మీరు ఇప్పటికీ AI లేకుండా జనరేట్ చేయవచ్చు.",
+    usage: "{employeeCount} లో {employeeLimit} మంది ఉద్యోగులు · {locationCount} లో {locationLimit} స్థానాలు",
+    upgradeButton: "అప్‌గ్రేడ్ చేయండి",
+    upgrading: "దారి మళ్లిస్తోంది…",
+    upgradeFailed: "అప్‌గ్రేడ్ చెక్‌అవట్ ప్రారంభించలేకపోయాము.",
   },
 
   // ── Link Google account (dashboard card) ──

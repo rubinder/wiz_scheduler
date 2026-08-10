@@ -220,6 +220,7 @@ const trLang = {
     manager: "Yönetici",
     importFrom7shifts: "7shifts'ten İçe Aktar",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Yalnızca ücretli planlarda kullanılabilir — otomatik içe aktarmak için yükseltin.",
     subtitle: "Aşağıdaki kontrol panelinden programlamalarınızı yönetin.",
     companyDesc: "Şirket ayarlarını görüntüle ve düzenle",
     regionsDesc: "Coğrafi bölgeleri yönet",
@@ -228,6 +229,17 @@ const trLang = {
     employeesDesc: "İş gücünüzü yönetin",
     shiftTemplatesDesc: "Haftalık vardiya kalıplarını yapılandır",
     scheduleDesc: "Program oluştur ve onayla",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Hesabınız ücretsiz plan sınırlarını aşıyor. Program oluşturmaya devam etmek için yükseltin.",
+    reasonSubscriptionCanceled: "Aboneliğiniz iptal edildi. Programlamaya devam etmek için yeniden etkinleştirin.",
+    reasonAiRequiresPaid: "AI ile programlama ücretli bir plan gerektirir. AI olmadan yine de oluşturabilirsiniz.",
+    usage: "{employeeCount}/{employeeLimit} çalışan · {locationCount}/{locationLimit} konum",
+    upgradeButton: "Yükselt",
+    upgrading: "Yönlendiriliyor…",
+    upgradeFailed: "Yükseltme ödemesi başlatılamadı.",
   },
 
   // ── Link Google account (dashboard card) ──

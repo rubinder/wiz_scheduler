@@ -220,6 +220,7 @@ const ind = {
     manager: "Manajer",
     importFrom7shifts: "Impor dari 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Tersedia di paket berbayar — upgrade untuk mengimpor secara otomatis.",
     subtitle: "Kelola penjadwalan Anda dari dasbor di bawah.",
     companyDesc: "Lihat dan edit pengaturan perusahaan",
     regionsDesc: "Kelola wilayah geografis",
@@ -228,6 +229,17 @@ const ind = {
     employeesDesc: "Kelola tenaga kerja Anda",
     shiftTemplatesDesc: "Konfigurasi pola shift mingguan",
     scheduleDesc: "Buat dan setujui jadwal",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Akun Anda melebihi batas paket gratis. Upgrade untuk melanjutkan pembuatan jadwal.",
+    reasonSubscriptionCanceled: "Langganan Anda telah dibatalkan. Aktifkan kembali untuk melanjutkan penjadwalan.",
+    reasonAiRequiresPaid: "Penjadwalan AI memerlukan paket berbayar. Anda tetap dapat membuat jadwal tanpa AI.",
+    usage: "{employeeCount} dari {employeeLimit} karyawan · {locationCount} dari {locationLimit} lokasi",
+    upgradeButton: "Upgrade",
+    upgrading: "Mengalihkan…",
+    upgradeFailed: "Tidak dapat memulai checkout upgrade.",
   },
 
   // ── Link Google account (dashboard card) ──

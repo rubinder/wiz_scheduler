@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { usePlan } from "../../hooks/usePlan";
 import Import7ShiftsModal from "../../components/shared/Import7ShiftsModal";
 import ImportDeputyModal from "../../components/shared/ImportDeputyModal";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -87,6 +88,13 @@ export default function Dashboard() {
   const [showImport, setShowImport] = useState(false);
   const [showDeputyImport, setShowDeputyImport] = useState(false);
 
+  // Fail-open per usePlan's contract: `plan` stays null while loading or
+  // if the fetch failed, and `plan?.plan === "free"` is then false — so
+  // a plan-fetch outage never blocks these importers. The API still
+  // enforces this server-side (assert_paid_plan) regardless.
+  const { plan } = usePlan();
+  const importsDisabled = plan?.plan === "free";
+
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -148,21 +156,30 @@ export default function Dashboard() {
         <div className="flex gap-2">
           <button
             onClick={() => setShowImport(true)}
+            disabled={importsDisabled}
+            title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
             className="glass-btn-orange"
           >
             {t.dashboard.importFrom7shifts}
           </button>
           <button
             onClick={() => setShowDeputyImport(true)}
+            disabled={importsDisabled}
+            title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
             className="glass-btn-primary"
           >
             {t.dashboard.importFromDeputy}
           </button>
         </div>
       </div>
-      <p className={`${text.muted} mb-8`}>
+      <p className={`${text.muted} ${importsDisabled ? "mb-1" : "mb-8"}`}>
         {t.dashboard.subtitle}
       </p>
+      {importsDisabled && (
+        <p className={`text-xs ${text.muted} mb-8`}>
+          {t.dashboard.importDisabledFreePlan}
+        </p>
+      )}
       {user && !user.has_google && <LinkGoogleCard />}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {navCards.map((card) => (

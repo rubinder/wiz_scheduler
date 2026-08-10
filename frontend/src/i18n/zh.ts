@@ -220,6 +220,7 @@ const zh = {
     manager: "管理员",
     importFrom7shifts: "从 7shifts 导入",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "仅限付费计划 — 升级以自动导入。",
     subtitle: "通过下方仪表盘管理您的排班。",
     companyDesc: "查看和编辑公司设置",
     regionsDesc: "管理地理区域",
@@ -228,6 +229,17 @@ const zh = {
     employeesDesc: "管理您的员工",
     shiftTemplatesDesc: "配置每周班次模式",
     scheduleDesc: "生成和审批排班",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "您的账户超出了免费版限制。升级以恢复排班生成。",
+    reasonSubscriptionCanceled: "您的订阅已取消。重新激活以恢复排班。",
+    reasonAiRequiresPaid: "AI 排班需要付费计划。您仍可以不使用 AI 生成排班。",
+    usage: "{employeeCount} / {employeeLimit} 名员工 · {locationCount} / {locationLimit} 个门店",
+    upgradeButton: "升级",
+    upgrading: "跳转中…",
+    upgradeFailed: "无法启动升级结账。",
   },
 
   // ── Link Google account (dashboard card) ──

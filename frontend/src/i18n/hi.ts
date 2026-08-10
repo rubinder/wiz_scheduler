@@ -220,6 +220,7 @@ const hi = {
     manager: "प्रबंधक",
     importFrom7shifts: "7shifts से आयात करें",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "केवल पेड प्लान पर उपलब्ध — स्वतः आयात करने के लिए अपग्रेड करें।",
     subtitle: "नीचे दिए गए डैशबोर्ड से अपनी शेड्यूलिंग प्रबंधित करें।",
     companyDesc: "कंपनी सेटिंग देखें और संपादित करें",
     regionsDesc: "भौगोलिक क्षेत्र प्रबंधित करें",
@@ -228,6 +229,17 @@ const hi = {
     employeesDesc: "अपने कार्यबल का प्रबंधन करें",
     shiftTemplatesDesc: "साप्ताहिक शिफ्ट पैटर्न कॉन्फ़िगर करें",
     scheduleDesc: "शेड्यूल बनाएं और स्वीकृत करें",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "आपका खाता फ्री प्लान की सीमा से अधिक है। शेड्यूल जनरेशन फिर से शुरू करने के लिए अपग्रेड करें।",
+    reasonSubscriptionCanceled: "आपकी सदस्यता रद्द कर दी गई है। शेड्यूलिंग फिर से शुरू करने के लिए पुनः सक्रिय करें।",
+    reasonAiRequiresPaid: "AI शेड्यूलिंग के लिए पेड प्लान आवश्यक है। आप अभी भी बिना AI के जनरेट कर सकते हैं।",
+    usage: "{employeeCount} में से {employeeLimit} कर्मचारी · {locationCount} में से {locationLimit} स्थान",
+    upgradeButton: "अपग्रेड करें",
+    upgrading: "रीडायरेक्ट हो रहा है…",
+    upgradeFailed: "अपग्रेड चेकआउट शुरू नहीं हो सका।",
   },
 
   // ── Link Google account (dashboard card) ──

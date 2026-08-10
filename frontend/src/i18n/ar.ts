@@ -220,6 +220,7 @@ const ar = {
     manager: "مدير",
     importFrom7shifts: "استيراد من 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "متاح فقط في الخطط المدفوعة — قم بالترقية للاستيراد التلقائي.",
     subtitle: "أدِر جداولك من لوحة التحكم أدناه.",
     companyDesc: "عرض وتعديل إعدادات الشركة",
     regionsDesc: "إدارة المناطق الجغرافية",
@@ -228,6 +229,17 @@ const ar = {
     employeesDesc: "إدارة القوى العاملة",
     shiftTemplatesDesc: "إعداد أنماط الورديات الأسبوعية",
     scheduleDesc: "إنشاء واعتماد الجداول",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "حسابك يتجاوز حدود الخطة المجانية. قم بالترقية لاستئناف إنشاء الجداول.",
+    reasonSubscriptionCanceled: "تم إلغاء اشتراكك. أعد التفعيل لاستئناف الجدولة.",
+    reasonAiRequiresPaid: "تتطلب الجدولة بالذكاء الاصطناعي خطة مدفوعة. يمكنك الإنشاء بدون الذكاء الاصطناعي.",
+    usage: "{employeeCount} من {employeeLimit} موظفين · {locationCount} من {locationLimit} مواقع",
+    upgradeButton: "ترقية",
+    upgrading: "جارٍ إعادة التوجيه…",
+    upgradeFailed: "تعذر بدء عملية الترقية.",
   },
 
   // ── Link Google account (dashboard card) ──

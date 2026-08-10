@@ -220,6 +220,7 @@ const ur = {
     manager: "منیجر",
     importFrom7shifts: "7shifts سے درآمد کریں",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "صرف پیڈ پلان میں دستیاب ہے — خودکار درآمد کے لیے اپ گریڈ کریں۔",
     subtitle: "نیچے ڈیش بورڈ سے اپنی شیڈولنگ کا انتظام کریں۔",
     companyDesc: "کمپنی کی ترتیبات دیکھیں اور ترمیم کریں",
     regionsDesc: "جغرافیائی علاقوں کا انتظام کریں",
@@ -228,6 +229,17 @@ const ur = {
     employeesDesc: "اپنی افرادی قوت کا انتظام کریں",
     shiftTemplatesDesc: "ہفتہ وار شفٹ پیٹرن ترتیب دیں",
     scheduleDesc: "شیڈول تیار اور منظور کریں",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "آپ کا اکاؤنٹ فری پلان کی حد سے تجاوز کر گیا ہے۔ شیڈول جنریشن دوبارہ شروع کرنے کے لیے اپ گریڈ کریں۔",
+    reasonSubscriptionCanceled: "آپ کی سبسکرپشن منسوخ کر دی گئی ہے۔ شیڈولنگ دوبارہ شروع کرنے کے لیے دوبارہ فعال کریں۔",
+    reasonAiRequiresPaid: "AI شیڈولنگ کے لیے پیڈ پلان درکار ہے۔ آپ اب بھی بغیر AI کے جنریٹ کر سکتے ہیں۔",
+    usage: "{employeeCount} میں سے {employeeLimit} ملازمین · {locationCount} میں سے {locationLimit} مقامات",
+    upgradeButton: "اپ گریڈ کریں",
+    upgrading: "ری ڈائریکٹ ہو رہا ہے…",
+    upgradeFailed: "اپ گریڈ چیک آؤٹ شروع نہیں ہو سکا۔",
   },
 
   // ── Link Google account (dashboard card) ──

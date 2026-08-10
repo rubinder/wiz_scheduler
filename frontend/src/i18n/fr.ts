@@ -220,6 +220,7 @@ const fr = {
     manager: "Gestionnaire",
     importFrom7shifts: "Importer depuis 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Disponible sur les forfaits payants — passez à un forfait supérieur pour importer automatiquement.",
     subtitle: "Gérez vos horaires depuis le tableau de bord ci-dessous.",
     companyDesc: "Afficher et modifier les paramètres de l'entreprise",
     regionsDesc: "Gérer les régions géographiques",
@@ -228,6 +229,17 @@ const fr = {
     employeesDesc: "Gérer votre personnel",
     shiftTemplatesDesc: "Configurer les modèles de quarts hebdomadaires",
     scheduleDesc: "Générer et approuver les horaires",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Votre compte dépasse les limites du plan gratuit. Passez à un forfait supérieur pour reprendre la génération des horaires.",
+    reasonSubscriptionCanceled: "Votre abonnement a été annulé. Réactivez-le pour reprendre la planification.",
+    reasonAiRequiresPaid: "La planification par IA nécessite un forfait payant. Vous pouvez toujours générer sans IA.",
+    usage: "{employeeCount} sur {employeeLimit} employés · {locationCount} sur {locationLimit} emplacements",
+    upgradeButton: "Passer à un forfait supérieur",
+    upgrading: "Redirection…",
+    upgradeFailed: "Impossible de démarrer le paiement de mise à niveau.",
   },
 
   // ── Link Google account (dashboard card) ──

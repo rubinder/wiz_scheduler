@@ -220,6 +220,7 @@ const ja = {
     manager: "マネージャー",
     importFrom7shifts: "7shiftsからインポート",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "有料プランでのみご利用いただけます — 自動インポートするにはアップグレードしてください。",
     subtitle: "以下のダッシュボードからスケジュール管理を行えます。",
     companyDesc: "会社設定の表示・編集",
     regionsDesc: "地域の管理",
@@ -228,6 +229,17 @@ const ja = {
     employeesDesc: "従業員の管理",
     shiftTemplatesDesc: "週間シフトパターンの設定",
     scheduleDesc: "スケジュールの生成と承認",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "アカウントが無料プランの上限を超えています。スケジュール生成を再開するにはアップグレードしてください。",
+    reasonSubscriptionCanceled: "サブスクリプションはキャンセルされました。スケジューリングを再開するには再度有効化してください。",
+    reasonAiRequiresPaid: "AIスケジューリングには有料プランが必要です。AIを使わずに生成することは引き続き可能です。",
+    usage: "従業員 {employeeCount}/{employeeLimit} 人 · 拠点 {locationCount}/{locationLimit} 件",
+    upgradeButton: "アップグレード",
+    upgrading: "リダイレクト中…",
+    upgradeFailed: "アップグレードの決済を開始できませんでした。",
   },
 
   // ── Link Google account (dashboard card) ──

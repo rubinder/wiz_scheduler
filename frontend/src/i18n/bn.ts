@@ -220,6 +220,7 @@ const bn = {
     manager: "ম্যানেজার",
     importFrom7shifts: "7shifts থেকে ইম্পোর্ট করুন",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "কেবলমাত্র পেইড প্ল্যানে উপলব্ধ — স্বয়ংক্রিয়ভাবে আমদানি করতে আপগ্রেড করুন।",
     subtitle: "নিচের ড্যাশবোর্ড থেকে আপনার সময়সূচি পরিচালনা করুন।",
     companyDesc: "কোম্পানির সেটিংস দেখুন ও সম্পাদনা করুন",
     regionsDesc: "ভৌগোলিক অঞ্চলসমূহ পরিচালনা করুন",
@@ -228,6 +229,17 @@ const bn = {
     employeesDesc: "আপনার কর্মীদের পরিচালনা করুন",
     shiftTemplatesDesc: "সাপ্তাহিক শিফটের ধরন কনফিগার করুন",
     scheduleDesc: "সময়সূচি তৈরি ও অনুমোদন করুন",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "আপনার অ্যাকাউন্ট ফ্রি প্ল্যানের সীমা অতিক্রম করেছে। সময়সূচি তৈরি পুনরায় শুরু করতে আপগ্রেড করুন।",
+    reasonSubscriptionCanceled: "আপনার সাবসক্রিপশন বাতিল হয়েছে। সময়সূচি চালিয়ে যেতে পুনরায় সক্রিয় করুন।",
+    reasonAiRequiresPaid: "AI সময়সূচির জন্য পেইড প্ল্যান প্রয়োজন। আপনি এখনও AI ছাড়া তৈরি করতে পারেন।",
+    usage: "{employeeCount} এর মধ্যে {employeeLimit} জন কর্মী · {locationCount} এর মধ্যে {locationLimit}টি অবস্থান",
+    upgradeButton: "আপগ্রেড করুন",
+    upgrading: "পুনঃনির্দেশ করা হচ্ছে…",
+    upgradeFailed: "আপগ্রেড চেকআউট শুরু করা যায়নি।",
   },
 
   // ── Link Google account (dashboard card) ──

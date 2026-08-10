@@ -220,6 +220,7 @@ const vi = {
     manager: "Quản lý",
     importFrom7shifts: "Nhập từ 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Chỉ khả dụng trên gói trả phí — nâng cấp để nhập tự động.",
     subtitle: "Quản lý lịch làm việc từ bảng điều khiển bên dưới.",
     companyDesc: "Xem và chỉnh sửa cài đặt công ty",
     regionsDesc: "Quản lý các khu vực địa lý",
@@ -228,6 +229,17 @@ const vi = {
     employeesDesc: "Quản lý đội ngũ nhân viên",
     shiftTemplatesDesc: "Cấu hình mẫu ca làm hàng tuần",
     scheduleDesc: "Tạo và duyệt lịch làm việc",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Tài khoản của bạn vượt quá giới hạn gói miễn phí. Nâng cấp để tiếp tục tạo lịch làm việc.",
+    reasonSubscriptionCanceled: "Gói đăng ký của bạn đã bị hủy. Kích hoạt lại để tiếp tục lên lịch.",
+    reasonAiRequiresPaid: "Lên lịch bằng AI yêu cầu gói trả phí. Bạn vẫn có thể tạo lịch mà không cần AI.",
+    usage: "{employeeCount} trên {employeeLimit} nhân viên · {locationCount} trên {locationLimit} địa điểm",
+    upgradeButton: "Nâng cấp",
+    upgrading: "Đang chuyển hướng…",
+    upgradeFailed: "Không thể bắt đầu thanh toán nâng cấp.",
   },
 
   // ── Link Google account (dashboard card) ──

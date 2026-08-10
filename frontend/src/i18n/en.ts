@@ -220,6 +220,7 @@ const en = {
     manager: "Manager",
     importFrom7shifts: "Import from 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Available on paid plans — upgrade to import automatically.",
     subtitle: "Manage your scheduling from the dashboard below.",
     companyDesc: "View and edit company settings",
     regionsDesc: "Manage geographic regions",
@@ -228,6 +229,17 @@ const en = {
     employeesDesc: "Manage your workforce",
     shiftTemplatesDesc: "Configure weekly shift patterns",
     scheduleDesc: "Generate and approve schedules",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Your account exceeds the free plan limits. Upgrade to resume schedule generation.",
+    reasonSubscriptionCanceled: "Your subscription was canceled. Reactivate to resume scheduling.",
+    reasonAiRequiresPaid: "AI scheduling requires a paid plan. You can still generate without AI.",
+    usage: "{employeeCount} of {employeeLimit} employees · {locationCount} of {locationLimit} locations",
+    upgradeButton: "Upgrade",
+    upgrading: "Redirecting…",
+    upgradeFailed: "Could not start upgrade checkout.",
   },
 
   // ── Link Google account (dashboard card) ──

@@ -220,6 +220,7 @@ const ta = {
     manager: "மேலாளர்",
     importFrom7shifts: "7shifts இலிருந்து இறக்குமதி செய்",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "பணம் செலுத்தும் திட்டங்களில் மட்டுமே கிடைக்கும் — தானாக இறக்குமதி செய்ய மேம்படுத்தவும்.",
     subtitle: "கீழே உள்ள முகப்புப்பலகையிலிருந்து உங்கள் அட்டவணையை நிர்வகிக்கவும்.",
     companyDesc: "நிறுவன அமைப்புகளைப் பார்க்கவும் திருத்தவும்",
     regionsDesc: "புவியியல் பிராந்தியங்களை நிர்வகிக்கவும்",
@@ -228,6 +229,17 @@ const ta = {
     employeesDesc: "உங்கள் பணியாளர்களை நிர்வகிக்கவும்",
     shiftTemplatesDesc: "வாராந்திர பணிநேர வடிவங்களை உள்ளமைக்கவும்",
     scheduleDesc: "அட்டவணைகளை உருவாக்கி அங்கீகரிக்கவும்",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "உங்கள் கணக்கு இலவச திட்ட வரம்புகளை மீறுகிறது. அட்டவணை உருவாக்கத்தை மீண்டும் தொடங்க மேம்படுத்தவும்.",
+    reasonSubscriptionCanceled: "உங்கள் சந்தா ரத்து செய்யப்பட்டது. அட்டவணையிடலை மீண்டும் தொடங்க மீண்டும் செயல்படுத்தவும்.",
+    reasonAiRequiresPaid: "AI அட்டவணையிடலுக்கு பணம் செலுத்தும் திட்டம் தேவை. AI இல்லாமல் இன்னும் உருவாக்கலாம்.",
+    usage: "{employeeCount} இல் {employeeLimit} பணியாளர்கள் · {locationCount} இல் {locationLimit} இடங்கள்",
+    upgradeButton: "மேம்படுத்தவும்",
+    upgrading: "திசைமாற்றுகிறது…",
+    upgradeFailed: "மேம்படுத்தல் செக்அவுட்டைத் தொடங்க முடியவில்லை.",
   },
 
   // ── Link Google account (dashboard card) ──

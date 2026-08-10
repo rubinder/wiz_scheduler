@@ -220,6 +220,7 @@ const es = {
     manager: "Gerente",
     importFrom7shifts: "Importar desde 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Disponible en planes de pago — mejora tu plan para importar automáticamente.",
     subtitle: "Administra tu programación desde el panel a continuación.",
     companyDesc: "Ver y editar la configuración de la empresa",
     regionsDesc: "Administrar regiones geográficas",
@@ -228,6 +229,17 @@ const es = {
     employeesDesc: "Administrar tu equipo de trabajo",
     shiftTemplatesDesc: "Configurar patrones de turnos semanales",
     scheduleDesc: "Generar y aprobar horarios",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Tu cuenta supera los límites del plan gratuito. Mejora tu plan para reanudar la generación de horarios.",
+    reasonSubscriptionCanceled: "Tu suscripción fue cancelada. Reactívala para reanudar la programación.",
+    reasonAiRequiresPaid: "La programación con IA requiere un plan de pago. Aún puedes generar sin IA.",
+    usage: "{employeeCount} de {employeeLimit} empleados · {locationCount} de {locationLimit} ubicaciones",
+    upgradeButton: "Mejorar plan",
+    upgrading: "Redirigiendo…",
+    upgradeFailed: "No se pudo iniciar el pago de la mejora.",
   },
 
   // ── Link Google account (dashboard card) ──
