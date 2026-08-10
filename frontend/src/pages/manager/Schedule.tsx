@@ -443,6 +443,9 @@ export default function Schedule() {
       .then(() => refreshPlan())
       .catch((err) => {
         console.error("Upgrade confirmation failed", err);
+        setActionError(
+          err instanceof Error ? err.message : t.schedule.upgradeConfirmFailed
+        );
       })
       .finally(() => {
         searchParams.delete("upgrade_session_id");

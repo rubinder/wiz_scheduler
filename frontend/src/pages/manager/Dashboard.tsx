@@ -96,6 +96,7 @@ export default function Dashboard() {
   const importsDisabled = plan?.plan === "free";
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const [sessionConfirmError, setSessionConfirmError] = useState("");
 
   useEffect(() => {
     const sessionId = searchParams.get("reactivate_session_id");
@@ -110,6 +111,33 @@ export default function Dashboard() {
       })
       .catch((err) => {
         console.error("Reactivation confirmation failed", err);
+        setSessionConfirmError(
+          err instanceof Error ? err.message : t.dashboard.upgradeConfirmFailed
+        );
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Safety net for any already-issued upgrade Checkout link that still
+  // points at the dashboard (the primary handler now lives on
+  // /manager/schedule — see Schedule.tsx). Strips the query param in a
+  // `finally` so a page reload can't retry confirmation forever.
+  useEffect(() => {
+    const sessionId = searchParams.get("upgrade_session_id");
+    if (!sessionId) return;
+    billingApi
+      .confirmUpgrade(sessionId)
+      .then(() => {
+        window.location.reload();
+      })
+      .catch((err) => {
+        console.error("Upgrade confirmation failed", err);
+        setSessionConfirmError(
+          err instanceof Error ? err.message : t.dashboard.upgradeConfirmFailed
+        );
+      })
+      .finally(() => {
+        searchParams.delete("upgrade_session_id");
+        setSearchParams(searchParams, { replace: true });
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -172,6 +200,11 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+      {sessionConfirmError && (
+        <div className="glass-alert-error mb-4">
+          {sessionConfirmError}
+        </div>
+      )}
       <p className={`${text.muted} ${importsDisabled ? "mb-1" : "mb-8"}`}>
         {t.dashboard.subtitle}
       </p>
