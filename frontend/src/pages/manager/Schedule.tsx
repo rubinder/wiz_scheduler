@@ -463,18 +463,33 @@ export default function Schedule() {
     }
   }, [lockedError]);
 
-  // Refresh plan state once a generation stream finishes successfully, so
-  // the free-tier generation count (and generationCapReached gating) is
+  // Refresh plan state once a generation stream ends — success OR failure —
+  // so the free-tier generation count (and generationCapReached gating) is
   // current without requiring a page reload. useScheduleStream.generate()
   // is fire-and-forget with no completion callback, so we watch for the
-  // isStreaming true -> false transition with no error instead.
+  // isStreaming true -> false transition instead.
+  //
+  // We deliberately do NOT skip this on error/lockedError: a
+  // schedule_limit_reached 402 means the *server's* count is already at
+  // cap while our locally-cached plan.schedules.count is stale (usually
+  // because another manager on the same ownership group used the last
+  // generation — see usePlan.ts's staleness note). Not refreshing would
+  // leave generationCapReached false and the button enabled, so a user
+  // could click straight into the same 402 again with no explanation.
+  // useScheduleStream flattens every 402/409 body down to a plain message
+  // string before exposing it as `error` (see its response.ok branch,
+  // which extracts `detail.message` and discards `detail.code`), so we
+  // can't cheaply distinguish "cap reached" from other failures here
+  // without changing that hook (out of scope for this fix). Refreshing
+  // unconditionally costs one extra GET /billing/plan per failed
+  // generation, which is a good trade for never leaving the UI stuck.
   const wasStreamingRef = useRef(false);
   useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming && !error && !lockedError) {
+    if (wasStreamingRef.current && !isStreaming) {
       void refreshPlan();
     }
     wasStreamingRef.current = isStreaming;
-  }, [isStreaming, error, lockedError, refreshPlan]);
+  }, [isStreaming, refreshPlan]);
 
   // AI credit & schedule quota state
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
