@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
+from backend.services.plan import assert_can_add
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -31,6 +32,8 @@ async def create_location(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
+    await assert_can_add(db, str(current_user.company_id), locations=1)
+
     location = Location(
         company_id=current_user.company_id,
         region_id=body.region_id,

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
 from backend.models import Company, Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
+from backend.services.plan import assert_can_add
 from backend.schemas.employee import (
     AvailabilityCreate,
     AvailabilityResponse,
@@ -168,6 +169,8 @@ async def create_employee(
     db: AsyncSession = Depends(get_db),
     group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> EmployeeResponse:
+    await assert_can_add(db, str(current_user.company_id), employees=1)
+
     employee = Employee(
         company_id=current_user.company_id,
         full_name=body.full_name,
