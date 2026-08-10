@@ -162,12 +162,7 @@ const zh = {
     haveAccount: "已有账号？",
     signIn: "登录",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "账单",
-    billingComplete: "账单已设置",
-    billingRequired: "必填",
-    setupBilling: "设置账单",
-    redirectingToStripe: "正在跳转到支付页面...",
-    emailRequiredForBilling: "请在设置账单之前输入您的电子邮箱。",
+    createFreeAccount: "创建免费账户",
   },
 
   // ── Accept Invite ──

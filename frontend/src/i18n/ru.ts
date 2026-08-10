@@ -162,12 +162,7 @@ const ru = {
     haveAccount: "Уже есть аккаунт?",
     signIn: "Войти",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Оплата",
-    billingComplete: "Оплата настроена",
-    billingRequired: "Обязательно",
-    setupBilling: "Настроить оплату",
-    redirectingToStripe: "Перенаправление на страницу оплаты...",
-    emailRequiredForBilling: "Пожалуйста, введите электронную почту перед настройкой оплаты.",
+    createFreeAccount: "Создать бесплатный аккаунт",
   },
 
   // ── Accept Invite ──

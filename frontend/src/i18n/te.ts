@@ -162,12 +162,7 @@ const te = {
     haveAccount: "ఇప్పటికే ఖాతా ఉందా?",
     signIn: "సైన్ ఇన్ చేయండి",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "బిల్లింగ్",
-    billingComplete: "బిల్లింగ్ సెట అప్ అయింది",
-    billingRequired: "అవసరం",
-    setupBilling: "బిల్లింగ్ సెట అప్ చేయండి",
-    redirectingToStripe: "చెల్లింపుకు రీడైరెక్ట్ అవుతోంది...",
-    emailRequiredForBilling: "బిల్లింగ్ సెట అప్ చేయడానికి ముందు దయచేసి మీ ఇమెయిల్ నమోదు చేయండి.",
+    createFreeAccount: "ఉచిత ఖాతాను సృష్టించండి",
   },
 
   // ── Accept Invite ──

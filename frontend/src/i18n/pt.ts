@@ -162,12 +162,7 @@ const pt = {
     haveAccount: "Já tem uma conta?",
     signIn: "Entrar",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Faturamento",
-    billingComplete: "Faturamento configurado",
-    billingRequired: "Obrigatório",
-    setupBilling: "Configurar faturamento",
-    redirectingToStripe: "Redirecionando para o pagamento...",
-    emailRequiredForBilling: "Por favor, insira seu e-mail antes de configurar o faturamento.",
+    createFreeAccount: "Criar conta gratuita",
   },
 
   // ── Accept Invite ──

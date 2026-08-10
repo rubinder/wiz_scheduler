@@ -162,12 +162,7 @@ const bn = {
     haveAccount: "ইতোমধ্যে একটি অ্যাকাউন্ট আছে?",
     signIn: "সাইন ইন",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "বিলিং",
-    billingComplete: "বিলিং সেট আপ হয়েছে",
-    billingRequired: "আবশ্যক",
-    setupBilling: "বিলিং সেট আপ করুন",
-    redirectingToStripe: "পেমেন্টে রিডাইরেক্ট হচ্ছে...",
-    emailRequiredForBilling: "বিলিং সেট আপ করার আগে অনুগ্রহ করে আপনার ইমেইল দিন।",
+    createFreeAccount: "ফ্রি অ্যাকাউন্ট তৈরি করুন",
   },
 
   // ── Accept Invite ──

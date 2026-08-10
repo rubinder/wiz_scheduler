@@ -162,12 +162,7 @@ const pcm = {
     haveAccount: "You don get account?",
     signIn: "Sign in",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Billing",
-    billingComplete: "Billing don set up",
-    billingRequired: "E dey required",
-    setupBilling: "Set Up Billing",
-    redirectingToStripe: "E dey redirect to payment...",
-    emailRequiredForBilling: "Abeg enter your email before you set up billing.",
+    createFreeAccount: "Create free account",
   },
 
   // ── Accept Invite ──

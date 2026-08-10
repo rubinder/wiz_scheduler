@@ -162,12 +162,7 @@ const trLang = {
     haveAccount: "Zaten hesabınız var mı?",
     signIn: "Giriş yapın",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Faturalama",
-    billingComplete: "Faturalama ayarlandı",
-    billingRequired: "Gerekli",
-    setupBilling: "Faturalama Ayarla",
-    redirectingToStripe: "Ödemeye yönlendiriliyor...",
-    emailRequiredForBilling: "Faturalamayı ayarlamadan önce lütfen e-posta adresinizi girin.",
+    createFreeAccount: "Ücretsiz hesap oluştur",
   },
 
   // ── Accept Invite ──

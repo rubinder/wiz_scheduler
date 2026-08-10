@@ -162,12 +162,7 @@ const ja = {
     haveAccount: "すでにアカウントをお持ちですか？",
     signIn: "サインイン",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "請求",
-    billingComplete: "請求設定完了",
-    billingRequired: "必須",
-    setupBilling: "請求を設定",
-    redirectingToStripe: "決済ページへリダイレクト中...",
-    emailRequiredForBilling: "請求を設定する前にメールアドレスを入力してください。",
+    createFreeAccount: "無料アカウントを作成",
   },
 
   // ── Accept Invite ──

@@ -162,12 +162,7 @@ const en = {
     haveAccount: "Already have an account?",
     signIn: "Sign in",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Billing",
-    billingComplete: "Billing set up",
-    billingRequired: "Required",
-    setupBilling: "Set Up Billing",
-    redirectingToStripe: "Redirecting to payment...",
-    emailRequiredForBilling: "Please enter your email before setting up billing.",
+    createFreeAccount: "Create Free Account",
   },
 
   // ── Accept Invite ──

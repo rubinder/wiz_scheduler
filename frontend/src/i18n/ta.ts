@@ -162,12 +162,7 @@ const ta = {
     haveAccount: "ஏற்கனவே கணக்கு உள்ளதா?",
     signIn: "உள்நுழை",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "பில்லிங்",
-    billingComplete: "பில்லிங் அமைக்கப்பட்டது",
-    billingRequired: "தேவை",
-    setupBilling: "பில்லிங் அமை",
-    redirectingToStripe: "கட்டணத்திற்கு திருப்பி விடப்படுகிறது...",
-    emailRequiredForBilling: "பில்லிங் அமைப்பதற்கு முன் உங்கள் மின்னஞ்சலை உள்ளிடவும்.",
+    createFreeAccount: "இலவச கணக்கை உருவாக்கு",
   },
 
   // ── Accept Invite ──

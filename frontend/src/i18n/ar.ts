@@ -162,12 +162,7 @@ const ar = {
     haveAccount: "لديك حساب بالفعل؟",
     signIn: "تسجيل الدخول",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "الفوترة",
-    billingComplete: "تم إعداد الفوترة",
-    billingRequired: "مطلوب",
-    setupBilling: "إعداد الفوترة",
-    redirectingToStripe: "جارٍ التحويل إلى الدفع...",
-    emailRequiredForBilling: "يرجى إدخال بريدك الإلكتروني قبل إعداد الفوترة.",
+    createFreeAccount: "إنشاء حساب مجاني",
   },
 
   // ── Accept Invite ──

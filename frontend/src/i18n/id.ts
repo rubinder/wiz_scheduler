@@ -162,12 +162,7 @@ const ind = {
     haveAccount: "Sudah punya akun?",
     signIn: "Masuk",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Penagihan",
-    billingComplete: "Penagihan sudah diatur",
-    billingRequired: "Wajib",
-    setupBilling: "Atur Penagihan",
-    redirectingToStripe: "Mengalihkan ke pembayaran...",
-    emailRequiredForBilling: "Silakan masukkan email Anda sebelum mengatur penagihan.",
+    createFreeAccount: "Buat akun gratis",
   },
 
   // ── Accept Invite ──

@@ -162,12 +162,7 @@ const de = {
     haveAccount: "Bereits ein Konto?",
     signIn: "Anmelden",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Abrechnung",
-    billingComplete: "Abrechnung eingerichtet",
-    billingRequired: "Erforderlich",
-    setupBilling: "Abrechnung einrichten",
-    redirectingToStripe: "Weiterleitung zur Zahlung...",
-    emailRequiredForBilling: "Bitte geben Sie Ihre E-Mail-Adresse ein, bevor Sie die Abrechnung einrichten.",
+    createFreeAccount: "Kostenloses Konto erstellen",
   },
 
   // ── Accept Invite ──

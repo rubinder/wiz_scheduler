@@ -162,12 +162,7 @@ const ur = {
     haveAccount: "پہلے سے اکاؤنٹ ہے؟",
     signIn: "سائن ان کریں",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "بلنگ",
-    billingComplete: "بلنگ سیٹ اپ ہو گئی",
-    billingRequired: "ضروری",
-    setupBilling: "بلنگ سیٹ اپ کریں",
-    redirectingToStripe: "ادائیگی کی طرف ری ڈائریکٹ ہو رہا ہے...",
-    emailRequiredForBilling: "بلنگ سیٹ اپ کرنے سے پہلے اپنا ای میل درج کریں۔",
+    createFreeAccount: "مفت اکاؤنٹ بنائیں",
   },
 
   // ── Accept Invite ──

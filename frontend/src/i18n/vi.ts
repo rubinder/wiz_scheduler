@@ -162,12 +162,7 @@ const vi = {
     haveAccount: "Đã có tài khoản?",
     signIn: "Đăng nhập",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Thanh toán",
-    billingComplete: "Thanh toán đã được thiết lập",
-    billingRequired: "Bắt buộc",
-    setupBilling: "Thiết lập thanh toán",
-    redirectingToStripe: "Đang chuyển hướng đến trang thanh toán...",
-    emailRequiredForBilling: "Vui lòng nhập email trước khi thiết lập thanh toán.",
+    createFreeAccount: "Tạo tài khoản miễn phí",
   },
 
   // ── Accept Invite ──

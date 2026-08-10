@@ -162,12 +162,7 @@ const hi = {
     haveAccount: "पहले से खाता है?",
     signIn: "साइन इन करें",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "बिलिंग",
-    billingComplete: "बिलिंग सेट अप हो गई",
-    billingRequired: "आवश्यक",
-    setupBilling: "बिलिंग सेट अप करें",
-    redirectingToStripe: "भुगतान पर रीडायरेक्ट हो रहा है...",
-    emailRequiredForBilling: "बिलिंग सेट अप करने से पहले कृपया अपना ईमेल दर्ज करें।",
+    createFreeAccount: "मुफ़्त खाता बनाएं",
   },
 
   // ── Accept Invite ──
