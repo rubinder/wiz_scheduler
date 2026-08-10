@@ -15,6 +15,7 @@ from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.database import async_session_factory, engine
 from backend.models import (
     Company,
@@ -31,6 +32,13 @@ from backend.models import (
 )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Password for the demo manager/employee logins. In deployed environments this
+# arrives via DEMO_SEED_PASSWORD, injected from AWS Secrets Manager. The
+# fallback exists so a fresh `python seed.py` works locally with no setup; it
+# must never reach production, hence the guard in main().
+_LOCAL_DEMO_PASSWORD = "example"
+DEMO_PASSWORD = settings.DEMO_SEED_PASSWORD or _LOCAL_DEMO_PASSWORD
 
 # Deterministic short-string IDs for idempotent seeding
 OWNERSHIP_GROUP_ID = "owngrp01"
@@ -61,6 +69,14 @@ def _current_week_monday() -> datetime:
 
 
 async def main() -> None:
+    if settings.ENV == "production" and not settings.DEMO_SEED_PASSWORD:
+        raise SystemExit(
+            "Refusing to seed: ENV=production but DEMO_SEED_PASSWORD is unset, "
+            "which would create the demo accounts with the well-known default "
+            "password. Set it from AWS Secrets Manager "
+            "(wizscheduler/prod/DEMO_SEED_PASSWORD) and re-run."
+        )
+
     async with async_session_factory() as db:
         db: AsyncSession
 
@@ -90,8 +106,8 @@ async def main() -> None:
         )
 
         # --- Users ---
-        hashed_pw_manager = _hash("example")
-        hashed_pw_employee = _hash("example")
+        hashed_pw_manager = _hash(DEMO_PASSWORD)
+        hashed_pw_employee = _hash(DEMO_PASSWORD)
         for uid, email, full_name, role, hashed_pw in [
             (MANAGER_USER_ID, "abc@example.com", "Manager User", "manager", hashed_pw_manager),
             (EMPLOYEE_USER_ID, "employee1@example.com", "Employee One", "employee", hashed_pw_employee),

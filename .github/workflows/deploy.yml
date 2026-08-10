@@ -68,6 +68,11 @@ jobs:
           # env var to client code via import.meta.env. Used by Login.tsx
           # to initialize the Google Identity Services sign-in button.
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          # Password shown by the public demo-credentials panel on the login
+          # page. Mirrors AWS Secrets Manager wizscheduler/prod/DEMO_SEED_PASSWORD.
+          # Rotating the demo password means updating that secret, this repo
+          # secret, and re-running the seed — see terraform/README.md.
+          VITE_DEMO_PASSWORD: ${{ secrets.DEMO_SEED_PASSWORD }}
         run: cd frontend && npm ci && npm run build
 
       - name: Upload frontend build artifact
