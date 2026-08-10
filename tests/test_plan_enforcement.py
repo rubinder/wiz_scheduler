@@ -105,3 +105,62 @@ async def test_paid_tenant_unaffected(
     )
 
     assert resp.status_code == 201
+
+
+_CSV_HEADER = "full_name,email,role_names,skill_levels,location_names\n"
+
+
+def _employee_csv(n: int) -> bytes:
+    rows = "".join(f"Person {i},p{i}@x.test,,,\n" for i in range(n))
+    return (_CSV_HEADER + rows).encode()
+
+
+async def test_oversized_bulk_upload_refused_whole(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict
+):
+    """12 rows against an empty free OG: refused, and ZERO rows written."""
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        files={"file": ("emps.csv", _employee_csv(12), "text/csv")},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "plan_limit_exceeded"
+    assert resp.json()["detail"]["attempted"] == 12
+
+    count = await db_session.scalar(
+        select(func.count(Employee.id)).where(
+            Employee.company_id == free_tenant["company_id"]
+        )
+    )
+    assert count == 0, "bulk upload must be all-or-nothing"
+
+
+async def test_bulk_upload_within_limit_succeeds(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict
+):
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        files={"file": ("emps.csv", _employee_csv(5), "text/csv")},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["created"] == 5
+
+
+async def test_bulk_upload_counts_existing_rows(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict
+):
+    """3 existing + 3 uploaded == 6 > 5, so refused."""
+    await _add_employees(db_session, free_tenant["company_id"], 3)
+
+    resp = await client.post(
+        "/api/v1/employees/bulk-upload",
+        files={"file": ("emps.csv", _employee_csv(3), "text/csv")},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["current"] == 3

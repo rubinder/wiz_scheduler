@@ -382,6 +382,12 @@ async def bulk_upload(
         loc.name.lower(): loc for loc in location_result.scalars().all()
     }
 
+    # Free-plan cap. Checked after parsing (we need the row count) but before
+    # any insert, so an oversized file is refused whole rather than filling
+    # to the limit — a silently truncated roster reads as a complete one.
+    if rows:
+        await assert_can_add(db, str(current_user.company_id), employees=len(rows))
+
     created = 0
     skipped = 0
     errors: list[str] = []
