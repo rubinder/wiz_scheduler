@@ -1,5 +1,7 @@
 """Free-plan enforcement across employee/location write paths."""
 
+from datetime import date, timedelta
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -164,3 +166,63 @@ async def test_bulk_upload_counts_existing_rows(
 
     assert resp.status_code == 402
     assert resp.json()["detail"]["current"] == 3
+
+
+def _current_week_monday() -> date:
+    today = date.today()
+    return today - timedelta(days=today.weekday())
+
+
+def _import_bodies() -> list[tuple[str, dict]]:
+    """(path, request body) for each of the four importer endpoints.
+
+    Bodies match each endpoint's real Pydantic schema (not the brief's
+    illustrative `{"api_key": ...}`, which doesn't match any of the four
+    schemas — see task-6-report.md for details). The 7shifts availabilities
+    schema also validates week_start/week_end via a model_validator, so
+    dates must be a real, in-range week or FastAPI 422s before the plan
+    guard ever runs.
+    """
+    week_start = _current_week_monday()
+    week_end = week_start + timedelta(days=7)
+    return [
+        ("/api/v1/import/7shifts", {"access_token": "fake-key"}),
+        (
+            "/api/v1/import/deputy",
+            {
+                "access_token": "fake-key",
+                "deputy_base_url": "https://fake.deputy.com",
+            },
+        ),
+        (
+            "/api/v1/import/7shifts/availabilities",
+            {
+                "access_token": "fake-key",
+                "week_start": week_start.isoformat(),
+                "week_end": week_end.isoformat(),
+            },
+        ),
+        (
+            "/api/v1/import/deputy/availabilities",
+            {
+                "access_token": "fake-key",
+                "deputy_base_url": "https://fake.deputy.com",
+                "week_start": week_start.isoformat(),
+                "week_end": week_end.isoformat(),
+            },
+        ),
+    ]
+
+
+@pytest.mark.parametrize("path,body", _import_bodies())
+async def test_integration_import_refused_on_free(
+    client: AsyncClient, free_tenant: dict, path: str, body: dict
+):
+    resp = await client.post(
+        path,
+        json=body,
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "integration_import_requires_paid_plan"

@@ -180,3 +180,30 @@ async def assert_can_add(
             raise _limit_error(
                 "employees", settings.FREE_PLAN_MAX_EMPLOYEES, current, employees
             )
+
+
+async def assert_paid_plan(
+    db: AsyncSession, company_id: str, feature: str
+) -> None:
+    """Raise 402 if the ownership group is not on a paid plan.
+
+    Used for capabilities that are paid-only regardless of usage volume:
+    the 7shifts/Deputy importers, which mirror an entire external account
+    and cannot be partially applied.
+    """
+    state = await get_plan_state(db, company_id)
+    if state["plan"] == "paid":
+        return
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail={
+            "code": f"{feature}_requires_paid_plan",
+            "message": (
+                "This feature requires a paid plan. Upgrade to enable it."
+            ),
+            "limit": None,
+            "max": None,
+            "current": None,
+            "attempted": None,
+        },
+    )
