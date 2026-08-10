@@ -2,6 +2,10 @@
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models.ownership_group import OwnershipGroup
 
 pytestmark = pytest.mark.asyncio
 
@@ -497,3 +501,39 @@ async def test_register_rate_limit_blocks_before_any_work(
     post_companies = (await db_session.execute(select(Company))).scalars().all()
     assert len(post_users) == len(pre_users)
     assert len(post_companies) == len(pre_companies)
+
+
+# ---------------------------------------------------------------------------
+# Free-by-default registration (Task 8)
+# ---------------------------------------------------------------------------
+
+
+async def test_register_without_stripe_session_creates_free_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """Registration no longer requires a completed Checkout session."""
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setattr(_s, "STRIPE_PRICE_ID", "price_x")
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "free@example.test",
+            "password": "hunter2hunter2",
+            "full_name": "Free User",
+            "company_name": "Free Co",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+        },
+    )
+
+    assert resp.status_code == 201
+    assert "access_token" in resp.json()
+
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Free Co")
+    )).scalar_one()
+    assert og.stripe_subscription_id is None
+    assert og.canceled_at is None
