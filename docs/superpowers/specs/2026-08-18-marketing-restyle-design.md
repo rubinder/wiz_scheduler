@@ -65,12 +65,22 @@ fights the compliance sale.
 | `newsprint` | `#E9E4D8` | Page ground — deliberately greyer and cooler than the old cream |
 | `paper` | `#F5F2EA` | Raised surfaces: form panels, hero grid |
 | `rule` | `#C9C0B0` | Grid lines, dividers, input borders |
-| `marker` | `#FF5A1F` | Highlighter accent. Once per viewport. |
-| `clear` | `#1F7A5C` | Compliant / success only |
+| `marker` | `#FF5A1F` | Highlighter **fill**. Never a text colour. Once per viewport. |
+| `clear` | `#1D7357` | Compliant / success only |
 
-`marker` on `newsprint` lands near 3:1 — permitted for large display type, rules, and
-fills; **prohibited for small body text**. Every pair is checked programmatically against
-WCAG AA during implementation, not eyeballed.
+**Measured, not estimated** (the harness in Task 1 checked these; an earlier draft of this
+spec estimated `marker` at "near 3:1" and was wrong):
+
+- `marker` `#FF5A1F` on `newsprint` is **2.46:1**. It fails AA for body text *and* the 3:1
+  large-text threshold. `marker` is therefore **never a text colour at any size.** It is a
+  highlighter, and a real highlighter marks by filling: it appears as a background fill with
+  `ink` on top — **5.68:1**, comfortably AA — or as a decorative rule that is never the sole
+  indicator of state. This is more faithful to the direction than tinting text was.
+- `clear` was `#1F7A5C`, measuring 4.14:1 on `newsprint` — 0.36 short of AA. Darkened to
+  **`#1D7357`**: 4.55:1 on `newsprint`, 5.15:1 on `paper`. The hue shift is imperceptible.
+
+Every pair is checked programmatically against WCAG AA during implementation, and
+`text-marker` is forbidden by a grep gate rather than trusted to a contrast number.
 
 The `.glass-*` classes are not deleted (the app still uses them) but are **not used** on
 any marketing or auth page. No `backdrop-blur`, no `bg-white/60`, and no radial-gradient
