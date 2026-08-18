@@ -288,14 +288,14 @@ Expected: every pair prints `ok`. **If any pair fails, stop and report it — do
 
 - [ ] **Step 7b: Add the marker-as-text grep gate**
 
-`marker` cannot be enforced by a contrast number, because the rule is about *how* it is used. Add to `frontend/package.json` scripts:
+`marker` cannot be enforced by a contrast number, because the rule is about *how* it is used. It also cannot be enforced by a shell one-liner: a `grep` that errors on a missing directory inverts to success, and a naive pattern misses Tailwind variant chains. Create `frontend/scripts/verify/marker.mjs`, which scans all of `src`, reports its own coverage, fails on zero files scanned, and matches variant-prefixed forms (`hover:text-marker`, `lg:hover:!text-marker`) via a boundary class that includes `:`. Add to `frontend/package.json` scripts:
 
 ```json
-"verify:marker": "! grep -rnE 'text-marker|!text-marker|text-marker/' src/pages src/components/marketing || (echo 'marker used as a text colour — it is a fill, never text' && exit 1)"
+"verify:marker": "node scripts/verify/marker.mjs"
 ```
 
 Run: `cd frontend && npm run verify:marker`
-Expected: exits 0 (nothing matches yet — no marketing components exist).
+Expected: exits 0, reporting a non-zero scanned-file count. A gate that scans nothing is a failure, not a pass — verify it catches a planted `hover:text-marker` before trusting it.
 
 - [ ] **Step 8: Capture the "before" baseline**
 
