@@ -19,8 +19,8 @@ Every task's requirements implicitly include this section.
 - **The four editable literals** are the overage badges in `Landing.tsx` at lines 255, 275, 295, 315: `AI` / `GEN` / `DB` / `#` → `AI` / `RUNS` / `DATA` / `TEAM`.
 - **No `.glass-*` classes on any marketing or auth page.** They stay defined in `index.css` because the app still uses them. No `backdrop-blur`, no `bg-white/60`, no radial-gradient `body` background on these routes.
 - **Logical properties only** for directional spacing: `ps-`/`pe-`, `ms-`/`me-`, `border-s`/`border-e`, `start-`/`end-`, `text-start`/`text-end`. Never `pl-`/`pr-`/`ml-`/`mr-`/`left-`/`right-`/`text-left`/`text-right`. RTL is live — `LanguageContext.tsx:78` sets `document.documentElement.dir`.
-- **Palette, exact values:** `ink #1A1815`, `newsprint #E9E4D8`, `paper #F5F2EA`, `rule #C9C0B0`, `marker #FF5A1F`, `clear #1F7A5C`.
-- **`marker` is prohibited on small body text** (≈3:1 on `newsprint`). Permitted for large display type, rules, and fills. Once per viewport.
+- **Palette, exact values:** `ink #1A1815`, `newsprint #E9E4D8`, `paper #F5F2EA`, `rule #C9C0B0`, `marker #FF5A1F`, `clear #1D7357`.
+- **`marker` is NEVER a text colour, at any size.** Measured at 2.46:1 on `newsprint` — it fails AA body text *and* the 3:1 large-text threshold. It is a highlighter: it appears as a **background fill with `ink` text on top** (5.68:1), or as a decorative rule that is never the sole indicator of state. `text-marker`, `!text-marker`, and `text-marker/…` are forbidden and grep-gated. Once per viewport.
 - **Only one new runtime dependency is authorised:** `motion`. Do not install anything else. Fonts are self-hosted static files, not a package.
 - **Branch base is `feat/free-tier`, not `main`.** This branch stacks on it. Any diff-range verification uses `feat/free-tier...HEAD`; using `main...HEAD` sweeps in 28 unrelated commits and makes the checks meaningless.
 - **`npm run build` must pass** (`tsc` strict + Vite) at the end of every task.
@@ -240,7 +240,7 @@ const TOKENS = {
   paper: "#F5F2EA",
   rule: "#C9C0B0",
   marker: "#FF5A1F",
-  clear: "#1F7A5C",
+  clear: "#1D7357",
 };
 
 // [foreground, background, minimum ratio, why]
@@ -249,7 +249,10 @@ const PAIRS = [
   ["ink", "paper", 4.5, "body text on raised surfaces"],
   ["clear", "paper", 4.5, "compliant/success text on the receipt"],
   ["clear", "newsprint", 4.5, "compliant/success text on page ground"],
-  ["marker", "newsprint", 3.0, "large display type and fills only"],
+  // marker is a FILL, never a text colour — so the pair that matters is
+  // ink sitting ON marker, not marker sitting on the page.
+  ["ink", "marker", 4.5, "ink text on a marker highlight fill"],
+  ["marker", "newsprint", 1.3, "decorative rule only — must be visible, never load-bearing"],
   ["marker", "ink", 3.0, "accent on the dark demo band"],
   ["newsprint", "ink", 4.5, "reversed text on the dark demo band"],
   ["rule", "newsprint", 1.3, "grid lines must be visible, not invisible"],
@@ -283,6 +286,17 @@ process.exit(failed ? 1 : 0);
 Run: `cd frontend && npm run verify:contrast`
 Expected: every pair prints `ok`. **If any pair fails, stop and report it — do not proceed and do not quietly adjust a hex value.** The palette is approved in the spec; a failure is a design decision for the user, not an implementation detail.
 
+- [ ] **Step 7b: Add the marker-as-text grep gate**
+
+`marker` cannot be enforced by a contrast number, because the rule is about *how* it is used. Add to `frontend/package.json` scripts:
+
+```json
+"verify:marker": "! grep -rnE 'text-marker|!text-marker|text-marker/' src/pages src/components/marketing || (echo 'marker used as a text colour — it is a fill, never text' && exit 1)"
+```
+
+Run: `cd frontend && npm run verify:marker`
+Expected: exits 0 (nothing matches yet — no marketing components exist).
+
 - [ ] **Step 8: Capture the "before" baseline**
 
 Start the dev server (`npm run dev`), wait for `:5173`, then run:
@@ -291,7 +305,7 @@ Start the dev server (`npm run dev`), wait for `:5173`, then run:
 cd frontend && npm run verify:shoot -- --tag before && npm run verify:interact
 ```
 
-Expected: 30 screenshots in `.verify/before/`, and `verify:interact` exits 0. **`verify:interact` passing here is the contract.** It must still pass at the end of every subsequent task; that is what "functionality unchanged" means in this plan.
+Expected: 42 screenshots in `.verify/before/` (7 viewport×locale combinations × 6 routes), and `verify:interact` exits 0. **`verify:interact` passing here is the contract.** It must still pass at the end of every subsequent task; that is what "functionality unchanged" means in this plan.
 
 - [ ] **Step 9: Commit**
 
@@ -559,7 +573,7 @@ In `frontend/tailwind.config.ts`, inside `theme.extend.colors`, **add** these al
         paper: "#F5F2EA",
         rule: "#C9C0B0",
         marker: "#FF5A1F",
-        clear: "#1F7A5C",
+        clear: "#1D7357",
 ```
 
 - [ ] **Step 2: Add the `marketing` namespace**
@@ -589,9 +603,11 @@ export const marketing = {
     meta: "font-data text-ink/60 uppercase tracking-[0.14em] text-xs",
     /** Figures, times, prices. Always tabular. */
     data: "font-data tabular-nums text-ink",
-    accent: "text-marker",
     clear: "text-clear",
   },
+
+  /** The highlighter. A fill with ink on top — never a text colour. */
+  mark: "bg-marker text-ink px-1.5 -mx-0.5 box-decoration-clone",
 
   rule: {
     /** Standard 1px divider. */
@@ -607,7 +623,9 @@ export const marketing = {
     primary:
       "inline-flex items-center justify-center font-display uppercase " +
       "tracking-wide px-6 py-3 bg-ink text-newsprint border border-ink " +
-      "hover:bg-marker hover:border-marker transition-colors " +
+      // hover flips to the highlighter; text must go to ink or it drops to
+      // ~2.3:1 and becomes unreadable.
+      "hover:bg-marker hover:border-marker hover:text-ink transition-colors " +
       "focus-visible:outline focus-visible:outline-2 " +
       "focus-visible:outline-offset-2 focus-visible:outline-marker " +
       "disabled:opacity-40 disabled:pointer-events-none",
@@ -622,7 +640,7 @@ export const marketing = {
     /** Inline text link. */
     link:
       "font-body underline underline-offset-4 decoration-rule " +
-      "hover:decoration-marker hover:text-marker transition-colors " +
+      "hover:decoration-marker transition-colors " +
       "focus-visible:outline focus-visible:outline-2 " +
       "focus-visible:outline-offset-2 focus-visible:outline-marker",
   },
@@ -954,7 +972,8 @@ export default function RotaHero() {
           className={`${m.text.display} font-display text-5xl sm:text-6xl lg:text-7xl font-semibold leading-[0.95] mb-6`}
         >
           {t.landing.heroTitle}{" "}
-          <span className="text-marker">{t.landing.heroTitleAccent}</span>
+          {/* The highlighter marks by filling, not by tinting. */}
+          <span className={m.mark}>{t.landing.heroTitleAccent}</span>
         </h1>
         <p className={`${m.text.muted} text-lg leading-relaxed mb-9 max-w-[46ch]`}>
           {t.landing.heroDesc}
@@ -1184,7 +1203,7 @@ First, in the `strategies` array (lines 26-50), delete the `badge` field from al
       <SectionRule eyebrow="03 — Method" title={t.landing.strategiesTitle} />
       {/* The AI strategy is the product. */}
       <div className={`${m.surface} border ${m.rule.heavy} p-6 md:p-10 mb-10`}>
-        <p className={`${m.text.meta} !text-marker mb-3`}>{strategies[3].tag}</p>
+        <p className={`${m.text.meta} mb-3`}><span className={m.mark}>{strategies[3].tag}</span></p>
         <h3 className={`${m.text.display} font-display text-3xl font-semibold mb-4`}>
           {strategies[3].name}
         </h3>
@@ -1491,7 +1510,7 @@ Add `import { MarketingShell } from "../components/marketing/MarketingNav";`, `i
 
 - [ ] **Step 2: Restyle the TOC**
 
-The sticky TOC at lines 80-99 becomes a ruled index: each entry `border-b ${m.rule.line} py-2`, `${m.text.meta}` when inactive, `text-marker` when active. This is a real index into a document, so numbering it is warranted — prefix each with its zero-padded position.
+The sticky TOC at lines 80-99 becomes a ruled index: each entry `border-b ${m.rule.line} py-2`, `${m.text.meta}` when inactive, and when active `${m.text.meta} !text-ink` with a `border-s-2 border-marker` marker rule (marker is never a text colour). This is a real index into a document, so numbering it is warranted — prefix each with its zero-padded position.
 
 - [ ] **Step 3: Restyle the panels**
 
@@ -1759,7 +1778,7 @@ cd frontend && npm run build && npm run verify:contrast && npm run verify:intera
   && npm run verify:shoot -- --tag final
 ```
 
-Expected: all four exit 0; 30 screenshots in `.verify/final/`.
+Expected: all four exit 0; 42 screenshots in `.verify/final/`.
 
 - [ ] **Step 2: Assemble the behaviour-unchanged evidence**
 
@@ -1795,7 +1814,7 @@ Expected: **no output.** The logged-in app is out of scope; any change here is a
 Open every PNG in `.verify/final/`. For each, ask specifically:
 
 1. Does `newsprint` still read as newsprint, or has it drifted back toward the cream default? The grid rules and condensed display type must be carrying it.
-2. Is `marker` used **once** per viewport? Count the orange elements. More than one and it stops being a highlighter.
+2. Is `marker` used **once** per viewport, and always as a fill or rule — never as text? Count the orange elements. More than one and it stops being a highlighter.
 3. Do `ar` and `hi` render coherently, or merely without crashing?
 4. Does `ru` show Source Sans 3 900 headlines rather than a system fallback?
 5. Do the mobile captures hold, or did the rota grid overflow?
