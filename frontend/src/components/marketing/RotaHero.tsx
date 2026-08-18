@@ -32,7 +32,7 @@ export default function RotaHero() {
           transition: {
             duration: 0.28,
             delay: cellDelay(c.day, c.band),
-            backgroundColor: { duration: 0.5, delay: 1.1, times: [0, 0.4, 1] },
+            backgroundColor: { duration: 0.5, delay: 0.9, times: [0, 0.4, 1] },
           },
         };
 
@@ -43,7 +43,7 @@ export default function RotaHero() {
       let raf = 0;
       const start = performance.now();
       const tick = (now: number) => {
-        const p = Math.min(1, (now - start - 1400) / 600);
+        const p = Math.min(1, (now - start - 1050) / 350);
         if (p >= 0) setN(Math.round(to * p));
         if (p < 1) raf = requestAnimationFrame(tick);
       };
