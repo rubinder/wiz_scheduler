@@ -82,7 +82,11 @@ export default function RotaHero() {
       </div>
 
       {/* ── The rota ── */}
-      <div className={`${m.surface} border ${m.rule.heavy}`}>
+      {/* Decorative: MON–SUN, OPEN/MID/CLOSE, role/hour pairs and the
+          footline counts are not i18n keys, so a screen reader would read
+          them out in English regardless of locale. The headline, body copy
+          and CTAs above carry the real meaning and stay in the a11y tree. */}
+      <div aria-hidden="true" className={`${m.surface} border ${m.rule.heavy}`}>
         <div
           className="grid [--label-w:2.25rem] sm:[--label-w:4.5rem]"
           style={{ gridTemplateColumns: `var(--label-w) repeat(${DAYS.length}, minmax(0, 1fr))` }}
