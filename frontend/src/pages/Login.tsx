@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { googleAuth, googleLink } from "../api/googleAuth";
-import LanguageSelector from "../components/shared/LanguageSelector";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
 import { text, bg, border, action } from "../theme";
+import { marketing as m } from "../theme";
 
 declare global {
   interface Window {
@@ -154,16 +155,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card p-8 w-full max-w-md">
-        <div className="flex justify-end mb-4">
-          <LanguageSelector />
-        </div>
-        <h1 className={`text-2xl font-bold text-center mb-6 ${text.heading} flex items-center justify-center gap-2`}>
-          {t.login.title} <img src="/favicon.svg" alt="" className="w-8 h-8 inline" />
-        </h1>
+    <AuthLayout title={t.login.title}>
         {error && (
-          <div className="glass-alert-error mb-4">
+          <div className={`${m.alert.error} mb-4`}>
             {error}
           </div>
         )}
@@ -181,7 +175,7 @@ export default function Login() {
                     key={group.id}
                     onClick={() => handleSelectGroup(group.id)}
                     disabled={loading}
-                    className={`w-full text-left px-4 py-3 ${bg.section} border ${border.default} rounded-lg hover:border-accent/40 ${bg.interactiveHover} transition-colors disabled:opacity-50`}
+                    className={`w-full text-start px-4 py-3 ${bg.section} border ${border.default} rounded-lg hover:border-accent/40 ${bg.interactiveHover} transition-colors disabled:opacity-50`}
                   >
                     <span className={`text-sm font-medium ${text.secondary}`}>
                       {group.name}
@@ -209,32 +203,32 @@ export default function Login() {
             </div>
             <form onSubmit={handleGoogleLink} className="space-y-4">
               <div>
-                <label className="glass-label">{t.common.email}</label>
+                <label className={m.label}>{t.common.email}</label>
                 <input
                   type="email"
                   value={googleLinkState.email}
                   disabled
-                  className={`glass-input w-full ${bg.sectionSubtle} ${text.muted}`}
+                  className={`${m.input} ${bg.sectionSubtle} ${text.muted}`}
                 />
               </div>
               <div>
-                <label className="glass-label">{t.common.password}</label>
+                <label className={m.label}>{t.common.password}</label>
                 <input
                   type="password"
                   required
                   value={linkPassword}
                   onChange={(e) => setLinkPassword(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                   placeholder={t.login.enterPasswordToLink}
                 />
               </div>
-              <button type="submit" disabled={loading} className="glass-btn-primary w-full">
+              <button type="submit" disabled={loading} className={`${m.btn.primary} w-full`}>
                 {loading ? t.login.linking : t.login.linkAndSignIn}
               </button>
               <button
                 type="button"
                 onClick={() => { setGoogleLinkState(null); setLinkPassword(""); }}
-                className="glass-btn-secondary w-full"
+                className={`${m.btn.secondary} w-full`}
               >
                 {t.login.backToLogin}
               </button>
@@ -247,7 +241,7 @@ export default function Login() {
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="glass-label">
+                <label className={m.label}>
                   {t.common.email}
                 </label>
                 <input
@@ -255,12 +249,12 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                 />
               </div>
               <div>
                 <div className="flex items-baseline justify-between">
-                  <label className="glass-label">
+                  <label className={m.label}>
                     {t.common.password}
                   </label>
                   <Link
@@ -275,13 +269,13 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="glass-btn-primary w-full"
+                className={`${m.btn.primary} w-full`}
               >
                 {loading ? t.login.signingIn : t.login.signIn}
               </button>
@@ -298,7 +292,7 @@ export default function Login() {
                 {t.login.register}
               </Link>
             </p>
-            <div className={`mt-6 p-4 ${bg.section} rounded-xl border ${border.default}`}>
+            <div className={`mt-6 ${m.surface} border ${m.rule.line} p-4 font-data text-xs`}>
               <p className={`text-xs font-semibold ${text.muted} uppercase tracking-wide mb-2`}>
                 {t.login.demoCredentials}
               </p>
@@ -308,7 +302,7 @@ export default function Login() {
                   setEmail("abc@example.com");
                   setPassword("example");
                 }}
-                className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
+                className={`w-full text-start text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
               >
                 <span className="font-medium">{t.login.manager}:</span> abc@example.com / example
               </button>
@@ -318,7 +312,7 @@ export default function Login() {
                   setEmail("employee1@example.com");
                   setPassword("example");
                 }}
-                className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
+                className={`w-full text-start text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
               >
                 <span className="font-medium">{t.login.employeeLabel}:</span> employee1@example.com / example
               </button>
@@ -338,7 +332,6 @@ export default function Login() {
             {t.gdpr.dpa}
           </Link>
         </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { acceptManagerInvite, getManagerInviteInfo } from "../api/managerInvites";
 import type { ManagerInviteInfo } from "../types";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border, action, bg } from "../theme";
+import { text, border, bg } from "../theme";
+import { marketing as m } from "../theme";
 
 export default function AcceptManagerInvite() {
   useDocumentTitle("Accept Manager Invite");
@@ -88,77 +90,72 @@ export default function AcceptManagerInvite() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className={text.muted}>{t.acceptManagerInvite.loadingInvite}</div>
+        <div className={m.text.muted}>{t.acceptManagerInvite.loadingInvite}</div>
       </div>
     );
   }
 
   if (!info) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card w-full max-w-md p-8 text-center">
-          <h1 className="text-xl font-bold text-red-400 mb-2">{t.acceptManagerInvite.invalidInvite}</h1>
-          <p className={text.muted}>{error || t.acceptManagerInvite.invalidOrExpired}</p>
+      <AuthLayout title={t.acceptManagerInvite.invalidInvite}>
+          <p className={m.text.muted}>{error || t.acceptManagerInvite.invalidOrExpired}</p>
           <a
             href="/login"
-            className={`mt-4 inline-block ${action.link} text-sm`}
+            className={`mt-4 inline-block ${m.btn.link} text-sm`}
           >
             {t.acceptManagerInvite.goToLogin}
           </a>
-        </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card w-full max-w-md p-8">
-        <h1 className={`text-2xl font-bold mb-1 ${text.heading}`}>{t.acceptManagerInvite.title}</h1>
-        <p className={`text-sm ${text.muted} mb-6`}>
+    <AuthLayout title={t.acceptManagerInvite.title}>
+        <p className={`text-sm ${m.text.muted} mb-6`}>
           {t.acceptManagerInvite.welcomeTo} <strong className={text.secondary}>{info.group_name}</strong>.
           <br />
           {t.acceptManagerInvite.choosePassword}
         </p>
 
         {error && (
-          <div className="glass-alert-error mb-4">
+          <div className={`${m.alert.error} mb-4`}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptManagerInvite.emailLabel}
             </label>
             <input
               type="email"
               value={info.email}
               disabled
-              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${text.muted}`}
+              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${m.text.muted}`}
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptManagerInvite.fullNameLabel}
             </label>
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               autoFocus
               required
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptManagerInvite.companyLabel}
             </label>
             <select
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              className="glass-input w-full"
+              className={`${m.input} appearance-none`}
               required
             >
               {info.companies.map((c) => (
@@ -169,27 +166,27 @@ export default function AcceptManagerInvite() {
             </select>
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptManagerInvite.passwordLabel}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.acceptManagerInvite.atLeast6}
               required
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptManagerInvite.confirmPasswordLabel}
             </label>
             <input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.acceptManagerInvite.reenterPassword}
               required
             />
@@ -197,19 +194,18 @@ export default function AcceptManagerInvite() {
           <button
             type="submit"
             disabled={submitting}
-            className="glass-btn-primary w-full"
+            className={`${m.btn.primary} w-full`}
           >
             {submitting ? t.acceptManagerInvite.submitting : t.acceptManagerInvite.submitButton}
           </button>
         </form>
 
-        <p className={`mt-4 text-center text-xs ${text.muted}`}>
+        <p className={`mt-4 text-center text-xs ${m.text.muted}`}>
           {t.acceptManagerInvite.haveAccount}{" "}
-          <a href="/login" className={action.link}>
+          <a href="/login" className={m.btn.link}>
             {t.acceptManagerInvite.logIn}
           </a>
         </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }
