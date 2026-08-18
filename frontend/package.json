@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "verify:shoot": "node scripts/verify/shoot.mjs",
     "verify:interact": "node scripts/verify/interact.mjs",
-    "verify:contrast": "node scripts/verify/contrast.mjs"
+    "verify:contrast": "node scripts/verify/contrast.mjs",
+    "verify:marker": "! grep -rnE 'text-marker|!text-marker|text-marker/' src/pages src/components/marketing || (echo 'marker used as a text colour — it is a fill, never text' && exit 1)"
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.0.1",

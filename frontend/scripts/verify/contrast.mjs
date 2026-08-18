@@ -4,7 +4,7 @@ const TOKENS = {
   paper: "#F5F2EA",
   rule: "#C9C0B0",
   marker: "#FF5A1F",
-  clear: "#1F7A5C",
+  clear: "#1D7357",
 };
 
 // [foreground, background, minimum ratio, why]
@@ -13,7 +13,10 @@ const PAIRS = [
   ["ink", "paper", 4.5, "body text on raised surfaces"],
   ["clear", "paper", 4.5, "compliant/success text on the receipt"],
   ["clear", "newsprint", 4.5, "compliant/success text on page ground"],
-  ["marker", "newsprint", 3.0, "large display type and fills only"],
+  // marker is a FILL, never a text colour — so the pair that matters is
+  // ink sitting ON marker, not marker sitting on the page.
+  ["ink", "marker", 4.5, "ink text on a marker highlight fill"],
+  ["marker", "newsprint", 1.3, "decorative rule only — must be visible, never load-bearing"],
   ["marker", "ink", 3.0, "accent on the dark demo band"],
   ["newsprint", "ink", 4.5, "reversed text on the dark demo band"],
   ["rule", "newsprint", 1.3, "grid lines must be visible, not invisible"],
