@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import LanguageSelector from "../shared/LanguageSelector";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { marketing as m } from "../../theme";
+import { useMarketingGround } from "../../hooks/useMarketingGround";
 import { BANDS, CELLS, DAYS } from "./rotaData";
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
  */
 export default function AuthLayout({ title, children, footer }: Props) {
   const { t } = useLanguage();
+  useMarketingGround();
 
   // Rendered once for real in the header below, and once invisibly in the
   // rota side so both columns share the same header height — that keeps the

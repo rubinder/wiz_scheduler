@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import LanguageSelector from "../shared/LanguageSelector";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { marketing as m } from "../../theme";
+import { useMarketingGround } from "../../hooks/useMarketingGround";
 import MarketingFooter from "./MarketingFooter";
 
 export default function MarketingNav() {
@@ -33,6 +34,7 @@ export default function MarketingNav() {
 }
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
+  useMarketingGround();
   return (
     <div className={`min-h-screen ${m.page} font-body`}>
       <MarketingNav />
