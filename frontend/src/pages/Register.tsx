@@ -101,7 +101,7 @@ export default function Register() {
           </>
         )}
         {googleIdToken && (
-          <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center justify-between">
+          <div className={`mb-4 flex items-center justify-between ${m.alert.success}`}>
             <span>Signed in with Google as {email}</span>
             <button
               type="button"
