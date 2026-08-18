@@ -37,8 +37,8 @@ export default function RotaHero() {
       {/* ── The rota ── */}
       <div className={`${m.surface} border ${m.rule.heavy}`}>
         <div
-          className="grid"
-          style={{ gridTemplateColumns: `4.5rem repeat(${DAYS.length}, minmax(0, 1fr))` }}
+          className="grid [--label-w:2.25rem] sm:[--label-w:4.5rem]"
+          style={{ gridTemplateColumns: `var(--label-w) repeat(${DAYS.length}, minmax(0, 1fr))` }}
         >
           {/* header row */}
           <div className={`border-b ${m.rule.grid}`} />
@@ -46,9 +46,10 @@ export default function RotaHero() {
             <div
               key={d}
               data-rota-head={i}
-              className={`${m.text.meta} border-b border-s ${m.rule.grid} px-2 py-2.5 text-center`}
+              className={`${m.text.meta} border-b border-s ${m.rule.grid} px-1 py-2.5 sm:px-2 text-center`}
             >
-              {d}
+              <span className="sm:hidden">{d.charAt(0)}</span>
+              <span className="hidden sm:inline">{d}</span>
             </div>
           ))}
 
@@ -56,9 +57,10 @@ export default function RotaHero() {
           {BANDS.map((band, b) => (
             <div key={band} className="contents">
               <div
-                className={`${m.text.meta} border-b ${m.rule.grid} px-2 py-3 flex items-center`}
+                className={`${m.text.meta} border-b ${m.rule.grid} px-1 py-3 sm:px-2 flex items-center justify-center sm:justify-start`}
               >
-                {band}
+                <span className="sm:hidden">{band.charAt(0)}</span>
+                <span className="hidden sm:inline">{band}</span>
               </div>
               {DAYS.map((_, d) => {
                 const cell = cellAt(d, b);
@@ -67,16 +69,18 @@ export default function RotaHero() {
                     key={`${band}-${d}`}
                     data-cell={cell ? `${d}-${b}` : undefined}
                     data-retried={cell?.retried ? "true" : undefined}
-                    className={`border-b border-s ${m.rule.grid} px-2 py-3 min-h-[4.25rem] transition-colors ${
-                      cell ? "hover:bg-marker/10" : ""
+                    className={`border-b border-s ${m.rule.grid} px-1.5 py-2 sm:px-2 sm:py-3 min-h-[2.75rem] sm:min-h-[4.25rem] transition-colors ${
+                      cell ? "bg-ink/[0.06] hover:bg-marker/10 sm:bg-transparent" : ""
                     }`}
                   >
                     {cell && (
                       <>
-                        <div className={`${m.text.body} text-sm font-medium leading-tight`}>
+                        <div
+                          className={`${m.text.body} text-xs sm:text-sm font-medium leading-tight truncate`}
+                        >
                           {cell.role}
                         </div>
-                        <div className={`${m.text.data} text-xs text-ink/60 mt-1`}>
+                        <div className={`${m.text.data} hidden sm:block text-xs text-ink/60 mt-1`}>
                           {cell.hours}
                         </div>
                       </>
