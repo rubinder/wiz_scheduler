@@ -22,6 +22,7 @@ Every task's requirements implicitly include this section.
 - **Palette, exact values:** `ink #1A1815`, `newsprint #E9E4D8`, `paper #F5F2EA`, `rule #C9C0B0`, `marker #FF5A1F`, `clear #1F7A5C`.
 - **`marker` is prohibited on small body text** (≈3:1 on `newsprint`). Permitted for large display type, rules, and fills. Once per viewport.
 - **Only one new runtime dependency is authorised:** `motion`. Do not install anything else. Fonts are self-hosted static files, not a package.
+- **Branch base is `feat/free-tier`, not `main`.** This branch stacks on it. Any diff-range verification uses `feat/free-tier...HEAD`; using `main...HEAD` sweeps in 28 unrelated commits and makes the checks meaningless.
 - **`npm run build` must pass** (`tsc` strict + Vite) at the end of every task.
 
 ---
@@ -37,7 +38,8 @@ Every task's requirements implicitly include this section.
 | `frontend/scripts/verify/contrast.mjs` | WCAG AA checker over the token pairs |
 | `frontend/scripts/fetch-fonts.mjs` | Mirrors Google Fonts woff2 into `public/fonts/`, emits `@font-face` CSS |
 | `frontend/public/fonts/*.woff2` | Self-hosted subsets |
-| `frontend/src/styles/fonts.css` | Generated `@font-face` blocks + `:lang()` overrides |
+| `frontend/src/styles/fonts.css` | **Generated** `@font-face` blocks. Never hand-edit. |
+| `frontend/src/styles/type.css` | **Hand-authored** role vars + `:lang()` script overrides |
 | `frontend/src/components/marketing/SectionRule.tsx` | Ruled section divider + heading; the page's structural grammar |
 | `frontend/src/components/marketing/MarketingNav.tsx` | Shared public nav |
 | `frontend/src/components/marketing/MarketingFooter.tsx` | Shared public footer |
@@ -303,7 +305,7 @@ git commit -m "test(frontend): add Playwright screenshot, interaction, and contr
 ## Task 2: Self-hosted typography
 
 **Files:**
-- Create: `frontend/scripts/fetch-fonts.mjs`, `frontend/src/styles/fonts.css`, `frontend/public/fonts/*.woff2`
+- Create: `frontend/scripts/fetch-fonts.mjs`, `frontend/src/styles/fonts.css` (generated), `frontend/src/styles/type.css` (hand-authored), `frontend/public/fonts/*.woff2`
 - Modify: `frontend/tailwind.config.ts`, `frontend/src/index.css`, `frontend/index.html`
 
 **Interfaces:**
@@ -384,9 +386,11 @@ If the network is unavailable, **stop and report it** — do not fall back to a 
 Run: `ls -la frontend/public/fonts/ && grep -c "@font-face" frontend/src/styles/fonts.css`
 Expected: at least 12 `.woff2` files, each larger than 5 KB, and a `@font-face` count matching them.
 
-- [ ] **Step 4: Append the script-coverage overrides**
+- [ ] **Step 4: Write the script-coverage overrides**
 
-Append to `frontend/src/styles/fonts.css`:
+**Do not append these to `fonts.css`** — `fetch-fonts.mjs` rewrites that file wholesale, and re-running it is the documented way to refresh the fonts. Anything hand-written there is destroyed on the next run, silently taking the entire non-Latin type strategy with it.
+
+Create a separate `frontend/src/styles/type.css`:
 
 ```css
 /* ── Role variables ─────────────────────────────────────────────
@@ -469,10 +473,11 @@ Append to `frontend/src/styles/fonts.css`:
 
 - [ ] **Step 5: Import the stylesheet**
 
-At the very top of `frontend/src/index.css`, **above** the `@tailwind` directives:
+At the very top of `frontend/src/index.css`, **above** the `@tailwind` directives. Order matters — `type.css` overrides nothing in `fonts.css`, but it must load after the `@font-face` declarations it references:
 
 ```css
 @import "./styles/fonts.css";
+@import "./styles/type.css";
 ```
 
 - [ ] **Step 6: Register the families with Tailwind**
@@ -528,7 +533,7 @@ Expected: exits 0.
 
 ```bash
 git add frontend/scripts/fetch-fonts.mjs frontend/src/styles/fonts.css \
-        frontend/public/fonts frontend/src/index.css \
+        frontend/src/styles/type.css frontend/public/fonts frontend/src/index.css \
         frontend/tailwind.config.ts frontend/index.html
 git commit -m "feat(frontend): self-host Archivo, Source Sans 3, IBM Plex Mono with per-script fallbacks"
 ```
@@ -1673,7 +1678,7 @@ Write the largest chunk size down — Step 5 compares against it.
 
 - [ ] **Step 2: Convert the public routes to lazy imports**
 
-In `App.tsx`, replace these ten static imports (lines 5-10, 29-31, 34-35) with lazy ones:
+In `App.tsx`, replace these **eleven** static imports (lines 5-10, 29-31, 34-35) with lazy ones:
 
 ```tsx
 import { Suspense, lazy } from "react";
@@ -1759,7 +1764,7 @@ Expected: all four exit 0; 30 screenshots in `.verify/final/`.
 - [ ] **Step 2: Assemble the behaviour-unchanged evidence**
 
 ```bash
-git diff main...HEAD -- frontend/src \
+git diff feat/free-tier...HEAD -- frontend/src \
   | grep -E "^[-+]" | grep -vE "^(\+\+\+|---)" \
   | grep -E "useState|useEffect|useRef|onClick|onSubmit|onChange|fetch\(|api\.|localStorage" \
   | grep -v "components/marketing/" | grep -v "App.tsx"
@@ -1770,7 +1775,7 @@ Expected: **no output.** This is the spec's structural argument. Paste the resul
 - [ ] **Step 3: Confirm no i18n file was touched**
 
 ```bash
-cd /Users/robran/IdeaProjects/wiz_scheduler && git diff --stat main...HEAD -- frontend/src/i18n/
+cd /Users/robran/IdeaProjects/wiz_scheduler && git diff --stat feat/free-tier...HEAD -- frontend/src/i18n/
 ```
 
 Expected: **no output.** All 19 locale files unchanged.
@@ -1778,7 +1783,7 @@ Expected: **no output.** All 19 locale files unchanged.
 - [ ] **Step 4: Confirm the app surface is untouched**
 
 ```bash
-cd /Users/robran/IdeaProjects/wiz_scheduler && git diff --stat main...HEAD \
+cd /Users/robran/IdeaProjects/wiz_scheduler && git diff --stat feat/free-tier...HEAD \
   -- frontend/src/pages/manager frontend/src/pages/employee \
      frontend/src/components/shared frontend/src/components/layout
 ```
