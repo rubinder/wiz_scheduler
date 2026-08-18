@@ -144,7 +144,7 @@ function ScreenshotImage({ slug, title }: { slug: Slug; title: string }) {
         img.style.display = "none";
         parent.classList.add("flex", "items-center", "justify-center");
         const placeholder = document.createElement("div");
-        placeholder.className = "text-sm text-ink/60 px-4 text-center";
+        placeholder.className = "text-sm text-ink/70 px-4 text-center";
         placeholder.textContent = `Screenshot pending: ${title}`;
         parent.appendChild(placeholder);
       }}

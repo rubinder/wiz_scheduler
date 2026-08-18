@@ -182,7 +182,7 @@ export const marketing = {
     /** Secondary prose. 70% ink keeps AA on newsprint. */
     muted: "font-body text-ink/70",
     /** Eyebrows, captions, table headers. */
-    meta: "font-data text-ink/60 uppercase tracking-[0.14em] text-xs",
+    meta: "font-data text-ink/70 uppercase tracking-[0.14em] text-xs",
     /** Figures, times, prices. Always tabular. */
     data: "font-data tabular-nums text-ink",
     clear: "text-clear",
@@ -234,7 +234,7 @@ export const marketing = {
     "focus-visible:outline-offset-1 focus-visible:outline-ink " +
     "transition-colors",
 
-  label: "block font-data text-xs uppercase tracking-[0.14em] text-ink/60 mb-1.5",
+  label: "block font-data text-xs uppercase tracking-[0.14em] text-ink/70 mb-1.5",
 
   alert: {
     error: "border-s-2 border-marker bg-marker/5 text-ink px-4 py-3 font-body text-sm",

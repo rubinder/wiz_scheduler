@@ -131,7 +131,7 @@ export default function RotaHero() {
                         >
                           {cell.role}
                         </div>
-                        <div className={`${m.text.data} hidden sm:block text-xs text-ink/60 mt-1`}>
+                        <div className={`${m.text.data} hidden sm:block text-xs text-ink/70 mt-1`}>
                           {cell.hours}
                         </div>
                       </>
@@ -149,13 +149,13 @@ export default function RotaHero() {
             <span data-total="shifts">
               <Count to={TOTALS.shifts} />
             </span>{" "}
-            <span className="text-ink/60">shifts</span>
+            <span className="text-ink/70">shifts</span>
           </span>
           <span className={`${m.text.data} text-sm`}>
             <span data-total="people">
               <Count to={TOTALS.people} />
             </span>{" "}
-            <span className="text-ink/60">people</span>
+            <span className="text-ink/70">people</span>
           </span>
           <span className={`${m.text.data} text-sm ${m.text.clear}`}>
             <span data-total="violations">{TOTALS.violations}</span> rest violations
