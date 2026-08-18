@@ -49,6 +49,10 @@ for (const vp of VIEWPORTS) {
 
     for (const [name, path] of ROUTES) {
       await page.goto(`${BASE}${path}`, { waitUntil: "load" });
+      // font-display: swap means the first paint may still be a system
+      // fallback — wait for the real faces before capturing, or the type
+      // matrix this suite exists to prove ends up photographing nothing.
+      await page.evaluate(() => document.fonts.ready);
       await page.screenshot({
         path: `${outDir}/${name}-${vp.name}-${locale}.png`,
         fullPage: true,
@@ -57,6 +61,29 @@ for (const vp of VIEWPORTS) {
     }
     await ctx.close();
   }
+}
+
+// One non-reduced-motion capture of the hero: reducedMotion:"reduce" above
+// keeps the matrix deterministic, but it also means the choreography that
+// justifies the `motion` dependency never appears in any screenshot. This
+// single extra desktop/en shot of "/" restores that proof without giving
+// up determinism elsewhere.
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: "no-preference",
+  });
+  const page = await ctx.newPage();
+  await page.addInitScript((l) => window.localStorage.setItem("lang", l), "en");
+  await page.goto(`${BASE}/`, { waitUntil: "load" });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(1600);
+  await page.screenshot({
+    path: `${outDir}/landing-desktop-en-motion.png`,
+    fullPage: true,
+  });
+  shots++;
+  await ctx.close();
 }
 
 await browser.close();
