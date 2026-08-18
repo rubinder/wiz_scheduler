@@ -19,7 +19,7 @@ export default function MarketingNav() {
           </span>
         </Link>
         <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-          <LanguageSelector />
+          <LanguageSelector variant="rota" />
           <Link to="/login" className={`${m.btn.link} text-sm hidden sm:inline`}>
             {t.login.signIn}
           </Link>
