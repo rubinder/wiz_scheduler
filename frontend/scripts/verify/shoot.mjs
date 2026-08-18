@@ -48,7 +48,7 @@ for (const vp of VIEWPORTS) {
     );
 
     for (const [name, path] of ROUTES) {
-      await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}${path}`, { waitUntil: "load" });
       await page.screenshot({
         path: `${outDir}/${name}-${vp.name}-${locale}.png`,
         fullPage: true,
