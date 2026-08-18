@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { marketing as m } from "../../theme";
@@ -5,9 +7,51 @@ import { BANDS, CELLS, DAYS, TOTALS } from "./rotaData";
 
 export default function RotaHero() {
   const { t } = useLanguage();
+  const reduce = useReducedMotion();
 
   const cellAt = (day: number, band: number) =>
     CELLS.find((c) => c.day === day && c.band === band);
+
+  // Diagonal wave: cells further from the top-start corner land later.
+  const cellDelay = (day: number, band: number) => 0.4 + (day + band) * 0.024;
+
+  const cellAnim = (c: { day: number; band: number; retried: boolean }) =>
+    reduce
+      ? {}
+      : {
+          initial: { opacity: 0, scale: 0.94 },
+          animate: {
+            opacity: 1,
+            scale: 1,
+            // Retried cells flash `marker` mid-sequence, then resolve —
+            // mirroring the conflict-retry the real pipeline performs.
+            backgroundColor: c.retried
+              ? ["rgba(255,90,31,0)", "rgba(255,90,31,0.28)", "rgba(255,90,31,0)"]
+              : undefined,
+          },
+          transition: {
+            duration: 0.28,
+            delay: cellDelay(c.day, c.band),
+            backgroundColor: { duration: 0.5, delay: 1.1, times: [0, 0.4, 1] },
+          },
+        };
+
+  const Count = ({ to }: { to: number }) => {
+    const [n, setN] = useState(reduce ? to : 0);
+    useEffect(() => {
+      if (reduce || to === 0) { setN(to); return; }
+      let raf = 0;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const p = Math.min(1, (now - start - 1400) / 600);
+        if (p >= 0) setN(Math.round(to * p));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [to]);
+    return <>{n}</>;
+  };
 
   return (
     <section className="max-w-[92rem] mx-auto px-6 pt-16 pb-20 grid gap-12 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-16 lg:items-center">
@@ -46,14 +90,17 @@ export default function RotaHero() {
           {/* header row */}
           <div className={`border-b ${m.rule.grid}`} />
           {DAYS.map((d, i) => (
-            <div
+            <motion.div
               key={d}
               data-rota-head={i}
+              initial={reduce ? undefined : { opacity: 0 }}
+              animate={reduce ? undefined : { opacity: 1 }}
+              transition={reduce ? undefined : { delay: 0.2 + i * 0.03 }}
               className={`${m.text.meta} border-b border-s ${m.rule.grid} px-1 py-2.5 sm:px-2 text-center`}
             >
               <span className="sm:hidden">{d.charAt(0)}</span>
               <span className="hidden sm:inline">{d}</span>
-            </div>
+            </motion.div>
           ))}
 
           {/* body */}
@@ -68,10 +115,11 @@ export default function RotaHero() {
               {DAYS.map((_, d) => {
                 const cell = cellAt(d, b);
                 return (
-                  <div
+                  <motion.div
                     key={`${band}-${d}`}
                     data-cell={cell ? `${d}-${b}` : undefined}
                     data-retried={cell?.retried ? "true" : undefined}
+                    {...(cell ? cellAnim(cell) : {})}
                     className={`border-b border-s ${m.rule.grid} px-1.5 py-2 sm:px-2 sm:py-3 min-h-[2.75rem] sm:min-h-[4.25rem] transition-colors ${
                       cell ? "bg-ink/[0.06] hover:bg-marker/10 sm:bg-transparent" : ""
                     }`}
@@ -88,7 +136,7 @@ export default function RotaHero() {
                         </div>
                       </>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -98,11 +146,15 @@ export default function RotaHero() {
         {/* footline */}
         <div className="px-4 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-1">
           <span className={`${m.text.data} text-sm`}>
-            <span data-total="shifts">{TOTALS.shifts}</span>{" "}
+            <span data-total="shifts">
+              <Count to={TOTALS.shifts} />
+            </span>{" "}
             <span className="text-ink/60">shifts</span>
           </span>
           <span className={`${m.text.data} text-sm`}>
-            <span data-total="people">{TOTALS.people}</span>{" "}
+            <span data-total="people">
+              <Count to={TOTALS.people} />
+            </span>{" "}
             <span className="text-ink/60">people</span>
           </span>
           <span className={`${m.text.data} text-sm ${m.text.clear}`}>

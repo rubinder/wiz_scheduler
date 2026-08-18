@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "motion/react";
 import { marketing as m } from "../../theme";
 
 interface Props {
@@ -15,9 +16,17 @@ interface Props {
  * `text-3xl font-bold` heading that every section used to share.
  */
 export default function SectionRule({ eyebrow, title, id }: Props) {
+  const reduce = useReducedMotion();
+
   return (
     <div id={id} className="scroll-mt-20">
-      <div className={`border-t ${m.rule.heavy}`} />
+      <motion.div
+        className={`border-t ${m.rule.heavy} origin-[left_center] rtl:origin-[right_center]`}
+        initial={reduce ? false : { scaleX: 0 }}
+        whileInView={{ scaleX: 1 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      />
       {(eyebrow || title) && (
         <div className="pt-6 pb-10 flex flex-col gap-3 md:flex-row md:items-baseline md:gap-8">
           {eyebrow && (
