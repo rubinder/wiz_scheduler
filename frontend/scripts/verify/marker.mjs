@@ -5,9 +5,11 @@ import { join } from "node:path";
 // text colour it measures 2.46:1 on newsprint — failing AA body text and
 // the 3:1 large-text threshold alike. This gate enforces what a contrast
 // number cannot express: how the colour is used.
-const FORBIDDEN = /(^|[\s"'`{])!?text-marker(\/\d+)?([\s"'`}]|$)/;
+// Boundary must include ":" so Tailwind variant chains are caught —
+// hover:text-marker, focus:text-marker, lg:hover:!text-marker.
+const FORBIDDEN = /(?:^|[\s"'`{:])!?text-marker(?:\/\d+)?(?=[\s"'`}:]|$)/;
 
-const ROOTS = ["src/pages", "src/components/marketing"];
+const ROOTS = ["src"];
 const violations = [];
 let scanned = 0;
 const missing = [];

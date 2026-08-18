@@ -8,6 +8,28 @@ function check(name, cond) {
   else { console.log(`  FAIL ${name}`); failures.push(name); }
 }
 
+async function submitProves(page, path, label) {
+  const posts = [];
+  const onReq = (r) => { if (r.method() === "POST") posts.push(r.url()); };
+  page.on("request", onReq);
+  await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+  const before = await page.locator("body").innerText();
+  await page.fill('input[type="email"]', "verify-probe@example.com");
+  // Bounded + caught: some forms disable submit until other required
+  // fields (e.g. consent checkboxes) are set, which would otherwise hang
+  // this click for the full default timeout and crash the whole run. A
+  // click that never becomes actionable still correctly fails the check
+  // below (no POST, no visible change) — this only stops it from taking
+  // the rest of the suite down with it.
+  await page.click('button[type="submit"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const after = await page.locator("body").innerText();
+  page.off("request", onReq);
+  // A live handler either talks to the server or renders feedback.
+  check(`${label} submit runs a handler (POST or visible feedback)`,
+    posts.length > 0 || after !== before);
+}
+
 const browser = await chromium.launch();
 const page = await browser.newPage();
 const posted = [];
@@ -25,24 +47,28 @@ check("login POSTs to the auth endpoint",
   posted.some((p) => p.includes("/auth/")));
 
 console.log("register form");
-posted.length = 0;
 await page.goto(`${BASE}/register`, { waitUntil: "networkidle" });
 check("register renders an email field",
   await page.locator('input[type="email"]').count() > 0);
 check("register renders a submit button",
   await page.locator('button[type="submit"]').count() > 0);
+await submitProves(page, "/register", "register");
 
 console.log("forgot-password form");
 await page.goto(`${BASE}/forgot-password`, { waitUntil: "networkidle" });
 check("forgot-password renders an email field",
   await page.locator('input[type="email"]').count() > 0);
+await submitProves(page, "/forgot-password", "forgot-password");
 
 console.log("landing navigation");
 await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
 for (const href of ["/login", "/register", "/features",
                     "/privacy-policy", "/terms", "/dpa"]) {
-  check(`landing links to ${href}`,
-    await page.locator(`a[href="${href}"]`).count() > 0);
+  await page.locator(`a[href="${href}"]`).first().click();
+  await page.waitForLoadState("networkidle");
+  check(`landing link ${href} navigates`,
+    new URL(page.url()).pathname === href);
+  await page.goBack({ waitUntil: "networkidle" });
 }
 for (const anchor of ["#pricing", "#demo"]) {
   check(`landing anchor ${anchor} has a target`,
