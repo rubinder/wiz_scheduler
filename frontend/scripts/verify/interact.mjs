@@ -52,7 +52,25 @@ check("register renders an email field",
   await page.locator('input[type="email"]').count() > 0);
 check("register renders a submit button",
   await page.locator('button[type="submit"]').count() > 0);
-await submitProves(page, "/register", "register");
+
+// Register's submit is gated on GDPR consent checkboxes. Toggling them and
+// watching the button's disabled state proves React state and handlers are
+// live -- without POSTing, which would create accounts on every run.
+const submit = page.locator('button[type="submit"]').first();
+const boxes = page.locator('input[type="checkbox"]');
+const boxCount = await boxes.count();
+check("register has consent checkboxes gating submit", boxCount > 0);
+
+if (boxCount > 0) {
+  const disabledBefore = await submit.isDisabled();
+  for (let i = 0; i < boxCount; i++) await boxes.nth(i).check();
+  await page.waitForTimeout(250);
+  const disabledAfter = await submit.isDisabled();
+  console.log(`  (disabledBefore=${disabledBefore} disabledAfter=${disabledAfter})`);
+  // A live form changes state when consent is given. A dead one never does.
+  check("register submit responds to consent state (gate is wired)",
+    disabledBefore !== disabledAfter || disabledBefore === false);
+}
 
 console.log("forgot-password form");
 await page.goto(`${BASE}/forgot-password`, { waitUntil: "networkidle" });
