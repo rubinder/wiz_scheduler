@@ -70,7 +70,9 @@
   letter-spacing: var(--display-tracking);
 }
 
-/* Numbers must align. Every figure in this product is tabular. */
-.font-data, table tbody td, .tabular {
+/* Numbers must align. Every figure in this product is tabular. Scoped to
+   explicit opt-in classes only — a bare element selector here would leak
+   into every app-surface table via the global index.css import. */
+.font-data, .tabular {
   font-variant-numeric: tabular-nums;
 }
