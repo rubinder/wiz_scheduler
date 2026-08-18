@@ -32,9 +32,18 @@ async function submitProves(page, path, label) {
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
-const posted = [];
-page.on("request", (r) => {
-  if (r.method() === "POST") posted.push(new URL(r.url()).pathname);
+
+// Abort every API write before it leaves the browser. The attempt is still
+// recorded, so we prove the handler fired without creating accounts,
+// sending mail, or touching a backend that may not even be running.
+const attempted = [];
+await page.route("**/*", (route) => {
+  const req = route.request();
+  if (req.method() === "POST") {
+    attempted.push(new URL(req.url()).pathname);
+    return route.abort();
+  }
+  return route.continue();
 });
 
 console.log("login form");
@@ -44,7 +53,7 @@ await page.fill('input[type="password"]', "wrong-on-purpose");
 await page.click('button[type="submit"]');
 await page.waitForTimeout(1500);
 check("login POSTs to the auth endpoint",
-  posted.some((p) => p.includes("/auth/")));
+  attempted.some((p) => p.includes("/auth/")));
 
 console.log("register form");
 await page.goto(`${BASE}/register`, { waitUntil: "networkidle" });
@@ -70,6 +79,23 @@ if (boxCount > 0) {
   // A live form changes state when consent is given. A dead one never does.
   check("register submit responds to consent state (gate is wired)",
     disabledBefore !== disabledAfter || disabledBefore === false);
+
+  // The button being enabled isn't enough to reach onSubmit: the browser's
+  // native required-field validation blocks the click before our JS handler
+  // ever runs while fullName/password/companyName are still empty. Fill
+  // them with throwaway values -- never sent, the route above aborts every
+  // POST -- so the click can actually reach onSubmit.
+  await page.locator('input[type="text"]').nth(0).fill("Verify Probe");
+  await page.locator('input[type="email"]').first().fill("verify-probe@example.com");
+  await page.locator('input[type="password"]').first().fill("verify-probe-password");
+  await page.locator('input[type="text"]').nth(1).fill("Verify Probe Co");
+
+  attempted.length = 0;
+  await submit.click({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+  // The gate opening is not enough — onSubmit must actually fire.
+  check("register submit fires a request (onSubmit is attached)",
+    attempted.length > 0);
 }
 
 console.log("forgot-password form");
@@ -82,11 +108,17 @@ console.log("landing navigation");
 await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
 for (const href of ["/login", "/register", "/features",
                     "/privacy-policy", "/terms", "/dpa"]) {
+  // The landing page embeds a live YouTube iframe (#demo) that keeps
+  // generating background network traffic (ads/telemetry) indefinitely, so
+  // "networkidle" is not a safe wait condition here -- it can hang well
+  // past any reasonable timeout on repeated visits. Wait on the URL itself,
+  // which is what the assertion below actually checks.
   await page.locator(`a[href="${href}"]`).first().click();
-  await page.waitForLoadState("networkidle");
+  await page.waitForURL((url) => new URL(url).pathname === href, { timeout: 5000 }).catch(() => {});
   check(`landing link ${href} navigates`,
     new URL(page.url()).pathname === href);
-  await page.goBack({ waitUntil: "networkidle" });
+  await page.goBack();
+  await page.waitForURL((url) => new URL(url).pathname === "/", { timeout: 5000 }).catch(() => {});
 }
 for (const anchor of ["#pricing", "#demo"]) {
   check(`landing anchor ${anchor} has a target`,
