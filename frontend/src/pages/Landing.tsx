@@ -83,10 +83,6 @@ export default function Landing() {
       <RotaHero />
 
       <main className="max-w-[92rem] mx-auto px-6">
-        <div className="flex justify-end mb-8">
-          <a href="#demo" className={`${m.btn.link} text-sm`}>{t.landing.viewDemo}</a>
-        </div>
-
         {/* Features */}
         <SectionRule eyebrow="01 — Capability" title={t.landing.featuresTitle} />
         <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.featuresDesc}</p>

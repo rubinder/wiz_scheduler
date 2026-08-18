@@ -31,6 +31,9 @@ export default function RotaHero() {
           <a href="#pricing" className={m.btn.link}>
             {t.landing.viewPricing}
           </a>
+          <a href="#demo" className={m.btn.link}>
+            {t.landing.viewDemo}
+          </a>
         </div>
       </div>
 
