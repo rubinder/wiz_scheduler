@@ -4,6 +4,11 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"],
+        data: ["var(--font-data)"],
+      },
       colors: {
         cream: "#FFF8E7",
         sage: {

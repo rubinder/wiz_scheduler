@@ -1,0 +1,76 @@
+/* ── Role variables ─────────────────────────────────────────────
+   Latin / Latin-ext / Vietnamese get the full three-face system.  */
+:root {
+  --font-display: "Archivo", "Source Sans 3", system-ui, sans-serif;
+  --font-body: "Source Sans 3", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  --display-stretch: 75%;
+  --display-tracking: -0.02em;
+}
+
+/* Cyrillic: Archivo has no Cyrillic coverage. Keep the display role
+   in-family on Source Sans 3 at 900 rather than dropping to a system
+   face, and stop condensing — Source Sans 3 has no wdth axis. */
+:root:lang(ru) {
+  --font-display: "Source Sans 3", system-ui, sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: -0.005em;
+}
+
+/* Scripts with no self-hosted coverage fall through to per-script
+   system stacks. Condensing and negative tracking are cancelled:
+   they damage legibility in these scripts. Readability outranks
+   identity — never the reverse. */
+:root:lang(ar), :root:lang(ur) {
+  --font-display: "SF Arabic", "Geeza Pro", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-body: "SF Arabic", "Geeza Pro", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(hi), :root:lang(mr) {
+  --font-display: "Kohinoor Devanagari", "Nirmala UI", "Noto Sans Devanagari", sans-serif;
+  --font-body: "Kohinoor Devanagari", "Nirmala UI", "Noto Sans Devanagari", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(bn) {
+  --font-display: "Kohinoor Bangla", "Nirmala UI", "Noto Sans Bengali", sans-serif;
+  --font-body: "Kohinoor Bangla", "Nirmala UI", "Noto Sans Bengali", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(ta) {
+  --font-display: "Tamil Sangam MN", "Nirmala UI", "Noto Sans Tamil", sans-serif;
+  --font-body: "Tamil Sangam MN", "Nirmala UI", "Noto Sans Tamil", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(te) {
+  --font-display: "Kohinoor Telugu", "Nirmala UI", "Noto Sans Telugu", sans-serif;
+  --font-body: "Kohinoor Telugu", "Nirmala UI", "Noto Sans Telugu", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(ja) {
+  --font-display: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  --font-body: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+:root:lang(zh) {
+  --font-display: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --display-stretch: 100%;
+  --display-tracking: 0;
+}
+
+/* The display role is condensed only where a wdth axis exists. */
+.font-display {
+  font-stretch: var(--display-stretch);
+  letter-spacing: var(--display-tracking);
+}
+
+/* Numbers must align. Every figure in this product is tabular. */
+.font-data, table tbody td, .tabular {
+  font-variant-numeric: tabular-nums;
+}
