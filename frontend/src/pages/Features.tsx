@@ -61,7 +61,7 @@ export default function Features() {
                     <a
                       key={slug}
                       href={`#${slug}`}
-                      className={`flex items-baseline gap-2 border-b ${m.rule.line} border-s-2 border-transparent py-2 ${m.text.meta} transition-colors hover:!text-ink hover:border-marker focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marker`}
+                      className={`flex items-baseline gap-2 border-b ${m.rule.line} border-s-2 border-transparent py-2 ${m.text.meta} transition-colors hover:!text-ink hover:border-marker focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink`}
                     >
                       <span className="shrink-0">{ordinal(idx)}</span>
                       <span className="normal-case tracking-normal">

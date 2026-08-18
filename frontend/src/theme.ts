@@ -209,7 +209,7 @@ export const marketing = {
       // ~2.3:1 and becomes unreadable.
       "hover:bg-marker hover:border-marker hover:text-ink transition-colors " +
       "focus-visible:outline focus-visible:outline-2 " +
-      "focus-visible:outline-offset-2 focus-visible:outline-marker " +
+      "focus-visible:outline-offset-2 focus-visible:outline-ink " +
       "disabled:opacity-40 disabled:pointer-events-none",
     /** Everything else. */
     secondary:
@@ -217,21 +217,21 @@ export const marketing = {
       "tracking-wide px-6 py-3 bg-transparent text-ink border border-ink/40 " +
       "hover:border-ink transition-colors " +
       "focus-visible:outline focus-visible:outline-2 " +
-      "focus-visible:outline-offset-2 focus-visible:outline-marker " +
+      "focus-visible:outline-offset-2 focus-visible:outline-ink " +
       "disabled:opacity-40 disabled:pointer-events-none",
     /** Inline text link. */
     link:
       "font-body underline underline-offset-4 decoration-rule " +
       "hover:decoration-marker transition-colors " +
       "focus-visible:outline focus-visible:outline-2 " +
-      "focus-visible:outline-offset-2 focus-visible:outline-marker",
+      "focus-visible:outline-offset-2 focus-visible:outline-ink",
   },
 
   input:
     "w-full font-body bg-paper text-ink border border-rule px-3 py-2 " +
     "placeholder:text-ink/40 focus:outline-none focus:border-ink " +
     "focus-visible:outline focus-visible:outline-2 " +
-    "focus-visible:outline-offset-1 focus-visible:outline-marker " +
+    "focus-visible:outline-offset-1 focus-visible:outline-ink " +
     "transition-colors",
 
   label: "block font-data text-xs uppercase tracking-[0.14em] text-ink/60 mb-1.5",

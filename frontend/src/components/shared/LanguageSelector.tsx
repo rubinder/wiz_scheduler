@@ -14,7 +14,7 @@ interface Props {
 const ROTA_CLASSES =
   `bg-transparent ${m.text.meta} hover:text-ink border ${m.rule.line} px-2 py-1 ` +
   "focus:outline-none focus:border-ink focus-visible:outline focus-visible:outline-2 " +
-  "focus-visible:outline-offset-1 focus-visible:outline-marker transition-colors";
+  "focus-visible:outline-offset-1 focus-visible:outline-ink transition-colors";
 
 export default function LanguageSelector({ variant = "glass" }: Props) {
   const { lang, setLang } = useLanguage();
