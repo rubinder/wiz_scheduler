@@ -318,7 +318,9 @@ export default function Login() {
             </div>
           </>
         )}
-        <div className={`mt-4 pt-4 border-t ${m.rule.line} text-center text-xs ${m.text.muted} space-x-2`}>
+        <div
+          className={`mt-4 pt-4 border-t ${m.rule.line} flex flex-wrap items-center justify-center gap-x-2 text-center text-xs ${m.text.muted}`}
+        >
           <Link to="/privacy-policy" className={m.btn.link}>
             {t.gdpr.privacyPolicy}
           </Link>
