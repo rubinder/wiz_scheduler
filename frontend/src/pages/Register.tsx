@@ -4,7 +4,6 @@ import AuthLayout from "../components/marketing/AuthLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border } from "../theme";
 import { marketing as m } from "../theme";
 
 // `window.google` is already declared in Login.tsx with a permissive shape.
@@ -95,9 +94,9 @@ export default function Register() {
           <>
             <div ref={googleBtnRef} className="flex justify-center mb-4" />
             <div className="flex items-center gap-3 mb-4">
-              <div className={`flex-1 border-t ${border.default}`} />
+              <div className={`flex-1 border-t ${m.rule.line}`} />
               <span className={`text-xs ${m.text.muted}`}>{t.login.orContinueWith}</span>
-              <div className={`flex-1 border-t ${border.default}`} />
+              <div className={`flex-1 border-t ${m.rule.line}`} />
             </div>
           </>
         )}
@@ -171,12 +170,12 @@ export default function Register() {
             />
           </div>
           <div className="space-y-2">
-            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
+            <label className={`flex items-start gap-2 text-sm ${m.text.body} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={privacyAccepted}
                 onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-1 accent-[#9e6934]"
+                className="mt-1 accent-ink"
               />
               <span>
                 {t.gdpr.acceptPrivacy}{" "}
@@ -190,12 +189,12 @@ export default function Register() {
                 </a>
               </span>
             </label>
-            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
+            <label className={`flex items-start gap-2 text-sm ${m.text.body} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="mt-1 accent-[#9e6934]"
+                className="mt-1 accent-ink"
               />
               <span>
                 {t.gdpr.acceptTerms}{" "}

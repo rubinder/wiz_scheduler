@@ -5,7 +5,6 @@ import type { InviteInfoResponse } from "../types";
 import AuthLayout from "../components/marketing/AuthLayout";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border, bg } from "../theme";
 import { marketing as m } from "../theme";
 
 export default function AcceptInvite() {
@@ -87,7 +86,7 @@ export default function AcceptInvite() {
   return (
     <AuthLayout title={t.acceptInvite.setupTitle}>
         <p className={`text-sm ${m.text.muted} mb-6`}>
-          {t.acceptInvite.welcomeTo} <strong className={text.secondary}>{info.company_name}</strong>, {info.employee_name}!
+          {t.acceptInvite.welcomeTo} <strong className={m.text.body}>{info.company_name}</strong>, {info.employee_name}!
           <br />
           {t.acceptInvite.choosePassword}
         </p>
@@ -107,7 +106,7 @@ export default function AcceptInvite() {
               type="email"
               value={info.email}
               disabled
-              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${m.text.muted}`}
+              className={`${m.input} bg-ink/[0.03] ${m.text.muted}`}
             />
           </div>
           <div>

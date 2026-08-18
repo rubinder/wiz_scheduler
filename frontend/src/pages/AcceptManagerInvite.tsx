@@ -5,7 +5,6 @@ import type { ManagerInviteInfo } from "../types";
 import AuthLayout from "../components/marketing/AuthLayout";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border, bg } from "../theme";
 import { marketing as m } from "../theme";
 
 export default function AcceptManagerInvite() {
@@ -112,7 +111,7 @@ export default function AcceptManagerInvite() {
   return (
     <AuthLayout title={t.acceptManagerInvite.title}>
         <p className={`text-sm ${m.text.muted} mb-6`}>
-          {t.acceptManagerInvite.welcomeTo} <strong className={text.secondary}>{info.group_name}</strong>.
+          {t.acceptManagerInvite.welcomeTo} <strong className={m.text.body}>{info.group_name}</strong>.
           <br />
           {t.acceptManagerInvite.choosePassword}
         </p>
@@ -132,7 +131,7 @@ export default function AcceptManagerInvite() {
               type="email"
               value={info.email}
               disabled
-              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${m.text.muted}`}
+              className={`${m.input} bg-ink/[0.03] ${m.text.muted}`}
             />
           </div>
           <div>
