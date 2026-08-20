@@ -66,6 +66,20 @@ def _unlimited(canceled_at: datetime | None = None) -> PlanState:
     )
 
 
+def _schedule_limit_for(og_id: str) -> int:
+    """Monthly generation cap for a free ownership group.
+
+    The public demo group gets a raised cap: it is shared by every visitor, so
+    the normal free allowance is spent almost at once and the demo then refuses
+    to generate anything. Only the generation cap is lifted — the demo stays
+    inside the location and employee caps, so it still shows free-plan shape.
+    """
+    demo_id = settings.DEMO_OWNERSHIP_GROUP_ID
+    if demo_id and str(og_id) == demo_id:
+        return settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
+    return settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+
+
 async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
     """Resolve the plan state for the ownership group owning *company_id*."""
     og_id = await get_ownership_group_id(db, str(company_id))
@@ -89,6 +103,7 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
     loc_count = await count_locations_for_group(db, og_id)
     emp_count = await count_employees_for_group(db, og_id)
     sched_count = await count_schedules_this_month(db, og_id)
+    sched_limit = _schedule_limit_for(og_id)
     over_limit = (
         loc_count > settings.FREE_PLAN_MAX_LOCATIONS
         or emp_count > settings.FREE_PLAN_MAX_EMPLOYEES
@@ -102,7 +117,7 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
             "subscription_canceled" if og.canceled_at is not None
             else "plan_limit_exceeded"
         )
-    elif sched_count >= settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH:
+    elif sched_count >= sched_limit:
         # Not over_limit, but the monthly generation cap is exhausted — the
         # PlanBanner otherwise falls back to "AI requires a paid plan" copy
         # for ANY non-null-block_reason-less free tenant, which is wrong
@@ -119,9 +134,7 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
         employees=LimitCount(
             count=emp_count, limit=settings.FREE_PLAN_MAX_EMPLOYEES
         ),
-        schedules=LimitCount(
-            count=sched_count, limit=settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-        ),
+        schedules=LimitCount(count=sched_count, limit=sched_limit),
         over_limit=over_limit,
         can_generate_local=not over_limit,
         can_generate_ai=False,
