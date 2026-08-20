@@ -72,6 +72,17 @@ class Settings(BaseSettings):
     # threshold (50/month then overage) and is unchanged by this.
     FREE_PLAN_MAX_SCHEDULES_PER_MONTH: int = 5
 
+    # The public demo tenant. It is a free-plan group like any other — no
+    # Stripe subscription — but it is shared by every visitor, so the normal
+    # 5/month cap is spent almost immediately and the demo then refuses to
+    # generate anything. Raise only its generation cap; the location and
+    # employee caps still apply, so the demo keeps showing free-plan shape.
+    # AI generation stays off (can_generate_ai is False for every free group),
+    # so these are local runs. Set DEMO_OWNERSHIP_GROUP_ID to "" to disable
+    # the exception entirely.
+    DEMO_OWNERSHIP_GROUP_ID: str = "owngrp01"
+    DEMO_PLAN_MAX_SCHEDULES_PER_MONTH: int = 50
+
     # Schedule generation billing
     SCHEDULE_FREE_TIER: int = 50             # free schedules per ownership group per month
     SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 50 schedules after free tier
