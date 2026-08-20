@@ -1,5 +1,10 @@
 terraform {
-  required_version = ">= 1.5.0"
+  # Pin an UPPER bound, not just a floor. Terraform stamps its own version into
+  # the remote state and refuses to read state written by anything newer, so an
+  # open ">= x" constraint lets a contributor's newer local CLI apply once and
+  # lock the CI runner (pinned in .github/workflows/deploy.yml) out of its own
+  # state. Keep this range and the workflow's terraform_version in step.
+  required_version = "~> 1.14.0"
 
   required_providers {
     aws = {
