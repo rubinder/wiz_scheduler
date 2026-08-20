@@ -337,3 +337,30 @@ async def test_bulk_upload_json(
     )
     assert resp.status_code == 200
     assert resp.json()["created"] == 1
+
+
+# ---------------------------------------------------------------------------
+# /locations/bulk-upload size cap (final-review FIX 3)
+# ---------------------------------------------------------------------------
+
+
+async def test_bulk_upload_rejects_oversize_body(
+    client: AsyncClient,
+    manager_token: str,
+    seed_region,
+):
+    """A body larger than 5 MB returns 413 before any parsing or the
+    free-plan assert_can_add check happens."""
+    header = "name,region_name,address,timezone\n"
+    row = "X" * 200 + "\n"
+    target_bytes = 5 * 1024 * 1024 + 1024  # 5MB + 1KB
+    body = header + row * ((target_bytes // len(row)) + 1)
+    assert len(body) > 5 * 1024 * 1024
+
+    resp = await client.post(
+        "/api/v1/locations/bulk-upload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        files={"file": ("big.csv", body, "text/csv")},
+    )
+    assert resp.status_code == 413
+    assert "exceeds" in resp.json()["detail"].lower()

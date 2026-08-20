@@ -162,12 +162,7 @@ const ja = {
     haveAccount: "すでにアカウントをお持ちですか？",
     signIn: "サインイン",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "請求",
-    billingComplete: "請求設定完了",
-    billingRequired: "必須",
-    setupBilling: "請求を設定",
-    redirectingToStripe: "決済ページへリダイレクト中...",
-    emailRequiredForBilling: "請求を設定する前にメールアドレスを入力してください。",
+    createFreeAccount: "無料アカウントを作成",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const ja = {
     manager: "マネージャー",
     importFrom7shifts: "7shiftsからインポート",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "有料プランでのみご利用いただけます — 自動インポートするにはアップグレードしてください。",
+    upgradeConfirmFailed: "アップグレードを確認できませんでした。カードに請求があった場合はサポートまでご連絡ください。対応いたします。",
     subtitle: "以下のダッシュボードからスケジュール管理を行えます。",
     companyDesc: "会社設定の表示・編集",
     regionsDesc: "地域の管理",
@@ -233,6 +230,19 @@ const ja = {
     employeesDesc: "従業員の管理",
     shiftTemplatesDesc: "週間シフトパターンの設定",
     scheduleDesc: "スケジュールの生成と承認",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "アカウントが無料プランの上限を超えています。スケジュール生成を再開するにはアップグレードしてください。",
+    reasonSubscriptionCanceled: "サブスクリプションはキャンセルされました。スケジューリングを再開するには再度有効化してください。",
+    reasonAiRequiresPaid: "AIスケジューリングには有料プランが必要です。AIを使わずに生成することは引き続き可能です。",
+    reasonScheduleLimitReached: "今月の無料スケジュール生成回数をすべて使い切りました。上限は来月初めにリセットされます — アップグレードすると上限が解除されます。",
+    usage: "従業員 {employeeCount}/{employeeLimit} 人 · 拠点 {locationCount}/{locationLimit} 件",
+    usageGenerations: " · 今月の生成 {generationCount}/{generationLimit} 回",
+    upgradeButton: "アップグレード",
+    upgrading: "リダイレクト中…",
+    upgradeFailed: "アップグレードの決済を開始できませんでした。",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const ja = {
     address: "住所",
     timezone: "タイムゾーン",
     region: "地域",
+    limitReached: "無料プランでは拠点は{limit}件までです。追加するにはアップグレードしてください。",
+    csvLimitError: "このファイルには{rows}件の拠点が含まれていますが、無料プランの残り枠は{remaining}件分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const ja = {
     addRow: "+ 行を追加",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "無料プランでは従業員は{limit}人までです。追加するにはアップグレードしてください。",
+    csvLimitError: "このファイルには{rows}人の従業員が含まれていますが、無料プランの残り枠は{remaining}人分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const ja = {
     aiGenerate: "AI生成",
     localGenerate: "通常生成（戦略付き）",
     generating: "生成中...",
+    generationCapReachedNotice: "今月の無料スケジュール生成を{max}回中{used}回使用しました。さらに生成するにはアップグレードしてください。",
     reset: "リセット",
     selectTemplates: "シフトテンプレートを選択",
     selectTemplatesDesc: "スケジュールを生成するシフトテンプレートを選択してください。テンプレートは拠点ごとにグループ化されています。",
@@ -572,6 +587,7 @@ const ja = {
     billingOnHoldBody: "{date} の自動引き落としが失敗しました。カードを更新するか、支払いを再試行して再開してください。",
     retryPayment: "支払いを再試行",
     retryFailed: "再試行に失敗 — カードを更新してもう一度お試しください。",
+    upgradeConfirmFailed: "アップグレードを確認できませんでした。カードに請求があった場合はサポートまでご連絡ください。対応いたします。",
     updateCard: "カードを更新",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

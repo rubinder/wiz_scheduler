@@ -162,12 +162,7 @@ const de = {
     haveAccount: "Bereits ein Konto?",
     signIn: "Anmelden",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Abrechnung",
-    billingComplete: "Abrechnung eingerichtet",
-    billingRequired: "Erforderlich",
-    setupBilling: "Abrechnung einrichten",
-    redirectingToStripe: "Weiterleitung zur Zahlung...",
-    emailRequiredForBilling: "Bitte geben Sie Ihre E-Mail-Adresse ein, bevor Sie die Abrechnung einrichten.",
+    createFreeAccount: "Kostenloses Konto erstellen",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const de = {
     manager: "Manager",
     importFrom7shifts: "Von 7shifts importieren",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Nur in kostenpflichtigen Plänen verfügbar — upgraden, um automatisch zu importieren.",
+    upgradeConfirmFailed: "Ihr Upgrade konnte nicht bestätigt werden. Falls Ihnen ein Betrag berechnet wurde, wenden Sie sich an den Support — wir kümmern uns darum.",
     subtitle: "Verwalten Sie Ihre Dienstplanung über das Dashboard.",
     companyDesc: "Unternehmenseinstellungen ansehen und bearbeiten",
     regionsDesc: "Geografische Regionen verwalten",
@@ -233,6 +230,19 @@ const de = {
     employeesDesc: "Belegschaft verwalten",
     shiftTemplatesDesc: "Wöchentliche Schichtmuster konfigurieren",
     scheduleDesc: "Dienstpläne generieren und genehmigen",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Ihr Konto überschreitet die Grenzen des kostenlosen Plans. Upgraden, um die Dienstplanerstellung fortzusetzen.",
+    reasonSubscriptionCanceled: "Ihr Abonnement wurde gekündigt. Reaktivieren Sie es, um die Planung fortzusetzen.",
+    reasonAiRequiresPaid: "Die KI-Planung erfordert einen kostenpflichtigen Plan. Sie können weiterhin ohne KI generieren.",
+    reasonScheduleLimitReached: "Sie haben alle kostenlosen Dienstplan-Generierungen für diesen Monat aufgebraucht. Das Limit wird zu Beginn des nächsten Monats zurückgesetzt — upgraden Sie, um es aufzuheben.",
+    usage: "{employeeCount} von {employeeLimit} Mitarbeitern · {locationCount} von {locationLimit} Standorten",
+    usageGenerations: " · {generationCount} von {generationLimit} Generierungen in diesem Monat",
+    upgradeButton: "Upgraden",
+    upgrading: "Weiterleitung…",
+    upgradeFailed: "Upgrade-Checkout konnte nicht gestartet werden.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const de = {
     address: "Adresse",
     timezone: "Zeitzone",
     region: "Region",
+    limitReached: "Der kostenlose Plan erlaubt {limit} Standorte — upgraden, um weitere hinzuzufügen.",
+    csvLimitError: "Diese Datei enthält {rows} Standorte, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const de = {
     addRow: "+ Zeile hinzufügen",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Der kostenlose Plan erlaubt {limit} Mitarbeiter — upgraden, um weitere hinzuzufügen.",
+    csvLimitError: "Diese Datei enthält {rows} Mitarbeiter, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const de = {
     aiGenerate: "KI-Generierung",
     localGenerate: "Normale Generierung (mit Strategien)",
     generating: "Generierung läuft...",
+    generationCapReachedNotice: "Sie haben {used} von {max} kostenlosen Dienstplan-Generierungen diesen Monat verwendet. Upgraden Sie, um mehr zu generieren.",
     reset: "Zurücksetzen",
     selectTemplates: "Schichtvorlagen auswählen",
     selectTemplatesDesc: "Wählen Sie die Schichtvorlagen aus, für die Dienstpläne generiert werden sollen. Vorlagen sind nach Standort gruppiert.",
@@ -572,6 +587,7 @@ const de = {
     billingOnHoldBody: "Deine letzte automatische Zahlung am {date} ist fehlgeschlagen. Aktualisiere deine Karte oder versuche die Zahlung erneut, um fortzufahren.",
     retryPayment: "Zahlung erneut versuchen",
     retryFailed: "Wiederholung fehlgeschlagen — aktualisiere deine Karte und versuche es erneut.",
+    upgradeConfirmFailed: "Ihr Upgrade konnte nicht bestätigt werden. Falls Ihnen ein Betrag berechnet wurde, wenden Sie sich an den Support — wir kümmern uns darum.",
     updateCard: "Karte aktualisieren",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

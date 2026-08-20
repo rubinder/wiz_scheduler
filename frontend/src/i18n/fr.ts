@@ -162,12 +162,7 @@ const fr = {
     haveAccount: "Vous avez déjà un compte ?",
     signIn: "Se connecter",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Facturation",
-    billingComplete: "Facturation configurée",
-    billingRequired: "Requis",
-    setupBilling: "Configurer la facturation",
-    redirectingToStripe: "Redirection vers le paiement...",
-    emailRequiredForBilling: "Veuillez entrer votre courriel avant de configurer la facturation.",
+    createFreeAccount: "Créer un compte gratuit",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const fr = {
     manager: "Gestionnaire",
     importFrom7shifts: "Importer depuis 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Disponible sur les forfaits payants — passez à un forfait supérieur pour importer automatiquement.",
+    upgradeConfirmFailed: "Impossible de confirmer votre mise à niveau. Si vous avez été facturé, contactez le support et nous réglerons le problème.",
     subtitle: "Gérez vos horaires depuis le tableau de bord ci-dessous.",
     companyDesc: "Afficher et modifier les paramètres de l'entreprise",
     regionsDesc: "Gérer les régions géographiques",
@@ -233,6 +230,19 @@ const fr = {
     employeesDesc: "Gérer votre personnel",
     shiftTemplatesDesc: "Configurer les modèles de quarts hebdomadaires",
     scheduleDesc: "Générer et approuver les horaires",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Votre compte dépasse les limites du plan gratuit. Passez à un forfait supérieur pour reprendre la génération des horaires.",
+    reasonSubscriptionCanceled: "Votre abonnement a été annulé. Réactivez-le pour reprendre la planification.",
+    reasonAiRequiresPaid: "La planification par IA nécessite un forfait payant. Vous pouvez toujours générer sans IA.",
+    reasonScheduleLimitReached: "Vous avez utilisé toutes vos générations d'horaires gratuites pour ce mois-ci. La limite est réinitialisée au début du mois prochain — passez à un forfait supérieur pour la supprimer.",
+    usage: "{employeeCount} sur {employeeLimit} employés · {locationCount} sur {locationLimit} emplacements",
+    usageGenerations: " · {generationCount} sur {generationLimit} générations ce mois-ci",
+    upgradeButton: "Passer à un forfait supérieur",
+    upgrading: "Redirection…",
+    upgradeFailed: "Impossible de démarrer le paiement de mise à niveau.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const fr = {
     address: "Adresse",
     timezone: "Fuseau horaire",
     region: "Région",
+    limitReached: "Le plan gratuit autorise {limit} emplacements — passez à un forfait supérieur pour en ajouter davantage.",
+    csvLimitError: "Ce fichier contient {rows} emplacements, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const fr = {
     addRow: "+ Ajouter une ligne",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Le plan gratuit autorise {limit} employés — passez à un forfait supérieur pour en ajouter davantage.",
+    csvLimitError: "Ce fichier contient {rows} employés, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const fr = {
     aiGenerate: "Génération IA",
     localGenerate: "Génération normale (avec stratégies)",
     generating: "Génération en cours...",
+    generationCapReachedNotice: "Vous avez utilisé {used} sur {max} générations d'horaires gratuites ce mois-ci. Passez à un forfait supérieur pour en générer davantage.",
     reset: "Réinitialiser",
     selectTemplates: "Sélectionner les modèles de quarts",
     selectTemplatesDesc: "Choisissez les modèles de quarts pour lesquels générer des horaires. Les modèles sont regroupés par emplacement.",
@@ -572,6 +587,7 @@ const fr = {
     billingOnHoldBody: "Votre dernier paiement automatique a échoué le {date}. Mettez à jour votre carte ou réessayez le paiement pour reprendre.",
     retryPayment: "Réessayer le paiement",
     retryFailed: "Échec du réessai — mettez à jour votre carte et réessayez.",
+    upgradeConfirmFailed: "Impossible de confirmer votre mise à niveau. Si vous avez été facturé, contactez le support et nous réglerons le problème.",
     updateCard: "Mettre à jour la carte",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

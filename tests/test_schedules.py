@@ -642,8 +642,13 @@ async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
 
     schedule_generate_ai_limiter.reset()
 
-    # Cap is keyed on OG. Attach an OG to the seeded Company first.
-    og = OwnershipGroup(name="CapTestOG", ai_credits_usd=0.0)
+    # Cap is keyed on OG. Attach an OG to the seeded Company first. Must be
+    # a paid OG (Task 7's plan-gate runs before this check and would block
+    # a free-plan OG's AI-mode request with 402 ai_requires_paid_plan
+    # before ever reaching the daily cost cap).
+    og = OwnershipGroup(
+        name="CapTestOG", ai_credits_usd=0.0, stripe_subscription_id="sub_captest"
+    )
     db_session.add(og)
     await db_session.flush()
 

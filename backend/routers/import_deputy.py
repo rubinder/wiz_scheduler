@@ -27,6 +27,7 @@ from backend.models import (
     Shift,
     User,
 )
+from backend.services.plan import assert_paid_plan
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ async def import_from_deputy(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> DeputyImportResult:
+    await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+
     # Per-OG cooldown (#44).
     from backend.services.billing import get_ownership_group_id
     from backend.services.integration_import_quota import begin_integration_import
@@ -571,6 +574,8 @@ async def import_availabilities_from_deputy(
     2. Invert them to produce availability windows
     3. Create EmployeeAvailability records for the available time
     """
+    await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+
     # Per-OG cooldown (#44). Same integration key as /deputy — running either
     # burns the slot for both, since both hit Deputy.
     from backend.services.billing import get_ownership_group_id

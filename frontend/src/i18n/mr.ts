@@ -162,12 +162,7 @@ const mr = {
     haveAccount: "आधीच खाते आहे?",
     signIn: "साइन इन करा",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "बिलिंग",
-    billingComplete: "बिलिंग सेट अप झाले",
-    billingRequired: "आवश्यक",
-    setupBilling: "बिलिंग सेट अप करा",
-    redirectingToStripe: "पेमेंटकडे रीडायरेक्ट होत आहे...",
-    emailRequiredForBilling: "बिलिंग सेट अप करण्यापूर्वी कृपया आपला ईमेल प्रविष्ट करा.",
+    createFreeAccount: "मोफत खाते तयार करा",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const mr = {
     manager: "व्यवस्थापक",
     importFrom7shifts: "7shifts वरून आयात करा",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "फक्त पेड प्लॅनवर उपलब्ध — आपोआप आयात करण्यासाठी अपग्रेड करा.",
+    upgradeConfirmFailed: "तुमचे अपग्रेड निश्चित करता आले नाही. जर तुमच्याकडून शुल्क आकारले गेले असेल, तर सपोर्टशी संपर्क साधा, आम्ही ते सोडवू.",
     subtitle: "खालील डॅशबोर्डवरून तुमचे वेळापत्रक व्यवस्थापन करा.",
     companyDesc: "कंपनी सेटिंग्ज पहा आणि संपादित करा",
     regionsDesc: "भौगोलिक प्रदेश व्यवस्थापित करा",
@@ -233,6 +230,19 @@ const mr = {
     employeesDesc: "तुमचे कर्मचारी व्यवस्थापित करा",
     shiftTemplatesDesc: "साप्ताहिक शिफ्ट पॅटर्न कॉन्फिगर करा",
     scheduleDesc: "वेळापत्रके तयार करा आणि मंजूर करा",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "तुमचे खाते मोफत प्लॅनच्या मर्यादेपेक्षा जास्त आहे. वेळापत्रक तयार करणे पुन्हा सुरू करण्यासाठी अपग्रेड करा.",
+    reasonSubscriptionCanceled: "तुमची सदस्यता रद्द करण्यात आली आहे. वेळापत्रक सुरू ठेवण्यासाठी पुन्हा सक्रिय करा.",
+    reasonAiRequiresPaid: "AI वेळापत्रकासाठी पेड प्लॅन आवश्यक आहे. तुम्ही अजूनही AI शिवाय तयार करू शकता.",
+    reasonScheduleLimitReached: "तुम्ही या महिन्याचे सर्व मोफत वेळापत्रक जनरेशन वापरले आहे. मर्यादा पुढील महिन्याच्या सुरुवातीला रीसेट होईल — ती काढण्यासाठी अपग्रेड करा.",
+    usage: "{employeeCount} पैकी {employeeLimit} कर्मचारी · {locationCount} पैकी {locationLimit} स्थाने",
+    usageGenerations: " · या महिन्यात {generationCount} पैकी {generationLimit} जनरेशन",
+    upgradeButton: "अपग्रेड करा",
+    upgrading: "पुनर्निर्देशित करत आहे…",
+    upgradeFailed: "अपग्रेड चेकआउट सुरू करता आले नाही.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const mr = {
     address: "पत्ता",
     timezone: "वेळक्षेत्र",
     region: "प्रदेश",
+    limitReached: "मोफत प्लॅनमध्ये फक्त {limit} स्थाने ठेवता येतात — अधिक जोडण्यासाठी अपग्रेड करा.",
+    csvLimitError: "या फाइलमध्ये {rows} स्थाने आहेत, पण तुमच्या मोफत प्लॅनमध्ये फक्त {remaining} साठी जागा आहे. संपूर्ण फाइल नाकारली जाईल — अपग्रेड करा, किंवा लहान फाइल अपलोड करा.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const mr = {
     addRow: "+ ओळ जोडा",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "मोफत प्लॅनमध्ये फक्त {limit} कर्मचारी ठेवता येतात — अधिक जोडण्यासाठी अपग्रेड करा.",
+    csvLimitError: "या फाइलमध्ये {rows} कर्मचारी आहेत, पण तुमच्या मोफत प्लॅनमध्ये फक्त {remaining} साठी जागा आहे. संपूर्ण फाइल नाकारली जाईल — अपग्रेड करा, किंवा लहान फाइल अपलोड करा.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const mr = {
     aiGenerate: "AI निर्मिती",
     localGenerate: "सामान्य निर्मिती (धोरणांसह)",
     generating: "तयार होत आहे...",
+    generationCapReachedNotice: "तुम्ही या महिन्यात {max} पैकी {used} मोफत वेळापत्रक जनरेशन वापरले आहे. अधिक जनरेट करण्यासाठी अपग्रेड करा.",
     reset: "रीसेट",
     selectTemplates: "शिफ्ट टेम्पलेट्स निवडा",
     selectTemplatesDesc: "वेळापत्रक तयार करण्यासाठी कोणते शिफ्ट टेम्पलेट्स वापरायचे ते निवडा. टेम्पलेट्स स्थानानुसार गटबद्ध आहेत.",
@@ -572,6 +587,7 @@ const mr = {
     billingOnHoldBody: "{date} रोजी तुमचा शेवटचा स्वयंचलित पेमेंट अयशस्वी झाला. सुरू ठेवण्यासाठी तुमचे कार्ड अपडेट करा किंवा पेमेंट पुन्हा प्रयत्न करा.",
     retryPayment: "पेमेंट पुन्हा प्रयत्न करा",
     retryFailed: "पुन्हा प्रयत्न अयशस्वी — तुमचे कार्ड अपडेट करा आणि पुन्हा प्रयत्न करा.",
+    upgradeConfirmFailed: "तुमचे अपग्रेड निश्चित करता आले नाही. जर तुमच्याकडून शुल्क आकारले गेले असेल, तर सपोर्टशी संपर्क साधा, आम्ही ते सोडवू.",
     updateCard: "कार्ड अपडेट करा",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

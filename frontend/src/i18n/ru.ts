@@ -162,12 +162,7 @@ const ru = {
     haveAccount: "Уже есть аккаунт?",
     signIn: "Войти",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Оплата",
-    billingComplete: "Оплата настроена",
-    billingRequired: "Обязательно",
-    setupBilling: "Настроить оплату",
-    redirectingToStripe: "Перенаправление на страницу оплаты...",
-    emailRequiredForBilling: "Пожалуйста, введите электронную почту перед настройкой оплаты.",
+    createFreeAccount: "Создать бесплатный аккаунт",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const ru = {
     manager: "Менеджер",
     importFrom7shifts: "Импорт из 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Доступно только на платных планах — перейдите на платный план для автоматического импорта.",
+    upgradeConfirmFailed: "Не удалось подтвердить обновление тарифа. Если с вас списали деньги, обратитесь в поддержку — мы всё уладим.",
     subtitle: "Управляйте расписанием с помощью панели ниже.",
     companyDesc: "Просмотр и редактирование настроек компании",
     regionsDesc: "Управление географическими регионами",
@@ -233,6 +230,19 @@ const ru = {
     employeesDesc: "Управление персоналом",
     shiftTemplatesDesc: "Настройка еженедельных шаблонов смен",
     scheduleDesc: "Генерация и утверждение расписаний",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Ваш аккаунт превышает лимиты бесплатного плана. Перейдите на платный план, чтобы возобновить генерацию расписаний.",
+    reasonSubscriptionCanceled: "Ваша подписка была отменена. Возобновите её, чтобы продолжить планирование.",
+    reasonAiRequiresPaid: "Планирование с ИИ требует платного плана. Вы всё ещё можете генерировать расписание без ИИ.",
+    reasonScheduleLimitReached: "Вы использовали все бесплатные генерации расписаний за этот месяц. Лимит сбрасывается в начале следующего месяца — перейдите на платный план, чтобы снять ограничение.",
+    usage: "{employeeCount} из {employeeLimit} сотрудников · {locationCount} из {locationLimit} локаций",
+    usageGenerations: " · {generationCount} из {generationLimit} генераций в этом месяце",
+    upgradeButton: "Перейти на платный план",
+    upgrading: "Перенаправление…",
+    upgradeFailed: "Не удалось начать оформление перехода на платный план.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const ru = {
     address: "Адрес",
     timezone: "Часовой пояс",
     region: "Регион",
+    limitReached: "Бесплатный план допускает {limit} локаций — перейдите на платный план, чтобы добавить больше.",
+    csvLimitError: "В этом файле {rows} локаций, но в вашем бесплатном плане есть место только для {remaining}. Весь файл будет отклонён — перейдите на платный план или загрузите файл меньшего размера.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const ru = {
     addRow: "+ Добавить строку",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Бесплатный план допускает {limit} сотрудников — перейдите на платный план, чтобы добавить больше.",
+    csvLimitError: "В этом файле {rows} сотрудников, но в вашем бесплатном плане есть место только для {remaining}. Весь файл будет отклонён — перейдите на платный план или загрузите файл меньшего размера.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const ru = {
     aiGenerate: "AI-генерация",
     localGenerate: "Обычная генерация (со стратегиями)",
     generating: "Генерация...",
+    generationCapReachedNotice: "Вы использовали {used} из {max} бесплатных генераций расписаний в этом месяце. Перейдите на платный план, чтобы генерировать больше.",
     reset: "Сбросить",
     selectTemplates: "Выберите шаблоны смен",
     selectTemplatesDesc: "Выберите шаблоны смен для генерации расписаний. Шаблоны сгруппированы по локациям.",
@@ -572,6 +587,7 @@ const ru = {
     billingOnHoldBody: "Последнее автоматическое списание не прошло {date}. Обновите карту или повторите оплату, чтобы продолжить.",
     retryPayment: "Повторить оплату",
     retryFailed: "Повтор не удался — обновите карту и попробуйте снова.",
+    upgradeConfirmFailed: "Не удалось подтвердить обновление тарифа. Если с вас списали деньги, обратитесь в поддержку — мы всё уладим.",
     updateCard: "Обновить карту",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

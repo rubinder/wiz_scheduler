@@ -162,12 +162,7 @@ const pcm = {
     haveAccount: "You don get account?",
     signIn: "Sign in",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Billing",
-    billingComplete: "Billing don set up",
-    billingRequired: "E dey required",
-    setupBilling: "Set Up Billing",
-    redirectingToStripe: "E dey redirect to payment...",
-    emailRequiredForBilling: "Abeg enter your email before you set up billing.",
+    createFreeAccount: "Create free account",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const pcm = {
     manager: "Manager",
     importFrom7shifts: "Bring from 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "E dey available for paid plan only — upgrade make you fit import am automatic.",
+    upgradeConfirmFailed: "We no fit confirm your upgrade. If dem don charge you, contact support make we sort am.",
     subtitle: "Manage your scheduling from this dashboard.",
     companyDesc: "See and edit company settings",
     regionsDesc: "Manage geographic regions",
@@ -233,6 +230,19 @@ const pcm = {
     employeesDesc: "Manage your workers",
     shiftTemplatesDesc: "Set up weekly shift patterns",
     scheduleDesc: "Generate and approve schedules",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Your account don pass wetin free plan allow. Upgrade make you fit continue to generate schedule.",
+    reasonSubscriptionCanceled: "Dem don cancel your subscription. Reactivate am make you fit continue scheduling.",
+    reasonAiRequiresPaid: "AI scheduling need paid plan. You fit still generate am without AI.",
+    reasonScheduleLimitReached: "You don use all your free schedule generation for dis month. Di cap go reset for start of next month — upgrade make e comot.",
+    usage: "{employeeCount} out of {employeeLimit} workers · {locationCount} out of {locationLimit} locations",
+    usageGenerations: " · {generationCount} out of {generationLimit} generations dis month",
+    upgradeButton: "Upgrade",
+    upgrading: "E dey redirect…",
+    upgradeFailed: "E no fit start upgrade checkout.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const pcm = {
     address: "Address",
     timezone: "Timezone",
     region: "Region",
+    limitReached: "Free plan de allow only {limit} locations — upgrade make you fit add more.",
+    csvLimitError: "This file get {rows} locations but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const pcm = {
     addRow: "+ Add Row",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan de allow only {limit} workers — upgrade make you fit add more.",
+    csvLimitError: "This file get {rows} workers but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const pcm = {
     aiGenerate: "AI Generate",
     localGenerate: "Normal Generate (with Strategies)",
     generating: "E dey generate...",
+    generationCapReachedNotice: "You don use {used} out of {max} free schedule generations dis month. Upgrade make you fit generate more.",
     reset: "Reset",
     selectTemplates: "Pick Shift Templates",
     selectTemplatesDesc: "Choose which shift templates you wan generate schedules for. Templates dey grouped by location.",
@@ -572,6 +587,7 @@ const pcm = {
     billingOnHoldBody: "Your last automatic payment fail for {date}. Update your card or try the payment again so e fit continue.",
     retryPayment: "Try payment again",
     retryFailed: "Retry no work — update your card and try again.",
+    upgradeConfirmFailed: "We no fit confirm your upgrade. If dem don charge you, contact support make we sort am.",
     updateCard: "Update card",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

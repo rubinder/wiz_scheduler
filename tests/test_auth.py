@@ -1,7 +1,15 @@
 """Tests for the /api/v1/auth endpoints."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.config import settings
+from backend.models import Company, User
+from backend.models.ownership_group import OwnershipGroup
 
 pytestmark = pytest.mark.asyncio
 
@@ -497,3 +505,153 @@ async def test_register_rate_limit_blocks_before_any_work(
     post_companies = (await db_session.execute(select(Company))).scalars().all()
     assert len(post_users) == len(pre_users)
     assert len(post_companies) == len(pre_companies)
+
+
+# ---------------------------------------------------------------------------
+# Free-by-default registration (Task 8)
+# ---------------------------------------------------------------------------
+
+
+async def test_register_without_stripe_session_creates_free_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """Registration no longer requires a completed Checkout session."""
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setattr(_s, "STRIPE_PRICE_ID", "price_x")
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "free@example.test",
+            "password": "hunter2hunter2",
+            "full_name": "Free User",
+            "company_name": "Free Co",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+        },
+    )
+
+    assert resp.status_code == 201
+    assert "access_token" in resp.json()
+
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Free Co")
+    )).scalar_one()
+    assert og.stripe_subscription_id is None
+    assert og.canceled_at is None
+
+
+async def test_register_with_paid_stripe_session_creates_paid_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """A valid, paid Checkout session still verifies via Stripe and the
+    ownership group is created with both stripe_customer_id and
+    stripe_subscription_id populated from the session."""
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_test_paid_abc",
+        subscription="sub_test_paid_xyz",
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "paid@example.test",
+            "password": "hunter2hunter2",
+            "full_name": "Paid User",
+            "company_name": "Paid Co",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+            "stripe_session_id": "cs_test_paid_1",
+        },
+    )
+
+    assert resp.status_code == 201
+    assert "access_token" in resp.json()
+
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Paid Co")
+    )).scalar_one()
+    assert og.stripe_customer_id == "cus_test_paid_abc"
+    assert og.stripe_subscription_id == "sub_test_paid_xyz"
+
+
+async def test_register_with_unpaid_stripe_session_rejected(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """A Checkout session that has not completed payment must be rejected,
+    and no OwnershipGroup / Company / User row may be created."""
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    fake_session = MagicMock(
+        payment_status="unpaid",
+        customer="cus_test_unpaid_abc",
+        subscription=None,
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "unpaid@example.test",
+            "password": "hunter2hunter2",
+            "full_name": "Unpaid User",
+            "company_name": "Unpaid Co",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+            "stripe_session_id": "cs_test_unpaid_1",
+        },
+    )
+
+    assert resp.status_code == 400
+
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Unpaid Co")
+    )).scalar_one_or_none()
+    assert og is None
+    user = (await db_session.execute(
+        select(User).where(User.email == "unpaid@example.test")
+    )).scalar_one_or_none()
+    assert user is None
+    company = (await db_session.execute(
+        select(Company).where(Company.name == "Unpaid Co")
+    )).scalar_one_or_none()
+    assert company is None
+
+
+async def test_register_with_invalid_stripe_session_rejected(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """If Stripe rejects the session id (bad/expired/nonexistent), registration
+    must fail with 400 rather than propagating the Stripe error."""
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    def boom(sid):
+        raise stripe.error.InvalidRequestError("No such checkout session", "id")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", boom)
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "invalidsession@example.test",
+            "password": "hunter2hunter2",
+            "full_name": "Invalid Session User",
+            "company_name": "InvalidSession Co",
+            "privacy_accepted": True,
+            "terms_accepted": True,
+            "stripe_session_id": "cs_test_bogus",
+        },
+    )
+
+    assert resp.status_code == 400

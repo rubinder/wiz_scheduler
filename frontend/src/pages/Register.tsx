@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { createCheckoutSession } from "../api/auth";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -14,7 +13,6 @@ export default function Register() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   useDocumentTitle("Register");
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,36 +22,12 @@ export default function Register() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [billingLoading, setBillingLoading] = useState(false);
 
   // Google Sign-Up: when set, the user has authenticated with Google and
   // we'll register without a password. Email/full_name are auto-filled from
   // the verified Google account and locked.
   const [googleIdToken, setGoogleIdToken] = useState<string | null>(null);
   const googleBtnRef = useRef<HTMLDivElement>(null);
-
-  // Stripe session from redirect
-  const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
-
-  // On mount, check if returning from Stripe Checkout
-  useEffect(() => {
-    const sessionId = searchParams.get("session_id");
-    if (sessionId) {
-      setStripeSessionId(sessionId);
-      // Restore form data from sessionStorage
-      setEmail(sessionStorage.getItem("reg_email") || "");
-      setPassword(sessionStorage.getItem("reg_password") || "");
-      setFullName(sessionStorage.getItem("reg_fullName") || "");
-      setCompanyName(sessionStorage.getItem("reg_companyName") || "");
-      setPrivacyAccepted(sessionStorage.getItem("reg_privacy") === "true");
-      setTermsAccepted(sessionStorage.getItem("reg_terms") === "true");
-      const restoredGoogle = sessionStorage.getItem("reg_googleIdToken");
-      if (restoredGoogle) setGoogleIdToken(restoredGoogle);
-      // Clean up URL
-      searchParams.delete("session_id");
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize Google Sign-In button once the GIS SDK is available and the
   // user hasn't already chosen the Google path.
@@ -86,36 +60,6 @@ export default function Register() {
     });
   }, [googleIdToken]);
 
-  const billingComplete = !!stripeSessionId;
-
-  const handleSetupBilling = async () => {
-    if (!email) {
-      setError(t.register.emailRequiredForBilling);
-      return;
-    }
-    setError("");
-    setBillingLoading(true);
-
-    // Save form state so we can restore it after Stripe redirect
-    sessionStorage.setItem("reg_email", email);
-    sessionStorage.setItem("reg_password", password);
-    sessionStorage.setItem("reg_fullName", fullName);
-    sessionStorage.setItem("reg_companyName", companyName);
-    sessionStorage.setItem("reg_privacy", String(privacyAccepted));
-    sessionStorage.setItem("reg_terms", String(termsAccepted));
-    if (googleIdToken) {
-      sessionStorage.setItem("reg_googleIdToken", googleIdToken);
-    }
-
-    try {
-      const { url } = await createCheckoutSession(email);
-      window.location.href = url;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to start billing setup");
-      setBillingLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -129,16 +73,7 @@ export default function Register() {
         companyName,
         privacyAccepted,
         termsAccepted,
-        stripeSessionId: stripeSessionId || undefined,
       });
-      // Clean up sessionStorage
-      sessionStorage.removeItem("reg_email");
-      sessionStorage.removeItem("reg_password");
-      sessionStorage.removeItem("reg_fullName");
-      sessionStorage.removeItem("reg_companyName");
-      sessionStorage.removeItem("reg_privacy");
-      sessionStorage.removeItem("reg_terms");
-      sessionStorage.removeItem("reg_googleIdToken");
       navigate("/manager/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -278,43 +213,12 @@ export default function Register() {
             </label>
           </div>
 
-          {/* Billing section */}
-          <div className={`border ${border.default} rounded-lg p-4 space-y-3`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm font-medium ${text.secondary}`}>
-                {t.register.billing}
-              </span>
-              {billingComplete ? (
-                <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  {t.register.billingComplete}
-                </span>
-              ) : (
-                <span className={`text-xs ${text.muted}`}>
-                  {t.register.billingRequired}
-                </span>
-              )}
-            </div>
-            {!billingComplete && (
-              <button
-                type="button"
-                onClick={handleSetupBilling}
-                disabled={billingLoading || !email}
-                className="glass-btn-secondary w-full text-sm"
-              >
-                {billingLoading ? t.register.redirectingToStripe : t.register.setupBilling}
-              </button>
-            )}
-          </div>
-
           <button
             type="submit"
-            disabled={loading || !privacyAccepted || !termsAccepted || !billingComplete}
+            disabled={loading || !privacyAccepted || !termsAccepted}
             className="glass-btn-primary w-full"
           >
-            {loading ? t.register.creatingAccount : t.register.registerBtn}
+            {loading ? t.register.creatingAccount : t.register.createFreeAccount}
           </button>
         </form>
         <p className={`mt-3 text-center text-xs ${text.muted}`}>

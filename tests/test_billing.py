@@ -1493,7 +1493,20 @@ async def test_webhook_subscription_deleted_idempotent(
 async def test_generate_blocked_when_canceled(
     client: AsyncClient, manager_token, db_session, og_with_card
 ):
-    """POST /schedules/generate returns 402 when og.canceled_at is set."""
+    """POST /schedules/generate returns 402 when og.canceled_at is set AND
+    the OG is over the free-plan limits (a downgraded tenant).
+
+    Reachability note (Task 7): every write path is now capped by the free
+    plan, so a canceled OG can only be over_limit if it was paid, grew past
+    the free limits, then canceled. That state is constructed deliberately
+    here by adding 6 employees (free limit is 5) before canceling. A
+    canceled OG that stays within the free limits keeps generating locally
+    (see test_billing.py::test_generate_allowed_when_canceled_within_limit
+    and tests/test_plan_generation_gate.py) — that's the "cancel drops to
+    free" behavior, not a regression.
+    """
+    for i in range(6):
+        db_session.add(Employee(id=_id(), company_id=COMPANY_ID, full_name=f"E{i}"))
     og_with_card.canceled_at = datetime.now(timezone.utc)
     await db_session.commit()
 
@@ -1503,7 +1516,24 @@ async def test_generate_blocked_when_canceled(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert response.status_code == 402
-    assert "subscription" in response.json()["detail"].lower()
+    assert response.json()["detail"]["code"] == "subscription_canceled"
+
+
+async def test_generate_allowed_when_canceled_within_limit(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    """A canceled OG that stays within the free-plan limits can still
+    generate locally — "cancel drops to free" (Task 7, decision table row
+    4), not a hard freeze. AI generation still requires a paid plan."""
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/schedules/generate",
+        json={"week_start_date": "2026-06-01", "use_local": True},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
 
 
 async def test_employees_list_still_works_when_canceled(

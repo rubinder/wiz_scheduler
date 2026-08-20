@@ -106,7 +106,14 @@ export function useScheduleStream(): UseScheduleStreamReturn {
             const errBody = await response
               .json()
               .catch(() => ({ detail: response.statusText }));
-            throw new Error(errBody.detail || response.statusText);
+            const detail = errBody.detail;
+            const message =
+              typeof detail === "string"
+                ? detail
+                : detail && typeof detail === "object"
+                  ? (detail as { message?: string }).message
+                  : undefined;
+            throw new Error(message || response.statusText);
           }
 
           const reader = response.body?.getReader();

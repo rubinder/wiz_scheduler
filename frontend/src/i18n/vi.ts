@@ -162,12 +162,7 @@ const vi = {
     haveAccount: "Đã có tài khoản?",
     signIn: "Đăng nhập",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Thanh toán",
-    billingComplete: "Thanh toán đã được thiết lập",
-    billingRequired: "Bắt buộc",
-    setupBilling: "Thiết lập thanh toán",
-    redirectingToStripe: "Đang chuyển hướng đến trang thanh toán...",
-    emailRequiredForBilling: "Vui lòng nhập email trước khi thiết lập thanh toán.",
+    createFreeAccount: "Tạo tài khoản miễn phí",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const vi = {
     manager: "Quản lý",
     importFrom7shifts: "Nhập từ 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Chỉ khả dụng trên gói trả phí — nâng cấp để nhập tự động.",
+    upgradeConfirmFailed: "Không thể xác nhận nâng cấp của bạn. Nếu bạn đã bị tính phí, hãy liên hệ hỗ trợ và chúng tôi sẽ khắc phục.",
     subtitle: "Quản lý lịch làm việc từ bảng điều khiển bên dưới.",
     companyDesc: "Xem và chỉnh sửa cài đặt công ty",
     regionsDesc: "Quản lý các khu vực địa lý",
@@ -233,6 +230,19 @@ const vi = {
     employeesDesc: "Quản lý đội ngũ nhân viên",
     shiftTemplatesDesc: "Cấu hình mẫu ca làm hàng tuần",
     scheduleDesc: "Tạo và duyệt lịch làm việc",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Tài khoản của bạn vượt quá giới hạn gói miễn phí. Nâng cấp để tiếp tục tạo lịch làm việc.",
+    reasonSubscriptionCanceled: "Gói đăng ký của bạn đã bị hủy. Kích hoạt lại để tiếp tục lên lịch.",
+    reasonAiRequiresPaid: "Lên lịch bằng AI yêu cầu gói trả phí. Bạn vẫn có thể tạo lịch mà không cần AI.",
+    reasonScheduleLimitReached: "Bạn đã sử dụng hết số lần tạo lịch miễn phí trong tháng này. Giới hạn sẽ được đặt lại vào đầu tháng sau — nâng cấp để gỡ bỏ giới hạn này.",
+    usage: "{employeeCount} trên {employeeLimit} nhân viên · {locationCount} trên {locationLimit} địa điểm",
+    usageGenerations: " · {generationCount} trên {generationLimit} lượt tạo trong tháng này",
+    upgradeButton: "Nâng cấp",
+    upgrading: "Đang chuyển hướng…",
+    upgradeFailed: "Không thể bắt đầu thanh toán nâng cấp.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const vi = {
     address: "Địa chỉ",
     timezone: "Múi giờ",
     region: "Khu vực",
+    limitReached: "Gói miễn phí cho phép {limit} địa điểm — nâng cấp để thêm nhiều hơn.",
+    csvLimitError: "Tệp này có {rows} địa điểm, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const vi = {
     addRow: "+ Thêm hàng",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Gói miễn phí cho phép {limit} nhân viên — nâng cấp để thêm nhiều hơn.",
+    csvLimitError: "Tệp này có {rows} nhân viên, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const vi = {
     aiGenerate: "Tạo bằng AI",
     localGenerate: "Tạo thường (với Chiến lược)",
     generating: "Đang tạo...",
+    generationCapReachedNotice: "Bạn đã sử dụng {used} trên {max} lượt tạo lịch miễn phí trong tháng này. Nâng cấp để tạo thêm.",
     reset: "Đặt lại",
     selectTemplates: "Chọn mẫu ca làm",
     selectTemplatesDesc: "Chọn mẫu ca làm để tạo lịch. Các mẫu được nhóm theo địa điểm.",
@@ -572,6 +587,7 @@ const vi = {
     billingOnHoldBody: "Khoản thanh toán tự động gần nhất của bạn đã thất bại vào {date}. Cập nhật thẻ hoặc thử lại thanh toán để tiếp tục.",
     retryPayment: "Thử lại thanh toán",
     retryFailed: "Thử lại thất bại — cập nhật thẻ và thử lại.",
+    upgradeConfirmFailed: "Không thể xác nhận nâng cấp của bạn. Nếu bạn đã bị tính phí, hãy liên hệ hỗ trợ và chúng tôi sẽ khắc phục.",
     updateCard: "Cập nhật thẻ",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

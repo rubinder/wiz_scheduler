@@ -162,12 +162,7 @@ const ind = {
     haveAccount: "Sudah punya akun?",
     signIn: "Masuk",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Penagihan",
-    billingComplete: "Penagihan sudah diatur",
-    billingRequired: "Wajib",
-    setupBilling: "Atur Penagihan",
-    redirectingToStripe: "Mengalihkan ke pembayaran...",
-    emailRequiredForBilling: "Silakan masukkan email Anda sebelum mengatur penagihan.",
+    createFreeAccount: "Buat akun gratis",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const ind = {
     manager: "Manajer",
     importFrom7shifts: "Impor dari 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Tersedia di paket berbayar — upgrade untuk mengimpor secara otomatis.",
+    upgradeConfirmFailed: "Tidak dapat mengonfirmasi peningkatan Anda. Jika Anda telah dikenakan biaya, hubungi dukungan dan kami akan menyelesaikannya.",
     subtitle: "Kelola penjadwalan Anda dari dasbor di bawah.",
     companyDesc: "Lihat dan edit pengaturan perusahaan",
     regionsDesc: "Kelola wilayah geografis",
@@ -233,6 +230,19 @@ const ind = {
     employeesDesc: "Kelola tenaga kerja Anda",
     shiftTemplatesDesc: "Konfigurasi pola shift mingguan",
     scheduleDesc: "Buat dan setujui jadwal",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Akun Anda melebihi batas paket gratis. Upgrade untuk melanjutkan pembuatan jadwal.",
+    reasonSubscriptionCanceled: "Langganan Anda telah dibatalkan. Aktifkan kembali untuk melanjutkan penjadwalan.",
+    reasonAiRequiresPaid: "Penjadwalan AI memerlukan paket berbayar. Anda tetap dapat membuat jadwal tanpa AI.",
+    reasonScheduleLimitReached: "Anda telah menggunakan semua pembuatan jadwal gratis untuk bulan ini. Batas akan direset pada awal bulan depan — upgrade untuk menghapusnya.",
+    usage: "{employeeCount} dari {employeeLimit} karyawan · {locationCount} dari {locationLimit} lokasi",
+    usageGenerations: " · {generationCount} dari {generationLimit} pembuatan bulan ini",
+    upgradeButton: "Upgrade",
+    upgrading: "Mengalihkan…",
+    upgradeFailed: "Tidak dapat memulai checkout upgrade.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const ind = {
     address: "Alamat",
     timezone: "Zona Waktu",
     region: "Wilayah",
+    limitReached: "Paket gratis mengizinkan {limit} lokasi — upgrade untuk menambah lebih banyak.",
+    csvLimitError: "File ini berisi {rows} lokasi, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const ind = {
     addRow: "+ Tambah Baris",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Paket gratis mengizinkan {limit} karyawan — upgrade untuk menambah lebih banyak.",
+    csvLimitError: "File ini berisi {rows} karyawan, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const ind = {
     aiGenerate: "Buat dengan AI",
     localGenerate: "Buat Normal (dengan Strategi)",
     generating: "Membuat...",
+    generationCapReachedNotice: "Anda telah menggunakan {used} dari {max} pembuatan jadwal gratis bulan ini. Upgrade untuk membuat lebih banyak.",
     reset: "Reset",
     selectTemplates: "Pilih Template Shift",
     selectTemplatesDesc: "Pilih template shift mana yang akan dijadwalkan. Template dikelompokkan berdasarkan lokasi.",
@@ -572,6 +587,7 @@ const ind = {
     billingOnHoldBody: "Pembayaran otomatis terakhir Anda gagal pada {date}. Perbarui kartu atau coba pembayaran lagi untuk melanjutkan.",
     retryPayment: "Coba pembayaran lagi",
     retryFailed: "Percobaan gagal — perbarui kartu Anda dan coba lagi.",
+    upgradeConfirmFailed: "Tidak dapat mengonfirmasi peningkatan Anda. Jika Anda telah dikenakan biaya, hubungi dukungan dan kami akan menyelesaikannya.",
     updateCard: "Perbarui kartu",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

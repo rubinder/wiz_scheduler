@@ -14,7 +14,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, StorageSnapshot, TokenUsage, TokenUsageDaily
+from backend.models import Company, Employee, Location, StorageSnapshot, TokenUsage, TokenUsageDaily
 from backend.models.ownership_group import OwnershipGroup
 
 logger = logging.getLogger(__name__)
@@ -401,6 +401,20 @@ async def count_employees_for_group(db: AsyncSession, og_id: str) -> int:
     result = await db.execute(
         select(func.count(Employee.id)).where(
             Employee.company_id.in_(company_ids)
+        )
+    )
+    return result.scalar() or 0
+
+
+async def count_locations_for_group(db: AsyncSession, og_id: str) -> int:
+    """Count total locations across all companies in an ownership group."""
+    company_ids = await _get_company_ids_for_group(db, og_id)
+    if not company_ids:
+        return 0
+
+    result = await db.execute(
+        select(func.count(Location.id)).where(
+            Location.company_id.in_(company_ids)
         )
     )
     return result.scalar() or 0
