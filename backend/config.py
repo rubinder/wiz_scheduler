@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 40
 
+    # Password for the seeded demo manager/employee accounts. Injected from
+    # AWS Secrets Manager (wizscheduler/<env>/DEMO_SEED_PASSWORD) in deployed
+    # environments. Empty means "use the local-dev default" — seed.py refuses
+    # to run with that default when ENV=production.
+    DEMO_SEED_PASSWORD: str = ""
+
     # Load testing — disables auth; NEVER enable in production
     LOAD_TEST: bool = False
 

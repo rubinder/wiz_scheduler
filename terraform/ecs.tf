@@ -78,6 +78,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.resend_api_key.arn,
       aws_secretsmanager_secret.stripe_secret_key.arn,
       aws_secretsmanager_secret.stripe_webhook_secret.arn,
+      aws_secretsmanager_secret.demo_seed_password.arn,
     ]
   }
 }
@@ -150,6 +151,12 @@ resource "aws_ecs_task_definition" "app" {
         {
           name      = "STRIPE_WEBHOOK_SECRET"
           valueFrom = aws_secretsmanager_secret.stripe_webhook_secret.arn
+        },
+        {
+          # Consumed by backend/seed.py so the demo accounts are never created
+          # with the local-dev default password.
+          name      = "DEMO_SEED_PASSWORD"
+          valueFrom = aws_secretsmanager_secret.demo_seed_password.arn
         },
       ]
 
