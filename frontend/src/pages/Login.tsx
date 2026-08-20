@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { googleAuth, googleLink } from "../api/googleAuth";
-import LanguageSelector from "../components/shared/LanguageSelector";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, bg, border, action } from "../theme";
+import { marketing as m } from "../theme";
 
 declare global {
   interface Window {
@@ -164,16 +164,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card p-8 w-full max-w-md">
-        <div className="flex justify-end mb-4">
-          <LanguageSelector />
-        </div>
-        <h1 className={`text-2xl font-bold text-center mb-6 ${text.heading} flex items-center justify-center gap-2`}>
-          {t.login.title} <img src="/favicon.svg" alt="" className="w-8 h-8 inline" />
-        </h1>
+    <AuthLayout title={t.login.title}>
         {error && (
-          <div className="glass-alert-error mb-4">
+          <div className={`${m.alert.error} mb-4`}>
             {error}
           </div>
         )}
@@ -181,8 +174,8 @@ export default function Login() {
         {/* Ownership group selection */}
         {ownershipGroups && !googleLinkState && (
           <div className="mb-4">
-            <div className={`p-4 ${bg.section} rounded-xl border ${border.default}`}>
-              <p className={`text-sm font-medium ${text.secondary} mb-3`}>
+            <div className={`p-4 ${m.surface} border ${m.rule.line}`}>
+              <p className={`text-sm font-medium ${m.text.body} mb-3`}>
                 {t.login.multiOrgPrompt}
               </p>
               <div className="space-y-2">
@@ -191,9 +184,9 @@ export default function Login() {
                     key={group.id}
                     onClick={() => handleSelectGroup(group.id)}
                     disabled={loading}
-                    className={`w-full text-left px-4 py-3 ${bg.section} border ${border.default} rounded-lg hover:border-accent/40 ${bg.interactiveHover} transition-colors disabled:opacity-50`}
+                    className={`w-full text-start px-4 py-3 ${m.surface} border ${m.rule.line} hover:border-ink hover:bg-ink/[0.04] transition-colors disabled:opacity-50`}
                   >
-                    <span className={`text-sm font-medium ${text.secondary}`}>
+                    <span className={`text-sm font-medium ${m.text.body}`}>
                       {group.name}
                     </span>
                   </button>
@@ -201,7 +194,7 @@ export default function Login() {
               </div>
               <button
                 onClick={() => setOwnershipGroups(null)}
-                className={`mt-3 text-xs ${text.muted} hover:${text.muted}`}
+                className={`mt-3 text-xs ${m.text.muted} hover:${m.text.muted}`}
               >
                 {t.login.backToLogin}
               </button>
@@ -212,39 +205,39 @@ export default function Login() {
         {/* Google account linking dialog */}
         {googleLinkState && (
           <div className="space-y-4">
-            <div className={`p-4 ${bg.section} rounded-xl border ${border.default}`}>
-              <p className={`text-sm ${text.secondary}`}>
+            <div className={`p-4 ${m.surface} border ${m.rule.line}`}>
+              <p className={`text-sm ${m.text.body}`}>
                 {t.login.googleLinkPrompt.replace("{email}", googleLinkState.email)}
               </p>
             </div>
             <form onSubmit={handleGoogleLink} className="space-y-4">
               <div>
-                <label className="glass-label">{t.common.email}</label>
+                <label className={m.label}>{t.common.email}</label>
                 <input
                   type="email"
                   value={googleLinkState.email}
                   disabled
-                  className={`glass-input w-full ${bg.sectionSubtle} ${text.muted}`}
+                  className={`${m.input} bg-ink/[0.03] ${m.text.muted}`}
                 />
               </div>
               <div>
-                <label className="glass-label">{t.common.password}</label>
+                <label className={m.label}>{t.common.password}</label>
                 <input
                   type="password"
                   required
                   value={linkPassword}
                   onChange={(e) => setLinkPassword(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                   placeholder={t.login.enterPasswordToLink}
                 />
               </div>
-              <button type="submit" disabled={loading} className="glass-btn-primary w-full">
+              <button type="submit" disabled={loading} className={`${m.btn.primary} w-full`}>
                 {loading ? t.login.linking : t.login.linkAndSignIn}
               </button>
               <button
                 type="button"
                 onClick={() => { setGoogleLinkState(null); setLinkPassword(""); }}
-                className="glass-btn-secondary w-full"
+                className={`${m.btn.secondary} w-full`}
               >
                 {t.login.backToLogin}
               </button>
@@ -257,7 +250,7 @@ export default function Login() {
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="glass-label">
+                <label className={m.label}>
                   {t.common.email}
                 </label>
                 <input
@@ -265,17 +258,17 @@ export default function Login() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                 />
               </div>
               <div>
                 <div className="flex items-baseline justify-between">
-                  <label className="glass-label">
+                  <label className={m.label}>
                     {t.common.password}
                   </label>
                   <Link
                     to="/forgot-password"
-                    className={`text-xs ${action.link}`}
+                    className={`text-xs ${m.btn.link}`}
                   >
                     {t.login.forgotPassword}
                   </Link>
@@ -285,41 +278,39 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="glass-input w-full"
+                  className={m.input}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="glass-btn-primary w-full"
+                className={`${m.btn.primary} w-full`}
               >
                 {loading ? t.login.signingIn : t.login.signIn}
               </button>
             </form>
             <div className="flex items-center gap-3 my-4">
-              <div className={`flex-1 border-t ${border.default}`} />
-              <span className={`text-xs ${text.muted}`}>{t.login.orContinueWith}</span>
-              <div className={`flex-1 border-t ${border.default}`} />
+              <div className={`flex-1 border-t ${m.rule.line}`} />
+              <span className={`text-xs ${m.text.muted}`}>{t.login.orContinueWith}</span>
+              <div className={`flex-1 border-t ${m.rule.line}`} />
             </div>
             <div ref={googleBtnRef} className="w-full flex justify-center" />
-            <p className={`mt-4 text-center text-sm ${text.muted}`}>
+            <p className={`mt-4 text-center text-sm ${m.text.muted}`}>
               {t.login.noAccount}{" "}
-              <Link to="/register" className={action.link}>
+              <Link to="/register" className={m.btn.link}>
                 {t.login.register}
               </Link>
             </p>
             {DEMO_PASSWORD && (
-              <div className={`mt-6 p-4 ${bg.section} rounded-xl border ${border.default}`}>
-                <p className={`text-xs font-semibold ${text.muted} uppercase tracking-wide mb-2`}>
-                  {t.login.demoCredentials}
-                </p>
+              <div className={`mt-6 p-4 ${m.surface} border ${m.rule.line} font-data text-xs`}>
+                <p className={`${m.text.meta} mb-2`}>{t.login.demoCredentials}</p>
                 <button
                   type="button"
                   onClick={() => {
                     setEmail(DEMO_MANAGER_EMAIL);
                     setPassword(DEMO_PASSWORD);
                   }}
-                  className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
+                  className={`w-full text-start p-2 text-sm ${m.text.body} hover:bg-ink/[0.04] transition-colors`}
                 >
                   <span className="font-medium">{t.login.manager}:</span> {DEMO_MANAGER_EMAIL} /{" "}
                   {DEMO_PASSWORD}
@@ -330,7 +321,7 @@ export default function Login() {
                     setEmail(DEMO_EMPLOYEE_EMAIL);
                     setPassword(DEMO_PASSWORD);
                   }}
-                  className={`w-full text-left text-sm ${text.secondary} ${bg.subtleHover} rounded p-2 transition-colors`}
+                  className={`w-full text-start p-2 text-sm ${m.text.body} hover:bg-ink/[0.04] transition-colors`}
                 >
                   <span className="font-medium">{t.login.employeeLabel}:</span>{" "}
                   {DEMO_EMPLOYEE_EMAIL} / {DEMO_PASSWORD}
@@ -339,20 +330,21 @@ export default function Login() {
             )}
           </>
         )}
-        <div className={`mt-4 pt-4 border-t ${border.default} text-center text-xs ${text.muted} space-x-2`}>
-          <Link to="/privacy-policy" className={action.link}>
+        <div
+          className={`mt-4 pt-4 border-t ${m.rule.line} flex flex-wrap items-center justify-center gap-x-2 text-center text-xs ${m.text.muted}`}
+        >
+          <Link to="/privacy-policy" className={m.btn.link}>
             {t.gdpr.privacyPolicy}
           </Link>
           <span>|</span>
-          <Link to="/terms" className={action.link}>
+          <Link to="/terms" className={m.btn.link}>
             {t.gdpr.termsOfService}
           </Link>
           <span>|</span>
-          <Link to="/dpa" className={action.link}>
+          <Link to="/dpa" className={m.btn.link}>
             {t.gdpr.dpa}
           </Link>
         </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

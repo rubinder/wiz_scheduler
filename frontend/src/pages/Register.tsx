@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border, action } from "../theme";
+import { marketing as m } from "../theme";
 
 // `window.google` is already declared in Login.tsx with a permissive shape.
 // No re-declaration here — we cast the GIS callback inline below.
@@ -83,13 +84,9 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card p-8 w-full max-w-md">
-        <h1 className={`text-2xl font-bold text-center mb-6 ${text.heading}`}>
-          {t.register.title}
-        </h1>
+    <AuthLayout title={t.register.title}>
         {error && (
-          <div className="glass-alert-error mb-4">
+          <div className={`${m.alert.error} mb-4`}>
             {error}
           </div>
         )}
@@ -97,14 +94,14 @@ export default function Register() {
           <>
             <div ref={googleBtnRef} className="flex justify-center mb-4" />
             <div className="flex items-center gap-3 mb-4">
-              <div className={`flex-1 border-t ${border.default}`} />
-              <span className={`text-xs ${text.muted}`}>{t.login.orContinueWith}</span>
-              <div className={`flex-1 border-t ${border.default}`} />
+              <div className={`flex-1 border-t ${m.rule.line}`} />
+              <span className={`text-xs ${m.text.muted}`}>{t.login.orContinueWith}</span>
+              <div className={`flex-1 border-t ${m.rule.line}`} />
             </div>
           </>
         )}
         {googleIdToken && (
-          <div className="mb-4 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center justify-between">
+          <div className={`mb-4 flex items-center justify-between ${m.alert.success}`}>
             <span>Signed in with Google as {email}</span>
             <button
               type="button"
@@ -121,7 +118,7 @@ export default function Register() {
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.register.fullName}
             </label>
             <input
@@ -130,11 +127,11 @@ export default function Register() {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               readOnly={!!googleIdToken}
-              className={`glass-input w-full ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
+              className={`${m.input} ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.common.email}
             </label>
             <input
@@ -143,12 +140,12 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               readOnly={!!googleIdToken}
-              className={`glass-input w-full ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
+              className={`${m.input} ${googleIdToken ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </div>
           {!googleIdToken && (
             <div>
-              <label className="glass-label">
+              <label className={m.label}>
                 {t.common.password}
               </label>
               <input
@@ -156,12 +153,12 @@ export default function Register() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="glass-input w-full"
+                className={m.input}
               />
             </div>
           )}
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.register.companyName}
             </label>
             <input
@@ -169,16 +166,16 @@ export default function Register() {
               required
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
             />
           </div>
           <div className="space-y-2">
-            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
+            <label className={`flex items-start gap-2 text-sm ${m.text.body} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={privacyAccepted}
                 onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-1 accent-[#9e6934]"
+                className="mt-1 accent-ink"
               />
               <span>
                 {t.gdpr.acceptPrivacy}{" "}
@@ -186,18 +183,18 @@ export default function Register() {
                   href="/privacy-policy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={action.link}
+                  className={m.btn.link}
                 >
                   {t.gdpr.privacyPolicy}
                 </a>
               </span>
             </label>
-            <label className={`flex items-start gap-2 text-sm ${text.secondary} cursor-pointer`}>
+            <label className={`flex items-start gap-2 text-sm ${m.text.body} cursor-pointer`}>
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="mt-1 accent-[#9e6934]"
+                className="mt-1 accent-ink"
               />
               <span>
                 {t.gdpr.acceptTerms}{" "}
@@ -205,7 +202,7 @@ export default function Register() {
                   href="/terms"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={action.link}
+                  className={m.btn.link}
                 >
                   {t.gdpr.termsOfService}
                 </a>
@@ -216,21 +213,20 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading || !privacyAccepted || !termsAccepted}
-            className="glass-btn-primary w-full"
+            className={`${m.btn.primary} w-full`}
           >
             {loading ? t.register.creatingAccount : t.register.createFreeAccount}
           </button>
         </form>
-        <p className={`mt-3 text-center text-xs ${text.muted}`}>
+        <p className={`mt-3 text-center text-xs ${m.text.muted}`}>
           {t.register.googleLinkNote}
         </p>
-        <p className={`mt-4 text-center text-sm ${text.muted}`}>
+        <p className={`mt-4 text-center text-sm ${m.text.muted}`}>
           {t.register.haveAccount}{" "}
-          <Link to="/login" className={action.link}>
+          <Link to="/login" className={m.btn.link}>
             {t.register.signIn}
           </Link>
         </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

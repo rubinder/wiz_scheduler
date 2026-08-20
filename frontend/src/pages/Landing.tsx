@@ -1,17 +1,22 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import LanguageSelector from "../components/shared/LanguageSelector";
-import { text, bg, border, action } from "../theme";
+import { MarketingShell } from "../components/marketing/MarketingNav";
+import SectionRule from "../components/marketing/SectionRule";
+import RotaHero from "../components/marketing/RotaHero";
+import { marketing as m } from "../theme";
 
 export default function Landing() {
   const { t } = useLanguage();
   useDocumentTitle("AI-Powered Employee Scheduling");
 
-  const features = [
+  const principalFeatures = [
     { title: t.landing.featAITitle, desc: t.landing.featAIDesc },
     { title: t.landing.featStrategiesTitle, desc: t.landing.featStrategiesDesc },
     { title: t.landing.featMultiLocTitle, desc: t.landing.featMultiLocDesc },
+  ];
+
+  const supportingFeatures = [
     { title: t.landing.featHourCapsTitle, desc: t.landing.featHourCapsDesc },
     { title: t.landing.featDayRulesTitle, desc: t.landing.featDayRulesDesc },
     { title: t.landing.featSelfServiceTitle, desc: t.landing.featSelfServiceDesc },
@@ -27,25 +32,21 @@ export default function Landing() {
     {
       name: t.landing.stratRotation,
       tag: t.landing.stratRotationTag,
-      badge: "bg-emerald-100 text-emerald-700 border border-emerald-300",
       desc: t.landing.stratRotationDesc,
     },
     {
       name: t.landing.stratRotationHistory,
       tag: t.landing.stratRotationHistoryTag,
-      badge: "bg-emerald-100 text-emerald-700 border border-emerald-300",
       desc: t.landing.stratRotationHistoryDesc,
     },
     {
       name: t.landing.stratMaxHours,
       tag: t.landing.stratMaxHoursTag,
-      badge: "bg-emerald-100 text-emerald-700 border border-emerald-300",
       desc: t.landing.stratMaxHoursDesc,
     },
     {
       name: t.landing.stratAI,
       tag: t.landing.stratAITag,
-      badge: "bg-accent/10 text-accent-dark border border-accent/20",
       desc: t.landing.stratAIDesc,
     },
   ];
@@ -73,370 +74,268 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen">
+    <MarketingShell>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Nav */}
-      <nav className={`fixed top-0 inset-x-0 z-50 bg-white/50 backdrop-blur-2xl border-b ${border.default}`}>
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/favicon.svg" alt="" className="w-8 h-8" />
-            <span className={`text-xl font-bold ${text.primary} tracking-wide`}>Wiz Scheduler</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <LanguageSelector />
-            <Link to="/login" className={`text-sm ${text.secondary} hover:${text.heading} transition-colors`}>
-              {t.login.signIn}
-            </Link>
-            <Link
-              to="/register"
-              className="glass-btn-primary text-sm"
+
+      <RotaHero />
+
+      <main className="max-w-[92rem] mx-auto px-6">
+        {/* Features */}
+        <SectionRule eyebrow="01 — Capability" title={t.landing.featuresTitle} />
+        <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.featuresDesc}</p>
+        <div className="grid gap-10 md:grid-cols-3 mb-16">
+          {principalFeatures.map((f) => (
+            <div key={f.title}>
+              <h3 className={`${m.text.display} font-display text-2xl font-semibold mb-3`}>
+                {f.title}
+              </h3>
+              <p className={`${m.text.muted} leading-relaxed`}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+        <dl className={`border-t ${m.rule.line} mb-24`}>
+          {supportingFeatures.map((f) => (
+            <div
+              key={f.title}
+              className={`border-b ${m.rule.line} py-4 grid gap-1 md:grid-cols-[18rem_1fr] md:gap-8`}
             >
-              {t.register.registerBtn}
-            </Link>
-          </div>
-        </div>
-      </nav>
+              <dt className={`${m.text.body} font-medium`}>{f.title}</dt>
+              <dd className={`${m.text.muted} text-sm leading-relaxed`}>{f.desc}</dd>
+            </div>
+          ))}
+        </dl>
 
-      {/* Hero */}
-      <section className="pt-32 pb-20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-dark text-sm mb-8">
-            {t.landing.badge}
-          </div>
-          <h1 className={`text-5xl sm:text-6xl font-extrabold ${text.heading} leading-tight mb-6`}>
-            {t.landing.heroTitle}{" "}
-            <span className="bg-gradient-to-r from-accent to-sage-dark bg-clip-text text-transparent">
-              {t.landing.heroTitleAccent}
-            </span>
-          </h1>
-          <p className={`text-xl ${text.muted} max-w-2xl mx-auto mb-10 leading-relaxed`}>
-            {t.landing.heroDesc}
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link to="/register" className="glass-btn-primary px-8 py-3 text-base">
-              {t.landing.getStarted}
-            </Link>
-            <a href="#pricing" className="glass-btn-secondary px-8 py-3 text-base">
-              {t.landing.viewPricing}
-            </a>
-            <a href="#demo" className="glass-btn-secondary px-8 py-3 text-base">
-              {t.landing.viewDemo}
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <h2 className={`text-3xl font-bold ${text.heading} text-center mb-4`}>{t.landing.featuresTitle}</h2>
-          <p className={`${text.muted} text-center mb-16 max-w-2xl mx-auto`}>
-            {t.landing.featuresDesc}
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f) => (
-              <div key={f.title} className={`glass-card p-6 ${bg.cardHover} transition-all`}>
-                <h3 className={`text-lg font-semibold ${text.primary} mb-2`}>{f.title}</h3>
-                <p className={`text-sm ${text.muted} leading-relaxed`}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Demo Video */}
-      <section id="demo" className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <h2 className={`text-3xl font-bold ${text.heading} text-center mb-4`}>{t.landing.demoTitle}</h2>
-          <p className={`${text.muted} text-center mb-12 max-w-2xl mx-auto`}>
-            {t.landing.demoDesc}
-          </p>
-          <div className="glass-card p-2 rounded-2xl overflow-hidden">
+        {/* Demo — the one dark band */}
+        <div id="demo" className={`${m.inverse} -mx-6 px-6 py-20 mb-24 scroll-mt-20`}>
+          <div className="max-w-5xl mx-auto">
+            <p className={`${m.text.meta} !text-newsprint/60 mb-4`}>02 — Proof</p>
+            <h2 className="font-display text-3xl md:text-5xl font-semibold leading-[1.05] mb-4">
+              {t.landing.demoTitle}
+            </h2>
+            <p className="text-newsprint/70 font-body max-w-[60ch] mb-10">{t.landing.demoDesc}</p>
             <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
               <iframe
-                className="absolute inset-0 w-full h-full rounded-xl"
+                className="absolute inset-0 w-full h-full"
                 src="https://www.youtube.com/embed/t1FblchNbb8"
                 title={t.landing.demoTitle}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
               />
             </div>
-          </div>
-          <div className="flex justify-center mt-8">
-            <Link to="/features" className="glass-btn-secondary px-8 py-3 text-base">
-              {t.landing.exploreDashboard}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Strategies */}
-      <section className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <h2 className={`text-3xl font-bold ${text.heading} text-center mb-4`}>{t.landing.strategiesTitle}</h2>
-          <p className={`${text.muted} text-center mb-16 max-w-2xl mx-auto`}>
-            {t.landing.strategiesDesc}
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {strategies.map((s) => (
-              <div key={s.name} className="glass-card p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${s.badge}`}>
-                    {s.tag}
-                  </span>
-                  <h3 className={`text-lg font-semibold ${text.primary}`}>{s.name}</h3>
-                </div>
-                <p className={`text-sm ${text.muted} leading-relaxed`}>{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <h2 className={`text-3xl font-bold ${text.heading} text-center mb-4`}>{t.landing.pricingTitle}</h2>
-          <p className={`${text.muted} text-center mb-16 max-w-2xl mx-auto`}>
-            {t.landing.pricingDesc}
-          </p>
-
-          {/* Base plan */}
-          <div className="glass-card p-8 mb-10 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent-dark text-sm mb-4">
-              {t.landing.allInOnePlan}
-            </div>
-            <div className={`text-5xl font-extrabold ${text.heading} mb-2`}>$18<span className={`text-xl font-normal ${text.muted}`}> {t.landing.pricePerMonth}</span></div>
-            <p className={`${text.muted} mb-8`}>{t.landing.basePlanDesc}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto">
-              <div>
-                <div className={`text-2xl font-bold ${text.heading}`}>$2.00</div>
-                <div className={`text-sm ${text.muted} mt-1`}>{t.landing.aiCredits}</div>
-              </div>
-              <div>
-                <div className={`text-2xl font-bold ${text.heading}`}>50</div>
-                <div className={`text-sm ${text.muted} mt-1`}>{t.landing.compSchedules}</div>
-              </div>
-              <div>
-                <div className={`text-2xl font-bold ${text.heading}`}>0.5 GB</div>
-                <div className={`text-sm ${text.muted} mt-1`}>{t.landing.storageIncluded}</div>
-              </div>
-              <div>
-                <div className={`text-2xl font-bold ${text.heading}`}>1K</div>
-                <div className={`text-sm ${text.muted} mt-1`}>{t.landing.employeesIncluded}</div>
-              </div>
-            </div>
-            <p className={`${text.placeholder} text-sm mt-6`}>
-              {t.landing.normalStrategiesNote}
-            </p>
-          </div>
-
-          {/* Overage pricing */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-dark text-sm font-bold">
-                  AI
-                </div>
-                <h3 className={`text-base font-semibold ${text.primary}`}>{t.landing.aiScheduling}</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className={`flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.included}</span>
-                  <span className={`${text.primary} font-medium`}>$2.00 / mo</span>
-                </div>
-                <div className={`border-t ${border.subtle} pt-2 flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.overage}</span>
-                  <span className={`${text.primary} font-medium`}>Cost x 130%</span>
-                </div>
-                <p className={`text-xs ${text.muted} pt-1`}>
-                  {t.landing.aiOverageNote}
-                </p>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 text-sm font-bold">
-                  GEN
-                </div>
-                <h3 className={`text-base font-semibold ${text.primary}`}>{t.landing.schedules}</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className={`flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.included}</span>
-                  <span className={`${text.primary} font-medium`}>50 / month</span>
-                </div>
-                <div className={`border-t ${border.subtle} pt-2 flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.overage}</span>
-                  <span className={`${text.primary} font-medium`}>$0.10 / 50</span>
-                </div>
-                <p className={`text-xs ${text.muted} pt-1`}>
-                  {t.landing.schedulesOverageNote}
-                </p>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-cyan-100 border border-cyan-300 flex items-center justify-center text-cyan-700 text-sm font-bold">
-                  DB
-                </div>
-                <h3 className={`text-base font-semibold ${text.primary}`}>{t.landing.storage}</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className={`flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.included}</span>
-                  <span className={`${text.primary} font-medium`}>0.5 GB</span>
-                </div>
-                <div className={`border-t ${border.subtle} pt-2 flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.overage}</span>
-                  <span className={`${text.primary} font-medium`}>$0.50 / GB</span>
-                </div>
-                <p className={`text-xs ${text.muted} pt-1`}>
-                  {t.landing.storageOverageNote}
-                </p>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 text-sm font-bold">
-                  #
-                </div>
-                <h3 className={`text-base font-semibold ${text.primary}`}>{t.landing.employees}</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className={`flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.included}</span>
-                  <span className={`${text.primary} font-medium`}>1,000</span>
-                </div>
-                <div className={`border-t ${border.subtle} pt-2 flex justify-between ${text.secondary}`}>
-                  <span>{t.landing.overage}</span>
-                  <span className={`${text.primary} font-medium`}>$1.00 / 1K</span>
-                </div>
-                <p className={`text-xs ${text.muted} pt-1`}>
-                  {t.landing.employeesOverageNote}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Example */}
-          <div className="glass-card p-6 mt-10">
-            <h3 className={`text-lg font-semibold ${text.primary} mb-4`}>{t.landing.exampleTitle}</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className={`text-left ${text.muted} border-b ${border.subtle}`}>
-                    <th className="pb-3 font-medium">{t.landing.exampleItem}</th>
-                    <th className="pb-3 font-medium">{t.landing.exampleUsage}</th>
-                    <th className="pb-3 font-medium text-right">{t.landing.exampleCost}</th>
-                  </tr>
-                </thead>
-                <tbody className={text.secondary}>
-                  <tr className="border-b border-sage/10">
-                    <td className="py-3">{t.landing.exampleBase}</td>
-                    <td></td>
-                    <td className={`text-right ${text.primary} font-medium`}>$18.00</td>
-                  </tr>
-                  <tr className="border-b border-sage/10">
-                    <td className="py-3">{t.landing.exampleSchedules}</td>
-                    <td>{t.landing.exampleSchedulesUsage}</td>
-                    <td className="text-right text-emerald-600 font-medium">{t.landing.exampleSchedulesCost}</td>
-                  </tr>
-                  <tr className="border-b border-sage/10">
-                    <td className="py-3">{t.landing.exampleAI}</td>
-                    <td>{t.landing.exampleAIUsage}</td>
-                    <td className="text-right text-emerald-600 font-medium">{t.landing.exampleAICost}</td>
-                  </tr>
-                  <tr className="border-b border-sage/10">
-                    <td className="py-3">{t.landing.exampleStorage}</td>
-                    <td>{t.landing.exampleStorageUsage}</td>
-                    <td className="text-right text-emerald-600 font-medium">{t.landing.exampleStorageCost}</td>
-                  </tr>
-                  <tr className="border-b border-sage/10">
-                    <td className="py-3">{t.landing.exampleEmployees}</td>
-                    <td>{t.landing.exampleEmployeesUsage}</td>
-                    <td className="text-right text-emerald-600 font-medium">{t.landing.exampleEmployeesCost}</td>
-                  </tr>
-                  <tr>
-                    <td className={`py-3 font-semibold ${text.heading}`}>{t.landing.exampleTotal}</td>
-                    <td></td>
-                    <td className={`text-right ${text.heading} font-bold text-lg`}>$20.30</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="mt-10">
+              <Link
+                to="/features"
+                className={`${m.btn.secondary} !border-newsprint/40 !text-newsprint hover:!border-newsprint`}
+              >
+                {t.landing.exploreDashboard}
+              </Link>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* GDPR */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className={`text-3xl font-bold ${text.heading} mb-4`}>{t.landing.complianceTitle}</h2>
-          <p className={`${text.placeholder} mb-10 max-w-2xl mx-auto`}>
-            {t.landing.complianceDesc}
+        {/* Strategies — AI is the product, rules are the floor */}
+        <SectionRule eyebrow="03 — Method" title={t.landing.strategiesTitle} />
+        <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.strategiesDesc}</p>
+        <div className={`${m.surface} border ${m.rule.heavy} p-6 md:p-10 mb-10`}>
+          <p className={`${m.text.meta} mb-3`}>
+            <span className={m.mark}>{strategies[3].tag}</span>
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {compliance.map((c) => (
-              <div key={c.title} className="glass-card p-5 text-center">
-                <h4 className={`text-sm font-semibold ${text.heading} mb-1`}>{c.title}</h4>
-                <p className={`text-xs ${text.muted}`}>{c.desc}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-8 flex items-center justify-center gap-4 text-sm">
-            <Link to="/privacy-policy" className={action.link}>{t.gdpr.privacyPolicy}</Link>
-            <span className={text.secondary}>|</span>
-            <Link to="/terms" className={action.link}>{t.gdpr.termsOfService}</Link>
-            <span className={text.secondary}>|</span>
-            <Link to="/dpa" className={action.link}>{t.gdpr.dpa}</Link>
+          <h3 className={`${m.text.display} font-display text-3xl font-semibold mb-4`}>
+            {strategies[3].name}
+          </h3>
+          <p className={`${m.text.muted} leading-relaxed max-w-[62ch]`}>
+            {strategies[3].desc}
+          </p>
+        </div>
+        <div className={`grid gap-px md:grid-cols-3 bg-rule border ${m.rule.line} mb-24`}>
+          {strategies.slice(0, 3).map((s) => (
+            <div key={s.name} className="bg-newsprint p-6">
+              <p className={`${m.text.meta} mb-2`}>{s.tag}</p>
+              <h3 className={`${m.text.body} font-medium mb-2`}>{s.name}</h3>
+              <p className={`${m.text.muted} text-sm leading-relaxed`}>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Pricing — receipt first */}
+        <SectionRule id="pricing" eyebrow="04 — Cost" title={t.landing.pricingTitle} />
+        <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.pricingDesc}</p>
+        <div className={`${m.surface} border ${m.rule.heavy} p-6 md:p-10 max-w-3xl mb-10`}>
+          <p className={`${m.text.meta} mb-6`}>{t.landing.exampleTitle}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full font-data text-sm tabular-nums">
+              <thead>
+                <tr className={`border-b ${m.rule.line}`}>
+                  <th className={`${m.text.meta} text-start pb-3`}>{t.landing.exampleItem}</th>
+                  <th className={`${m.text.meta} text-start pb-3`}>{t.landing.exampleUsage}</th>
+                  <th className={`${m.text.meta} text-end pb-3`}>{t.landing.exampleCost}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className={`border-b ${m.rule.grid}`}>
+                  <td className="py-2.5 text-start">{t.landing.exampleBase}</td>
+                  <td className="py-2.5 text-start"></td>
+                  <td className="py-2.5 text-end">$18.00</td>
+                </tr>
+                <tr className={`border-b ${m.rule.grid}`}>
+                  <td className="py-2.5 text-start">{t.landing.exampleSchedules}</td>
+                  <td className="py-2.5 text-start">{t.landing.exampleSchedulesUsage}</td>
+                  <td className={`py-2.5 text-end ${m.text.clear}`}>{t.landing.exampleSchedulesCost}</td>
+                </tr>
+                <tr className={`border-b ${m.rule.grid}`}>
+                  <td className="py-2.5 text-start">{t.landing.exampleAI}</td>
+                  <td className="py-2.5 text-start">{t.landing.exampleAIUsage}</td>
+                  <td className={`py-2.5 text-end ${m.text.clear}`}>{t.landing.exampleAICost}</td>
+                </tr>
+                <tr className={`border-b ${m.rule.grid}`}>
+                  <td className="py-2.5 text-start">{t.landing.exampleStorage}</td>
+                  <td className="py-2.5 text-start">{t.landing.exampleStorageUsage}</td>
+                  <td className={`py-2.5 text-end ${m.text.clear}`}>{t.landing.exampleStorageCost}</td>
+                </tr>
+                <tr className={`border-b ${m.rule.grid}`}>
+                  <td className="py-2.5 text-start">{t.landing.exampleEmployees}</td>
+                  <td className="py-2.5 text-start">{t.landing.exampleEmployeesUsage}</td>
+                  <td className={`py-2.5 text-end ${m.text.clear}`}>{t.landing.exampleEmployeesCost}</td>
+                </tr>
+                <tr className={`border-t-2 border-ink pt-4 font-semibold`}>
+                  <td className="py-4">{t.landing.exampleTotal}</td>
+                  <td></td>
+                  <td className="py-4 text-end text-lg">$20.30</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      </section>
 
-      {/* CTA */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className={`text-4xl font-bold ${text.heading} mb-4`}>{t.landing.ctaTitle}</h2>
-          <p className={`${text.placeholder} mb-8 text-lg`}>
-            {t.landing.ctaDesc}
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link to="/register" className="glass-btn-primary px-8 py-3 text-base">
+        <div className={`border ${m.rule.line} p-6 md:p-8 mb-10`}>
+          <p className={`${m.text.meta} mb-3`}>{t.landing.allInOnePlan}</p>
+          <div className={`${m.text.display} font-display text-5xl font-semibold mb-2`}>
+            $18<span className={`${m.text.muted} text-xl font-normal`}> {t.landing.pricePerMonth}</span>
+          </div>
+          <p className={`${m.text.muted} mb-8 max-w-[60ch]`}>{t.landing.basePlanDesc}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl">
+            <div>
+              <div className={`${m.text.data} text-2xl font-semibold`}>$2.00</div>
+              <div className={`${m.text.meta} mt-1`}>{t.landing.aiCredits}</div>
+            </div>
+            <div>
+              <div className={`${m.text.data} text-2xl font-semibold`}>50</div>
+              <div className={`${m.text.meta} mt-1`}>{t.landing.compSchedules}</div>
+            </div>
+            <div>
+              <div className={`${m.text.data} text-2xl font-semibold`}>0.5 GB</div>
+              <div className={`${m.text.meta} mt-1`}>{t.landing.storageIncluded}</div>
+            </div>
+            <div>
+              <div className={`${m.text.data} text-2xl font-semibold`}>1K</div>
+              <div className={`${m.text.meta} mt-1`}>{t.landing.employeesIncluded}</div>
+            </div>
+          </div>
+          <p className={`${m.text.muted} text-sm mt-6`}>{t.landing.normalStrategiesNote}</p>
+        </div>
+
+        <div className={`grid gap-px md:grid-cols-4 bg-rule border ${m.rule.line} mb-24`}>
+          <div className="bg-newsprint p-5">
+            <p className={`${m.text.meta} mb-2`}>AI</p>
+            <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.aiScheduling}</h3>
+            <div className="space-y-2 text-sm">
+              <div className={`flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.included}</span>
+                <span className={m.text.data}>$2.00 / mo</span>
+              </div>
+              <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.overage}</span>
+                <span className={m.text.data}>Cost x 130%</span>
+              </div>
+              <p className={`${m.text.muted} text-xs pt-1`}>{t.landing.aiOverageNote}</p>
+            </div>
+          </div>
+
+          <div className="bg-newsprint p-5">
+            <p className={`${m.text.meta} mb-2`}>RUNS</p>
+            <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.schedules}</h3>
+            <div className="space-y-2 text-sm">
+              <div className={`flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.included}</span>
+                <span className={m.text.data}>50 / month</span>
+              </div>
+              <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.overage}</span>
+                <span className={m.text.data}>$0.10 / 50</span>
+              </div>
+              <p className={`${m.text.muted} text-xs pt-1`}>{t.landing.schedulesOverageNote}</p>
+            </div>
+          </div>
+
+          <div className="bg-newsprint p-5">
+            <p className={`${m.text.meta} mb-2`}>DATA</p>
+            <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.storage}</h3>
+            <div className="space-y-2 text-sm">
+              <div className={`flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.included}</span>
+                <span className={m.text.data}>0.5 GB</span>
+              </div>
+              <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.overage}</span>
+                <span className={m.text.data}>$0.50 / GB</span>
+              </div>
+              <p className={`${m.text.muted} text-xs pt-1`}>{t.landing.storageOverageNote}</p>
+            </div>
+          </div>
+
+          <div className="bg-newsprint p-5">
+            <p className={`${m.text.meta} mb-2`}>TEAM</p>
+            <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.employees}</h3>
+            <div className="space-y-2 text-sm">
+              <div className={`flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.included}</span>
+                <span className={m.text.data}>1,000</span>
+              </div>
+              <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
+                <span>{t.landing.overage}</span>
+                <span className={m.text.data}>$1.00 / 1K</span>
+              </div>
+              <p className={`${m.text.muted} text-xs pt-1`}>{t.landing.employeesOverageNote}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* GDPR — quiet, reassurance not pitch */}
+        <SectionRule eyebrow="05 — Assurance" title={t.landing.complianceTitle} />
+        <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.complianceDesc}</p>
+        <dl className={`grid gap-px sm:grid-cols-2 lg:grid-cols-4 bg-rule border ${m.rule.line} mb-10`}>
+          {compliance.map((c) => (
+            <div key={c.title} className="bg-newsprint p-5">
+              <dt className={`${m.text.body} text-sm font-medium mb-1`}>{c.title}</dt>
+              <dd className={`${m.text.muted} text-xs leading-relaxed`}>{c.desc}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mb-24">
+          <Link to="/privacy-policy" className={m.btn.link}>{t.gdpr.privacyPolicy}</Link>
+          <Link to="/terms" className={m.btn.link}>{t.gdpr.termsOfService}</Link>
+          <Link to="/dpa" className={m.btn.link}>{t.gdpr.dpa}</Link>
+        </div>
+
+        {/* CTA — one action */}
+        <div className="max-w-2xl mb-24">
+          <h2 className={`${m.text.display} font-display text-4xl font-semibold mb-4`}>
+            {t.landing.ctaTitle}
+          </h2>
+          <p className={`${m.text.muted} text-lg mb-8 max-w-[55ch]`}>{t.landing.ctaDesc}</p>
+          <div className="flex flex-wrap items-center gap-6">
+            <Link to="/register" className={m.btn.primary}>
               {t.landing.ctaBtn}
             </Link>
-            <Link to="/login" className="glass-btn-secondary px-8 py-3 text-base">
+            <Link to="/login" className={m.btn.link}>
               {t.login.signIn}
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer className={`border-t ${border.default} py-8 px-6`}>
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className={`flex items-center gap-2 ${text.muted} text-sm`}>
-            <img src="/favicon.svg" alt="" className="w-5 h-5" />
-            <span>Wiz Scheduler</span>
-          </div>
-          <div className={`flex items-center gap-4 text-xs ${text.muted}`}>
-            <Link to="/features" className="hover:text-gray-700">{t.landing.featuresLink}</Link>
-            <Link to="/privacy-policy" className="hover:text-gray-700">{t.gdpr.privacyPolicy}</Link>
-            <Link to="/terms" className="hover:text-gray-700">{t.gdpr.termsOfService}</Link>
-            <Link to="/dpa" className="hover:text-gray-700">{t.gdpr.dpa}</Link>
-          </div>
-          <div className={`text-xs ${text.muted}`}>Suggestival LLC</div>
-        </div>
-      </footer>
-    </div>
+      </main>
+    </MarketingShell>
   );
 }
-

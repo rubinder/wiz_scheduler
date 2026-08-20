@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import LanguageSelector from "../components/shared/LanguageSelector";
-import { text, border } from "../theme";
+import { MarketingShell } from "../components/marketing/MarketingNav";
+import { marketing as m } from "../theme";
 
 const PAGE_SLUGS = [
   "dashboard",
@@ -24,143 +24,109 @@ const PAGE_SLUGS = [
 
 type Slug = (typeof PAGE_SLUGS)[number];
 
+function ordinal(idx: number): string {
+  return String(idx + 1).padStart(2, "0");
+}
+
 export default function Features() {
   const { t } = useLanguage();
   useDocumentTitle("Manager Tour");
 
   return (
-    <div className="min-h-screen">
-      {/* Nav */}
-      <nav
-        className={`fixed top-0 inset-x-0 z-50 bg-white/50 backdrop-blur-2xl border-b ${border.default}`}
-      >
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <img src="/favicon.svg" alt="" className="w-8 h-8" />
-            <span className={`text-xl font-bold ${text.primary} tracking-wide`}>
-              Wiz Scheduler
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <LanguageSelector />
-            <Link
-              to="/"
-              className={`text-sm ${text.secondary} hover:${text.heading} transition-colors`}
+    <MarketingShell>
+      <main className="max-w-[92rem] mx-auto px-6">
+        {/* Hero */}
+        <section className="pt-12 lg:pt-20 pb-12">
+          <div className="max-w-[62ch] text-start">
+            <h1
+              className={`${m.text.display} font-display text-5xl lg:text-6xl font-semibold leading-[0.95] mb-6`}
             >
-              {t.features.backToHome}
-            </Link>
-            <Link to="/register" className="glass-btn-primary text-sm">
-              {t.register.registerBtn}
-            </Link>
+              {t.features.pageTitle}
+            </h1>
+            <p className={`${m.text.muted} text-lg leading-relaxed max-w-[62ch]`}>
+              {t.features.pageIntro}
+            </p>
           </div>
-        </div>
-      </nav>
+        </section>
 
-      {/* Hero */}
-      <section className="pt-32 pb-12 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1
-            className={`text-4xl sm:text-5xl font-extrabold ${text.heading} leading-tight mb-6`}
-          >
-            {t.features.pageTitle}
-          </h1>
-          <p
-            className={`text-lg ${text.muted} max-w-2xl mx-auto leading-relaxed`}
-          >
-            {t.features.pageIntro}
-          </p>
-        </div>
-      </section>
-
-      {/* Body: sticky TOC (desktop) + screen rows */}
-      <section className="px-6 pb-20">
-        <div className="max-w-7xl mx-auto lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
-          {/* TOC */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-24">
-              <h2
-                className={`text-xs font-semibold uppercase tracking-wider ${text.muted} mb-3`}
-              >
-                {t.features.tocTitle}
-              </h2>
-              <nav className="flex flex-col gap-1">
-                {PAGE_SLUGS.map((slug) => (
-                  <a
-                    key={slug}
-                    href={`#${slug}`}
-                    className={`text-sm ${text.secondary} hover:${text.heading} transition-colors py-1`}
-                  >
-                    {t.features.pages[slug].title}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          </aside>
-
-          {/* Rows */}
-          <div className="flex flex-col gap-10">
-            {PAGE_SLUGS.map((slug, idx) => {
-              const reverse = idx % 2 === 1;
-              return (
-                <article
-                  id={slug}
-                  key={slug}
-                  className={`glass-card p-6 lg:p-8 scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center ${
-                    reverse ? "lg:[&>div:first-child]:order-2" : ""
-                  }`}
-                >
-                  <div className="rounded-xl overflow-hidden border border-sage/20 bg-sage/5 aspect-[16/10]">
-                    <ScreenshotImage slug={slug} title={t.features.pages[slug].title} />
-                  </div>
-                  <div>
-                    <h3
-                      className={`text-2xl font-bold ${text.heading} mb-3`}
+        {/* Body: sticky TOC (desktop) + screen rows */}
+        <section className="pb-20">
+          <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
+            {/* TOC */}
+            <aside className="hidden lg:block">
+              <div className="sticky top-20">
+                <h2 className={`${m.text.meta} mb-3`}>{t.features.tocTitle}</h2>
+                <nav className="flex flex-col">
+                  {PAGE_SLUGS.map((slug, idx) => (
+                    <a
+                      key={slug}
+                      href={`#${slug}`}
+                      className={`flex items-baseline gap-2 border-b ${m.rule.line} border-s-2 border-transparent py-2 ${m.text.meta} transition-colors hover:!text-ink hover:border-marker focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink`}
                     >
-                      {t.features.pages[slug].title}
-                    </h3>
-                    <p className={`${text.muted} leading-relaxed`}>
-                      {t.features.pages[slug].desc}
-                    </p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+                      <span className="shrink-0">{ordinal(idx)}</span>
+                      <span className="normal-case tracking-normal">
+                        {t.features.pages[slug].title}
+                      </span>
+                    </a>
+                  ))}
+                </nav>
+              </div>
+            </aside>
 
-      {/* CTA */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className={`text-4xl font-bold ${text.heading} mb-4`}>
-            {t.features.ctaTitle}
-          </h2>
-          <p className={`${text.muted} mb-8 text-lg`}>{t.features.ctaDesc}</p>
-          <div className="flex items-center justify-center gap-4">
-            <Link
-              to="/register"
-              className="glass-btn-primary px-8 py-3 text-base"
-            >
-              {t.features.ctaBtn}
-            </Link>
-            <Link to="/" className="glass-btn-secondary px-8 py-3 text-base">
-              {t.features.backToHome}
-            </Link>
+            {/* Rows */}
+            <div className="flex flex-col gap-10">
+              {PAGE_SLUGS.map((slug, idx) => {
+                const reverse = idx % 2 === 1;
+                return (
+                  <article
+                    id={slug}
+                    key={slug}
+                    className={`${m.surface} border ${m.rule.heavy} p-6 lg:p-10 scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center ${
+                      reverse ? "lg:[&>div:first-child]:order-2" : ""
+                    }`}
+                  >
+                    <div
+                      className={`${m.surface} border ${m.rule.line} overflow-hidden aspect-[16/10]`}
+                    >
+                      <ScreenshotImage slug={slug} title={t.features.pages[slug].title} />
+                    </div>
+                    <div>
+                      <p className={`${m.text.meta} mb-2`}>{ordinal(idx)}</p>
+                      <h3
+                        className={`${m.text.display} font-display text-2xl font-semibold mb-3`}
+                      >
+                        {t.features.pages[slug].title}
+                      </h3>
+                      <p className={`${m.text.muted} max-w-[62ch] leading-relaxed`}>
+                        {t.features.pages[slug].desc}
+                      </p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer className={`border-t ${border.default} py-8 px-6`}>
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className={`flex items-center gap-2 ${text.muted} text-sm`}>
-            <img src="/favicon.svg" alt="" className="w-5 h-5" />
-            <span>Wiz Scheduler</span>
+        {/* CTA — one action */}
+        <section className="pb-24">
+          <div className="max-w-2xl">
+            <h2 className={`${m.text.display} font-display text-4xl font-semibold mb-4`}>
+              {t.features.ctaTitle}
+            </h2>
+            <p className={`${m.text.muted} text-lg mb-8 max-w-[55ch]`}>{t.features.ctaDesc}</p>
+            <div className="flex flex-wrap items-center gap-6">
+              <Link to="/register" className={m.btn.primary}>
+                {t.features.ctaBtn}
+              </Link>
+              <Link to="/" className={m.btn.link}>
+                {t.features.backToHome}
+              </Link>
+            </div>
           </div>
-          <div className={`text-xs ${text.muted}`}>Suggestival LLC</div>
-        </div>
-      </footer>
-    </div>
+        </section>
+      </main>
+    </MarketingShell>
   );
 }
 
@@ -178,7 +144,7 @@ function ScreenshotImage({ slug, title }: { slug: Slug; title: string }) {
         img.style.display = "none";
         parent.classList.add("flex", "items-center", "justify-center");
         const placeholder = document.createElement("div");
-        placeholder.className = "text-sm text-gray-500 px-4 text-center";
+        placeholder.className = "text-sm text-ink/70 px-4 text-center";
         placeholder.textContent = `Screenshot pending: ${title}`;
         parent.appendChild(placeholder);
       }}

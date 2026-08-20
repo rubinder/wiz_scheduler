@@ -29,3 +29,6 @@ frontend/dist/
 
 # code-review-graph index (rebuilt locally by the PreToolUse hook on git push / gh pr create).
 .code-review-graph/
+
+# Claude Code worktrees (isolated workspaces; never committed)
+.claude/worktrees/

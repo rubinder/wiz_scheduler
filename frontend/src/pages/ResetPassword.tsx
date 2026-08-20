@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { resetPassword } from "../api/auth";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, action } from "../theme";
+import { marketing as m } from "../theme";
 
 export default function ResetPassword() {
   useDocumentTitle("Reset Password");
@@ -20,17 +21,12 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card w-full max-w-md p-8 text-center">
-          <h1 className="text-xl font-bold text-red-400 mb-2">
-            {t.resetPassword.invalidLink}
-          </h1>
-          <p className={text.muted}>{t.resetPassword.invalidLinkDesc}</p>
-          <Link to="/login" className={`mt-4 inline-block ${action.link} text-sm`}>
+      <AuthLayout title={t.resetPassword.invalidLink}>
+          <p className={m.text.muted}>{t.resetPassword.invalidLinkDesc}</p>
+          <Link to="/login" className={`mt-4 inline-block ${m.btn.link} text-sm`}>
             {t.resetPassword.backToLogin}
           </Link>
-        </div>
-      </div>
+      </AuthLayout>
     );
   }
 
@@ -69,32 +65,28 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card w-full max-w-md p-8">
-        <h1 className={`text-2xl font-bold mb-1 ${text.heading}`}>
-          {t.resetPassword.title}
-        </h1>
-        <p className={`text-sm ${text.muted} mb-6`}>
+    <AuthLayout title={t.resetPassword.title}>
+        <p className={`text-sm ${m.text.muted} mb-6`}>
           {t.resetPassword.description}
         </p>
 
-        {error && <div className="glass-alert-error mb-4">{error}</div>}
+        {error && <div className={`${m.alert.error} mb-4`}>{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="glass-label">{t.resetPassword.newPassword}</label>
+            <label className={m.label}>{t.resetPassword.newPassword}</label>
             <input
               type="password"
               required
               autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.resetPassword.atLeast6}
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.resetPassword.confirmPassword}
             </label>
             <input
@@ -102,19 +94,18 @@ export default function ResetPassword() {
               required
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.resetPassword.reenterPassword}
             />
           </div>
           <button
             type="submit"
             disabled={submitting || !password || !confirm}
-            className="glass-btn-primary w-full disabled:opacity-50"
+            className={`${m.btn.primary} w-full`}
           >
             {submitting ? t.resetPassword.submitting : t.resetPassword.submit}
           </button>
         </form>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

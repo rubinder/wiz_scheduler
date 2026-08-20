@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { acceptInvite, getInviteInfo } from "../api/employees";
 import type { InviteInfoResponse } from "../types";
+import AuthLayout from "../components/marketing/AuthLayout";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
-import { text, border, action, bg } from "../theme";
+import { marketing as m } from "../theme";
 
 export default function AcceptInvite() {
   useDocumentTitle("Accept Invite");
@@ -63,97 +64,91 @@ export default function AcceptInvite() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className={text.muted}>{t.common.loading}</div>
+        <div className={m.text.muted}>{t.common.loading}</div>
       </div>
     );
   }
 
   if (!info) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass-card w-full max-w-md p-8 text-center">
-          <h1 className="text-xl font-bold text-red-400 mb-2">{t.acceptInvite.invalidInvite}</h1>
-          <p className={text.muted}>{error || t.acceptInvite.invalidInviteDesc}</p>
+      <AuthLayout title={t.acceptInvite.invalidInvite}>
+          <p className={m.text.muted}>{error || t.acceptInvite.invalidInviteDesc}</p>
           <a
             href="/login"
-            className={`mt-4 inline-block ${action.link} text-sm`}
+            className={`mt-4 inline-block ${m.btn.link} text-sm`}
           >
             {t.acceptInvite.goToLogin}
           </a>
-        </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="glass-card w-full max-w-md p-8">
-        <h1 className={`text-2xl font-bold mb-1 ${text.heading}`}>{t.acceptInvite.setupTitle}</h1>
-        <p className={`text-sm ${text.muted} mb-6`}>
-          {t.acceptInvite.welcomeTo} <strong className={text.secondary}>{info.company_name}</strong>, {info.employee_name}!
+    <AuthLayout title={t.acceptInvite.setupTitle}>
+        <p className={`text-sm ${m.text.muted} mb-6`}>
+          {t.acceptInvite.welcomeTo} <strong className={m.text.body}>{info.company_name}</strong>, {info.employee_name}!
           <br />
           {t.acceptInvite.choosePassword}
         </p>
 
         {error && (
-          <div className="glass-alert-error mb-4">
+          <div className={`${m.alert.error} mb-4`}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.common.email}
             </label>
             <input
               type="email"
               value={info.email}
               disabled
-              className={`w-full border ${border.subtle} rounded px-3 py-2 text-sm ${bg.sectionSubtle} ${text.muted}`}
+              className={`${m.input} bg-ink/[0.03] ${m.text.muted}`}
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.common.password}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.acceptInvite.atLeast6}
               autoFocus
             />
           </div>
           <div>
-            <label className="glass-label">
+            <label className={m.label}>
               {t.acceptInvite.confirmPassword}
             </label>
             <input
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="glass-input w-full"
+              className={m.input}
               placeholder={t.acceptInvite.reenterPassword}
             />
           </div>
           <button
             type="submit"
             disabled={submitting}
-            className="glass-btn-primary w-full"
+            className={`${m.btn.primary} w-full`}
           >
             {submitting ? t.acceptInvite.creatingAccount : t.acceptInvite.createAndLogin}
           </button>
         </form>
 
-        <p className={`mt-4 text-center text-xs ${text.muted}`}>
+        <p className={`mt-4 text-center text-xs ${m.text.muted}`}>
           {t.acceptInvite.haveAccount}{" "}
-          <a href="/login" className={action.link}>
+          <a href="/login" className={m.btn.link}>
             {t.acceptInvite.logIn}
           </a>
         </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

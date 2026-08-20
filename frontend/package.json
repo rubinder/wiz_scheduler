@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:shoot": "node scripts/verify/shoot.mjs",
+    "verify:interact": "node scripts/verify/interact.mjs",
+    "verify:contrast": "node scripts/verify/contrast.mjs",
+    "verify:marker": "node scripts/verify/marker.mjs"
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.0.1",
+    "motion": "^13.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"

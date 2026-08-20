@@ -4,6 +4,11 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"],
+        data: ["var(--font-data)"],
+      },
       colors: {
         cream: "#FFF8E7",
         sage: {
@@ -20,6 +25,12 @@ const config: Config = {
           150: "rgba(196, 162, 101, 0.15)",
           200: "rgba(196, 162, 101, 0.20)",
         },
+        ink: "#1A1815",
+        newsprint: "#E9E4D8",
+        paper: "#F5F2EA",
+        rule: "#C9C0B0",
+        marker: "#FF5A1F",
+        clear: "#1D7357",
       },
       animation: {
         "wiz-glow": "wiz-glow 1.2s ease-in-out infinite",
