@@ -162,12 +162,7 @@ const pt = {
     haveAccount: "Já tem uma conta?",
     signIn: "Entrar",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Faturamento",
-    billingComplete: "Faturamento configurado",
-    billingRequired: "Obrigatório",
-    setupBilling: "Configurar faturamento",
-    redirectingToStripe: "Redirecionando para o pagamento...",
-    emailRequiredForBilling: "Por favor, insira seu e-mail antes de configurar o faturamento.",
+    createFreeAccount: "Criar conta gratuita",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const pt = {
     manager: "Gerente",
     importFrom7shifts: "Importar do 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Disponível em planos pagos — faça upgrade para importar automaticamente.",
+    upgradeConfirmFailed: "Não foi possível confirmar sua atualização. Se você foi cobrado, entre em contato com o suporte e resolveremos.",
     subtitle: "Gerencie sua programação pelo painel abaixo.",
     companyDesc: "Visualizar e editar configurações da empresa",
     regionsDesc: "Gerenciar regiões geográficas",
@@ -233,6 +230,19 @@ const pt = {
     employeesDesc: "Gerenciar sua equipe de trabalho",
     shiftTemplatesDesc: "Configurar padrões de turnos semanais",
     scheduleDesc: "Gerar e aprovar escalas",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Sua conta excede os limites do plano gratuito. Faça upgrade para retomar a geração de escalas.",
+    reasonSubscriptionCanceled: "Sua assinatura foi cancelada. Reative para retomar a programação.",
+    reasonAiRequiresPaid: "A programação por IA requer um plano pago. Você ainda pode gerar sem IA.",
+    reasonScheduleLimitReached: "Você usou todas as gerações de escala gratuitas deste mês. O limite será redefinido no início do próximo mês — faça upgrade para removê-lo.",
+    usage: "{employeeCount} de {employeeLimit} funcionários · {locationCount} de {locationLimit} locais",
+    usageGenerations: " · {generationCount} de {generationLimit} gerações este mês",
+    upgradeButton: "Fazer upgrade",
+    upgrading: "Redirecionando…",
+    upgradeFailed: "Não foi possível iniciar o checkout de upgrade.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const pt = {
     address: "Endereço",
     timezone: "Fuso horário",
     region: "Região",
+    limitReached: "O plano gratuito permite {limit} locais — faça upgrade para adicionar mais.",
+    csvLimitError: "Este arquivo tem {rows} locais, mas seu plano gratuito só tem espaço para {remaining}. O arquivo inteiro seria rejeitado — faça upgrade ou envie um arquivo menor.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const pt = {
     addRow: "+ Adicionar linha",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "O plano gratuito permite {limit} funcionários — faça upgrade para adicionar mais.",
+    csvLimitError: "Este arquivo tem {rows} funcionários, mas seu plano gratuito só tem espaço para {remaining}. O arquivo inteiro seria rejeitado — faça upgrade ou envie um arquivo menor.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const pt = {
     aiGenerate: "Gerar com IA",
     localGenerate: "Gerar Normal (com Estratégias)",
     generating: "Gerando...",
+    generationCapReachedNotice: "Você usou {used} de {max} gerações de escala gratuitas este mês. Faça upgrade para gerar mais.",
     reset: "Redefinir",
     selectTemplates: "Selecionar modelos de turnos",
     selectTemplatesDesc: "Escolha quais modelos de turnos usar para gerar escalas. Os modelos estão agrupados por local.",
@@ -572,6 +587,7 @@ const pt = {
     billingOnHoldBody: "Seu último pagamento automático falhou em {date}. Atualize seu cartão ou tente o pagamento novamente para continuar.",
     retryPayment: "Tentar pagamento novamente",
     retryFailed: "Tentativa falhou — atualize seu cartão e tente novamente.",
+    upgradeConfirmFailed: "Não foi possível confirmar sua atualização. Se você foi cobrado, entre em contato com o suporte e resolveremos.",
     updateCard: "Atualizar cartão",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

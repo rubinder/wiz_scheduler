@@ -162,12 +162,7 @@ const trLang = {
     haveAccount: "Zaten hesabınız var mı?",
     signIn: "Giriş yapın",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Faturalama",
-    billingComplete: "Faturalama ayarlandı",
-    billingRequired: "Gerekli",
-    setupBilling: "Faturalama Ayarla",
-    redirectingToStripe: "Ödemeye yönlendiriliyor...",
-    emailRequiredForBilling: "Faturalamayı ayarlamadan önce lütfen e-posta adresinizi girin.",
+    createFreeAccount: "Ücretsiz hesap oluştur",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const trLang = {
     manager: "Yönetici",
     importFrom7shifts: "7shifts'ten İçe Aktar",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Yalnızca ücretli planlarda kullanılabilir — otomatik içe aktarmak için yükseltin.",
+    upgradeConfirmFailed: "Yükseltmeniz onaylanamadı. Kartınızdan ücret alındıysa destek ile iletişime geçin, sorunu çözeceğiz.",
     subtitle: "Aşağıdaki kontrol panelinden programlamalarınızı yönetin.",
     companyDesc: "Şirket ayarlarını görüntüle ve düzenle",
     regionsDesc: "Coğrafi bölgeleri yönet",
@@ -233,6 +230,19 @@ const trLang = {
     employeesDesc: "İş gücünüzü yönetin",
     shiftTemplatesDesc: "Haftalık vardiya kalıplarını yapılandır",
     scheduleDesc: "Program oluştur ve onayla",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Hesabınız ücretsiz plan sınırlarını aşıyor. Program oluşturmaya devam etmek için yükseltin.",
+    reasonSubscriptionCanceled: "Aboneliğiniz iptal edildi. Programlamaya devam etmek için yeniden etkinleştirin.",
+    reasonAiRequiresPaid: "AI ile programlama ücretli bir plan gerektirir. AI olmadan yine de oluşturabilirsiniz.",
+    reasonScheduleLimitReached: "Bu ay için tüm ücretsiz program oluşturma hakkınızı kullandınız. Sınır gelecek ayın başında sıfırlanır — kaldırmak için yükseltin.",
+    usage: "{employeeCount}/{employeeLimit} çalışan · {locationCount}/{locationLimit} konum",
+    usageGenerations: " · bu ay {generationCount}/{generationLimit} oluşturma",
+    upgradeButton: "Yükselt",
+    upgrading: "Yönlendiriliyor…",
+    upgradeFailed: "Yükseltme ödemesi başlatılamadı.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const trLang = {
     address: "Adres",
     timezone: "Saat Dilimi",
     region: "Bölge",
+    limitReached: "Ücretsiz plan {limit} konuma izin verir — daha fazla eklemek için yükseltin.",
+    csvLimitError: "Bu dosyada {rows} konum var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const trLang = {
     addRow: "+ Satır Ekle",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Ücretsiz plan {limit} çalışana izin verir — daha fazla eklemek için yükseltin.",
+    csvLimitError: "Bu dosyada {rows} çalışan var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const trLang = {
     aiGenerate: "AI ile Oluştur",
     localGenerate: "Normal Oluştur (Stratejilerle)",
     generating: "Oluşturuluyor...",
+    generationCapReachedNotice: "Bu ay {max} ücretsiz program oluşturma hakkından {used} tanesini kullandınız. Daha fazla oluşturmak için yükseltin.",
     reset: "Sıfırla",
     selectTemplates: "Vardiya Şablonlarını Seçin",
     selectTemplatesDesc: "Program oluşturmak için vardiya şablonlarını seçin. Şablonlar konuma göre gruplandırılmıştır.",
@@ -572,6 +587,7 @@ const trLang = {
     billingOnHoldBody: "Son otomatik ödemeniz {date} tarihinde başarısız oldu. Devam etmek için kartınızı güncelleyin veya ödemeyi tekrar deneyin.",
     retryPayment: "Ödemeyi yeniden dene",
     retryFailed: "Yeniden deneme başarısız — kartınızı güncelleyip tekrar deneyin.",
+    upgradeConfirmFailed: "Yükseltmeniz onaylanamadı. Kartınızdan ücret alındıysa destek ile iletişime geçin, sorunu çözeceğiz.",
     updateCard: "Kartı güncelle",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

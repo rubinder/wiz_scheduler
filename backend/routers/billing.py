@@ -398,3 +398,135 @@ async def confirm_reactivation(
     await db.commit()
 
     return {"reactivated": True, "subscription_id": og.stripe_subscription_id}
+
+
+# ---------------------------------------------------------------------------
+# Plan state + free-to-paid upgrade endpoints
+# ---------------------------------------------------------------------------
+
+
+class UpgradeCheckoutResponse(BaseModel):
+    session_id: str
+    url: str
+
+
+class ConfirmUpgradeRequest(BaseModel):
+    session_id: str
+
+
+@router.get("/plan")
+async def get_plan(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the current plan state for the caller's ownership group."""
+    from backend.services.plan import get_plan_state
+
+    return await get_plan_state(db, str(current_user.company_id))
+
+
+@router.post("/upgrade-checkout", response_model=UpgradeCheckoutResponse)
+async def upgrade_checkout(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> UpgradeCheckoutResponse:
+    """Create a Checkout session that moves a free ownership group to paid.
+
+    Distinct from /reactivate-checkout: that path requires canceled_at to be
+    set and reuses an existing stripe_customer_id, neither of which holds for
+    an ownership group that has never touched Stripe.
+    """
+    og = await _load_og(db, current_user)
+    if og.stripe_subscription_id is not None and og.canceled_at is None:
+        raise HTTPException(
+            status_code=400, detail="This account is already on a paid plan."
+        )
+    if not settings.STRIPE_SECRET_KEY or not settings.STRIPE_PRICE_ID:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    # Must point at /manager/schedule: that's the only route wired to read
+    # `upgrade_session_id` and call POST /billing/confirm-upgrade (see
+    # frontend/src/pages/manager/Schedule.tsx). Pointing this at the
+    # dashboard silently orphaned the Checkout session — the subscription
+    # was created in Stripe but never attached to the ownership group.
+    success_url = settings.STRIPE_SUCCESS_URL.replace(
+        "/register", "/manager/schedule"
+    ).replace("session_id=", "upgrade_session_id=")
+    cancel_url = settings.STRIPE_CANCEL_URL.replace("/register", "/manager/schedule")
+
+    kwargs: dict = {
+        "mode": "subscription",
+        "payment_method_types": ["card"],
+        "line_items": [{"price": settings.STRIPE_PRICE_ID, "quantity": 1}],
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        # Binds the session to this ownership group so confirm_upgrade can
+        # verify it wasn't obtained by/leaked to a different tenant.
+        "client_reference_id": str(og.id),
+    }
+    # Reuse the customer if one exists (e.g. a previously canceled group);
+    # otherwise let Checkout create one from the manager's email.
+    if og.stripe_customer_id:
+        kwargs["customer"] = og.stripe_customer_id
+    else:
+        kwargs["customer_email"] = current_user.email
+
+    try:
+        session = stripe.checkout.Session.create(**kwargs)
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return UpgradeCheckoutResponse(session_id=session.id, url=session.url)
+
+
+@router.post("/confirm-upgrade")
+async def confirm_upgrade(
+    body: ConfirmUpgradeRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Verify the upgrade Checkout session and attach it to the group."""
+    og = await _load_og(db, current_user)
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        session = stripe.checkout.Session.retrieve(body.session_id)
+    except stripe.StripeError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+
+    if session.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Payment not completed")
+
+    # Unconditional binding check: the session must have been created for
+    # THIS ownership group. This covers the common case of a free group
+    # upgrading for the first time (no stripe_customer_id yet), where the
+    # customer-based check below would otherwise be skipped entirely and let
+    # any authenticated manager attach someone else's paid session.
+    if session.client_reference_id != str(og.id):
+        raise HTTPException(
+            status_code=400, detail="Session does not belong to this account"
+        )
+
+    # Defense in depth: when the group already had a customer, the session's
+    # customer must also match it.
+    if og.stripe_customer_id and session.customer != og.stripe_customer_id:
+        raise HTTPException(
+            status_code=400, detail="Session does not belong to this account"
+        )
+
+    og.stripe_customer_id = session.customer
+    og.stripe_subscription_id = session.subscription
+    og.canceled_at = None
+    # Mirror confirm_reactivation: an upgrade from a canceled state must
+    # reset the deletion-lifecycle notification markers too, or a group
+    # that upgrades-then-cancels-again is treated as already notified and
+    # skips the day-76 deletion warning before the day-90 hard delete.
+    og.notified_subscription_ended_at = None
+    og.notified_deletion_reminder_at = None
+    og.notified_data_deleted_at = None
+    await db.commit()
+
+    return {"upgraded": True, "subscription_id": og.stripe_subscription_id}

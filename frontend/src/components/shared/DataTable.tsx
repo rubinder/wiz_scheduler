@@ -20,6 +20,13 @@ interface DataTableProps {
   onSave: (rowIndex: number, updatedRow: Record<string, unknown>) => void;
   onDelete?: (rowIndex: number) => void;
   onCreate?: (newRow: Record<string, unknown>) => void;
+  /** When true, renders the "+ Add" control disabled instead of omitting
+   * it, so the user sees why they can't add rather than the control
+   * silently disappearing. Defaults to false (today's behavior). */
+  createDisabled?: boolean;
+  /** Explanatory copy shown adjacent to the "+ Add" control when
+   * `createDisabled` is true. Ignored otherwise. */
+  createDisabledReason?: string;
 }
 
 export default function DataTable({
@@ -28,6 +35,8 @@ export default function DataTable({
   onSave,
   onDelete,
   onCreate,
+  createDisabled = false,
+  createDisabledReason,
 }: DataTableProps) {
   const { t } = useLanguage();
   const [editingRow, setEditingRow] = useState<number | null>(null);
@@ -247,11 +256,15 @@ export default function DataTable({
           <DemoGuard>
             <button
               onClick={() => setShowAddRow(true)}
+              disabled={createDisabled}
               className="glass-btn-primary px-4 py-2 text-sm"
             >
               {t.dataTable.addRow}
             </button>
           </DemoGuard>
+          {createDisabled && createDisabledReason && (
+            <p className={`mt-2 text-sm ${text.muted}`}>{createDisabledReason}</p>
+          )}
         </div>
       )}
     </div>

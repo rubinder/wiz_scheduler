@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import * as schedulesApi from "../../api/schedules";
 import * as shiftTemplatesApi from "../../api/shiftTemplates";
 import * as locationsApi from "../../api/locations";
@@ -9,7 +10,9 @@ import { listSpecialHours } from "../../api/specialHours";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import DemoGuard from "../../components/shared/DemoGuard";
+import PlanBanner from "../../components/shared/PlanBanner";
 import { ScheduleLockedError, useScheduleStream } from "../../hooks/useScheduleStream";
+import { usePlan } from "../../hooks/usePlan";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, roleColorsLight, spinner as spinnerClass } from "../../theme";
 import type {
@@ -414,6 +417,42 @@ export default function Schedule() {
     useScheduleStream();
   const [actionError, setActionError] = useState("");
 
+  // Free-tier plan state — drives the PlanBanner and gates AI generation.
+  // `plan` is null while loading or if the fetch failed; every gate below
+  // must fail OPEN on null so a plan-fetch outage never blocks scheduling.
+  const { plan, refresh: refreshPlan } = usePlan();
+
+  // Free-plan monthly generation cap. FAIL OPEN: `plan` is null while
+  // loading or on fetch failure, so the optional-chain short-circuits to
+  // `undefined` (falsy) and nothing is disabled — the server remains the
+  // real enforcement point.
+  const generationCapReached =
+    plan?.plan === "free" &&
+    plan.schedules.limit !== null &&
+    plan.schedules.count >= plan.schedules.limit;
+
+  // Handle return from Stripe upgrade checkout: confirm the session,
+  // refresh plan state, then strip the query param so a page reload
+  // doesn't re-trigger confirmation.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const sessionId = searchParams.get("upgrade_session_id");
+    if (!sessionId) return;
+    billingApi
+      .confirmUpgrade(sessionId)
+      .then(() => refreshPlan())
+      .catch((err) => {
+        console.error("Upgrade confirmation failed", err);
+        setActionError(
+          err instanceof Error ? err.message : t.schedule.upgradeConfirmFailed
+        );
+      })
+      .finally(() => {
+        searchParams.delete("upgrade_session_id");
+        setSearchParams(searchParams, { replace: true });
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Schedule-lock toast state — populated by either the stream hook
   // (generate path) or the approve handler.
   const [lockedBy, setLockedBy] = useState<string | null>(null);
@@ -426,6 +465,34 @@ export default function Schedule() {
       setLockExpiresAt(lockedError.expiresAt);
     }
   }, [lockedError]);
+
+  // Refresh plan state once a generation stream ends — success OR failure —
+  // so the free-tier generation count (and generationCapReached gating) is
+  // current without requiring a page reload. useScheduleStream.generate()
+  // is fire-and-forget with no completion callback, so we watch for the
+  // isStreaming true -> false transition instead.
+  //
+  // We deliberately do NOT skip this on error/lockedError: a
+  // schedule_limit_reached 402 means the *server's* count is already at
+  // cap while our locally-cached plan.schedules.count is stale (usually
+  // because another manager on the same ownership group used the last
+  // generation — see usePlan.ts's staleness note). Not refreshing would
+  // leave generationCapReached false and the button enabled, so a user
+  // could click straight into the same 402 again with no explanation.
+  // useScheduleStream flattens every 402/409 body down to a plain message
+  // string before exposing it as `error` (see its response.ok branch,
+  // which extracts `detail.message` and discards `detail.code`), so we
+  // can't cheaply distinguish "cap reached" from other failures here
+  // without changing that hook (out of scope for this fix). Refreshing
+  // unconditionally costs one extra GET /billing/plan per failed
+  // generation, which is a good trade for never leaving the UI stuck.
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      void refreshPlan();
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, refreshPlan]);
 
   // AI credit & schedule quota state
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
@@ -493,6 +560,17 @@ export default function Schedule() {
   const [fairnessWeight, setFairnessWeight] = useState(0.7);
   const [maxHours, setMaxHours] = useState(40);
   const [hourStrictness, setHourStrictness] = useState(0.8);
+
+  // Once plan state loads, if AI generation is gated (free plan — see
+  // usePlan's fail-open contract: `plan` stays null on fetch failure, so
+  // this never fires when we don't actually know), fall back to local so
+  // the page stays usable instead of leaving the AI mode selected but
+  // unreachable.
+  useEffect(() => {
+    if (plan && !plan.can_generate_ai && generateMode === "ai") {
+      setGenerateMode("local");
+    }
+  }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch AI credit status and schedule quota on mount and after purchase
   const fetchCredits = useCallback(async () => {
@@ -977,6 +1055,10 @@ export default function Schedule() {
         </div>
       )}
 
+      {/* Free-tier status — renders nothing on a paid plan or while plan
+          state is unknown (null), per usePlan's fail-open contract. */}
+      {plan && <PlanBanner plan={plan} />}
+
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div className="flex items-center gap-3">
           <label className={`text-sm font-medium ${text.secondary}`}>{t.schedule.startLabel}</label>
@@ -1005,7 +1087,14 @@ export default function Schedule() {
         </div>
         <button
           onClick={() => handleGenerateClick("local")}
-          disabled={isStreaming || lockActive}
+          disabled={isStreaming || lockActive || plan?.over_limit === true || generationCapReached}
+          title={
+            generationCapReached
+              ? t.schedule.generationCapReachedNotice
+                  .replace("{used}", String(plan?.schedules.count))
+                  .replace("{max}", String(plan?.schedules.limit))
+              : undefined
+          }
           className="glass-btn-success px-5 py-3 rounded-lg font-semibold text-sm"
         >
           {isStreaming && generateMode === "local" ? t.schedule.generating : t.schedule.localGenerate}
@@ -1013,7 +1102,16 @@ export default function Schedule() {
         <DemoGuard>
           <button
             onClick={() => handleGenerateClick("ai")}
-            disabled={isStreaming || lockActive}
+            disabled={isStreaming || lockActive || plan?.can_generate_ai === false || generationCapReached}
+            title={
+              plan?.can_generate_ai === false
+                ? t.planBanner.reasonAiRequiresPaid
+                : generationCapReached
+                  ? t.schedule.generationCapReachedNotice
+                      .replace("{used}", String(plan?.schedules.count))
+                      .replace("{max}", String(plan?.schedules.limit))
+                  : undefined
+            }
             className="glass-btn-primary px-5 py-3 rounded-lg font-semibold text-sm"
           >
             {isStreaming && generateMode === "ai" ? t.schedule.generating : t.schedule.aiGenerate}
@@ -1031,6 +1129,17 @@ export default function Schedule() {
           </button>
         )}
       </div>
+
+      {/* Free-plan generation cap notice — visible (not just a hover
+          title) per the "disable, don't hide" rule, and only rendered
+          when we positively know the cap is reached (plan !== null). */}
+      {generationCapReached && (
+        <p className={`-mt-4 mb-6 text-sm ${text.muted}`}>
+          {t.schedule.generationCapReachedNotice
+            .replace("{used}", String(plan?.schedules.count))
+            .replace("{max}", String(plan?.schedules.limit))}
+        </p>
+      )}
 
       {/* Template Picker Modal */}
       {showTemplatePicker && (

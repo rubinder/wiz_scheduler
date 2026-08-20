@@ -162,12 +162,7 @@ const es = {
     haveAccount: "¿Ya tienes una cuenta?",
     signIn: "Iniciar sesión",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Facturación",
-    billingComplete: "Facturación configurada",
-    billingRequired: "Requerido",
-    setupBilling: "Configurar facturación",
-    redirectingToStripe: "Redirigiendo al pago...",
-    emailRequiredForBilling: "Por favor, ingrese su correo electrónico antes de configurar la facturación.",
+    createFreeAccount: "Crear cuenta gratis",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const es = {
     manager: "Gerente",
     importFrom7shifts: "Importar desde 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Disponible en planes de pago — mejora tu plan para importar automáticamente.",
+    upgradeConfirmFailed: "No se pudo confirmar tu actualización. Si se te cobró, contacta con soporte y lo solucionaremos.",
     subtitle: "Administra tu programación desde el panel a continuación.",
     companyDesc: "Ver y editar la configuración de la empresa",
     regionsDesc: "Administrar regiones geográficas",
@@ -233,6 +230,19 @@ const es = {
     employeesDesc: "Administrar tu equipo de trabajo",
     shiftTemplatesDesc: "Configurar patrones de turnos semanales",
     scheduleDesc: "Generar y aprobar horarios",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Tu cuenta supera los límites del plan gratuito. Mejora tu plan para reanudar la generación de horarios.",
+    reasonSubscriptionCanceled: "Tu suscripción fue cancelada. Reactívala para reanudar la programación.",
+    reasonAiRequiresPaid: "La programación con IA requiere un plan de pago. Aún puedes generar sin IA.",
+    reasonScheduleLimitReached: "Has usado todas tus generaciones de horarios gratuitas de este mes. El límite se restablece al inicio del próximo mes; mejora tu plan para eliminarlo.",
+    usage: "{employeeCount} de {employeeLimit} empleados · {locationCount} de {locationLimit} ubicaciones",
+    usageGenerations: " · {generationCount} de {generationLimit} generaciones este mes",
+    upgradeButton: "Mejorar plan",
+    upgrading: "Redirigiendo…",
+    upgradeFailed: "No se pudo iniciar el pago de la mejora.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const es = {
     address: "Dirección",
     timezone: "Zona horaria",
     region: "Región",
+    limitReached: "El plan gratuito permite {limit} ubicaciones — mejora tu plan para agregar más.",
+    csvLimitError: "Este archivo tiene {rows} ubicaciones, pero tu plan gratuito solo tiene espacio para {remaining}. Se rechazaría el archivo completo — mejora tu plan o sube un archivo más pequeño.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const es = {
     addRow: "+ Agregar fila",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "El plan gratuito permite {limit} empleados — mejora tu plan para agregar más.",
+    csvLimitError: "Este archivo tiene {rows} empleados, pero tu plan gratuito solo tiene espacio para {remaining}. Se rechazaría el archivo completo — mejora tu plan o sube un archivo más pequeño.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const es = {
     aiGenerate: "Generar con IA",
     localGenerate: "Generar Normal (con Estrategias)",
     generating: "Generando...",
+    generationCapReachedNotice: "Has usado {used} de {max} generaciones de horarios gratuitas este mes. Mejora tu plan para generar más.",
     reset: "Restablecer",
     selectTemplates: "Seleccionar plantillas de turnos",
     selectTemplatesDesc: "Elige qué plantillas de turnos usar para generar horarios. Las plantillas están agrupadas por ubicación.",
@@ -572,6 +587,7 @@ const es = {
     billingOnHoldBody: "Tu último pago automático falló el {date}. Actualiza tu tarjeta o reintenta el pago para continuar.",
     retryPayment: "Reintentar pago",
     retryFailed: "El reintento falló — actualiza tu tarjeta e inténtalo de nuevo.",
+    upgradeConfirmFailed: "No se pudo confirmar tu actualización. Si se te cobró, contacta con soporte y lo solucionaremos.",
     updateCard: "Actualizar tarjeta",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

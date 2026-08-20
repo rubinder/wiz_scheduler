@@ -162,12 +162,7 @@ const en = {
     haveAccount: "Already have an account?",
     signIn: "Sign in",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "Billing",
-    billingComplete: "Billing set up",
-    billingRequired: "Required",
-    setupBilling: "Set Up Billing",
-    redirectingToStripe: "Redirecting to payment...",
-    emailRequiredForBilling: "Please enter your email before setting up billing.",
+    createFreeAccount: "Create Free Account",
   },
 
   // ── Accept Invite ──
@@ -225,7 +220,9 @@ const en = {
     manager: "Manager",
     importFrom7shifts: "Import from 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "Available on paid plans — upgrade to import automatically.",
     subtitle: "Manage your scheduling from the dashboard below.",
+    upgradeConfirmFailed: "Couldn't confirm your upgrade. If you were charged, contact support and we'll sort it out.",
     companyDesc: "View and edit company settings",
     regionsDesc: "Manage geographic regions",
     locationsDesc: "Manage store locations",
@@ -233,6 +230,19 @@ const en = {
     employeesDesc: "Manage your workforce",
     shiftTemplatesDesc: "Configure weekly shift patterns",
     scheduleDesc: "Generate and approve schedules",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "Your account exceeds the free plan limits. Upgrade to resume schedule generation.",
+    reasonSubscriptionCanceled: "Your subscription was canceled. Reactivate to resume scheduling.",
+    reasonAiRequiresPaid: "AI scheduling requires a paid plan. You can still generate without AI.",
+    reasonScheduleLimitReached: "You've used all your free schedule generations for this month. The cap resets at the start of next month — upgrade to remove it.",
+    usage: "{employeeCount} of {employeeLimit} employees · {locationCount} of {locationLimit} locations",
+    usageGenerations: " · {generationCount} of {generationLimit} generations this month",
+    upgradeButton: "Upgrade",
+    upgrading: "Redirecting…",
+    upgradeFailed: "Could not start upgrade checkout.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const en = {
     address: "Address",
     timezone: "Timezone",
     region: "Region",
+    limitReached: "Free plan allows {limit} locations — upgrade to add more.",
+    csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const en = {
     addRow: "+ Add Row",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "Free plan allows {limit} employees — upgrade to add more.",
+    csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
   },
 
   // ── Employee Onboarding ──
@@ -510,6 +524,7 @@ const en = {
     aiGenerate: "AI Generate",
     localGenerate: "Normal Generate (with Strategies)",
     generating: "Generating...",
+    generationCapReachedNotice: "You've used {used} of {max} free schedule generations this month. Upgrade to generate more.",
     reset: "Reset",
     selectTemplates: "Select Shift Templates",
     selectTemplatesDesc: "Choose which shift templates to generate schedules for. Templates are grouped by location.",
@@ -573,6 +588,7 @@ const en = {
     billingOnHoldBody: "Your last automatic payment failed on {date}. Update your card or retry payment to resume.",
     retryPayment: "Retry payment",
     retryFailed: "Retry failed — update your card and try again.",
+    upgradeConfirmFailed: "Couldn't confirm your upgrade. If you were charged, contact support and we'll sort it out.",
     updateCard: "Update card",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

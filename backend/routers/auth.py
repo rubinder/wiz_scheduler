@@ -157,15 +157,14 @@ async def register(
         hashed_pw = _hash_password(body.password)
     client_ip = mask_ip(request.client.host) if request.client else None
 
-    # Verify Stripe checkout session if billing is configured
+    # Registration is free by default. A stripe_session_id is optional: when
+    # supplied it is verified and the account starts on the paid plan, and
+    # when absent the ownership group derives to the free plan. The paid
+    # path is kept so API clients (and a future "start paid" flow) work
+    # without a backend change.
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
-    if settings.STRIPE_SECRET_KEY and settings.STRIPE_PRICE_ID:
-        if not body.stripe_session_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Billing setup is required before registration.",
-            )
+    if body.stripe_session_id and settings.STRIPE_SECRET_KEY:
         stripe.api_key = settings.STRIPE_SECRET_KEY
         try:
             session = stripe.checkout.Session.retrieve(body.stripe_session_id)

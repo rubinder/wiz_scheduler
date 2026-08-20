@@ -29,6 +29,7 @@ from backend.models import (
     ShiftTemplate,
     User,
 )
+from backend.services.plan import assert_paid_plan
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -549,6 +550,8 @@ async def import_from_7shifts(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> ImportResult:
+    await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+
     # Per-OG cooldown (#44).
     from backend.services.billing import get_ownership_group_id
     from backend.services.integration_import_quota import begin_integration_import
@@ -834,6 +837,8 @@ async def import_availabilities_from_7shifts(
     db: AsyncSession = Depends(get_db),
 ) -> ImportAvailabilitiesResult:
     """Import employee availabilities from 7shifts for the specified date range."""
+    await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+
     # Per-OG cooldown (#44). Same integration key as the full import — running
     # either burns the slot for both, since both hit 7shifts.
     from backend.services.billing import get_ownership_group_id

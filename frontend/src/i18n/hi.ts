@@ -162,12 +162,7 @@ const hi = {
     haveAccount: "पहले से खाता है?",
     signIn: "साइन इन करें",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "बिलिंग",
-    billingComplete: "बिलिंग सेट अप हो गई",
-    billingRequired: "आवश्यक",
-    setupBilling: "बिलिंग सेट अप करें",
-    redirectingToStripe: "भुगतान पर रीडायरेक्ट हो रहा है...",
-    emailRequiredForBilling: "बिलिंग सेट अप करने से पहले कृपया अपना ईमेल दर्ज करें।",
+    createFreeAccount: "मुफ़्त खाता बनाएं",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const hi = {
     manager: "प्रबंधक",
     importFrom7shifts: "7shifts से आयात करें",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "केवल पेड प्लान पर उपलब्ध — स्वतः आयात करने के लिए अपग्रेड करें।",
+    upgradeConfirmFailed: "आपका अपग्रेड की पुष्टि नहीं हो सकी। यदि आपसे शुल्क लिया गया है, तो सहायता से संपर्क करें, हम इसे ठीक कर देंगे।",
     subtitle: "नीचे दिए गए डैशबोर्ड से अपनी शेड्यूलिंग प्रबंधित करें।",
     companyDesc: "कंपनी सेटिंग देखें और संपादित करें",
     regionsDesc: "भौगोलिक क्षेत्र प्रबंधित करें",
@@ -233,6 +230,19 @@ const hi = {
     employeesDesc: "अपने कार्यबल का प्रबंधन करें",
     shiftTemplatesDesc: "साप्ताहिक शिफ्ट पैटर्न कॉन्फ़िगर करें",
     scheduleDesc: "शेड्यूल बनाएं और स्वीकृत करें",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "आपका खाता फ्री प्लान की सीमा से अधिक है। शेड्यूल जनरेशन फिर से शुरू करने के लिए अपग्रेड करें।",
+    reasonSubscriptionCanceled: "आपकी सदस्यता रद्द कर दी गई है। शेड्यूलिंग फिर से शुरू करने के लिए पुनः सक्रिय करें।",
+    reasonAiRequiresPaid: "AI शेड्यूलिंग के लिए पेड प्लान आवश्यक है। आप अभी भी बिना AI के जनरेट कर सकते हैं।",
+    reasonScheduleLimitReached: "आपने इस महीने के सभी मुफ्त शेड्यूल जनरेशन का उपयोग कर लिया है। सीमा अगले महीने की शुरुआत में रीसेट हो जाएगी — इसे हटाने के लिए अपग्रेड करें।",
+    usage: "{employeeCount} में से {employeeLimit} कर्मचारी · {locationCount} में से {locationLimit} स्थान",
+    usageGenerations: " · इस महीने {generationCount} में से {generationLimit} जनरेशन",
+    upgradeButton: "अपग्रेड करें",
+    upgrading: "रीडायरेक्ट हो रहा है…",
+    upgradeFailed: "अपग्रेड चेकआउट शुरू नहीं हो सका।",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const hi = {
     address: "पता",
     timezone: "समय क्षेत्र",
     region: "क्षेत्र",
+    limitReached: "फ्री प्लान में {limit} स्थान तक की अनुमति है — और जोड़ने के लिए अपग्रेड करें।",
+    csvLimitError: "इस फ़ाइल में {rows} स्थान हैं, लेकिन आपके फ्री प्लान में केवल {remaining} के लिए जगह है। पूरी फ़ाइल अस्वीकार कर दी जाएगी — अपग्रेड करें, या कोई छोटी फ़ाइल अपलोड करें।",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const hi = {
     addRow: "+ पंक्ति जोड़ें",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "फ्री प्लान में {limit} कर्मचारी तक की अनुमति है — और जोड़ने के लिए अपग्रेड करें।",
+    csvLimitError: "इस फ़ाइल में {rows} कर्मचारी हैं, लेकिन आपके फ्री प्लान में केवल {remaining} के लिए जगह है। पूरी फ़ाइल अस्वीकार कर दी जाएगी — अपग्रेड करें, या कोई छोटी फ़ाइल अपलोड करें।",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const hi = {
     aiGenerate: "AI जनरेट",
     localGenerate: "सामान्य जनरेट (रणनीतियों के साथ)",
     generating: "जनरेट हो रहा है...",
+    generationCapReachedNotice: "आपने इस महीने {max} में से {used} मुफ्त शेड्यूल जनरेशन का उपयोग कर लिया है। अधिक जनरेट करने के लिए अपग्रेड करें।",
     reset: "रीसेट",
     selectTemplates: "शिफ्ट टेम्पलेट चुनें",
     selectTemplatesDesc: "चुनें कि किन शिफ्ट टेम्पलेट के लिए शेड्यूल बनाना है। टेम्पलेट स्थान के अनुसार समूहित हैं।",
@@ -572,6 +587,7 @@ const hi = {
     billingOnHoldBody: "{date} को आपका अंतिम स्वचालित भुगतान विफल रहा। जारी रखने के लिए अपना कार्ड अपडेट करें या भुगतान पुनः प्रयास करें।",
     retryPayment: "भुगतान पुनः प्रयास करें",
     retryFailed: "पुनः प्रयास विफल — अपना कार्ड अपडेट करें और फिर से प्रयास करें।",
+    upgradeConfirmFailed: "आपका अपग्रेड की पुष्टि नहीं हो सकी। यदि आपसे शुल्क लिया गया है, तो सहायता से संपर्क करें, हम इसे ठीक कर देंगे।",
     updateCard: "कार्ड अपडेट करें",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

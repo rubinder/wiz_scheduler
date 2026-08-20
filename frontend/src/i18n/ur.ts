@@ -162,12 +162,7 @@ const ur = {
     haveAccount: "پہلے سے اکاؤنٹ ہے؟",
     signIn: "سائن ان کریں",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "بلنگ",
-    billingComplete: "بلنگ سیٹ اپ ہو گئی",
-    billingRequired: "ضروری",
-    setupBilling: "بلنگ سیٹ اپ کریں",
-    redirectingToStripe: "ادائیگی کی طرف ری ڈائریکٹ ہو رہا ہے...",
-    emailRequiredForBilling: "بلنگ سیٹ اپ کرنے سے پہلے اپنا ای میل درج کریں۔",
+    createFreeAccount: "مفت اکاؤنٹ بنائیں",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const ur = {
     manager: "منیجر",
     importFrom7shifts: "7shifts سے درآمد کریں",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "صرف پیڈ پلان میں دستیاب ہے — خودکار درآمد کے لیے اپ گریڈ کریں۔",
+    upgradeConfirmFailed: "آپ کے اپ گریڈ کی تصدیق نہیں ہو سکی۔ اگر آپ سے چارج کیا گیا ہے تو سپورٹ سے رابطہ کریں، ہم اسے حل کر دیں گے۔",
     subtitle: "نیچے ڈیش بورڈ سے اپنی شیڈولنگ کا انتظام کریں۔",
     companyDesc: "کمپنی کی ترتیبات دیکھیں اور ترمیم کریں",
     regionsDesc: "جغرافیائی علاقوں کا انتظام کریں",
@@ -233,6 +230,19 @@ const ur = {
     employeesDesc: "اپنی افرادی قوت کا انتظام کریں",
     shiftTemplatesDesc: "ہفتہ وار شفٹ پیٹرن ترتیب دیں",
     scheduleDesc: "شیڈول تیار اور منظور کریں",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "آپ کا اکاؤنٹ فری پلان کی حد سے تجاوز کر گیا ہے۔ شیڈول جنریشن دوبارہ شروع کرنے کے لیے اپ گریڈ کریں۔",
+    reasonSubscriptionCanceled: "آپ کی سبسکرپشن منسوخ کر دی گئی ہے۔ شیڈولنگ دوبارہ شروع کرنے کے لیے دوبارہ فعال کریں۔",
+    reasonAiRequiresPaid: "AI شیڈولنگ کے لیے پیڈ پلان درکار ہے۔ آپ اب بھی بغیر AI کے جنریٹ کر سکتے ہیں۔",
+    reasonScheduleLimitReached: "آپ اس مہینے کے تمام مفت شیڈول جنریشنز استعمال کر چکے ہیں۔ حد اگلے مہینے کے آغاز پر ری سیٹ ہو جائے گی — اسے ہٹانے کے لیے اپ گریڈ کریں۔",
+    usage: "{employeeCount} میں سے {employeeLimit} ملازمین · {locationCount} میں سے {locationLimit} مقامات",
+    usageGenerations: " · اس مہینے {generationCount} میں سے {generationLimit} جنریشنز",
+    upgradeButton: "اپ گریڈ کریں",
+    upgrading: "ری ڈائریکٹ ہو رہا ہے…",
+    upgradeFailed: "اپ گریڈ چیک آؤٹ شروع نہیں ہو سکا۔",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const ur = {
     address: "پتہ",
     timezone: "ٹائم زون",
     region: "علاقہ",
+    limitReached: "فری پلان میں صرف {limit} مقامات کی اجازت ہے — مزید شامل کرنے کے لیے اپ گریڈ کریں۔",
+    csvLimitError: "اس فائل میں {rows} مقامات ہیں، لیکن آپ کے فری پلان میں صرف {remaining} کی گنجائش ہے۔ پوری فائل مسترد کر دی جائے گی — اپ گریڈ کریں، یا کوئی چھوٹی فائل اپ لوڈ کریں۔",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const ur = {
     addRow: "+ قطار شامل کریں",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "فری پلان میں صرف {limit} ملازمین کی اجازت ہے — مزید شامل کرنے کے لیے اپ گریڈ کریں۔",
+    csvLimitError: "اس فائل میں {rows} ملازمین ہیں، لیکن آپ کے فری پلان میں صرف {remaining} کی گنجائش ہے۔ پوری فائل مسترد کر دی جائے گی — اپ گریڈ کریں، یا کوئی چھوٹی فائل اپ لوڈ کریں۔",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const ur = {
     aiGenerate: "AI تیار کریں",
     localGenerate: "عام جنریٹ (حکمت عملیوں کے ساتھ)",
     generating: "تیار ہو رہا ہے...",
+    generationCapReachedNotice: "آپ نے اس مہینے {max} میں سے {used} مفت شیڈول جنریشنز استعمال کر لی ہیں۔ مزید جنریٹ کرنے کے لیے اپ گریڈ کریں۔",
     reset: "ری سیٹ",
     selectTemplates: "شفٹ ٹیمپلیٹس منتخب کریں",
     selectTemplatesDesc: "منتخب کریں کہ کن شفٹ ٹیمپلیٹس کے لیے شیڈول تیار کرنا ہے۔ ٹیمپلیٹس مقام کے لحاظ سے گروپ ہیں۔",
@@ -572,6 +587,7 @@ const ur = {
     billingOnHoldBody: "{date} کو آپ کی آخری خودکار ادائیگی ناکام ہوئی۔ جاری رکھنے کے لیے اپنا کارڈ اپ ڈیٹ کریں یا ادائیگی دوبارہ آزمائیں۔",
     retryPayment: "ادائیگی دوبارہ آزمائیں",
     retryFailed: "دوبارہ کوشش ناکام — اپنا کارڈ اپ ڈیٹ کریں اور دوبارہ کوشش کریں۔",
+    upgradeConfirmFailed: "آپ کے اپ گریڈ کی تصدیق نہیں ہو سکی۔ اگر آپ سے چارج کیا گیا ہے تو سپورٹ سے رابطہ کریں، ہم اسے حل کر دیں گے۔",
     updateCard: "کارڈ اپ ڈیٹ کریں",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

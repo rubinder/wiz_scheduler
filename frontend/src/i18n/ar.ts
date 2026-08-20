@@ -162,12 +162,7 @@ const ar = {
     haveAccount: "لديك حساب بالفعل؟",
     signIn: "تسجيل الدخول",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "الفوترة",
-    billingComplete: "تم إعداد الفوترة",
-    billingRequired: "مطلوب",
-    setupBilling: "إعداد الفوترة",
-    redirectingToStripe: "جارٍ التحويل إلى الدفع...",
-    emailRequiredForBilling: "يرجى إدخال بريدك الإلكتروني قبل إعداد الفوترة.",
+    createFreeAccount: "إنشاء حساب مجاني",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const ar = {
     manager: "مدير",
     importFrom7shifts: "استيراد من 7shifts",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "متاح فقط في الخطط المدفوعة — قم بالترقية للاستيراد التلقائي.",
+    upgradeConfirmFailed: "تعذّر تأكيد الترقية الخاصة بك. إذا تم خصم المبلغ من بطاقتك، تواصل مع الدعم وسنقوم بحل الأمر.",
     subtitle: "أدِر جداولك من لوحة التحكم أدناه.",
     companyDesc: "عرض وتعديل إعدادات الشركة",
     regionsDesc: "إدارة المناطق الجغرافية",
@@ -233,6 +230,19 @@ const ar = {
     employeesDesc: "إدارة القوى العاملة",
     shiftTemplatesDesc: "إعداد أنماط الورديات الأسبوعية",
     scheduleDesc: "إنشاء واعتماد الجداول",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "حسابك يتجاوز حدود الخطة المجانية. قم بالترقية لاستئناف إنشاء الجداول.",
+    reasonSubscriptionCanceled: "تم إلغاء اشتراكك. أعد التفعيل لاستئناف الجدولة.",
+    reasonAiRequiresPaid: "تتطلب الجدولة بالذكاء الاصطناعي خطة مدفوعة. يمكنك الإنشاء بدون الذكاء الاصطناعي.",
+    reasonScheduleLimitReached: "لقد استخدمت جميع عمليات إنشاء الجداول المجانية لهذا الشهر. يتم إعادة تعيين الحد في بداية الشهر القادم — قم بالترقية لإزالته.",
+    usage: "{employeeCount} من {employeeLimit} موظفين · {locationCount} من {locationLimit} مواقع",
+    usageGenerations: " · {generationCount} من {generationLimit} عمليات إنشاء هذا الشهر",
+    upgradeButton: "ترقية",
+    upgrading: "جارٍ إعادة التوجيه…",
+    upgradeFailed: "تعذر بدء عملية الترقية.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const ar = {
     address: "العنوان",
     timezone: "المنطقة الزمنية",
     region: "المنطقة",
+    limitReached: "الخطة المجانية تسمح بـ {limit} مواقع — قم بالترقية لإضافة المزيد.",
+    csvLimitError: "يحتوي هذا الملف على {rows} مواقع، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const ar = {
     addRow: "+ إضافة صف",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "الخطة المجانية تسمح بـ {limit} موظفين — قم بالترقية لإضافة المزيد.",
+    csvLimitError: "يحتوي هذا الملف على {rows} موظفين، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const ar = {
     aiGenerate: "إنشاء بالذكاء الاصطناعي",
     localGenerate: "إنشاء عادي (مع استراتيجيات)",
     generating: "جارٍ الإنشاء...",
+    generationCapReachedNotice: "لقد استخدمت {used} من {max} عمليات إنشاء جداول مجانية هذا الشهر. قم بالترقية لإنشاء المزيد.",
     reset: "إعادة تعيين",
     selectTemplates: "اختيار قوالب الورديات",
     selectTemplatesDesc: "اختر قوالب الورديات التي تريد إنشاء جداول لها. القوالب مُجمّعة حسب الموقع.",
@@ -572,6 +587,7 @@ const ar = {
     billingOnHoldBody: "فشلت آخر عملية دفع تلقائي بتاريخ {date}. حدّث بطاقتك أو أعد محاولة الدفع للمتابعة.",
     retryPayment: "إعادة محاولة الدفع",
     retryFailed: "فشلت إعادة المحاولة — حدّث بطاقتك وحاول مرة أخرى.",
+    upgradeConfirmFailed: "تعذّر تأكيد الترقية الخاصة بك. إذا تم خصم المبلغ من بطاقتك، تواصل مع الدعم وسنقوم بحل الأمر.",
     updateCard: "تحديث البطاقة",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

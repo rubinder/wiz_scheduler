@@ -4,12 +4,14 @@ import * as regionsApi from "../../api/regions";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import ImportModal from "../../components/shared/ImportModal";
 import DemoGuard from "../../components/shared/DemoGuard";
+import { usePlan } from "../../hooks/usePlan";
 import type { Location, Region } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
 
 export default function Locations() {
   const { t } = useLanguage();
+  const { plan, refresh: refreshPlan } = usePlan();
   const [locations, setLocations] = useState<Location[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
@@ -31,6 +33,14 @@ export default function Locations() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Proactive UX-only check — the API is the security boundary and is
+  // always re-checked server-side (a concurrent add by another manager
+  // on the same ownership group can make this stale).
+  const locationLimitReached =
+    plan?.plan === "free" &&
+    plan.locations.limit !== null &&
+    plan.locations.count >= plan.locations.limit;
 
   const columns: Column[] = useMemo(
     () => [
@@ -82,14 +92,43 @@ export default function Locations() {
     try {
       await locationsApi.deleteLocation(locations[idx].id);
       await fetchData();
+      await refreshPlan();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
   };
 
+  // Count CSV data rows (excluding header and blank lines) so we can
+  // refuse client-side before uploading a file the server would reject
+  // whole. This is a UX nicety only — it is skipped for JSON uploads and
+  // is never authoritative; the server still enforces the real limit.
+  const countCsvRows = async (file: File): Promise<number> => {
+    const text = await file.text();
+    return text
+      .split("\n")
+      .slice(1) // header
+      .filter((line) => line.trim().length > 0).length;
+  };
+
   const handleImportUpload = async (file: File) => {
+    if (
+      file.name.toLowerCase().endsWith(".csv") &&
+      plan?.plan === "free" &&
+      plan.locations.limit !== null
+    ) {
+      const rows = await countCsvRows(file);
+      const remaining = plan.locations.limit - plan.locations.count;
+      if (rows > remaining) {
+        throw new Error(
+          t.locationsPage.csvLimitError
+            .replace("{rows}", String(rows))
+            .replace("{remaining}", String(remaining))
+        );
+      }
+    }
     const result = await locationsApi.bulkUploadLocations(file);
     await fetchData();
+    await refreshPlan();
     return result;
   };
 
@@ -103,7 +142,12 @@ export default function Locations() {
         min_rest_hours: parseMinRest(row.min_rest_hours),
       });
       await fetchData();
+      await refreshPlan();
     } catch (err: unknown) {
+      // Also surfaces the server's 402 plan_limit_exceeded message inline:
+      // ApiError.message is already normalized from `detail.message` (see
+      // api/client.ts), so this same path covers stale-count rejections
+      // from a concurrent manager on the same ownership group.
       setError(err instanceof Error ? err.message : "Create failed");
     }
   };
@@ -144,6 +188,15 @@ export default function Locations() {
           onSave={handleSave}
           onDelete={handleDelete}
           onCreate={handleCreate}
+          createDisabled={locationLimitReached}
+          createDisabledReason={
+            locationLimitReached
+              ? t.locationsPage.limitReached.replace(
+                  "{limit}",
+                  String(plan?.locations.limit)
+                )
+              : undefined
+          }
         />
       </div>
     </div>

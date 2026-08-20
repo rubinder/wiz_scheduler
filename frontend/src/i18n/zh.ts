@@ -162,12 +162,7 @@ const zh = {
     haveAccount: "已有账号？",
     signIn: "登录",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "账单",
-    billingComplete: "账单已设置",
-    billingRequired: "必填",
-    setupBilling: "设置账单",
-    redirectingToStripe: "正在跳转到支付页面...",
-    emailRequiredForBilling: "请在设置账单之前输入您的电子邮箱。",
+    createFreeAccount: "创建免费账户",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const zh = {
     manager: "管理员",
     importFrom7shifts: "从 7shifts 导入",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "仅限付费计划 — 升级以自动导入。",
+    upgradeConfirmFailed: "无法确认您的升级。如果您已被扣款，请联系支持人员，我们会为您处理。",
     subtitle: "通过下方仪表盘管理您的排班。",
     companyDesc: "查看和编辑公司设置",
     regionsDesc: "管理地理区域",
@@ -233,6 +230,19 @@ const zh = {
     employeesDesc: "管理您的员工",
     shiftTemplatesDesc: "配置每周班次模式",
     scheduleDesc: "生成和审批排班",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "您的账户超出了免费版限制。升级以恢复排班生成。",
+    reasonSubscriptionCanceled: "您的订阅已取消。重新激活以恢复排班。",
+    reasonAiRequiresPaid: "AI 排班需要付费计划。您仍可以不使用 AI 生成排班。",
+    reasonScheduleLimitReached: "您本月的免费排班生成次数已用完。限额将在下月初重置——升级以取消此限制。",
+    usage: "{employeeCount} / {employeeLimit} 名员工 · {locationCount} / {locationLimit} 个门店",
+    usageGenerations: " · 本月生成 {generationCount}/{generationLimit} 次",
+    upgradeButton: "升级",
+    upgrading: "跳转中…",
+    upgradeFailed: "无法启动升级结账。",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const zh = {
     address: "地址",
     timezone: "时区",
     region: "区域",
+    limitReached: "免费版最多允许 {limit} 个门店——升级以添加更多。",
+    csvLimitError: "此文件包含 {rows} 个门店，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const zh = {
     addRow: "+ 添加行",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "免费版最多允许 {limit} 名员工——升级以添加更多。",
+    csvLimitError: "此文件包含 {rows} 名员工，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const zh = {
     aiGenerate: "AI 生成",
     localGenerate: "常规生成（含策略）",
     generating: "生成中...",
+    generationCapReachedNotice: "您本月已使用 {used}/{max} 次免费排班生成。升级以生成更多。",
     reset: "重置",
     selectTemplates: "选择班次模板",
     selectTemplatesDesc: "选择要生成排班的班次模板。模板按门店分组。",
@@ -572,6 +587,7 @@ const zh = {
     billingOnHoldBody: "你最近一次的自动付款于 {date} 失败。请更新银行卡或重试付款以继续。",
     retryPayment: "重试付款",
     retryFailed: "重试失败 — 请更新你的银行卡后再试。",
+    upgradeConfirmFailed: "无法确认您的升级。如果您已被扣款，请联系支持人员，我们会为您处理。",
     updateCard: "更新银行卡",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

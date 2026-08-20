@@ -162,12 +162,7 @@ const te = {
     haveAccount: "ఇప్పటికే ఖాతా ఉందా?",
     signIn: "సైన్ ఇన్ చేయండి",
     googleLinkNote: "After registering, you can link your Google account from the login page.",
-    billing: "బిల్లింగ్",
-    billingComplete: "బిల్లింగ్ సెట అప్ అయింది",
-    billingRequired: "అవసరం",
-    setupBilling: "బిల్లింగ్ సెట అప్ చేయండి",
-    redirectingToStripe: "చెల్లింపుకు రీడైరెక్ట్ అవుతోంది...",
-    emailRequiredForBilling: "బిల్లింగ్ సెట అప్ చేయడానికి ముందు దయచేసి మీ ఇమెయిల్ నమోదు చేయండి.",
+    createFreeAccount: "ఉచిత ఖాతాను సృష్టించండి",
   },
 
   // ── Accept Invite ──
@@ -225,6 +220,8 @@ const te = {
     manager: "మేనేజర్",
     importFrom7shifts: "7shifts నుండి దిగుమతి చేయి",
     importFromDeputy: "Import from Deputy",
+    importDisabledFreePlan: "పెయిడ్ ప్లాన్‌లలో మాత్రమే అందుబాటులో ఉంది — ఆటోమెటిక్‌గా దిగుమతి చేయడానికి అప్‌గ్రేడ్ చేయండి.",
+    upgradeConfirmFailed: "మీ అప్‌గ్రేడ్‌ను నిర్ధారించలేకపోయాము. మీ నుండి రుసుము వసూలు చేయబడితే, మద్దతును సంప్రదించండి, మేము దాన్ని పరిష్కరిస్తాము.",
     subtitle: "దిగువ డాష్‌బోర్డ్ నుండి మీ షెడ్యూలింగ్‌ను నిర్వహించండి.",
     companyDesc: "సంస్థ సెట్టింగ్‌లను చూడండి మరియు మార్చండి",
     regionsDesc: "భౌగోళిక ప్రాంతాలను నిర్వహించండి",
@@ -233,6 +230,19 @@ const te = {
     employeesDesc: "మీ సిబ్బందిని నిర్వహించండి",
     shiftTemplatesDesc: "వారపు షిఫ్ట్ నమూనాలను కాన్ఫిగర్ చేయండి",
     scheduleDesc: "షెడ్యూల్‌లను రూపొందించి ఆమోదించండి",
+  },
+
+  // ── Plan banner (free tier) ──
+  planBanner: {
+    reasonPlanLimitExceeded: "మీ ఖాతా ఉచిత ప్లాన్ పరిమితులను మించిపోయింది. షెడ్యూల్ జనరేషన్ కొనసాగించడానికి అప్‌గ్రేడ్ చేయండి.",
+    reasonSubscriptionCanceled: "మీ సభ్యత్థం రద్దు చేయబడింది. షెడ్యూలింగ్ కొనసాగించడానికి తిరిగి యాక్టివేట్ చేయండి.",
+    reasonAiRequiresPaid: "AI షెడ్యూలింగ్కు పెయిడ్ ప్లాన్ అవసరం. మీరు ఇప్పటికీ AI లేకుండా జనరేట్ చేయవచ్చు.",
+    reasonScheduleLimitReached: "మీరు ఈ నెలకు మీ ఉచిత షెడ్యూల్ జనరేషన్‌లన్నింటినీ ఉపయోగించారు. పరిమితి వచ్చే నెల ప్రారంభంలో రీసెట్ అవుతుంది — దీన్ని తొలగించడానికి అప్‌గ్రేడ్ చేయండి.",
+    usage: "{employeeCount} లో {employeeLimit} మంది ఉద్యోగులు · {locationCount} లో {locationLimit} స్థానాలు",
+    usageGenerations: " · ఈ నెలలో {generationCount} లో {generationLimit} జనరేషన్‌లు",
+    upgradeButton: "అప్‌గ్రేడ్ చేయండి",
+    upgrading: "దారి మళ్లిస్తోంది…",
+    upgradeFailed: "అప్‌గ్రేడ్ చెక్‌అవట్ ప్రారంభించలేకపోయాము.",
   },
 
   // ── Link Google account (dashboard card) ──
@@ -304,6 +314,8 @@ const te = {
     address: "చిరునామా",
     timezone: "సమయ మండలం",
     region: "ప్రాంతం",
+    limitReached: "ఉచిత ప్లాన్‌లో {limit} స్థానాలకు మాత్రమే అనుమతి ఉంది — మరిన్ని జోడించడానికి అప్‌గ్రేడ్ చేయండి.",
+    csvLimitError: "ఈ ఫైల్‌లో {rows} స్థానాలు ఉన్నాయి, కానీ మీ ఉచిత ప్లాన్‌లో {remaining} కి మాత్రమే స్థలం ఉంది. మొత్తం ఫైల్ తిరస్కరించబడుతుంది — అప్‌గ్రేడ్ చేయండి, లేదా చిన్న ఫైల్‌ని అప్‌లోడ్ చేయండి.",
   },
 
   // ── Roles ──
@@ -343,6 +355,8 @@ const te = {
     addRow: "+ అడ్డు వరుస జోడించు",
     filterLocationLabel: "Location:",
     filterAllLocations: "All locations",
+    limitReached: "ఉచిత ప్లాన్‌లో {limit} మంది ఉద్యోగులకు మాత్రమే అనుమతి ఉంది — మరిన్ని జోడించడానికి అప్‌గ్రేడ్ చేయండి.",
+    csvLimitError: "ఈ ఫైల్‌లో {rows} మంది ఉద్యోగులు ఉన్నారు, కానీ మీ ఉచిత ప్లాన్‌లో {remaining} మందికి మాత్రమే స్థలం ఉంది. మొత్తం ఫైల్ తిరస్కరించబడుతుంది — అప్‌గ్రేడ్ చేయండి, లేదా చిన్న ఫైల్‌ని అప్‌లోడ్ చేయండి.",
   },
 
   // ── Employee Onboarding ──
@@ -509,6 +523,7 @@ const te = {
     aiGenerate: "AI రూపొందించు",
     localGenerate: "సాధారణ రూపొందింపు (వ్యూహాలతో)",
     generating: "రూపొందిస్తోంది...",
+    generationCapReachedNotice: "మీరు ఈ నెలలో {max} లో {used} ఉచిత షెడ్యూల్ జనరేషన్‌లను ఉపయోగించారు. మరిన్ని జనరేట్ చేయడానికి అప్‌గ్రేడ్ చేయండి.",
     reset: "రీసెట్",
     selectTemplates: "షిఫ్ట్ టెంప్లేట్‌లు ఎంచుకోండి",
     selectTemplatesDesc: "షెడ్యూల్‌లు రూపొందించడానికి షిఫ్ట్ టెంప్లేట్‌లను ఎంచుకోండి. టెంప్లేట్‌లు స్థానం వారీగా సమూహపరచబడ్డాయి.",
@@ -572,6 +587,7 @@ const te = {
     billingOnHoldBody: "{date}-న మీ చివరి ఆటోమేటిక్ చెల్లింపు విఫలమైంది. కొనసాగించడానికి మీ కార్డ్‌ను నవీకరించండి లేదా చెల్లింపును మళ్లీ ప్రయత్నించండి.",
     retryPayment: "చెల్లింపును మళ్లీ ప్రయత్నించండి",
     retryFailed: "మళ్లీ ప్రయత్నం విఫలమైంది — మీ కార్డ్‌ను నవీకరించి మళ్లీ ప్రయత్నించండి.",
+    upgradeConfirmFailed: "మీ అప్‌గ్రేడ్‌ను నిర్ధారించలేకపోయాము. మీ నుండి రుసుము వసూలు చేయబడితే, మద్దతును సంప్రదించండి, మేము దాన్ని పరిష్కరిస్తాము.",
     updateCard: "కార్డ్‌ను నవీకరించండి",
     manageBilling: "Manage Billing",
     cancellationCardTitle: "Subscription canceled",

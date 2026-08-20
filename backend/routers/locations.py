@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
+from backend.services.plan import assert_can_add
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -31,6 +32,8 @@ async def create_location(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
+    await assert_can_add(db, str(current_user.company_id), locations=1)
+
     location = Location(
         company_id=current_user.company_id,
         region_id=body.region_id,
@@ -96,7 +99,22 @@ async def bulk_upload_locations(
 
     Region names are matched case-insensitively against the regions table.
     """
+    # Body size + row-count caps (#46, matching employees.py::bulk_upload).
+    # Free registration removed the paywall that used to sit in front of
+    # this endpoint, so an unauthenticated-cost-free upload must not be
+    # allowed to read an unbounded body or insert unbounded rows.
+    _MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+    _MAX_ROWS = 10_000
+
     content = await file.read()
+    if len(content) > _MAX_BODY_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"Upload exceeds {_MAX_BODY_BYTES // (1024 * 1024)} MB limit "
+                f"({len(content)} bytes)."
+            ),
+        )
     text = content.decode("utf-8-sig")
 
     # Determine format from content type or filename
@@ -122,6 +140,15 @@ async def bulk_upload_locations(
         reader = csv.DictReader(io.StringIO(text))
         rows = list(reader)
 
+    if len(rows) > _MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Upload contains {len(rows)} rows; the per-request maximum "
+                f"is {_MAX_ROWS}. Split the file and retry."
+            ),
+        )
+
     # Pre-fetch regions for case-insensitive matching
     region_result = await db.execute(
         select(Region).where(Region.company_id == current_user.company_id)
@@ -135,6 +162,12 @@ async def bulk_upload_locations(
         select(Location.name).where(Location.company_id == current_user.company_id)
     )
     existing_names: set[str] = {name.lower() for name in loc_result.scalars().all()}
+
+    # Free-plan cap. Checked after parsing (we need the row count) but before
+    # any insert, so an oversized file is refused whole rather than filling
+    # to the limit — a silently truncated roster reads as a complete one.
+    if rows:
+        await assert_can_add(db, str(current_user.company_id), locations=len(rows))
 
     created = 0
     skipped = 0

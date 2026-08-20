@@ -226,3 +226,29 @@ async def test_bulk_upload_skips_empty_name(
     data = resp.json()
     assert data["created"] == 0
     assert data["skipped"] == 1
+
+
+# ---------------------------------------------------------------------------
+# /roles/bulk-upload size cap (final-review FIX 3)
+# ---------------------------------------------------------------------------
+
+
+async def test_bulk_upload_rejects_oversize_body(
+    client: AsyncClient,
+    manager_token: str,
+    seed_company,
+):
+    """A body larger than 5 MB returns 413 before any parsing happens."""
+    header = "name,description\n"
+    row = "X" * 200 + "\n"
+    target_bytes = 5 * 1024 * 1024 + 1024  # 5MB + 1KB
+    body = header + row * ((target_bytes // len(row)) + 1)
+    assert len(body) > 5 * 1024 * 1024
+
+    resp = await client.post(
+        "/api/v1/roles/bulk-upload",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        files={"file": ("big.csv", body, "text/csv")},
+    )
+    assert resp.status_code == 413
+    assert "exceeds" in resp.json()["detail"].lower()
