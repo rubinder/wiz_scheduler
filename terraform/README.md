@@ -235,7 +235,7 @@ app_url                    = "https://yourdomain.com"   # or the CloudFront doma
 | `db_username` | `wizadmin` | RDS master username |
 | `db_password` | *(required)* | RDS master password |
 | `db_allocated_storage` | `20` | RDS storage in GB |
-| `db_engine_version` | `15.4` | PostgreSQL version |
+| `db_engine_version` | `15` | PostgreSQL MAJOR version (minor drift is absorbed; see variables.tf) |
 
 ## Scaling Up
 
