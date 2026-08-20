@@ -114,9 +114,15 @@ variable "db_allocated_storage" {
 }
 
 variable "db_engine_version" {
-  description = "PostgreSQL engine version"
+  description = <<-DESC
+    PostgreSQL engine version used when the instance is FIRST created. After
+    that it is ignored — see the lifecycle block on aws_db_instance.main, which
+    ignores engine_version so AWS-applied minor upgrades do not show up as a
+    downgrade on the next apply. To do a MAJOR upgrade, drop engine_version
+    from that ignore_changes list first.
+  DESC
   type        = string
-  default     = "15.13"
+  default     = "15.17"
 }
 
 # --- Stripe ---

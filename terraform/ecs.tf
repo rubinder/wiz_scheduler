@@ -78,6 +78,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.resend_api_key.arn,
       aws_secretsmanager_secret.stripe_secret_key.arn,
       aws_secretsmanager_secret.stripe_webhook_secret.arn,
+      aws_secretsmanager_secret.demo_seed_password.arn,
     ]
   }
 }
@@ -150,6 +151,12 @@ resource "aws_ecs_task_definition" "app" {
         {
           name      = "STRIPE_WEBHOOK_SECRET"
           valueFrom = aws_secretsmanager_secret.stripe_webhook_secret.arn
+        },
+        {
+          # Consumed by backend/seed.py so the demo accounts are never created
+          # with the local-dev default password.
+          name      = "DEMO_SEED_PASSWORD"
+          valueFrom = aws_secretsmanager_secret.demo_seed_password.arn
         },
       ]
 
@@ -236,4 +243,19 @@ resource "aws_ecs_service" "app" {
   depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 
   tags = { Name = "${var.app_name}-service" }
+
+  lifecycle {
+    # The deploy-backend job in .github/workflows/deploy.yml owns which task
+    # definition is deployed: it registers a revision pinned to the immutable
+    # image tag (the commit SHA) and points the service at it. The revision
+    # terraform knows about pins ":latest" instead, so without this every apply
+    # drags the service back off the SHA-pinned revision — the running code is
+    # the same bits, but the service no longer says which commit it is running,
+    # and infra changes trigger an unrelated rollout.
+    #
+    # terraform still owns the task definition itself (image, cpu, memory, env,
+    # secrets); a change there registers a new revision that the next
+    # deploy-backend run picks up as its base.
+    ignore_changes = [task_definition]
+  }
 }

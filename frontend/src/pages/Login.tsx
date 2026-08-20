@@ -26,6 +26,16 @@ interface OwnershipGroupOption {
   name: string;
 }
 
+// Password for the public demo accounts, baked in at build time from
+// VITE_DEMO_PASSWORD (sourced from AWS Secrets Manager via CI). Deliberately
+// shown to visitors — these accounts are a public demo sitting inside the free
+// plan limits. Never hardcode it here: rotating the secret must be enough to
+// rotate what this panel displays. When unset the panel is hidden entirely, so
+// a build without the variable can't advertise a stale password.
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD ?? "";
+const DEMO_MANAGER_EMAIL = "abc@example.com";
+const DEMO_EMPLOYEE_EMAIL = "employee1@example.com";
+
 export default function Login() {
   const { login } = useAuth();
   const { t } = useLanguage();
@@ -291,31 +301,33 @@ export default function Login() {
                 {t.login.register}
               </Link>
             </p>
-            <div className={`mt-6 ${m.surface} border ${m.rule.line} p-4 font-data text-xs`}>
-              <p className={`text-xs font-semibold ${m.text.muted} uppercase tracking-wide mb-2`}>
-                {t.login.demoCredentials}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("abc@example.com");
-                  setPassword("example");
-                }}
-                className={`w-full text-start text-sm ${m.text.body} hover:bg-ink/[0.04] rounded p-2 transition-colors`}
-              >
-                <span className="font-medium">{t.login.manager}:</span> abc@example.com / example
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("employee1@example.com");
-                  setPassword("example");
-                }}
-                className={`w-full text-start text-sm ${m.text.body} hover:bg-ink/[0.04] rounded p-2 transition-colors`}
-              >
-                <span className="font-medium">{t.login.employeeLabel}:</span> employee1@example.com / example
-              </button>
-            </div>
+            {DEMO_PASSWORD && (
+              <div className={`mt-6 p-4 ${m.surface} border ${m.rule.line} font-data text-xs`}>
+                <p className={`${m.text.meta} mb-2`}>{t.login.demoCredentials}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(DEMO_MANAGER_EMAIL);
+                    setPassword(DEMO_PASSWORD);
+                  }}
+                  className={`w-full text-start p-2 text-sm ${m.text.body} hover:bg-ink/[0.04] transition-colors`}
+                >
+                  <span className="font-medium">{t.login.manager}:</span> {DEMO_MANAGER_EMAIL} /{" "}
+                  {DEMO_PASSWORD}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(DEMO_EMPLOYEE_EMAIL);
+                    setPassword(DEMO_PASSWORD);
+                  }}
+                  className={`w-full text-start p-2 text-sm ${m.text.body} hover:bg-ink/[0.04] transition-colors`}
+                >
+                  <span className="font-medium">{t.login.employeeLabel}:</span>{" "}
+                  {DEMO_EMPLOYEE_EMAIL} / {DEMO_PASSWORD}
+                </button>
+              </div>
+            )}
           </>
         )}
         <div

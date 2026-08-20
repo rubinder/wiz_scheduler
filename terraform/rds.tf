@@ -62,9 +62,25 @@ resource "aws_db_instance" "main" {
   publicly_accessible = false
   skip_final_snapshot = true
 
+  # AWS applies minor version upgrades during the maintenance window (this was
+  # already on by default; it is spelled out here because the lifecycle block
+  # below depends on it).
+  auto_minor_version_upgrade = true
+
   backup_retention_period = 7
   backup_window           = "03:00-04:00"
   maintenance_window      = "sun:04:30-sun:05:30"
 
   tags = { Name = "${var.app_name}-db" }
+
+  lifecycle {
+    # AWS owns the minor version (auto_minor_version_upgrade above). Without
+    # this, every apply after a maintenance-window patch tries to move the
+    # instance back to the pinned version and RDS rejects it:
+    #   InvalidParameterCombination: Cannot upgrade postgres from 15.17 to 15.13
+    # which fails the whole deploy. Seen in production on 2026-08-20.
+    # For a deliberate MAJOR upgrade, remove engine_version from this list,
+    # set allow_major_version_upgrade, and apply.
+    ignore_changes = [engine_version]
+  }
 }

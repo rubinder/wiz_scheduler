@@ -99,9 +99,48 @@ All resources are tagged with `project = wizscheduler`, `managed_by = terraform`
 
 ## Prerequisites
 
-- [Terraform >= 1.5](https://developer.hashicorp.com/terraform/downloads)
+- [Terraform ~> 1.14.0](https://developer.hashicorp.com/terraform/downloads) — must match `terraform_version` in `.github/workflows/deploy.yml`; see [Terraform version policy](#terraform-version-policy)
 - AWS CLI configured with credentials that have permission to create the resources above
 - A database password ready (no default is provided)
+
+## Terraform version policy
+
+`required_version` in `main.tf` carries an **upper** bound, and CI pins the same
+version in `.github/workflows/deploy.yml`. Both must move together.
+
+The reason is that Terraform stamps its own version into the remote state and
+then refuses to read state written by anything newer. With an open-ended
+constraint, one `apply` from a newer local CLI silently locks the CI runner out
+of its own state, and the next deploy fails with a version error rather than
+anything descriptive.
+
+### Rolling back a version bump
+
+State format version has been `4` across all of Terraform 1.x, so a state file
+written by a newer 1.x is structurally readable by an older one — the block is
+the `terraform_version` stamp, not the contents. Two ways back:
+
+1. **Restore the previous state object.** The state bucket has versioning
+   enabled, so every write is retained. List versions and copy the pre-upgrade
+   one back over the current object:
+
+   ```bash
+   aws s3api list-object-versions --bucket wizscheduler-tfstate \
+     --prefix terraform.tfstate \
+     --query 'Versions[].{Id:VersionId,Modified:LastModified}' --output table
+
+   aws s3api copy-object --bucket wizscheduler-tfstate --key terraform.tfstate \
+     --copy-source 'wizscheduler-tfstate/terraform.tfstate?versionId=<VERSION_ID>'
+   ```
+
+   Exact, but the restored state does not know about anything applied after the
+   upgrade — roll back promptly or reconcile the drift by hand.
+
+2. **Rewrite the stamp.** Pull the state, set `terraform_version` back, and
+   `terraform state push -force` it.
+
+Both assume the config has not started using post-upgrade language features
+(ephemeral resources, newer `removed` block forms, provider-defined functions).
 
 ## Deploy
 
@@ -235,7 +274,7 @@ app_url                    = "https://yourdomain.com"   # or the CloudFront doma
 | `db_username` | `wizadmin` | RDS master username |
 | `db_password` | *(required)* | RDS master password |
 | `db_allocated_storage` | `20` | RDS storage in GB |
-| `db_engine_version` | `15.4` | PostgreSQL version |
+| `db_engine_version` | `15` | PostgreSQL MAJOR version (minor drift is absorbed; see variables.tf) |
 
 ## Scaling Up
 

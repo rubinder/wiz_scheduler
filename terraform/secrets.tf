@@ -76,6 +76,27 @@ resource "aws_secretsmanager_secret_version" "resend_api_key" {
   }
 }
 
+resource "aws_secretsmanager_secret" "demo_seed_password" {
+  name                    = "${var.app_name}/${var.environment}/DEMO_SEED_PASSWORD"
+  description             = "Login password for the seeded demo manager/employee accounts"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-demo-seed-password" }
+}
+
+# NOTE: this secret already exists in the prod account (created out-of-band
+# during the credential rotation). Adopt it instead of recreating:
+#   terraform import aws_secretsmanager_secret.demo_seed_password \
+#     wizscheduler/prod/DEMO_SEED_PASSWORD
+resource "aws_secretsmanager_secret_version" "demo_seed_password" {
+  secret_id     = aws_secretsmanager_secret.demo_seed_password.id
+  secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
 resource "aws_secretsmanager_secret" "stripe_secret_key" {
   name                    = "${var.app_name}/${var.environment}/STRIPE_SECRET_KEY"
   description             = "Stripe API secret key for billing checkout sessions"
