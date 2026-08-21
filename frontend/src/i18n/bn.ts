@@ -567,6 +567,7 @@ const bn = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "ক্রেডিট শুধুমাত্র পেইড প্ল্যানের জন্য — মাসিক সীমা তুলতে আপগ্রেড করুন।",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "এই মাসে আপনার বিনামূল্যের AI ক্রেডিট শেষ হয়ে গেছে। যখন ব্যালেন্স থ্রেশহোল্ডের নিচে নামবে, অটো-রিলোড আপনার সংরক্ষিত কার্ড থেকে চার্জ করে ব্যালেন্স পূরণ করবে।",
     monthlyUsage: "মাসিক AI খরচ",

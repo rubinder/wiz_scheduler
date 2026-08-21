@@ -568,6 +568,7 @@ const en = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Credits are for paid plans — upgrade to lift the monthly cap.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Your free AI credits have been used up this month. Auto-reload will charge your saved card to refill your balance when it drops below the threshold.",
     monthlyUsage: "Monthly AI cost",

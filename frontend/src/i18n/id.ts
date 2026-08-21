@@ -567,6 +567,7 @@ const ind = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Kredit hanya untuk paket berbayar — tingkatkan untuk menghapus batas bulanan.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Kredit AI gratis Anda bulan ini habis. Isi ulang otomatis akan menagih kartu tersimpan Anda untuk mengisi ulang saldo saat turun di bawah ambang batas.",
     monthlyUsage: "Biaya AI bulanan",

@@ -567,6 +567,7 @@ const es = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Los créditos son para planes de pago — mejora tu plan para eliminar el límite mensual.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Has agotado tus créditos de IA gratuitos este mes. La recarga automática cargará tu tarjeta guardada para reponer tu saldo cuando caiga por debajo del umbral.",
     monthlyUsage: "Costo mensual de IA",

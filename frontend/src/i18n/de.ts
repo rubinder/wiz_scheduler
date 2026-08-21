@@ -567,6 +567,7 @@ const de = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Guthaben gibt es nur in kostenpflichtigen Tarifen — führen Sie ein Upgrade durch, um das Monatslimit aufzuheben.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Deine kostenlosen KI-Credits sind diesen Monat aufgebraucht. Der automatische Aufladung wird deine gespeicherte Karte belasten, um dein Guthaben aufzufüllen, sobald es unter den Schwellenwert fällt.",
     monthlyUsage: "Monatliche KI-Kosten",

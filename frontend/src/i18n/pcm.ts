@@ -567,6 +567,7 @@ const pcm = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Credit na for paid plan — upgrade make the monthly limit comot.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Your free AI credits don finish this month. When your balance go below threshold, auto-reload go charge your saved card to top am up.",
     monthlyUsage: "Monthly AI cost",

@@ -567,6 +567,7 @@ const te = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "క్రెడిట్‌లు చెల్లింపు ప్లాన్‌లకు మాత్రమే — నెలవారీ పరిమితిని తొలగించడానికి అప్‌గ్రేడ్ చేయండి.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "ఈ నెల మీ ఉచిత AI క్రెడిట్‌లు అయిపోయాయి. మీ బ్యాలెన్స్ థ్రెషోల్డ్ కంటే తక్కువ అయినప్పుడు, ఆటో-రీలోడ్ మీ సేవ్ చేసిన కార్డుపై చార్జ్ చేసి బ్యాలెన్స్‌ను తిరిగి నింపుతుంది.",
     monthlyUsage: "నెలవారీ AI ఖర్చు",

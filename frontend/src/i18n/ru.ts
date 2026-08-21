@@ -567,6 +567,7 @@ const ru = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Кредиты доступны только на платных тарифах — перейдите на платный тариф, чтобы снять месячный лимит.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Ваши бесплатные ИИ-кредиты на этот месяц закончились. Автопополнение спишет с сохранённой карты, чтобы пополнить баланс, когда он опустится ниже порога.",
     monthlyUsage: "Месячная стоимость ИИ",
