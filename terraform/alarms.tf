@@ -144,3 +144,41 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocks_high" {
     Environment = var.environment
   }
 }
+
+
+# -----------------------------------------------------------------------------
+# (E) ECS Fargate memory
+#
+# Added 2026-08-21. There was no memory alarm, which is why the service sat at
+# 92% average / 98.4% peak unnoticed. Memory is the binding constraint on this
+# task, not CPU, so the CPU alarm above would never have fired for it.
+#
+# 85% for 5 consecutive minutes: high enough to ignore the normal working set,
+# low enough to arrive before an OOM kill rather than after one.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
+  alarm_name          = "${var.app_name}-ecs-memory-high"
+  alarm_description   = "ECS service memory > 85% sustained 5 minutes"
+  namespace           = "AWS/ECS"
+  metric_name         = "MemoryUtilization"
+  statistic           = "Average"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 85
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.app.name
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = {
+    Name        = "${var.app_name}-ecs-memory-high"
+    Environment = var.environment
+  }
+}
