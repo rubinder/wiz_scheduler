@@ -43,9 +43,20 @@ variable "container_cpu" {
 }
 
 variable "container_memory" {
-  description = "Memory (MiB) for the Fargate task"
+  description = <<-DESC
+    Memory (MiB) for the Fargate task.
+
+    Raised 1024 -> 2048 on 2026-08-21. At 1024 the service ran at 92% memory
+    average and 98.4% peak with CPU at 1.6% — memory-bound at essentially zero
+    traffic, one spike from an OOM kill. The footprint is the 4 uvicorn workers
+    in the Dockerfile CMD, each loading its own copy of the app; it is a
+    baseline cost, not a per-request one, so it did not grow with load and
+    would not have been relieved by traffic dropping.
+
+    512 CPU supports 1024-4096 MiB, so this needs no CPU change.
+  DESC
   type        = number
-  default     = 1024
+  default     = 2048
 }
 
 variable "desired_count" {
