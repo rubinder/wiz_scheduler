@@ -21,8 +21,46 @@ class Settings(BaseSettings):
     FROM_EMAIL: str = "noreply@shiftsync.example.com"
     ENV: str = "development"
     CORS_ORIGINS: str = "*"  # comma-separated list, e.g. "https://app.example.com,https://admin.example.com"
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 40
+    # --- Database connection budget -------------------------------------
+    #
+    # The pool is PER PROCESS, and the app runs multiple uvicorn workers per
+    # task, so the real ceiling is:
+    #
+    #     workers x (DB_POOL_SIZE + DB_MAX_OVERFLOW) x tasks
+    #
+    # At 4 workers x (20 + 40) that was 240 connections from a SINGLE task,
+    # against a db.t3.micro limit of ~112 — more than double what the database
+    # allows, and scaling out to 2 tasks would have doubled it again. It never
+    # bit only because the pools sat idle at near-zero traffic.
+    #
+    # Sizing matters more here than raw throughput suggests, because
+    # POST /schedules/generate holds its session for the whole streamed
+    # generation, including across the Anthropic call. A connection is pinned
+    # for tens of seconds per AI generation, so concurrency sizes the pool.
+    #
+    # 4 workers x (5 + 5) x 2 tasks = 80, inside DB_USABLE_CONNECTIONS below
+    # with room left for migrations, one-off ECS tasks and psql.
+    # tests/test_db_connection_budget.py enforces the arithmetic.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+
+    # Postgres max_connections for the RDS instance class. db.t3.micro derives
+    # LEAST({DBInstanceClassMemory/9531392}, 5000) = ~112 on 1 GiB. Raise this
+    # in step with the instance class, never ahead of it.
+    DB_MAX_CONNECTIONS: int = 112
+
+    # Connections the app may claim. The remainder covers Postgres's own
+    # superuser_reserved_connections, alembic on task start, one-off ECS tasks
+    # (seed, backfills) and a human with psql.
+    DB_USABLE_CONNECTIONS: int = 90
+
+    # Must match the --workers value in the Dockerfile CMD. The budget test
+    # reads the Dockerfile and fails if these drift apart.
+    UVICORN_WORKERS: int = 4
+
+    # Tasks the budget must hold for. desired_count is 1 today; budget for 2
+    # so scaling out cannot exhaust the database.
+    MAX_ECS_TASKS: int = 2
 
     # Password for the seeded demo manager/employee accounts. Injected from
     # AWS Secrets Manager (wizscheduler/<env>/DEMO_SEED_PASSWORD) in deployed
