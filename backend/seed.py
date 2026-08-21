@@ -62,8 +62,8 @@ LOCATION_ID = "locn0001"
 # The demo tenant has no Stripe subscription, so services.plan resolves it to
 # the free plan. Keep it AT OR UNDER the free caps: past them, get_plan_state
 # sets over_limit, which turns off local generation too and leaves the demo
-# unable to produce a schedule at all. One under the employee cap so a visitor
-# can still add someone and see the limit land honestly.
+# unable to produce a schedule at all. Well under FREE_PLAN_MAX_EMPLOYEES so a
+# visitor can add people and watch the counter move without hitting the cap.
 EMPLOYEE_IDS = [f"empl{str(i).zfill(4)}" for i in range(1, 5)]
 
 SHIFT_TEMPLATE_ID = "shft0001"

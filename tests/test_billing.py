@@ -1505,7 +1505,7 @@ async def test_generate_blocked_when_canceled(
     and tests/test_plan_generation_gate.py) — that's the "cancel drops to
     free" behavior, not a regression.
     """
-    for i in range(6):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES + 1):  # one over the cap
         db_session.add(Employee(id=_id(), company_id=COMPANY_ID, full_name=f"E{i}"))
     og_with_card.canceled_at = datetime.now(timezone.utc)
     await db_session.commit()

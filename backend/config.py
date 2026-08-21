@@ -65,12 +65,24 @@ class Settings(BaseSettings):
     # a metered-overage threshold for PAID customers). These are the caps that
     # decide whether an ownership group must subscribe at all.
     FREE_PLAN_MAX_LOCATIONS: int = 1
-    FREE_PLAN_MAX_EMPLOYEES: int = 5
+    # Raised 5 -> 10 on 2026-08-21. A go-to-market number, not a cost one:
+    # 10 free employees cost about $0.0016/month in AWS, and free tenants
+    # cannot reach AI generation at all so they draw no Anthropic spend.
+    # Headcount is deliberately NOT the conversion gate — see
+    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH below, which is.
+    FREE_PLAN_MAX_EMPLOYEES: int = 10
 
     # Free plan may run this many schedule generations per calendar month.
     # Independent of SCHEDULE_FREE_TIER below, which is the PAID metered
     # threshold (50/month then overage) and is unchanged by this.
-    FREE_PLAN_MAX_SCHEDULES_PER_MONTH: int = 5
+    #
+    # Lowered 5 -> 2 on 2026-08-21. This is the conversion gate: a generation
+    # covers at most one week (GenerateRequest.num_days is capped at 7), so 2
+    # per month is roughly half a month of coverage — enough to evaluate the
+    # product, not enough to run a rota on. Raising num_days' cap would
+    # silently widen this allowance, which is why that cap is enforced in the
+    # schema AND guarded in the pipeline.
+    FREE_PLAN_MAX_SCHEDULES_PER_MONTH: int = 2
 
     # The public demo tenant. It is a free-plan group like any other — no
     # Stripe subscription — but it is shared by every visitor, so the normal
