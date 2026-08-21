@@ -65,7 +65,12 @@ class Settings(BaseSettings):
     # a metered-overage threshold for PAID customers). These are the caps that
     # decide whether an ownership group must subscribe at all.
     FREE_PLAN_MAX_LOCATIONS: int = 1
-    FREE_PLAN_MAX_EMPLOYEES: int = 5
+    # Raised 5 -> 15 on 2026-08-21 to match the free tier competitors offer.
+    # This is a go-to-market number, not a cost one: 15 free employees cost
+    # about $0.002/month in AWS, and free tenants cannot reach AI generation
+    # at all, so they draw no Anthropic spend. The real lever on conversion is
+    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH below, not the headcount.
+    FREE_PLAN_MAX_EMPLOYEES: int = 15
 
     # Free plan may run this many schedule generations per calendar month.
     # Independent of SCHEDULE_FREE_TIER below, which is the PAID metered

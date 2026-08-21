@@ -113,7 +113,7 @@ async def test_og_without_subscription_is_free(
     _, company_id = free_og
     state = await get_plan_state(db_session, company_id)
     assert state["plan"] == "free"
-    assert state["employees"]["limit"] == 5
+    assert state["employees"]["limit"] == settings.FREE_PLAN_MAX_EMPLOYEES
     assert state["locations"]["limit"] == 1
     assert state["can_generate_local"] is True
     assert state["can_generate_ai"] is False
@@ -156,7 +156,7 @@ async def test_downgraded_over_limit_blocks_all_generation(
     og = await db_session.get(OwnershipGroup, og_id)
     og.stripe_subscription_id = "sub_123"
     og.canceled_at = datetime.now(timezone.utc)
-    for i in range(6):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES + 1):  # one over the cap
         db_session.add(Employee(id=_id(), company_id=company_id,
                                 full_name=f"E{i}"))
     await db_session.commit()
@@ -172,7 +172,7 @@ async def test_free_over_limit_block_reason(
     db_session: AsyncSession, free_og: tuple[str, str]
 ):
     _, company_id = free_og
-    for i in range(6):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES + 1):  # one over the cap
         db_session.add(Employee(id=_id(), company_id=company_id,
                                 full_name=f"E{i}"))
     await db_session.commit()
@@ -185,6 +185,7 @@ async def test_free_over_limit_block_reason(
 
 from fastapi import HTTPException
 
+from backend.config import settings
 from backend.services.plan import assert_can_add
 
 
@@ -192,12 +193,12 @@ async def test_assert_can_add_allows_up_to_limit(
     db_session: AsyncSession, free_og: tuple[str, str]
 ):
     _, company_id = free_og
-    for i in range(4):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES - 1):
         db_session.add(Employee(id=_id(), company_id=company_id,
                                 full_name=f"E{i}"))
     await db_session.commit()
 
-    # 4 existing + 1 == 5, exactly at the limit.
+    # (cap - 1) existing + 1 == cap, exactly at the limit.
     await assert_can_add(db_session, company_id, employees=1)
 
 
@@ -205,7 +206,7 @@ async def test_assert_can_add_refuses_over_limit(
     db_session: AsyncSession, free_og: tuple[str, str]
 ):
     _, company_id = free_og
-    for i in range(5):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES):
         db_session.add(Employee(id=_id(), company_id=company_id,
                                 full_name=f"E{i}"))
     await db_session.commit()
@@ -216,19 +217,20 @@ async def test_assert_can_add_refuses_over_limit(
     assert exc.value.status_code == 402
     assert exc.value.detail["code"] == "plan_limit_exceeded"
     assert exc.value.detail["limit"] == "employees"
-    assert exc.value.detail["max"] == 5
-    assert exc.value.detail["current"] == 5
+    assert exc.value.detail["max"] == settings.FREE_PLAN_MAX_EMPLOYEES
+    assert exc.value.detail["current"] == settings.FREE_PLAN_MAX_EMPLOYEES
     assert exc.value.detail["attempted"] == 1
 
 
 async def test_assert_can_add_refuses_oversized_bulk(
     db_session: AsyncSession, free_og: tuple[str, str]
 ):
-    """A 12-row upload against an empty free OG is refused whole."""
+    """An upload larger than the whole cap is refused whole."""
     _, company_id = free_og
+    oversized = settings.FREE_PLAN_MAX_EMPLOYEES + 7
     with pytest.raises(HTTPException) as exc:
-        await assert_can_add(db_session, company_id, employees=12)
-    assert exc.value.detail["attempted"] == 12
+        await assert_can_add(db_session, company_id, employees=oversized)
+    assert exc.value.detail["attempted"] == oversized
     assert exc.value.detail["current"] == 0
 
 

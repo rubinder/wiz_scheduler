@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Company, Employee, ShiftSchedule, User
 from backend.models.ownership_group import OwnershipGroup
+from backend.config import settings
 from backend.services.plan import check_can_generate, get_plan_state
 from fastapi import HTTPException
 from tests.conftest import _id
@@ -27,7 +28,7 @@ async def tenant(db_session: AsyncSession) -> dict:
 
 
 async def _make_over_limit(db: AsyncSession, company_id: str) -> None:
-    for i in range(6):
+    for i in range(settings.FREE_PLAN_MAX_EMPLOYEES + 1):  # one over the cap
         db.add(Employee(id=_id(), company_id=company_id, full_name=f"E{i}"))
     await db.commit()
 

@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Company, Employee, Location, Region, User
+from backend.config import settings
 from backend.models.ownership_group import OwnershipGroup
 from tests.conftest import _id, _make_token
 
@@ -43,14 +44,17 @@ async def _add_employees(db: AsyncSession, company_id: str, n: int) -> None:
     await db.commit()
 
 
-async def test_sixth_employee_refused(
+async def test_employee_past_the_cap_refused(
     client: AsyncClient, db_session: AsyncSession, free_tenant: dict
 ):
-    await _add_employees(db_session, free_tenant["company_id"], 5)
+    """Filling the cap, then adding one more, is refused."""
+    await _add_employees(
+        db_session, free_tenant["company_id"], settings.FREE_PLAN_MAX_EMPLOYEES
+    )
 
     resp = await client.post(
         "/api/v1/employees/",
-        json={"full_name": "Sixth"},
+        json={"full_name": "One Too Many"},
         headers={"Authorization": f"Bearer {free_tenant['token']}"},
     )
 
@@ -120,16 +124,17 @@ def _employee_csv(n: int) -> bytes:
 async def test_oversized_bulk_upload_refused_whole(
     client: AsyncClient, db_session: AsyncSession, free_tenant: dict
 ):
-    """12 rows against an empty free OG: refused, and ZERO rows written."""
+    """An upload larger than the cap: refused, and ZERO rows written."""
+    oversized = settings.FREE_PLAN_MAX_EMPLOYEES + 7
     resp = await client.post(
         "/api/v1/employees/bulk-upload",
-        files={"file": ("emps.csv", _employee_csv(12), "text/csv")},
+        files={"file": ("emps.csv", _employee_csv(oversized), "text/csv")},
         headers={"Authorization": f"Bearer {free_tenant['token']}"},
     )
 
     assert resp.status_code == 402
     assert resp.json()["detail"]["code"] == "plan_limit_exceeded"
-    assert resp.json()["detail"]["attempted"] == 12
+    assert resp.json()["detail"]["attempted"] == oversized
 
     count = await db_session.scalar(
         select(func.count(Employee.id)).where(
@@ -144,28 +149,32 @@ async def test_bulk_upload_within_limit_succeeds(
 ):
     resp = await client.post(
         "/api/v1/employees/bulk-upload",
-        files={"file": ("emps.csv", _employee_csv(5), "text/csv")},
+        files={"file": ("emps.csv",
+                        _employee_csv(settings.FREE_PLAN_MAX_EMPLOYEES),
+                        "text/csv")},
         headers={"Authorization": f"Bearer {free_tenant['token']}"},
     )
 
     assert resp.status_code == 200
-    assert resp.json()["created"] == 5
+    assert resp.json()["created"] == settings.FREE_PLAN_MAX_EMPLOYEES
 
 
 async def test_bulk_upload_counts_existing_rows(
     client: AsyncClient, db_session: AsyncSession, free_tenant: dict
 ):
-    """3 existing + 3 uploaded == 6 > 5, so refused."""
-    await _add_employees(db_session, free_tenant["company_id"], 3)
+    """Existing rows count toward the cap: (cap - 1) existing + 2 uploaded
+    is one past it, so the upload is refused."""
+    existing = settings.FREE_PLAN_MAX_EMPLOYEES - 1
+    await _add_employees(db_session, free_tenant["company_id"], existing)
 
     resp = await client.post(
         "/api/v1/employees/bulk-upload",
-        files={"file": ("emps.csv", _employee_csv(3), "text/csv")},
+        files={"file": ("emps.csv", _employee_csv(2), "text/csv")},
         headers={"Authorization": f"Bearer {free_tenant['token']}"},
     )
 
     assert resp.status_code == 402
-    assert resp.json()["detail"]["current"] == 3
+    assert resp.json()["detail"]["current"] == existing
 
 
 def _current_week_monday() -> date:
