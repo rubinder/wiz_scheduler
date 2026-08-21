@@ -13,11 +13,19 @@ export interface AiCreditStatus {
 export interface ScheduleQuota {
   can_generate: boolean;
   schedules_used: number;
+  /**
+   * The generation allowance that actually governs this tenant: the metered
+   * SCHEDULE_FREE_TIER for paid groups, the free-plan cap for free ones. Kept
+   * equal to PlanState.schedules.limit for free groups so this strip and the
+   * plan banner cannot show different numbers.
+   */
   schedules_free_tier: number;
   is_over_free_tier: boolean;
   purchased_credits_usd: number;
   next_block_cost_usd: number;
   autoreload_failed?: boolean;
+  /** Free groups upgrade; only paid groups can buy overage credits. */
+  plan?: "free" | "paid";
 }
 
 export interface AutoReloadStatus {

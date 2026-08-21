@@ -1011,13 +1011,29 @@ export default function Schedule() {
                   </span>
                 )}
               </div>
+              {/* Credits are a paid-plan overage mechanism: check_can_generate
+                  stops a free group on the plan cap whatever their balance, so
+                  buying them could not unblock a free tenant. Shown disabled
+                  rather than removed, with the reason, so the path stays
+                  visible; the plan banner offers Upgrade. */}
               {scheduleQuota.is_over_free_tier && !scheduleQuota.can_generate && (
-                <button
-                  onClick={() => { setPurchaseReason("schedules"); setShowBillingModal(true); }}
-                  className="glass-btn-primary text-xs px-3 py-1"
-                >
-                  {t.schedule.buyCredits}
-                </button>
+                <div className="flex items-center gap-2">
+                  {scheduleQuota.plan === "free" && (
+                    <span id="buy-credits-reason" className={`text-xs ${text.muted}`}>
+                      {t.schedule.buyCreditsPaidOnly}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => { setPurchaseReason("schedules"); setShowBillingModal(true); }}
+                    disabled={scheduleQuota.plan === "free"}
+                    aria-describedby={
+                      scheduleQuota.plan === "free" ? "buy-credits-reason" : undefined
+                    }
+                    className="glass-btn-primary text-xs px-3 py-1 whitespace-nowrap disabled:cursor-not-allowed"
+                  >
+                    {t.schedule.buyCredits}
+                  </button>
+                </div>
               )}
             </div>
           )}

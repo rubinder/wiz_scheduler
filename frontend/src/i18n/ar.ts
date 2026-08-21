@@ -567,6 +567,7 @@ const ar = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "الأرصدة متاحة في الخطط المدفوعة فقط — قم بالترقية لإزالة الحد الشهري.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "تم استنفاد أرصدة الذكاء الاصطناعي المجانية هذا الشهر. ستقوم إعادة الشحن التلقائية بسحب المبلغ من البطاقة المحفوظة لتجديد رصيدك عندما ينخفض إلى ما دون الحد.",
     monthlyUsage: "تكلفة الذكاء الاصطناعي الشهرية",

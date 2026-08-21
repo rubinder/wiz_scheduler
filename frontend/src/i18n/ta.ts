@@ -567,6 +567,7 @@ const ta = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "கிரெடிட்டுகள் கட்டணத் திட்டங்களுக்கு மட்டுமே — மாதாந்திர வரம்பை நீக்க அப்கிரேட் செய்யுங்கள்.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "இந்த மாதம் உங்கள் இலவச AI கிரெடிட்கள் தீர்ந்துவிட்டன. இருப்பு வரம்பிற்குக் கீழே விழும்போது, தானியங்கு-நிரப்புதல் உங்கள் சேமித்த அட்டையில் கட்டணம் வசூலித்து இருப்பை மீண்டும் நிரப்பும்.",
     monthlyUsage: "மாதாந்திர AI செலவு",

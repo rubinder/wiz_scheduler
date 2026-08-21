@@ -567,6 +567,7 @@ const ur = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "کریڈٹس صرف ادا شدہ پلانز کے لیے ہیں — ماہانہ حد ہٹانے کے لیے اپ گریڈ کریں۔",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "اس مہینے آپ کے مفت AI کریڈٹس ختم ہو گئے ہیں۔ جب بیلنس حد سے کم ہو جائے گا، آٹو ری لوڈ آپ کے محفوظ کارڈ سے رقم کاٹ کر بیلنس بھر دے گا۔",
     monthlyUsage: "ماہانہ AI لاگت",

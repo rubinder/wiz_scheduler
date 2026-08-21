@@ -567,6 +567,7 @@ const vi = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Tín dụng chỉ dành cho gói trả phí — nâng cấp để bỏ giới hạn hàng tháng.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Tín dụng AI miễn phí của bạn đã hết trong tháng này. Tính năng tự động nạp sẽ trừ tiền vào thẻ đã lưu để nạp lại số dư khi nó xuống dưới ngưỡng.",
     monthlyUsage: "Chi phí AI hàng tháng",

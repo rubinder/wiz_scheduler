@@ -567,6 +567,7 @@ const trLang = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "Krediler ücretli planlara özeldir — aylık sınırı kaldırmak için yükseltin.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "Bu ay ücretsiz AI kredileriniz tükendi. Bakiyeniz eşiğin altına düştüğünde otomatik yeniden yükleme, kayıtlı kartınızı kullanarak bakiyenizi tamamlar.",
     monthlyUsage: "Aylık AI maliyeti",

@@ -567,6 +567,7 @@ const zh = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "积分仅适用于付费方案 — 升级即可解除每月上限。",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "本月的免费 AI 额度已用完。当余额低于阈值时,自动充值将向你保存的银行卡扣款以补足余额。",
     monthlyUsage: "月度 AI 费用",

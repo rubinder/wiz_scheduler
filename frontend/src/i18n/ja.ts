@@ -567,6 +567,7 @@ const ja = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "クレジットは有料プラン専用です — 月間上限を解除するにはアップグレードしてください。",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "今月の無料 AI クレジットを使い切りました。残高がしきい値を下回ると、自動チャージが保存済みカードに請求して残高を補充します。",
     monthlyUsage: "月間 AI コスト",

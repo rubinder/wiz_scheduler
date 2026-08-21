@@ -567,6 +567,7 @@ const mr = {
     purchasedRemaining: "purchased remaining",
     freeTierUsed: "Free tier exhausted",
     buyCredits: "Buy Credits",
+    buyCreditsPaidOnly: "क्रेडिट्स फक्त सशुल्क योजनांसाठी आहेत — मासिक मर्यादा काढण्यासाठी अपग्रेड करा.",
     buyAiCredits: "Buy AI Credits",
     creditsExhaustedMsg: "या महिन्यासाठी तुमचे मोफत AI क्रेडिट्स संपले आहेत. जेव्हा बॅलन्स थ्रेशोल्डच्या खाली जाईल, ऑटो-रिलोड तुमच्या जतन केलेल्या कार्डवर शुल्क आकारून बॅलन्स पुन्हा भरेल.",
     monthlyUsage: "मासिक AI खर्च",
