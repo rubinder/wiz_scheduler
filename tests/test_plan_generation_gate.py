@@ -122,27 +122,27 @@ async def _add_schedules(db: AsyncSession, company_id: str, n: int) -> None:
 async def test_free_under_generation_cap_can_generate_local(
     db_session: AsyncSession, tenant: dict
 ):
-    await _add_schedules(db_session, tenant["company_id"], 4)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH - 1)
     await check_can_generate(db_session, tenant["company_id"], use_local=True)
 
 
 async def test_free_at_generation_cap_blocks_local(
     db_session: AsyncSession, tenant: dict
 ):
-    await _add_schedules(db_session, tenant["company_id"], 5)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH)
 
     with pytest.raises(HTTPException) as exc:
         await check_can_generate(db_session, tenant["company_id"], use_local=True)
     assert exc.value.status_code == 402
     assert exc.value.detail["code"] == "schedule_limit_reached"
-    assert exc.value.detail["used"] == 5
-    assert exc.value.detail["max"] == 5
+    assert exc.value.detail["used"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert exc.value.detail["max"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
 
 
 async def test_free_at_generation_cap_blocks_ai_too(
     db_session: AsyncSession, tenant: dict
 ):
-    await _add_schedules(db_session, tenant["company_id"], 5)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH)
 
     with pytest.raises(HTTPException) as exc:
         await check_can_generate(db_session, tenant["company_id"], use_local=False)
@@ -171,7 +171,7 @@ async def test_over_limit_takes_precedence_over_generation_cap(
     og.canceled_at = datetime.now(timezone.utc)
     await db_session.commit()
     await _make_over_limit(db_session, tenant["company_id"])
-    await _add_schedules(db_session, tenant["company_id"], 5)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH)
 
     with pytest.raises(HTTPException) as exc:
         await check_can_generate(db_session, tenant["company_id"], use_local=True)
@@ -184,7 +184,7 @@ async def test_plan_state_reports_schedule_usage(
     await _add_schedules(db_session, tenant["company_id"], 3)
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["schedules"]["count"] == 3
-    assert state["schedules"]["limit"] == 5
+    assert state["schedules"]["limit"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
 
 
 async def test_plan_state_block_reason_schedule_limit_reached(
@@ -196,7 +196,7 @@ async def test_plan_state_block_reason_schedule_limit_reached(
     "AI requires a paid plan" copy for any null block_reason, which is
     wrong for a tenant well within employee/location limits who simply
     used up their free generations this month."""
-    await _add_schedules(db_session, tenant["company_id"], 5)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH)
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["over_limit"] is False
     assert state["block_reason"] == "schedule_limit_reached"
@@ -207,7 +207,7 @@ async def test_plan_state_block_reason_none_under_generation_cap(
 ):
     """Sanity check on the other side of the boundary: still under the cap,
     still no block_reason."""
-    await _add_schedules(db_session, tenant["company_id"], 4)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH - 1)
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["block_reason"] is None
 
@@ -224,7 +224,7 @@ async def test_plan_state_over_limit_block_reason_unaffected_by_generation_cap(
     og.canceled_at = datetime.now(timezone.utc)
     await db_session.commit()
     await _make_over_limit(db_session, tenant["company_id"])
-    await _add_schedules(db_session, tenant["company_id"], 5)
+    await _add_schedules(db_session, tenant["company_id"], settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH)
 
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["over_limit"] is True

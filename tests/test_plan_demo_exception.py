@@ -74,7 +74,8 @@ async def test_ordinary_free_group_keeps_the_normal_cap(
     """The exception must not leak to every free tenant."""
     state = await get_plan_state(db_session, plain_tenant["company_id"])
     assert state["schedules"]["limit"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-    assert state["schedules"]["limit"] == 5
+    # And it is genuinely the ordinary cap, not the demo one.
+    assert state["schedules"]["limit"] != settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
 
 
 async def test_demo_generates_past_the_ordinary_cap(

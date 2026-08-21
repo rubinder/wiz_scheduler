@@ -212,6 +212,31 @@ def build_scheduling_graph(
     return graph
 
 
+# A generation covers at most one calendar week.
+#
+# Enforced in two places on purpose. GenerateRequest.num_days carries
+# Field(ge=1, le=7) so the API rejects a wider window with a 422, and this
+# guard catches any internal caller that bypasses the schema. Without it a
+# wider window silently corrupts the result rather than failing: the per-day
+# template fusion below keys the fused weekly_schedule by day NAME, so an
+# 8-day window contains two Mondays and the later date's override quietly
+# overwrites the earlier one.
+#
+# It also bounds the free plan. FREE_PLAN_MAX_SCHEDULES_PER_MONTH counts
+# generations, not days, so an unbounded window would let 2 generations cover
+# a year.
+MAX_SCHEDULE_DAYS = 7
+
+
+def _validate_num_days(num_days: int) -> None:
+    """Raise ValueError if *num_days* is outside 1..MAX_SCHEDULE_DAYS."""
+    if not 1 <= num_days <= MAX_SCHEDULE_DAYS:
+        raise ValueError(
+            f"num_days must be between 1 and {MAX_SCHEDULE_DAYS} "
+            f"(one calendar week); got {num_days}"
+        )
+
+
 async def _load_initial_state(
     company_id: str,
     week_start_date: str,
@@ -220,6 +245,7 @@ async def _load_initial_state(
     num_days: int = 7,
 ) -> Dict[str, Any]:
     """Query the database to build the initial SchedulingState."""
+    _validate_num_days(num_days)
 
     # Load roles for name lookup
     role_result = await db.execute(
