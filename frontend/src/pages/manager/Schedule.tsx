@@ -1011,7 +1011,12 @@ export default function Schedule() {
                   </span>
                 )}
               </div>
-              {scheduleQuota.is_over_free_tier && !scheduleQuota.can_generate && (
+              {/* Credits are a paid-plan overage mechanism: check_can_generate
+                  stops a free group on the plan cap whatever their balance, so
+                  offering credits here would sell something that cannot
+                  unblock them. The plan banner offers Upgrade instead. */}
+              {scheduleQuota.is_over_free_tier && !scheduleQuota.can_generate
+                && scheduleQuota.plan !== "free" && (
                 <button
                   onClick={() => { setPurchaseReason("schedules"); setShowBillingModal(true); }}
                   className="glass-btn-primary text-xs px-3 py-1"

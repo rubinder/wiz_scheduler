@@ -514,6 +514,24 @@ def calculate_schedule_charge(schedule_count: int) -> float:
 # ---------------------------------------------------------------------------
 
 
+def free_plan_schedule_limit(og_id: str) -> int:
+    """Monthly generation cap for a FREE ownership group.
+
+    The one definition of this number. services.plan gates on it and
+    check_schedule_quota reports it, so the banner and the quota strip cannot
+    disagree.
+
+    The public demo group gets a raised cap: it is shared by every visitor, so
+    the ordinary free allowance is spent almost at once and the demo then
+    refuses to generate anything. Only the generation cap is lifted — the demo
+    stays inside the location and employee caps.
+    """
+    demo_id = settings.DEMO_OWNERSHIP_GROUP_ID
+    if demo_id and str(og_id) == demo_id:
+        return settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
+    return settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+
+
 async def check_schedule_quota(
     db: AsyncSession,
     company_id: str,
@@ -554,18 +572,28 @@ async def check_schedule_quota(
 
     schedule_count = await count_schedules_this_month(db, og_id)
 
-    # Demo company gets a higher free tier
-    company_result = await db.execute(
-        select(Company.slug).where(Company.id == company_id)
+    # Which number governs depends on the plan. A PAID group meters against
+    # SCHEDULE_FREE_TIER and pays overage past it. A FREE group never reaches
+    # metering — services.plan.check_can_generate stops it at the plan cap
+    # first — so reporting the metered threshold to a free tenant overstates
+    # what they have and contradicts the plan banner. Report the cap that
+    # actually applies to them.
+    is_paid = og_full is not None and (
+        og_full.stripe_subscription_id is not None and og_full.canceled_at is None
     )
-    company_slug = company_result.scalar_one_or_none()
-    free_tier = 250 if company_slug == "acme-corp" else settings.SCHEDULE_FREE_TIER
+    free_tier = (
+        settings.SCHEDULE_FREE_TIER if is_paid else free_plan_schedule_limit(og_id)
+    )
 
     is_over = schedule_count >= free_tier
 
     purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
-    can_generate = not is_over or purchased_credits > 0
+    # Credits are a paid-plan overage mechanism. They cannot unblock a free
+    # group: check_can_generate raises schedule_limit_reached on the plan cap
+    # regardless of balance, so treating a credit balance as permission here
+    # would let the UI sell credits that buy nothing.
+    can_generate = not is_over or (is_paid and purchased_credits > 0)
 
     return {
         "can_generate": can_generate,
@@ -574,6 +602,8 @@ async def check_schedule_quota(
         "is_over_free_tier": is_over,
         "purchased_credits_usd": round(purchased_credits, 4),
         "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
+        # Lets the UI offer Upgrade rather than Buy credits to free tenants.
+        "plan": "paid" if is_paid else "free",
     }
 
 
