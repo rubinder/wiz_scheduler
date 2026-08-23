@@ -4,6 +4,7 @@ import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
 import Availability from "./pages/employee/Availability";
+import CheckInQr from "./pages/manager/CheckInQr";
 import Company from "./pages/manager/Company";
 import Dashboard from "./pages/manager/Dashboard";
 import Employees from "./pages/manager/Employees";
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="employee-availability" element={<EmployeeAvailability />} />
             <Route path="employee-association" element={<EmployeeAssociation />} />
             <Route path="shift-templates" element={<ShiftTemplates />} />
+            <Route path="check-in-qr" element={<CheckInQr />} />
             <Route path="special-hours" element={<SpecialHours />} />
             <Route path="schedule" element={<Schedule />} />
             <Route path="export-schedules" element={<ExportSchedules />} />
