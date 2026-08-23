@@ -79,9 +79,19 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.stripe_secret_key.arn,
       aws_secretsmanager_secret.stripe_webhook_secret.arn,
       aws_secretsmanager_secret.demo_seed_password.arn,
+      aws_secretsmanager_secret.checkin_qr_secret.arn,
     ]
   }
 }
+
+# NOTE: this list is the deploy's tripwire. A secret referenced in the task
+# definition's `secrets` block but absent here does not degrade the feature —
+# the TASK CANNOT START. ECS fails it during resource initialization with
+# AccessDeniedException on GetSecretValue, before the container ever runs, and
+# the service sits retrying while the previous revision keeps serving. Adding
+# a secret to ecs.tf without adding its ARN here is therefore a broken deploy,
+# not a missing feature. Exactly that happened when CHECKIN_QR_SECRET was
+# added in the previous change and this list was not.
 
 resource "aws_iam_role_policy" "ecs_secrets" {
   name   = "${var.app_name}-ecs-secrets-policy"
