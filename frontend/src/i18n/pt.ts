@@ -938,6 +938,13 @@ const pt = {
     codeExpired: "Esse código já foi usado. Escaneie o novo código na tela.",
     failed: "Falha no check-in. Fale com seu gerente.",
     noEmployeeRecord: "Esta conta não está vinculada a um cadastro de funcionário.",
+    scanPrompt: "Escaneie o código de check-in exibido no seu local para fazer check-in.",
+    managerLoadFailed: "Não foi possível carregar o código de check-in. Verifique se o seu plano inclui check-in, ou tente novamente.",
+    statusColumn: "Status",
+    statusMatched: "Correspondido",
+    statusNoShift: "Sem turno",
+    statusWrongLocation: "Local incorreto",
+    statusDuplicate: "Duplicado",
   },
 } as const;
 

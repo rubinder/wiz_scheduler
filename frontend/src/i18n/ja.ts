@@ -938,6 +938,13 @@ const ja = {
     codeExpired: "このコードは既に使用されています。画面に表示されている新しいコードをスキャンしてください。",
     failed: "チェックインに失敗しました。マネージャーに確認してください。",
     noEmployeeRecord: "このアカウントは従業員情報に紐づいていません。",
+    scanPrompt: "チェックインするには、あなたの拠点に表示されているチェックインコードをスキャンしてください。",
+    managerLoadFailed: "チェックインコードを読み込めませんでした。プランにチェックインが含まれているか確認するか、もう一度お試しください。",
+    statusColumn: "ステータス",
+    statusMatched: "一致",
+    statusNoShift: "シフトなし",
+    statusWrongLocation: "場所違い",
+    statusDuplicate: "重複",
   },
 } as const;
 

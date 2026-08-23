@@ -22,17 +22,24 @@ export default function CheckIn() {
 
   const token = params.get("t") ?? "";
   const locationId = params.get("l") ?? "";
+  const hasDeepLink = token !== "" && locationId !== "";
 
   useEffect(() => {
+    if (!hasDeepLink) {
+      setBusy(false);
+      return;
+    }
     if (submitted.current) return;
     submitted.current = true;
 
     submitCheckIn(token, locationId)
       .then(setResult)
       .catch((e: unknown) => {
-        // apiFetch throws ApiError, which carries the server's `detail`
-        // object on `.data` — NOT on the error itself. The router returns
-        // detail: {code, message}, so the code lives at e.data.code.
+        // apiFetch throws ApiError, which carries the server's `detail` on
+        // `.data` — NOT on the error itself. The router returns either
+        // detail: {code, message} (a CheckInRejected) or a plain string
+        // (e.g. the 403 raised when no employee record is linked to the
+        // account), so the code is only readable off an object detail.
         const code =
           e instanceof ApiError &&
           typeof e.data === "object" &&
@@ -40,17 +47,21 @@ export default function CheckIn() {
           "code" in e.data
             ? String((e.data as { code: unknown }).code)
             : "";
+        const status = e instanceof ApiError ? e.status : 0;
         setError(
           code === "code_already_used" || code === "invalid_token"
             ? t.checkIn.codeExpired
-            : code === "check_in_requires_paid_plan"
-              ? t.checkIn.failed
+            : status === 403
+              ? t.checkIn.noEmployeeRecord
               : t.checkIn.failed
         );
       })
       .finally(() => setBusy(false));
-  }, [token, locationId, t]);
+  }, [hasDeepLink, token, locationId, t]);
 
+  if (!hasDeepLink) {
+    return <p className="p-6">{t.checkIn.scanPrompt}</p>;
+  }
   if (busy) return <p className="p-6">{t.checkIn.checkingIn}</p>;
   if (error) return <div className="glass-alert-error m-6">{error}</div>;
   if (!result) return null;

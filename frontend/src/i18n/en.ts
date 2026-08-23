@@ -946,6 +946,13 @@ const en = {
     codeExpired: "That code was already used. Scan the new one on screen.",
     failed: "Check-in failed. Ask your manager.",
     noEmployeeRecord: "This account isn't linked to an employee record.",
+    scanPrompt: "Scan the check-in code displayed at your location to check in.",
+    managerLoadFailed: "Could not load the check-in code. Check your plan includes check-in, or try again.",
+    statusColumn: "Status",
+    statusMatched: "Matched",
+    statusNoShift: "No shift",
+    statusWrongLocation: "Wrong location",
+    statusDuplicate: "Duplicate",
   },
 } as const;
 

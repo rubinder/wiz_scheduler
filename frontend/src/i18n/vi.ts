@@ -938,6 +938,13 @@ const vi = {
     codeExpired: "Mã đó đã được sử dụng. Hãy quét mã mới trên màn hình.",
     failed: "Check-in thất bại. Hãy hỏi quản lý của bạn.",
     noEmployeeRecord: "Tài khoản này chưa được liên kết với hồ sơ nhân viên nào.",
+    scanPrompt: "Quét mã check-in được hiển thị tại địa điểm của bạn để check-in.",
+    managerLoadFailed: "Không thể tải mã check-in. Hãy kiểm tra xem gói của bạn có bao gồm check-in không, hoặc thử lại.",
+    statusColumn: "Trạng thái",
+    statusMatched: "Khớp",
+    statusNoShift: "Không có ca",
+    statusWrongLocation: "Sai địa điểm",
+    statusDuplicate: "Trùng lặp",
   },
 } as const;
 

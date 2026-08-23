@@ -938,6 +938,13 @@ const trLang = {
     codeExpired: "Bu kod zaten kullanıldı. Ekrandaki yeni kodu tarayın.",
     failed: "Giriş başarısız oldu. Yöneticinize danışın.",
     noEmployeeRecord: "Bu hesap herhangi bir çalışan kaydıyla ilişkilendirilmemiş.",
+    scanPrompt: "Check-in yapmak için konumunuzda gösterilen check-in kodunu tarayın.",
+    managerLoadFailed: "Check-in kodu yüklenemedi. Planınızın check-in içerdiğini kontrol edin veya tekrar deneyin.",
+    statusColumn: "Durum",
+    statusMatched: "Eşleşti",
+    statusNoShift: "Vardiya yok",
+    statusWrongLocation: "Yanlış konum",
+    statusDuplicate: "Yinelenen",
   },
 } as const;
 

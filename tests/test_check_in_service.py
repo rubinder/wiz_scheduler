@@ -309,3 +309,66 @@ async def test_every_scan_is_recorded(db_session: AsyncSession, tenant: dict):
 
     rows = (await db_session.execute(select(EmployeeCheckIn))).scalars().all()
     assert len(rows) == 2
+
+
+# --- genuine write race -------------------------------------------------
+
+async def test_a_genuine_insert_race_at_the_same_counter_is_rejected_not_500(
+    db_session: AsyncSession, tenant: dict
+):
+    """The `except IntegrityError` branch in record_check_in is meant to
+    catch two concurrent inserts landing on the same (location, local_date,
+    counter). Sequential replay of a spent token never reaches it: the
+    token-verification loop notices the counter has moved on and rejects the
+    scan *before* any insert is attempted (see
+    test_a_spent_token_is_rejected above).
+
+    To exercise the real branch we pre-seed a row directly at the exact
+    counter the next issued token will target, bypassing record_check_in
+    entirely. That makes current_counter() (== the total row count) agree
+    with the token's counter, so verification succeeds and the code only
+    discovers the collision at INSERT time -- the same shape a true
+    concurrent race produces.
+    """
+    now = datetime(2026, 8, 23, 13, 0, tzinfo=timezone.utc)
+    today = local_date_for(tenant["here"], now)
+    # Captured up front: record_check_in's IntegrityError branch rolls back,
+    # which expires every ORM instance in the session, so re-touching
+    # tenant["here"].id afterwards would trigger an implicit lazy-load that
+    # is not awaitable in this async context.
+    location_id = tenant["here"].id
+
+    other_employee_id = _id()
+    db_session.add(Employee(
+        id=other_employee_id, company_id=tenant["company_id"], full_name="Other",
+        email=f"{other_employee_id}@example.com", location_ids=[tenant["here"].id],
+    ))
+    await db_session.flush()
+    # Seeded directly, not via record_check_in, so current_counter() becomes
+    # 1 without this row's own counter value (1) ever having been issued as
+    # a token.
+    db_session.add(EmployeeCheckIn(
+        id=_id(), company_id=tenant["company_id"], location_id=location_id,
+        employee_id=other_employee_id, shift_id=None, checked_in_at=now,
+        local_date=today, counter=1, status=CHECK_IN_NO_SHIFT,
+        minutes_from_start=None,
+    ))
+    await db_session.commit()
+    assert await current_counter(db_session, location_id, today) == 1
+
+    # Issued against the current state (1 existing row), so this token is
+    # built for counter=1 -- the exact slot the seeded row above occupies.
+    token, counter = await issue_token(
+        db_session, tenant["slug"], tenant["here"], now=now)
+    assert counter == 1
+
+    with pytest.raises(CheckInRejected) as exc:
+        await record_check_in(
+            db_session, tenant["company_id"], tenant["employee_id"],
+            tenant["here"], tenant["slug"], token, now=now)
+    assert exc.value.code == "code_already_used"
+
+    # The IntegrityError branch must roll back rather than leave the session
+    # in a failed-transaction state: a further query on the same session
+    # has to work, and the losing insert must not have landed.
+    assert await current_counter(db_session, location_id, today) == 1

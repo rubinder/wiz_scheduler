@@ -938,6 +938,13 @@ const ind = {
     codeExpired: "Kode itu sudah digunakan. Pindai kode baru di layar.",
     failed: "Check-in gagal. Tanyakan kepada manajer Anda.",
     noEmployeeRecord: "Akun ini tidak terhubung dengan data karyawan mana pun.",
+    scanPrompt: "Pindai kode check-in yang ditampilkan di lokasi Anda untuk check-in.",
+    managerLoadFailed: "Tidak dapat memuat kode check-in. Periksa apakah paket Anda mencakup check-in, atau coba lagi.",
+    statusColumn: "Status",
+    statusMatched: "Cocok",
+    statusNoShift: "Tanpa shift",
+    statusWrongLocation: "Lokasi salah",
+    statusDuplicate: "Duplikat",
   },
 } as const;
 

@@ -14,7 +14,18 @@ import { getCheckInReport } from "../../api/checkIns";
 import { listEmployees } from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
-import type { CheckInReportRow, Employee } from "../../types";
+import type { CheckInReportRow, CheckInStatus, Employee } from "../../types";
+
+/** `local_date` is a bare "YYYY-MM-DD". `new Date(str)` parses that as UTC
+ *  midnight, and the tick/tooltip formatters then render it in the viewer's
+ *  own timezone — so anyone west of UTC sees every point shifted a day
+ *  earlier than the table directly beneath, which prints the string as-is.
+ *  Splitting and building the date from local fields keeps both in
+ *  agreement. */
+function parseLocalDate(localDate: string): Date {
+  const [year, month, day] = localDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
 
 export default function CheckInReport() {
   const { t } = useLanguage();
@@ -44,12 +55,31 @@ export default function CheckInReport() {
       rows
         .filter((r) => r.status === "matched" && r.minutes_from_start !== null)
         .map((r) => ({
-          x: new Date(r.local_date).getTime(),
+          x: parseLocalDate(r.local_date).getTime(),
           y: r.minutes_from_start as number,
           name: r.employee_name,
         })),
     [rows]
   );
+
+  /** Every row is self-describing so a `duplicate` (which carries a real
+   *  `minutes_from_start` computed before the status was overwritten) is
+   *  never mistaken for a genuine late arrival — the misreading the spec
+   *  forbids. */
+  const statusLabel = (status: CheckInStatus): string => {
+    switch (status) {
+      case "matched":
+        return t.checkIn.statusMatched;
+      case "no_shift":
+        return t.checkIn.statusNoShift;
+      case "wrong_location":
+        return t.checkIn.statusWrongLocation;
+      case "duplicate":
+        return t.checkIn.statusDuplicate;
+      default:
+        return status;
+    }
+  };
 
   return (
     <div className="p-6">
@@ -111,6 +141,7 @@ export default function CheckInReport() {
           <tr>
             <th className="text-start py-2">{t.checkIn.date}</th>
             <th className="text-start py-2">{t.checkIn.filterEmployee}</th>
+            <th className="text-start py-2">{t.checkIn.statusColumn}</th>
             <th className="text-end py-2">{t.checkIn.minutesLate}</th>
           </tr>
         </thead>
@@ -119,6 +150,7 @@ export default function CheckInReport() {
             <tr key={r.id}>
               <td className="py-1">{r.local_date}</td>
               <td className="py-1">{r.employee_name}</td>
+              <td className="py-1">{statusLabel(r.status)}</td>
               <td className="py-1 text-end">
                 {r.minutes_from_start ?? "—"}
               </td>

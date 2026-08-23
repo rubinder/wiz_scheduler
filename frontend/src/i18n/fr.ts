@@ -938,6 +938,13 @@ const fr = {
     codeExpired: "Ce code a déjà été utilisé. Scannez le nouveau code affiché à l'écran.",
     failed: "Le pointage a échoué. Contactez votre manager.",
     noEmployeeRecord: "Ce compte n'est lié à aucune fiche employé.",
+    scanPrompt: "Scannez le code de pointage affiché sur votre lieu de travail pour pointer.",
+    managerLoadFailed: "Impossible de charger le code de pointage. Vérifiez que votre forfait inclut le pointage, ou réessayez.",
+    statusColumn: "Statut",
+    statusMatched: "Correspondance",
+    statusNoShift: "Aucun poste",
+    statusWrongLocation: "Mauvais lieu",
+    statusDuplicate: "Doublon",
   },
 } as const;
 

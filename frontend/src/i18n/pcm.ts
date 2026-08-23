@@ -938,6 +938,13 @@ const pcm = {
     codeExpired: "Dat code don already use finish. Scan de new one wey dey on screen.",
     failed: "Check-in no work. Ask your manager.",
     noEmployeeRecord: "Dis account no link to any worker record.",
+    scanPrompt: "Scan di check-in code wey dey show for your location so you fit check in.",
+    managerLoadFailed: "E no fit load di check-in code. Check say your plan get check-in, or try again.",
+    statusColumn: "Status",
+    statusMatched: "E match",
+    statusNoShift: "No shift",
+    statusWrongLocation: "Wrong location",
+    statusDuplicate: "E don duplicate",
   },
 } as const;
 

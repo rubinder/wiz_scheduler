@@ -938,6 +938,13 @@ const ar = {
     codeExpired: "تم استخدام هذا الرمز من قبل. امسح الرمز الجديد الظاهر على الشاشة.",
     failed: "فشل تسجيل الحضور. اسأل مديرك.",
     noEmployeeRecord: "هذا الحساب غير مرتبط بسجل موظف.",
+    scanPrompt: "امسح رمز تسجيل الحضور المعروض في موقعك لتسجيل حضورك.",
+    managerLoadFailed: "تعذّر تحميل رمز تسجيل الحضور. تحقق من أن خطتك تشمل تسجيل الحضور، أو حاول مرة أخرى.",
+    statusColumn: "الحالة",
+    statusMatched: "مطابق",
+    statusNoShift: "بلا وردية",
+    statusWrongLocation: "موقع خاطئ",
+    statusDuplicate: "مكرر",
   },
 } as const;
 

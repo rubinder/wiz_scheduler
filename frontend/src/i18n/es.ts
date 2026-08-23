@@ -938,6 +938,13 @@ const es = {
     codeExpired: "Ese código ya se usó. Escanea el nuevo que aparece en pantalla.",
     failed: "El fichaje falló. Consulta a tu gerente.",
     noEmployeeRecord: "Esta cuenta no está vinculada a un registro de empleado.",
+    scanPrompt: "Escanea el código de fichaje que se muestra en tu ubicación para fichar.",
+    managerLoadFailed: "No se pudo cargar el código de fichaje. Comprueba que tu plan incluye fichaje, o inténtalo de nuevo.",
+    statusColumn: "Estado",
+    statusMatched: "Coincide",
+    statusNoShift: "Sin turno",
+    statusWrongLocation: "Ubicación incorrecta",
+    statusDuplicate: "Duplicado",
   },
 } as const;
 

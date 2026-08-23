@@ -938,6 +938,13 @@ const zh = {
     codeExpired: "该签到码已被使用，请扫描屏幕上的新码。",
     failed: "签到失败，请联系你的主管。",
     noEmployeeRecord: "该账号未关联员工档案。",
+    scanPrompt: "扫描您所在地点显示的签到码即可签到。",
+    managerLoadFailed: "无法加载签到码。请检查您的套餐是否包含签到功能，或稍后重试。",
+    statusColumn: "状态",
+    statusMatched: "匹配",
+    statusNoShift: "无排班",
+    statusWrongLocation: "地点错误",
+    statusDuplicate: "重复",
   },
 } as const;
 

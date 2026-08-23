@@ -938,6 +938,13 @@ const de = {
     codeExpired: "Dieser Code wurde bereits verwendet. Scanne den neuen Code auf dem Bildschirm.",
     failed: "Check-in fehlgeschlagen. Wende dich an deinen Manager.",
     noEmployeeRecord: "Dieses Konto ist mit keinem Mitarbeiterdatensatz verknüpft.",
+    scanPrompt: "Scannen Sie den an Ihrem Standort angezeigten Check-in-Code, um sich einzuchecken.",
+    managerLoadFailed: "Der Check-in-Code konnte nicht geladen werden. Prüfen Sie, ob Ihr Plan Check-in enthält, oder versuchen Sie es erneut.",
+    statusColumn: "Status",
+    statusMatched: "Zugeordnet",
+    statusNoShift: "Keine Schicht",
+    statusWrongLocation: "Falscher Standort",
+    statusDuplicate: "Duplikat",
   },
 } as const;
 

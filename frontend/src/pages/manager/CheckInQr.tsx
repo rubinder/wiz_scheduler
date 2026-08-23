@@ -25,7 +25,7 @@ export default function CheckInQr() {
         setLocations(rows);
         if (rows.length > 0) setLocationId(rows[0].id);
       })
-      .catch(() => setError(t.checkIn.failed));
+      .catch(() => setError(t.checkIn.managerLoadFailed));
   }, [t]);
 
   const refresh = useCallback(async () => {
@@ -34,7 +34,7 @@ export default function CheckInQr() {
       setQr(await getCheckInQr(locationId));
       setError(null);
     } catch {
-      setError(t.checkIn.failed);
+      setError(t.checkIn.managerLoadFailed);
     }
   }, [locationId, t]);
 
