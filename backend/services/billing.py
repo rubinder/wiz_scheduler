@@ -514,6 +514,18 @@ def calculate_schedule_charge(schedule_count: int) -> float:
 # ---------------------------------------------------------------------------
 
 
+def is_demo_group(og_id: str) -> bool:
+    """True when *og_id* is the public demo ownership group.
+
+    The one definition of "this is the shared demo". Both the raised
+    generation cap below and the roster lock in services.plan key off it, so
+    they cannot drift apart. Set DEMO_OWNERSHIP_GROUP_ID to "" to turn every
+    demo exception off at once.
+    """
+    demo_id = settings.DEMO_OWNERSHIP_GROUP_ID
+    return bool(demo_id) and str(og_id) == demo_id
+
+
 def free_plan_schedule_limit(og_id: str) -> int:
     """Monthly generation cap for a FREE ownership group.
 
@@ -526,8 +538,7 @@ def free_plan_schedule_limit(og_id: str) -> int:
     refuses to generate anything. Only the generation cap is lifted — the demo
     stays inside the location and employee caps.
     """
-    demo_id = settings.DEMO_OWNERSHIP_GROUP_ID
-    if demo_id and str(og_id) == demo_id:
+    if is_demo_group(og_id):
         return settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
     return settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
 

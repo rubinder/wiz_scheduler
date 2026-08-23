@@ -31,6 +31,7 @@ from backend.services.billing import (
     count_schedules_this_month,
     free_plan_schedule_limit,
     get_ownership_group_id,
+    is_demo_group,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,6 +196,38 @@ async def assert_can_add(
             raise _limit_error(
                 "employees", settings.FREE_PLAN_MAX_EMPLOYEES, current, employees
             )
+
+
+async def assert_roster_editable(db: AsyncSession, company_id: str) -> None:
+    """Raise 403 if *company_id* belongs to the shared public demo group.
+
+    The demo is one tenant shown to every visitor at once. Its roster is
+    seeded to a known shape — a fixed headcount with full availability — and
+    the landing flow, the shift template and every screenshot assume it. One
+    visitor deleting the staff would leave the demo broken for everyone who
+    arrives after, with nothing to restore it but a manual re-seed.
+
+    Scoped deliberately to ADD and REMOVE. Editing an existing employee, their
+    roles and their availability stays open, because that is the part a
+    visitor is meant to try and it heals on the next seed run.
+
+    Not a plan limit: a 402 would tell the caller to upgrade, and paying does
+    not unlock the demo tenant. 403 with its own code keeps the two apart.
+    """
+    og_id = await get_ownership_group_id(db, str(company_id))
+    if not og_id or not is_demo_group(og_id):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "demo_roster_locked",
+            "message": (
+                "This is the shared demo account. Its roster is fixed so "
+                "every visitor sees the same example — adding and removing "
+                "employees is disabled. Everything else is yours to try."
+            ),
+        },
+    )
 
 
 _BLOCK_MESSAGES = {

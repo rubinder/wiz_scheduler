@@ -102,13 +102,29 @@ class Settings(BaseSettings):
     # Free plan hard limits (distinct from EMPLOYEE_FREE_TIER above, which is
     # a metered-overage threshold for PAID customers). These are the caps that
     # decide whether an ownership group must subscribe at all.
-    FREE_PLAN_MAX_LOCATIONS: int = 1
-    # Raised 5 -> 10 on 2026-08-21. A go-to-market number, not a cost one:
-    # 10 free employees cost about $0.0016/month in AWS, and free tenants
-    # cannot reach AI generation at all so they draw no Anthropic spend.
+
+    # Raised 1 -> 2 on 2026-08-23.
+    #
+    # WARNING, and the reason this number is not free to change: generation
+    # writes one ShiftSchedule row PER LOCATION PER RUN, and
+    # count_schedules_this_month counts ROWS. While this was 1, a row and a
+    # run were the same thing for every tenant that could reach the check, so
+    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH could be read as "runs". At 2 they
+    # diverge: a free group with two locations spends its whole monthly
+    # allowance on a SINGLE run. See the "Rows vs. runs" note in
+    # docs/superpowers/specs/2026-08-10-free-tier-design.md, which called this
+    # out as load-bearing. Counting runs needs a batch id on ShiftSchedule;
+    # until that exists, a two-location free tenant effectively gets
+    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH / 2 generations.
+    FREE_PLAN_MAX_LOCATIONS: int = 2
+    # Raised 5 -> 10 on 2026-08-21, then 10 -> 25 on 2026-08-23. A go-to-market
+    # number, not a cost one: a free employee is a row and little else, so at
+    # the same per-row rate behind the earlier 10-employee figure 25 of them
+    # run about $0.004/month in AWS, and free tenants cannot reach AI
+    # generation at all so they draw no Anthropic spend.
     # Headcount is deliberately NOT the conversion gate — see
     # FREE_PLAN_MAX_SCHEDULES_PER_MONTH below, which is.
-    FREE_PLAN_MAX_EMPLOYEES: int = 10
+    FREE_PLAN_MAX_EMPLOYEES: int = 25
 
     # Free plan may run this many schedule generations per calendar month.
     # Independent of SCHEDULE_FREE_TIER below, which is the PAID metered
@@ -124,7 +140,7 @@ class Settings(BaseSettings):
 
     # The public demo tenant. It is a free-plan group like any other — no
     # Stripe subscription — but it is shared by every visitor, so the normal
-    # 5/month cap is spent almost immediately and the demo then refuses to
+    # 2/month cap is spent almost immediately and the demo then refuses to
     # generate anything. Raise only its generation cap; the location and
     # employee caps still apply, so the demo keeps showing free-plan shape.
     # AI generation stays off (can_generate_ai is False for every free group),

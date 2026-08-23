@@ -114,7 +114,7 @@ async def test_og_without_subscription_is_free(
     state = await get_plan_state(db_session, company_id)
     assert state["plan"] == "free"
     assert state["employees"]["limit"] == settings.FREE_PLAN_MAX_EMPLOYEES
-    assert state["locations"]["limit"] == 1
+    assert state["locations"]["limit"] == settings.FREE_PLAN_MAX_LOCATIONS
     assert state["can_generate_local"] is True
     assert state["can_generate_ai"] is False
     assert state["block_reason"] is None
@@ -234,21 +234,23 @@ async def test_assert_can_add_refuses_oversized_bulk(
     assert exc.value.detail["current"] == 0
 
 
-async def test_assert_can_add_second_location_refused(
+async def test_assert_can_add_location_past_the_cap_refused(
     db_session: AsyncSession, free_og: tuple[str, str]
 ):
     og_id, company_id = free_og
     region_id = _id()
     db_session.add(Region(id=region_id, company_id=company_id, name="R"))
     await db_session.flush()
-    db_session.add(Location(id=_id(), company_id=company_id,
-                            region_id=region_id, name="L1", timezone="UTC"))
+    for i in range(settings.FREE_PLAN_MAX_LOCATIONS):
+        db_session.add(Location(id=_id(), company_id=company_id,
+                                region_id=region_id, name=f"L{i}",
+                                timezone="UTC"))
     await db_session.commit()
 
     with pytest.raises(HTTPException) as exc:
         await assert_can_add(db_session, company_id, locations=1)
     assert exc.value.detail["limit"] == "locations"
-    assert exc.value.detail["max"] == 1
+    assert exc.value.detail["max"] == settings.FREE_PLAN_MAX_LOCATIONS
 
 
 async def test_assert_can_add_noop_when_paid(

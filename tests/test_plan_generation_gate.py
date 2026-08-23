@@ -229,3 +229,37 @@ async def test_plan_state_over_limit_block_reason_unaffected_by_generation_cap(
     state = await get_plan_state(db_session, tenant["company_id"])
     assert state["over_limit"] is True
     assert state["block_reason"] == "subscription_canceled"
+
+
+async def test_one_run_at_two_locations_spends_two_of_the_allowance(
+    db_session: AsyncSession, tenant: dict
+):
+    """Rows vs. runs, now that FREE_PLAN_MAX_LOCATIONS is 2.
+
+    Generation writes one ShiftSchedule row PER LOCATION PER RUN
+    (backend/routers/schedules.py), and count_schedules_this_month counts
+    rows. While the free plan allowed a single location the two were the same
+    number, so FREE_PLAN_MAX_SCHEDULES_PER_MONTH could be read as "runs per
+    month". It cannot any more: a free tenant with two locations spends the
+    whole monthly allowance on ONE generation.
+
+    This test does not endorse that — it pins it, so the day someone adds a
+    batch id to ShiftSchedule and switches the count to runs, this fails and
+    points at the decision. See the WARNING on FREE_PLAN_MAX_LOCATIONS in
+    backend/config.py.
+    """
+    assert settings.FREE_PLAN_MAX_LOCATIONS == 2
+    assert settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH == 2
+
+    # One run across two locations = two rows.
+    await _add_schedules(db_session, tenant["company_id"], 2)
+
+    state = await get_plan_state(db_session, tenant["company_id"])
+    assert state["schedules"]["count"] == 2
+    assert state["block_reason"] == "schedule_limit_reached"
+
+    with pytest.raises(HTTPException) as exc:
+        await check_can_generate(db_session, tenant["company_id"],
+                                 use_local=True)
+    assert exc.value.detail["code"] == "schedule_limit_reached"
+

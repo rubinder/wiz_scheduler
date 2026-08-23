@@ -8,8 +8,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
-from backend.models import Company, Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
-from backend.services.plan import assert_can_add
+from backend.models import Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
+from backend.services.plan import assert_can_add, assert_roster_editable
 from backend.schemas.employee import (
     AvailabilityCreate,
     AvailabilityResponse,
@@ -169,6 +169,7 @@ async def create_employee(
     db: AsyncSession = Depends(get_db),
     group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> EmployeeResponse:
+    await assert_roster_editable(db, str(current_user.company_id))
     await assert_can_add(db, str(current_user.company_id), employees=1)
 
     employee = Employee(
@@ -246,6 +247,12 @@ async def delete_employee(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    # Supersedes an older check that keyed on the literal slug "acme-corp" and
+    # only covered employees with a linked user — which left the rest of the
+    # demo roster deletable. Keyed on the configured demo ownership group now,
+    # so it holds for every demo employee and turns off with the group id.
+    await assert_roster_editable(db, str(current_user.company_id))
+
     result = await db.execute(
         select(Employee).where(
             Employee.id == employee_id,
@@ -255,17 +262,6 @@ async def delete_employee(
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-
-    # Prevent deletion of demo employees in the demo company
-    company_result = await db.execute(
-        select(Company).where(Company.id == current_user.company_id)
-    )
-    company = company_result.scalar_one_or_none()
-    if company and company.slug == "acme-corp" and employee.user_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete demo employees in the demo company",
-        )
 
     # Clean up all related records before deleting the employee
     await db.execute(
@@ -317,6 +313,10 @@ async def bulk_upload(
     Location names are matched case-insensitively against the locations table.
     Returns a summary of created, skipped, and errors.
     """
+    # Refused before the body is even read: the demo roster is fixed, so
+    # there is no size of upload that would be accepted.
+    await assert_roster_editable(db, str(current_user.company_id))
+
     # Body size + row-count caps (#46). The body cap stops oversize uploads
     # before they consume async worker time or risk OOM on small memory
     # limits; the row cap stops a tightly-packed 5MB file from still
