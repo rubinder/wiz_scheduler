@@ -129,9 +129,9 @@ def test_missing_secret_refuses_to_build(monkeypatch):
         build_check_in_token(*ARGS)
 
 
-def test_deep_link_embeds_the_token():
-    link = check_in_deep_link("abc123")
-    assert link.endswith("/employee/check-in?t=abc123")
+def test_deep_link_embeds_the_token_and_location():
+    link = check_in_deep_link("abc123", "locn0001")
+    assert link.endswith("/employee/check-in?t=abc123&l=locn0001")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -256,15 +256,20 @@ def verify_check_in_token(
     return hmac.compare_digest(token, expected)
 
 
-def check_in_deep_link(token: str) -> str:
+def check_in_deep_link(token: str, location_id: str) -> str:
     """The URL encoded into the QR image.
 
     A link rather than a bare code so an ordinary phone camera can open it —
-    no in-app scanner, no camera permission, no QR *reader* dependency. The
-    link carries no identity; that comes from the bearer token the app
-    already holds.
+    no in-app scanner, no camera permission, no QR *reader* dependency.
+
+    Carries the location because the page has to say which location it is
+    checking in to; it carries no identity, which comes from the bearer token
+    the app already holds.
     """
-    return f"{settings.FRONTEND_URL.rstrip('/')}/employee/check-in?t={token}"
+    return (
+        f"{settings.FRONTEND_URL.rstrip('/')}/employee/check-in"
+        f"?t={token}&l={location_id}"
+    )
 ```
 
 - [ ] **Step 6: Run test to verify it passes**
@@ -328,6 +333,7 @@ application logic that a future caller could forget.
 from datetime import date, datetime, timezone
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -377,9 +383,7 @@ async def test_a_check_in_persists(db_session: AsyncSession):
     db_session.add(_row(t, 0, minutes_from_start=3))
     await db_session.commit()
 
-    row = (await db_session.execute(
-        __import__("sqlalchemy").select(EmployeeCheckIn)
-    )).scalar_one()
+    row = (await db_session.execute(select(EmployeeCheckIn))).scalar_one()
     assert row.status == CHECK_IN_MATCHED
     assert row.minutes_from_start == 3
     assert row.shift_id is None
@@ -739,7 +743,10 @@ async def _add_shift(db: AsyncSession, t: dict, location: Location,
 
 async def _scan(db: AsyncSession, t: dict, location: Location,
                 now: datetime) -> EmployeeCheckIn:
-    token, _ = await issue_token(db, t["slug"], location)
+    # The same clock for both calls. The local date is inside the signed
+    # message, so issuing against the real clock and recording against a
+    # pinned one would never verify.
+    token, _ = await issue_token(db, t["slug"], location, now=now)
     return await record_check_in(db, t["company_id"], t["employee_id"],
                                  location, t["slug"], token, now=now)
 
@@ -782,7 +789,8 @@ async def test_counter_advances_with_each_recorded_scan(
 
 async def test_a_spent_token_is_rejected(db_session: AsyncSession, tenant: dict):
     now = datetime(2026, 8, 23, 13, 0, tzinfo=timezone.utc)
-    token, _ = await issue_token(db_session, tenant["slug"], tenant["here"])
+    token, _ = await issue_token(db_session, tenant["slug"], tenant["here"],
+                                 now=now)
     await record_check_in(db_session, tenant["company_id"], tenant["employee_id"],
                           tenant["here"], tenant["slug"], token, now=now)
 
@@ -1008,10 +1016,18 @@ async def current_counter(
 
 
 async def issue_token(
-    db: AsyncSession, company_slug: str, location: Location
+    db: AsyncSession,
+    company_slug: str,
+    location: Location,
+    now: datetime | None = None,
 ) -> tuple[str, int]:
-    """The code to display right now, and the counter it stands for."""
-    today = local_date_for(location, datetime.now(timezone.utc))
+    """The code to display right now, and the counter it stands for.
+
+    *now* is injectable so a test can pin the clock. It has to be: the local
+    date is part of the signed message, so a token issued against the real
+    clock will not verify inside a test that pins a different date.
+    """
+    today = local_date_for(location, now or datetime.now(timezone.utc))
     counter = await current_counter(db, location.id, today)
     return build_check_in_token(company_slug, location.id, today, counter), counter
 
@@ -1462,7 +1478,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_current_user, get_db, require_manager
-from backend.models import Employee, EmployeeCheckIn, Location, User
+from backend.models import Company, Employee, EmployeeCheckIn, Location, User
 from backend.schemas.check_in import (
     CheckInQrResponse,
     CheckInReportResponse,
@@ -1472,15 +1488,20 @@ from backend.schemas.check_in import (
 )
 from backend.services.check_in import (
     CheckInRejected,
-    current_counter,
     issue_token,
-    local_date_for,
     record_check_in,
 )
 from backend.services.check_in_token import check_in_deep_link
 from backend.services.plan import assert_paid_plan
 
 router = APIRouter(prefix="/check-ins", tags=["check-ins"])
+
+
+async def _company_slug(db: AsyncSession, company_id: str) -> str:
+    """The slug is one of the four inputs to the signed QR payload."""
+    return (await db.execute(
+        select(Company.slug).where(Company.id == company_id)
+    )).scalar_one()
 
 
 async def _load_location(
@@ -1514,19 +1535,11 @@ async def get_check_in_qr(
     await assert_paid_plan(db, company_id, "check_in")
     location = await _load_location(db, company_id, location_id)
 
-    company_slug = (await db.execute(
-        select(Location.company_id).where(Location.id == location.id)
-    )).scalar_one()
-    from backend.models import Company
-
-    slug = (await db.execute(
-        select(Company.slug).where(Company.id == company_id)
-    )).scalar_one()
-
+    slug = await _company_slug(db, company_id)
     token, counter = await issue_token(db, slug, location)
 
     buf = BytesIO()
-    segno.make(check_in_deep_link(token), error="m").save(
+    segno.make(check_in_deep_link(token, location.id), error="m").save(
         buf, kind="svg", scale=8, border=2
     )
 
@@ -1561,11 +1574,7 @@ async def create_check_in(
             detail="No employee record is linked to this account",
         )
 
-    from backend.models import Company
-
-    slug = (await db.execute(
-        select(Company.slug).where(Company.id == company_id)
-    )).scalar_one()
+    slug = await _company_slug(db, company_id)
 
     try:
         row = await record_check_in(
@@ -1638,20 +1647,13 @@ In `backend/main.py`, add `check_ins` to the `from backend.routers import (...)`
 Run: `pytest tests/test_check_in_api.py -v`
 Expected: PASS, 12 tests
 
-- [ ] **Step 7: Simplify the duplicated slug lookup**
+- [ ] **Step 7: Check for unused imports**
 
-Both handlers fetch the company slug the same way. Extract it:
-
-```python
-async def _company_slug(db: AsyncSession, company_id: str) -> str:
-    from backend.models import Company
-
-    return (await db.execute(
-        select(Company.slug).where(Company.id == company_id)
-    )).scalar_one()
-```
-
-Replace both inline lookups with `slug = await _company_slug(db, company_id)`, and delete the stray unused `company_slug = ...` assignment in `get_check_in_qr`. Re-run the tests; they must still pass.
+Run: `cd backend && python -c "import ast,sys; [print(n) for n in []]"` — or
+simply read the import block against the file. Both handlers already share
+`_company_slug`, so the only thing to confirm is that every name imported at
+the top of `check_ins.py` is actually used. Remove any that are not, and
+re-run `pytest tests/test_check_in_api.py -v`.
 
 - [ ] **Step 8: Commit**
 
@@ -2308,28 +2310,17 @@ export default function CheckIn() {
 }
 ```
 
-- [ ] **Step 3: Carry the location in the deep link**
+- [ ] **Step 3: Confirm the deep link already carries the location**
 
-The employee page needs `location_id`, so the link must contain it. In `backend/services/check_in_token.py`, change `check_in_deep_link` to take the location:
-
-```python
-def check_in_deep_link(token: str, location_id: str) -> str:
-    return (
-        f"{settings.FRONTEND_URL.rstrip('/')}/employee/check-in"
-        f"?t={token}&l={location_id}"
-    )
-```
-
-Update the caller in `backend/routers/check_ins.py` to `check_in_deep_link(token, location.id)`, and update `test_deep_link_embeds_the_token` in `tests/test_check_in_token.py`:
-
-```python
-def test_deep_link_embeds_the_token_and_location():
-    link = check_in_deep_link("abc123", "locn0001")
-    assert link.endswith("/employee/check-in?t=abc123&l=locn0001")
-```
+Task 1 defines `check_in_deep_link(token, location_id)` and Task 4 calls it
+with `location.id`, so the link the QR encodes is already
+`/employee/check-in?t=...&l=...` — the page above reads both params. Nothing
+to change here; this step exists to make you check rather than assume.
 
 Run: `pytest tests/test_check_in_token.py tests/test_check_in_api.py -v`
-Expected: PASS.
+Expected: PASS. If `check_in_deep_link` takes only a token, Task 1 was
+implemented against a stale brief — fix it to the two-argument form and
+re-run.
 
 - [ ] **Step 4: Add routes and the sidebar link**
 
