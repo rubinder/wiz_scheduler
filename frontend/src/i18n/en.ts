@@ -79,6 +79,9 @@ const en = {
     myAvailability: "My Availability",
     dataPrivacy: "Data & Privacy",
     specialHours: "Special Hours",
+    checkInQr: "Check-In Code",
+    checkInReport: "Check-In Report",
+    checkIn: "Check In",
   },
 
   // ── Team ──
@@ -912,6 +915,44 @@ const en = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Check-In Code",
+    qrDesc:
+      "Employees scan this to check in. The code changes each time someone scans, so a photo of it is useless to anyone who isn't here.",
+    selectLocation: "Location",
+    checkedInToday: "Checked in today",
+    reportTitle: "Check-In Report",
+    reportDesc:
+      "How far from their scheduled start each employee arrived, over the last {days} days. Below the line is early, above is late.",
+    allEmployees: "All employees",
+    filterEmployee: "Employee",
+    minutesLate: "Minutes from scheduled start",
+    date: "Date",
+    noData: "No check-ins recorded yet.",
+    // Employee-facing
+    checkingIn: "Checking you in...",
+    successMatched: "Checked in. You're {minutes} minutes {direction}.",
+    successOnTime: "Checked in, right on time.",
+    directionEarly: "early",
+    directionLate: "late",
+    successNoShift:
+      "Checked in, but you're not on the rota near this time. Your manager will see it.",
+    successWrongLocation:
+      "Checked in, but your shift today is at a different location.",
+    successDuplicate: "You already checked in today. This one is noted too.",
+    codeExpired: "That code was already used. Scan the new one on screen.",
+    failed: "Check-in failed. Ask your manager.",
+    noEmployeeRecord: "This account isn't linked to an employee record.",
+    scanPrompt: "Scan the check-in code displayed at your location to check in.",
+    managerLoadFailed: "Could not load the check-in code. Check your plan includes check-in, or try again.",
+    statusColumn: "Status",
+    statusMatched: "Matched",
+    statusNoShift: "No shift",
+    statusWrongLocation: "Wrong location",
+    statusDuplicate: "Duplicate",
   },
 } as const;
 

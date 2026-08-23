@@ -79,6 +79,9 @@ const pcm = {
     exportSchedules: "Export Approved Schedules",
     myAvailability: "My Availability",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Code For Check-In",
+    checkInReport: "Report For Check-In",
+    checkIn: "Check In",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const pcm = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Code For Check-In",
+    qrDesc: "Workers go scan dis one to check in. De code dey change anytime somebody scan am, so if person snap am, e no go work for anybody wey no dey here.",
+    selectLocation: "Location",
+    checkedInToday: "Wetin don check in today",
+    reportTitle: "Report For Check-In",
+    reportDesc: "How far each worker come from de time wey dem suppose start, for de last {days} days. Under de line mean say dem come early, above mean say dem late.",
+    allEmployees: "All workers",
+    filterEmployee: "Worker",
+    minutesLate: "Minutes from de time wey dem suppose start",
+    date: "Date",
+    noData: "No check-in dey record yet.",
+    checkingIn: "We dey check you in...",
+    successMatched: "You don check in. You dey {minutes} minutes {direction}.",
+    successOnTime: "You don check in, on time sharp sharp.",
+    directionEarly: "early",
+    directionLate: "late",
+    successNoShift: "You don check in, but dem no put you for work near dis time. Your manager go see am.",
+    successWrongLocation: "You don check in, but your shift today dey another location.",
+    successDuplicate: "You don already check in today. Dis one sef don note am.",
+    codeExpired: "Dat code don already use finish. Scan de new one wey dey on screen.",
+    failed: "Check-in no work. Ask your manager.",
+    noEmployeeRecord: "Dis account no link to any worker record.",
+    scanPrompt: "Scan di check-in code wey dey show for your location so you fit check in.",
+    managerLoadFailed: "E no fit load di check-in code. Check say your plan get check-in, or try again.",
+    statusColumn: "Status",
+    statusMatched: "E match",
+    statusNoShift: "No shift",
+    statusWrongLocation: "Wrong location",
+    statusDuplicate: "E don duplicate",
   },
 } as const;
 

@@ -79,6 +79,9 @@ const ur = {
     exportSchedules: "منظور شدہ شیڈولز برآمد کریں",
     myAvailability: "میری دستیابی",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "چیک اِن کوڈ",
+    checkInReport: "چیک اِن رپورٹ",
+    checkIn: "چیک اِن کریں",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const ur = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "چیک اِن کوڈ",
+    qrDesc: "ملازمین چیک اِن کرنے کے لیے اسے اسکین کرتے ہیں۔ ہر بار اسکین ہونے پر کوڈ تبدیل ہو جاتا ہے، اس لیے اس کی تصویر کسی ایسے شخص کے لیے بےکار ہے جو یہاں موجود نہیں۔",
+    selectLocation: "مقام",
+    checkedInToday: "آج چیک اِن",
+    reportTitle: "چیک اِن رپورٹ",
+    reportDesc: "پچھلے {days} دنوں میں ہر ملازم اپنے مقررہ آغاز کے وقت سے کتنی دیر پہلے یا بعد میں پہنچا۔ لائن کے نیچے جلدی ہے، اوپر دیر سے ہے۔",
+    allEmployees: "تمام ملازمین",
+    filterEmployee: "ملازم",
+    minutesLate: "مقررہ آغاز کے وقت سے منٹ",
+    date: "تاریخ",
+    noData: "ابھی تک کوئی چیک اِن ریکارڈ نہیں ہوا۔",
+    checkingIn: "آپ کو چیک اِن کیا جا رہا ہے...",
+    successMatched: "چیک اِن ہو گیا۔ آپ {minutes} منٹ {direction} ہیں۔",
+    successOnTime: "چیک اِن ہو گیا، بالکل وقت پر۔",
+    directionEarly: "جلدی",
+    directionLate: "دیر سے",
+    successNoShift: "چیک اِن ہو گیا، لیکن اس وقت کے قریب آپ روٹا میں شامل نہیں ہیں۔ آپ کا مینیجر اسے دیکھے گا۔",
+    successWrongLocation: "چیک اِن ہو گیا، لیکن آج آپ کی شفٹ کسی اور مقام پر ہے۔",
+    successDuplicate: "آپ آج پہلے ہی چیک اِن کر چکے ہیں۔ یہ بھی نوٹ کر لیا گیا ہے۔",
+    codeExpired: "یہ کوڈ پہلے ہی استعمال ہو چکا ہے۔ اسکرین پر موجود نیا کوڈ اسکین کریں۔",
+    failed: "چیک اِن ناکام ہو گیا۔ اپنے مینیجر سے پوچھیں۔",
+    noEmployeeRecord: "یہ اکاؤنٹ کسی ملازم ریکارڈ سے منسلک نہیں ہے۔",
+    scanPrompt: "چیک اِن کرنے کے لیے اپنے مقام پر دکھایا گیا چیک اِن کوڈ اسکین کریں۔",
+    managerLoadFailed: "چیک اِن کوڈ لوڈ نہیں ہو سکا۔ چیک کریں کہ آپ کے پلان میں چیک اِن شامل ہے، یا دوبارہ کوشش کریں۔",
+    statusColumn: "حیثیت",
+    statusMatched: "میچ ہوا",
+    statusNoShift: "کوئی شفٹ نہیں",
+    statusWrongLocation: "غلط مقام",
+    statusDuplicate: "ڈپلیکیٹ",
   },
 } as const;
 

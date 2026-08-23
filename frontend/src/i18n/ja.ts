@@ -79,6 +79,9 @@ const ja = {
     exportSchedules: "承認済みスケジュールのエクスポート",
     myAvailability: "勤務可能時間",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "チェックインコード",
+    checkInReport: "チェックインレポート",
+    checkIn: "チェックイン",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const ja = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "チェックインコード",
+    qrDesc: "従業員はこれをスキャンしてチェックインします。コードはスキャンされるたびに変わるため、写真に撮っても現場にいない人には使えません。",
+    selectLocation: "拠点",
+    checkedInToday: "本日のチェックイン数",
+    reportTitle: "チェックインレポート",
+    reportDesc: "過去{days}日間、各従業員が予定の出勤時刻からどれくらいずれて到着したか。線より下は早め、上は遅めです。",
+    allEmployees: "全従業員",
+    filterEmployee: "従業員",
+    minutesLate: "予定の出勤時刻からの分数",
+    date: "日付",
+    noData: "まだチェックインの記録がありません。",
+    checkingIn: "チェックイン処理中...",
+    successMatched: "チェックインしました。予定より{minutes}分{direction}です。",
+    successOnTime: "チェックインしました。時間通りです。",
+    directionEarly: "早い",
+    directionLate: "遅い",
+    successNoShift: "チェックインしましたが、この時間帯のシフトに入っていません。マネージャーに通知されます。",
+    successWrongLocation: "チェックインしましたが、本日のシフトは別の拠点です。",
+    successDuplicate: "本日は既にチェックイン済みです。この記録も残されます。",
+    codeExpired: "このコードは既に使用されています。画面に表示されている新しいコードをスキャンしてください。",
+    failed: "チェックインに失敗しました。マネージャーに確認してください。",
+    noEmployeeRecord: "このアカウントは従業員情報に紐づいていません。",
+    scanPrompt: "チェックインするには、あなたの拠点に表示されているチェックインコードをスキャンしてください。",
+    managerLoadFailed: "チェックインコードを読み込めませんでした。プランにチェックインが含まれているか確認するか、もう一度お試しください。",
+    statusColumn: "ステータス",
+    statusMatched: "一致",
+    statusNoShift: "シフトなし",
+    statusWrongLocation: "場所違い",
+    statusDuplicate: "重複",
   },
 } as const;
 

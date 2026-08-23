@@ -79,6 +79,9 @@ const ind = {
     exportSchedules: "Ekspor Jadwal yang Disetujui",
     myAvailability: "Ketersediaan Saya",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Kode Check-in",
+    checkInReport: "Laporan Check-in",
+    checkIn: "Check-in",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const ind = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Kode Check-in",
+    qrDesc: "Karyawan memindai ini untuk check-in. Kode berubah setiap kali dipindai, jadi foto kode ini tidak berguna bagi siapa pun yang tidak berada di sini.",
+    selectLocation: "Lokasi",
+    checkedInToday: "Check-in hari ini",
+    reportTitle: "Laporan Check-in",
+    reportDesc: "Seberapa jauh dari waktu mulai terjadwal setiap karyawan tiba, selama {days} hari terakhir. Di bawah garis berarti lebih awal, di atas garis berarti terlambat.",
+    allEmployees: "Semua karyawan",
+    filterEmployee: "Karyawan",
+    minutesLate: "Menit dari waktu mulai terjadwal",
+    date: "Tanggal",
+    noData: "Belum ada check-in yang tercatat.",
+    checkingIn: "Sedang memproses check-in Anda...",
+    successMatched: "Check-in berhasil. Anda {minutes} menit {direction}.",
+    successOnTime: "Check-in berhasil, tepat waktu.",
+    directionEarly: "lebih awal",
+    directionLate: "terlambat",
+    successNoShift: "Check-in berhasil, tetapi Anda tidak terjadwal di sekitar waktu ini. Manajer Anda akan melihatnya.",
+    successWrongLocation: "Check-in berhasil, tetapi shift Anda hari ini ada di lokasi lain.",
+    successDuplicate: "Anda sudah check-in hari ini. Ini juga akan dicatat.",
+    codeExpired: "Kode itu sudah digunakan. Pindai kode baru di layar.",
+    failed: "Check-in gagal. Tanyakan kepada manajer Anda.",
+    noEmployeeRecord: "Akun ini tidak terhubung dengan data karyawan mana pun.",
+    scanPrompt: "Pindai kode check-in yang ditampilkan di lokasi Anda untuk check-in.",
+    managerLoadFailed: "Tidak dapat memuat kode check-in. Periksa apakah paket Anda mencakup check-in, atau coba lagi.",
+    statusColumn: "Status",
+    statusMatched: "Cocok",
+    statusNoShift: "Tanpa shift",
+    statusWrongLocation: "Lokasi salah",
+    statusDuplicate: "Duplikat",
   },
 } as const;
 

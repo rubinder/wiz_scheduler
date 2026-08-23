@@ -79,6 +79,9 @@ const te = {
     exportSchedules: "ఆమోదించిన షెడ్యూల్‌లను ఎగుమతి చేయి",
     myAvailability: "నా అందుబాటు",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "చెక్-ఇన్ కోడ్",
+    checkInReport: "చెక్-ఇన్ నివేదిక",
+    checkIn: "చెక్-ఇన్ చేయండి",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const te = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "చెక్-ఇన్ కోడ్",
+    qrDesc: "ఉద్యోగులు చెక్-ఇన్ చేయడానికి దీన్ని స్కాన్ చేస్తారు. ప్రతిసారి స్కాన్ చేసినప్పుడు కోడ్ మారుతుంది, కాబట్టి దాని ఫోటో ఇక్కడ లేని వారికి పనికిరాదు.",
+    selectLocation: "స్థానం",
+    checkedInToday: "ఈరోజు చెక్-ఇన్ అయినవారు",
+    reportTitle: "చెక్-ఇన్ నివేదిక",
+    reportDesc: "గత {days} రోజుల్లో ప్రతి ఉద్యోగి తమ షెడ్యూల్ చేసిన ప్రారంభ సమయం నుండి ఎంత దూరంలో వచ్చారు. గీతకు కింద అంటే ముందుగా, పైన అంటే ఆలస్యంగా.",
+    allEmployees: "అందరు ఉద్యోగులు",
+    filterEmployee: "ఉద్యోగి",
+    minutesLate: "షెడ్యూల్ చేసిన ప్రారంభ సమయం నుండి నిమిషాలు",
+    date: "తేదీ",
+    noData: "ఇంకా చెక్-ఇన్‌లు నమోదు కాలేదు.",
+    checkingIn: "మిమ్మల్ని చెక్-ఇన్ చేస్తున్నాము...",
+    successMatched: "చెక్-ఇన్ పూర్తయింది. మీరు {minutes} నిమిషాలు {direction}.",
+    successOnTime: "చెక్-ఇన్ పూర్తయింది, సరైన సమయానికి.",
+    directionEarly: "ముందుగా",
+    directionLate: "ఆలస్యంగా",
+    successNoShift: "చెక్-ఇన్ పూర్తయింది, కానీ ఈ సమయానికి దగ్గరగా మీరు షెడ్యూల్‌లో లేరు. మీ మేనేజర్ దీన్ని చూస్తారు.",
+    successWrongLocation: "చెక్-ఇన్ పూర్తయింది, కానీ ఈరోజు మీ షిఫ్ట్ వేరే స్థానంలో ఉంది.",
+    successDuplicate: "మీరు ఈరోజు ఇప్పటికే చెక్-ఇన్ చేశారు. ఇది కూడా నమోదు చేయబడింది.",
+    codeExpired: "ఆ కోడ్ ఇప్పటికే వాడబడింది. స్క్రీన్‌పై ఉన్న కొత్త కోడ్‌ను స్కాన్ చేయండి.",
+    failed: "చెక్-ఇన్ విఫలమైంది. మీ మేనేజర్‌ను అడగండి.",
+    noEmployeeRecord: "ఈ ఖాతా ఏ ఉద్యోగి రికార్డుతో ముడిపడి లేదు.",
+    scanPrompt: "చెక్-ఇన్ చేయడానికి మీ లొకేషన్‌లో చూపిస్తున్న చెక్-ఇన్ కోడ్‌ను స్కాన్ చేయండి.",
+    managerLoadFailed: "చెక్-ఇన్ కోడ్‌ను లోడ్ చేయలేకపోయాము. మీ ప్లాన్‌లో చెక్-ఇన్ ఉందో లేదో చూడండి, లేదా మళ్లీ ప్రయత్నించండి.",
+    statusColumn: "స్థితి",
+    statusMatched: "సరిపోలింది",
+    statusNoShift: "షిఫ్ట్ లేదు",
+    statusWrongLocation: "తప్పు లొకేషన్",
+    statusDuplicate: "నకిలీ",
   },
 } as const;
 

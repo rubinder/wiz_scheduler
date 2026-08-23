@@ -176,8 +176,14 @@ Tests run against in-memory SQLite — no Postgres instance required.
 | `RESEND_API_KEY` | Resend key for transactional email | (empty) |
 | `FROM_EMAIL` | Sender address | `noreply@shiftsync.example.com` |
 | `ENV` | `development` / `production` | `development` |
+| `CHECKIN_QR_SECRET` | HMAC key for the employee check-in rotating QR code | (empty) |
+| `FRONTEND_URL` | Base origin the check-in QR deep link is built from | `http://localhost:5173` |
 
 Without `ANTHROPIC_API_KEY`, the deterministic local scheduler still works end to end.
+
+`CHECKIN_QR_SECRET` has no usable default — a predictable key would let anyone derive a valid check-in code off-site, which is the exact attack the HMAC exists to stop. The service refuses to issue or verify check-in codes while it is unset. It must be set in AWS Secrets Manager before the check-in feature is enabled in production; see `terraform/README.md`.
+
+`FRONTEND_URL` must be set to the deployed frontend's origin (e.g. `https://wizscheduler.com`) in production. It is the base of the URL encoded into every check-in QR code — `{FRONTEND_URL}/employee/check-in?t=...&l=...`. Unlike `CHECKIN_QR_SECRET`, there is no refusal path: a wrong or unset value silently falls back to `http://localhost:5173`, producing QR codes that scan cleanly on an employee's phone and lead nowhere. Verify it is provisioned before enabling the check-in feature in production.
 
 ### Pre-deploy checks
 

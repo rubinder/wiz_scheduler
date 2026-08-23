@@ -79,6 +79,9 @@ const ar = {
     exportSchedules: "تصدير الجداول المعتمدة",
     myAvailability: "أوقات توفّري",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "رمز تسجيل الحضور",
+    checkInReport: "تقرير تسجيل الحضور",
+    checkIn: "تسجيل الحضور",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const ar = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "رمز تسجيل الحضور",
+    qrDesc: "يقوم الموظفون بمسح هذا الرمز لتسجيل حضورهم. يتغيّر الرمز في كل مرة يتم فيها مسحه، لذا فإن التقاط صورة له عديم الفائدة لأي شخص ليس هنا.",
+    selectLocation: "الموقع",
+    checkedInToday: "عدد الحاضرين اليوم",
+    reportTitle: "تقرير تسجيل الحضور",
+    reportDesc: "مدى ابتعاد وصول كل موظف عن وقت بدء ورديته المحدد، خلال آخر {days} يومًا. أسفل الخط يعني مبكرًا، وأعلى الخط يعني متأخرًا.",
+    allEmployees: "جميع الموظفين",
+    filterEmployee: "الموظف",
+    minutesLate: "الدقائق من وقت البدء المحدد",
+    date: "التاريخ",
+    noData: "لا يوجد أي تسجيل حضور بعد.",
+    checkingIn: "جارٍ تسجيل حضورك...",
+    successMatched: "تم تسجيل حضورك. أنت {direction} بـ {minutes} دقيقة.",
+    successOnTime: "تم تسجيل حضورك، في الوقت المحدد تمامًا.",
+    directionEarly: "مبكر",
+    directionLate: "متأخر",
+    successNoShift: "تم تسجيل حضورك، لكنك لست ضمن الجدول في هذا الوقت. سيرى مديرك ذلك.",
+    successWrongLocation: "تم تسجيل حضورك، لكن ورديتك اليوم في موقع آخر.",
+    successDuplicate: "لقد سجّلت حضورك اليوم بالفعل. تم تسجيل هذا أيضًا.",
+    codeExpired: "تم استخدام هذا الرمز من قبل. امسح الرمز الجديد الظاهر على الشاشة.",
+    failed: "فشل تسجيل الحضور. اسأل مديرك.",
+    noEmployeeRecord: "هذا الحساب غير مرتبط بسجل موظف.",
+    scanPrompt: "امسح رمز تسجيل الحضور المعروض في موقعك لتسجيل حضورك.",
+    managerLoadFailed: "تعذّر تحميل رمز تسجيل الحضور. تحقق من أن خطتك تشمل تسجيل الحضور، أو حاول مرة أخرى.",
+    statusColumn: "الحالة",
+    statusMatched: "مطابق",
+    statusNoShift: "بلا وردية",
+    statusWrongLocation: "موقع خاطئ",
+    statusDuplicate: "مكرر",
   },
 } as const;
 

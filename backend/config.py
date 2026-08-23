@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     STRIPE_BILLING_PORTAL_RETURN_URL: str = "http://localhost:5173/manager/schedule"
     STRIPE_WEBHOOK_SECRET: str = ""  # whsec_... from Stripe webhook config
 
+    # Base URL of the SPA, used to build the check-in deep link encoded into
+    # the QR image. The three STRIPE_*_URL settings above each embed this
+    # same origin; this is the first setting to name it on its own, and they
+    # could be folded onto it later.
+    FRONTEND_URL: str = "http://localhost:5173"
+
     # LLM billing
     LLM_FREE_TIER_USD: float = 2.00          # free credits per ownership group per month
     LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost after free tier exhausted
@@ -173,6 +179,25 @@ class Settings(BaseSettings):
     RETENTION_FAILURE_LOGS_DAYS: int = 90
     RETENTION_EXPIRED_INVITES_DAYS: int = 30
     RETENTION_REVOKED_CONSENTS_DAYS: int = 365
+
+    # Check-in retention. Six months, per issue #63.
+    RETENTION_CHECKINS_DAYS: int = 180
+
+    # Rotating check-in QR code.
+    #
+    # The payload is an HMAC over company slug, location, local date and the
+    # count of check-ins already recorded that day. Those four inputs are all
+    # public or guessable — the counter is a small integer anyone can
+    # enumerate — so this key is the only thing stopping an employee at home
+    # from computing a valid code. Injected from AWS Secrets Manager in
+    # production, the same way DEMO_SEED_PASSWORD is; there is deliberately no
+    # usable default, because a predictable key is the same as no key.
+    CHECKIN_QR_SECRET: str = ""
+
+    # How far from a shift's start a scan can land and still be matched to it.
+    # Matching on the timestamp rather than the calendar date is what lets
+    # shifts crossing midnight work without a special case.
+    CHECKIN_MATCH_WINDOW_HOURS: int = 6
 
     # Forgot-password rate limiting.
     #

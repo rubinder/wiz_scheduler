@@ -69,6 +69,31 @@ Four secrets are stored in AWS Secrets Manager and injected into the ECS task de
 
 The ECS execution role has a scoped IAM policy granting `secretsmanager:GetSecretValue` on only these four secrets.
 
+**`CHECKIN_QR_SECRET` (employee check-in feature) is not yet provisioned here.** It follows the
+same pattern as `DEMO_SEED_PASSWORD` -- a value with no safe default that the app refuses to run
+without -- but as of this branch there is no `aws_secretsmanager_secret` resource for it in
+`secrets.tf` and no corresponding entry in the ECS task definition's `secrets` block in `ecs.tf`.
+It is the HMAC key behind the employee check-in rotating QR code (see `CLAUDE.md` and the
+README's "Environment variables" table); the service raises rather than issuing or verifying a
+check-in code while it is unset -- there is deliberately no fallback default, because a
+predictable key is the same as no key. Before the check-in feature is enabled in production, add
+a Secrets Manager entry for `wizscheduler/prod/CHECKIN_QR_SECRET`, wire it into the ECS task
+definition alongside the secrets above, and set a real value (not the placeholder pattern used
+for the other secrets, since there is no safe placeholder for this one -- an unset or guessable
+value is a live vulnerability, not just an inconvenience).
+
+**`FRONTEND_URL` also has no provisioning here**, and unlike `CHECKIN_QR_SECRET` it is not a
+secret and fails **silently**, not loudly. It is a plain environment variable (see the README's
+"Environment variables" table) that must be set to the deployed frontend's origin -- it is the
+base of the URL encoded into every check-in QR code. There is no `FRONTEND_URL` entry in
+`ecs.tf`'s environment block, so the app falls back to its `http://localhost:5173` default. A QR
+code built from that default still renders, still scans cleanly on an employee's phone, and still
+opens a browser -- it just opens to nobody's server. Nothing refuses, nothing 500s, and nothing in
+the check-in flow itself would surface the mistake; it would only show up as employees quietly
+unable to check in. Before the check-in feature is enabled in production, set `FRONTEND_URL` in
+the ECS task definition's environment block to the real deployed origin (e.g.
+`https://wizscheduler.com`).
+
 ### Logging
 
 Container stdout/stderr is shipped to CloudWatch Logs via the `awslogs` driver.

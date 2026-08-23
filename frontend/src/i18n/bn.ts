@@ -79,6 +79,9 @@ const bn = {
     exportSchedules: "অনুমোদিত সময়সূচি এক্সপোর্ট",
     myAvailability: "আমার উপলব্ধতা",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "চেক-ইন কোড",
+    checkInReport: "চেক-ইন রিপোর্ট",
+    checkIn: "চেক-ইন করুন",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const bn = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "চেক-ইন কোড",
+    qrDesc: "কর্মীরা চেক-ইন করতে এটি স্ক্যান করেন। প্রতিবার স্ক্যান করার সাথে সাথে কোডটি বদলে যায়, তাই এর একটি ছবি এখানে উপস্থিত নেই এমন কারো জন্য অকেজো।",
+    selectLocation: "অবস্থান",
+    checkedInToday: "আজ চেক-ইন হয়েছে",
+    reportTitle: "চেক-ইন রিপোর্ট",
+    reportDesc: "গত {days} দিনে প্রতিটি কর্মী তাদের নির্ধারিত শুরুর সময় থেকে কতটা দূরে পৌঁছেছেন। রেখার নিচে মানে আগে, উপরে মানে দেরিতে।",
+    allEmployees: "সব কর্মী",
+    filterEmployee: "কর্মী",
+    minutesLate: "নির্ধারিত শুরুর সময় থেকে মিনিট",
+    date: "তারিখ",
+    noData: "এখনও কোনো চেক-ইন রেকর্ড হয়নি।",
+    checkingIn: "আপনাকে চেক-ইন করা হচ্ছে...",
+    successMatched: "চেক-ইন সম্পন্ন। আপনি {minutes} মিনিট {direction}।",
+    successOnTime: "চেক-ইন সম্পন্ন, একদম সময়মতো।",
+    directionEarly: "আগে",
+    directionLate: "দেরিতে",
+    successNoShift: "চেক-ইন সম্পন্ন হয়েছে, তবে এই সময়ের কাছাকাছি আপনি রোটায় নেই। আপনার ম্যানেজার এটি দেখবেন।",
+    successWrongLocation: "চেক-ইন সম্পন্ন হয়েছে, তবে আজ আপনার শিফট অন্য একটি অবস্থানে।",
+    successDuplicate: "আপনি আজ ইতিমধ্যে চেক-ইন করেছেন। এটিও নথিভুক্ত করা হয়েছে।",
+    codeExpired: "সেই কোডটি ইতিমধ্যে ব্যবহার করা হয়েছে। স্ক্রিনে থাকা নতুন কোডটি স্ক্যান করুন।",
+    failed: "চেক-ইন ব্যর্থ হয়েছে। আপনার ম্যানেজারকে জিজ্ঞাসা করুন।",
+    noEmployeeRecord: "এই অ্যাকাউন্টটি কোনো কর্মী রেকর্ডের সাথে যুক্ত নয়।",
+    scanPrompt: "চেক-ইন করতে আপনার লোকেশনে প্রদর্শিত চেক-ইন কোডটি স্ক্যান করুন।",
+    managerLoadFailed: "চেক-ইন কোড লোড করা যায়নি। আপনার প্ল্যানে চেক-ইন অন্তর্ভুক্ত আছে কিনা দেখুন, অথবা আবার চেষ্টা করুন।",
+    statusColumn: "স্ট্যাটাস",
+    statusMatched: "মিলেছে",
+    statusNoShift: "শিফট নেই",
+    statusWrongLocation: "ভুল লোকেশন",
+    statusDuplicate: "পুনরাবৃত্তি",
   },
 } as const;
 

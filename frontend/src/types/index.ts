@@ -330,3 +330,43 @@ export interface PlanState {
   can_generate_ai: boolean;
   block_reason: string | null;
 }
+
+// ── Check-In ──
+
+export interface CheckInQr {
+  counter: number;
+  svg: string;
+  checked_in_today: number;
+}
+
+export type CheckInStatus =
+  | "matched"
+  | "no_shift"
+  | "wrong_location"
+  | "duplicate";
+
+export interface CheckInResult {
+  id: string;
+  status: CheckInStatus;
+  checked_in_at: string;
+  local_date: string;
+  /** Signed: negative early, positive late. Null when no shift matched. */
+  minutes_from_start: number | null;
+  shift_id: string | null;
+}
+
+export interface CheckInReportRow {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  location_id: string;
+  checked_in_at: string;
+  local_date: string;
+  status: CheckInStatus;
+  minutes_from_start: number | null;
+}
+
+export interface CheckInReport {
+  rows: CheckInReportRow[];
+  retention_days: number;
+}

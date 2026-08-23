@@ -11,6 +11,7 @@ from backend.routers import (
     affinities,
     auth,
     billing,
+    check_ins,
     company,
     condensed_roles,
     employees,
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(affinities.router, prefix=api_prefix)
     app.include_router(shift_templates.router, prefix=api_prefix)
     app.include_router(special_hours.router, prefix=api_prefix)
+    app.include_router(check_ins.router, prefix=api_prefix)
     app.include_router(schedules.router, prefix=api_prefix)
     app.include_router(import_7shifts.router, prefix=api_prefix)
     app.include_router(import_deputy.router, prefix=api_prefix)

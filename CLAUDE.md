@@ -63,6 +63,16 @@ Key concept: `availability_draft` (in `SchedulingState`) is a deep copy of emplo
 
 `POST /schedules/generate` returns `StreamingResponse(media_type="application/x-ndjson")`. Frontend consumes via `useScheduleStream` hook using the Fetch Streams API.
 
+### Check-In (`backend/services/check_in.py`)
+
+Employees scan a rotating QR to check in against their scheduled shift. The
+QR payload is an HMAC over `slug|location|local_date|counter` keyed by
+`CHECKIN_QR_SECRET`; the counter is the count of check-ins that location has
+recorded that local day, so recording one rotates the code. Single use is
+enforced by a unique constraint on `(location_id, local_date, counter)`, not
+by application logic. Paid-only via `assert_paid_plan`, retained for
+`RETENTION_CHECKINS_DAYS`.
+
 ### Frontend Structure
 
 - `src/api/` — typed fetch wrappers (one file per domain), shared `apiFetch` with Bearer token

@@ -79,6 +79,9 @@ const de = {
     exportSchedules: "Genehmigte Dienstpläne exportieren",
     myAvailability: "Meine Verfügbarkeit",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Check-in-Code",
+    checkInReport: "Check-in-Bericht",
+    checkIn: "Einchecken",
   },
 
   // ── Team ──
@@ -910,6 +913,38 @@ const de = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Check-in-Code",
+    qrDesc: "Mitarbeiter scannen diesen Code, um sich einzuchecken. Der Code ändert sich bei jedem Scan, daher ist ein Foto davon für alle nutzlos, die nicht hier sind.",
+    selectLocation: "Standort",
+    checkedInToday: "Heute eingecheckt",
+    reportTitle: "Check-in-Bericht",
+    reportDesc: "Wie weit vom geplanten Beginn jeder Mitarbeiter in den letzten {days} Tagen eingetroffen ist. Unterhalb der Linie ist früh, oberhalb ist spät.",
+    allEmployees: "Alle Mitarbeiter",
+    filterEmployee: "Mitarbeiter",
+    minutesLate: "Minuten vom geplanten Beginn",
+    date: "Datum",
+    noData: "Noch keine Check-ins erfasst.",
+    checkingIn: "Du wirst eingecheckt...",
+    successMatched: "Eingecheckt. Du bist {minutes} Minuten {direction}.",
+    successOnTime: "Eingecheckt, genau pünktlich.",
+    directionEarly: "zu früh",
+    directionLate: "zu spät",
+    successNoShift: "Eingecheckt, aber du stehst zu dieser Zeit nicht im Dienstplan. Dein Manager wird es sehen.",
+    successWrongLocation: "Eingecheckt, aber deine heutige Schicht ist an einem anderen Standort.",
+    successDuplicate: "Du hast dich heute bereits eingecheckt. Dieser Check-in wird ebenfalls vermerkt.",
+    codeExpired: "Dieser Code wurde bereits verwendet. Scanne den neuen Code auf dem Bildschirm.",
+    failed: "Check-in fehlgeschlagen. Wende dich an deinen Manager.",
+    noEmployeeRecord: "Dieses Konto ist mit keinem Mitarbeiterdatensatz verknüpft.",
+    scanPrompt: "Scannen Sie den an Ihrem Standort angezeigten Check-in-Code, um sich einzuchecken.",
+    managerLoadFailed: "Der Check-in-Code konnte nicht geladen werden. Prüfen Sie, ob Ihr Plan Check-in enthält, oder versuchen Sie es erneut.",
+    statusColumn: "Status",
+    statusMatched: "Zugeordnet",
+    statusNoShift: "Keine Schicht",
+    statusWrongLocation: "Falscher Standort",
+    statusDuplicate: "Duplikat",
   },
 } as const;
 
