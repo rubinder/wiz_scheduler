@@ -79,6 +79,9 @@ const es = {
     exportSchedules: "Exportar horarios aprobados",
     myAvailability: "Mi disponibilidad",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Código de fichaje",
+    checkInReport: "Informe de fichajes",
+    checkIn: "Fichar",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const es = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Código de fichaje",
+    qrDesc: "Los empleados escanean esto para fichar. El código cambia cada vez que alguien lo escanea, así que una foto de él es inútil para cualquiera que no esté aquí.",
+    selectLocation: "Ubicación",
+    checkedInToday: "Fichajes de hoy",
+    reportTitle: "Informe de fichajes",
+    reportDesc: "A qué distancia de su hora de inicio programada llegó cada empleado, durante los últimos {days} días. Por debajo de la línea es temprano, por encima es tarde.",
+    allEmployees: "Todos los empleados",
+    filterEmployee: "Empleado",
+    minutesLate: "Minutos respecto a la hora de inicio programada",
+    date: "Fecha",
+    noData: "Aún no se han registrado fichajes.",
+    checkingIn: "Registrando tu entrada...",
+    successMatched: "Fichaje registrado. Llegas {minutes} minutos {direction}.",
+    successOnTime: "Fichaje registrado, justo a tiempo.",
+    directionEarly: "antes",
+    directionLate: "tarde",
+    successNoShift: "Fichaje registrado, pero no apareces en el turno cerca de esta hora. Tu gerente lo verá.",
+    successWrongLocation: "Fichaje registrado, pero tu turno de hoy es en otra ubicación.",
+    successDuplicate: "Ya fichaste hoy. Este también queda registrado.",
+    codeExpired: "Ese código ya se usó. Escanea el nuevo que aparece en pantalla.",
+    failed: "El fichaje falló. Consulta a tu gerente.",
+    noEmployeeRecord: "Esta cuenta no está vinculada a un registro de empleado.",
   },
 } as const;
 

@@ -79,6 +79,9 @@ const ru = {
     exportSchedules: "Экспорт утверждённых расписаний",
     myAvailability: "Моя доступность",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Код регистрации",
+    checkInReport: "Отчёт о регистрации",
+    checkIn: "Регистрация прихода",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const ru = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Код регистрации",
+    qrDesc: "Сотрудники сканируют этот код, чтобы отметиться. Код меняется при каждом сканировании, поэтому его фотография бесполезна для тех, кто не находится здесь.",
+    selectLocation: "Локация",
+    checkedInToday: "Отметились сегодня",
+    reportTitle: "Отчёт о регистрации",
+    reportDesc: "Насколько раньше или позже запланированного начала пришёл каждый сотрудник за последние {days} дней. Ниже линии — раньше, выше — позже.",
+    allEmployees: "Все сотрудники",
+    filterEmployee: "Сотрудник",
+    minutesLate: "Минуты от запланированного начала",
+    date: "Дата",
+    noData: "Регистраций пока нет.",
+    checkingIn: "Регистрируем вас...",
+    successMatched: "Вы отметились. Вы пришли на {minutes} минут {direction}.",
+    successOnTime: "Вы отметились, точно вовремя.",
+    directionEarly: "раньше",
+    directionLate: "позже",
+    successNoShift: "Вы отметились, но в это время вас нет в графике. Менеджер это увидит.",
+    successWrongLocation: "Вы отметились, но ваша смена сегодня в другой локации.",
+    successDuplicate: "Вы уже отметились сегодня. Эта отметка тоже сохранена.",
+    codeExpired: "Этот код уже использован. Отсканируйте новый код на экране.",
+    failed: "Не удалось отметиться. Обратитесь к менеджеру.",
+    noEmployeeRecord: "Этот аккаунт не привязан к записи сотрудника.",
   },
 } as const;
 

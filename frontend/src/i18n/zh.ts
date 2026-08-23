@@ -79,6 +79,9 @@ const zh = {
     exportSchedules: "导出已审批排班",
     myAvailability: "我的可用时间",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "签到码",
+    checkInReport: "签到报告",
+    checkIn: "签到",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const zh = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "签到码",
+    qrDesc: "员工扫描此码即可签到。每次扫描后二维码都会更新，因此拍照留存的二维码对不在现场的人毫无用处。",
+    selectLocation: "门店",
+    checkedInToday: "今日签到人数",
+    reportTitle: "签到报告",
+    reportDesc: "过去 {days} 天内，每位员工与排定上班时间的偏差。线下方表示提前，线上方表示迟到。",
+    allEmployees: "全部员工",
+    filterEmployee: "员工",
+    minutesLate: "与排定上班时间的分钟差",
+    date: "日期",
+    noData: "暂无签到记录。",
+    checkingIn: "正在为您签到……",
+    successMatched: "签到成功。你{direction}了 {minutes} 分钟。",
+    successOnTime: "签到成功，准时到达。",
+    directionEarly: "提前",
+    directionLate: "迟到",
+    successNoShift: "签到成功，但此时段你不在排班表上，主管会看到这条记录。",
+    successWrongLocation: "签到成功，但你今天的班次在另一个门店。",
+    successDuplicate: "你今天已经签到过了，这次也会被记录。",
+    codeExpired: "该签到码已被使用，请扫描屏幕上的新码。",
+    failed: "签到失败，请联系你的主管。",
+    noEmployeeRecord: "该账号未关联员工档案。",
   },
 } as const;
 

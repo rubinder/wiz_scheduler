@@ -79,6 +79,9 @@ const fr = {
     exportSchedules: "Exporter les horaires approuvés",
     myAvailability: "Ma disponibilité",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Code de pointage",
+    checkInReport: "Rapport de pointage",
+    checkIn: "Pointer",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const fr = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Code de pointage",
+    qrDesc: "Les employés scannent ce code pour pointer. Le code change à chaque scan, donc une photo de celui-ci est inutile pour quiconque n'est pas sur place.",
+    selectLocation: "Établissement",
+    checkedInToday: "Pointages aujourd'hui",
+    reportTitle: "Rapport de pointage",
+    reportDesc: "L'écart par rapport à l'heure de début prévue pour chaque employé, sur les {days} derniers jours. En dessous de la ligne, c'est en avance ; au-dessus, c'est en retard.",
+    allEmployees: "Tous les employés",
+    filterEmployee: "Employé",
+    minutesLate: "Minutes par rapport à l'heure de début prévue",
+    date: "Date",
+    noData: "Aucun pointage enregistré pour le moment.",
+    checkingIn: "Pointage en cours...",
+    successMatched: "Pointage effectué. Vous êtes {minutes} minutes {direction}.",
+    successOnTime: "Pointage effectué, pile à l'heure.",
+    directionEarly: "en avance",
+    directionLate: "en retard",
+    successNoShift: "Pointage effectué, mais vous n'êtes pas prévu au planning à cette heure-ci. Votre manager le verra.",
+    successWrongLocation: "Pointage effectué, mais votre service d'aujourd'hui est à un autre établissement.",
+    successDuplicate: "Vous avez déjà pointé aujourd'hui. Ce pointage est également noté.",
+    codeExpired: "Ce code a déjà été utilisé. Scannez le nouveau code affiché à l'écran.",
+    failed: "Le pointage a échoué. Contactez votre manager.",
+    noEmployeeRecord: "Ce compte n'est lié à aucune fiche employé.",
   },
 } as const;
 

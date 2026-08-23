@@ -79,6 +79,9 @@ const vi = {
     exportSchedules: "Xuất lịch đã duyệt",
     myAvailability: "Lịch trống của tôi",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Mã Check-in",
+    checkInReport: "Báo cáo Check-in",
+    checkIn: "Check-in",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const vi = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Mã Check-in",
+    qrDesc: "Nhân viên quét mã này để check-in. Mã thay đổi mỗi lần được quét, vì vậy ảnh chụp mã này vô dụng đối với ai không có mặt ở đây.",
+    selectLocation: "Địa điểm",
+    checkedInToday: "Đã check-in hôm nay",
+    reportTitle: "Báo cáo Check-in",
+    reportDesc: "Mức chênh lệch so với giờ bắt đầu theo lịch của từng nhân viên, trong {days} ngày qua. Dưới đường kẻ là đến sớm, trên đường kẻ là đến muộn.",
+    allEmployees: "Tất cả nhân viên",
+    filterEmployee: "Nhân viên",
+    minutesLate: "Số phút chênh lệch so với giờ bắt đầu theo lịch",
+    date: "Ngày",
+    noData: "Chưa có lượt check-in nào được ghi nhận.",
+    checkingIn: "Đang check-in cho bạn...",
+    successMatched: "Đã check-in. Bạn đến {direction} {minutes} phút.",
+    successOnTime: "Đã check-in, đúng giờ.",
+    directionEarly: "sớm",
+    directionLate: "muộn",
+    successNoShift: "Đã check-in, nhưng bạn không có trong lịch làm việc gần giờ này. Quản lý của bạn sẽ thấy điều này.",
+    successWrongLocation: "Đã check-in, nhưng ca làm hôm nay của bạn ở một địa điểm khác.",
+    successDuplicate: "Bạn đã check-in hôm nay rồi. Lượt này cũng được ghi nhận.",
+    codeExpired: "Mã đó đã được sử dụng. Hãy quét mã mới trên màn hình.",
+    failed: "Check-in thất bại. Hãy hỏi quản lý của bạn.",
+    noEmployeeRecord: "Tài khoản này chưa được liên kết với hồ sơ nhân viên nào.",
   },
 } as const;
 

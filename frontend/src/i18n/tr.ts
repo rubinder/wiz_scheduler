@@ -79,6 +79,9 @@ const trLang = {
     exportSchedules: "Onaylı Programları Dışa Aktar",
     myAvailability: "Müsaitliğim",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Giriş Kodu",
+    checkInReport: "Giriş Raporu",
+    checkIn: "Giriş Yap",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const trLang = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Giriş Kodu",
+    qrDesc: "Çalışanlar giriş yapmak için bunu tarar. Kod her taramada değiştiği için, fotoğrafı burada olmayan biri için işe yaramaz.",
+    selectLocation: "Konum",
+    checkedInToday: "Bugün giriş yapanlar",
+    reportTitle: "Giriş Raporu",
+    reportDesc: "Son {days} gün içinde her çalışanın planlanan başlangıç saatinden ne kadar farklı vardığı. Çizginin altı erken, üstü geç anlamına gelir.",
+    allEmployees: "Tüm çalışanlar",
+    filterEmployee: "Çalışan",
+    minutesLate: "Planlanan başlangıç saatinden dakika",
+    date: "Tarih",
+    noData: "Henüz giriş kaydı yok.",
+    checkingIn: "Girişiniz yapılıyor...",
+    successMatched: "Giriş yapıldı. Planlanandan {minutes} dakika {direction}.",
+    successOnTime: "Giriş yapıldı, tam vaktinde.",
+    directionEarly: "erken",
+    directionLate: "geç",
+    successNoShift: "Giriş yapıldı, ancak bu saatlerde vardiya listesinde görünmüyorsunuz. Yöneticiniz bunu görecek.",
+    successWrongLocation: "Giriş yapıldı, ancak bugünkü vardiyanız başka bir konumda.",
+    successDuplicate: "Bugün zaten giriş yaptınız. Bu da kaydedildi.",
+    codeExpired: "Bu kod zaten kullanıldı. Ekrandaki yeni kodu tarayın.",
+    failed: "Giriş başarısız oldu. Yöneticinize danışın.",
+    noEmployeeRecord: "Bu hesap herhangi bir çalışan kaydıyla ilişkilendirilmemiş.",
   },
 } as const;
 

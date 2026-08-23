@@ -79,6 +79,9 @@ const pt = {
     exportSchedules: "Exportar escalas aprovadas",
     myAvailability: "Minha disponibilidade",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "Código de Check-in",
+    checkInReport: "Relatório de Check-in",
+    checkIn: "Fazer Check-in",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const pt = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "Código de Check-in",
+    qrDesc: "Os funcionários escaneiam este código para fazer check-in. O código muda a cada leitura, então uma foto dele é inútil para quem não está aqui.",
+    selectLocation: "Local",
+    checkedInToday: "Check-ins hoje",
+    reportTitle: "Relatório de Check-in",
+    reportDesc: "A que distância do horário de início programado cada funcionário chegou, nos últimos {days} dias. Abaixo da linha é cedo, acima é tarde.",
+    allEmployees: "Todos os funcionários",
+    filterEmployee: "Funcionário",
+    minutesLate: "Minutos em relação ao horário de início programado",
+    date: "Data",
+    noData: "Nenhum check-in registrado ainda.",
+    checkingIn: "Fazendo seu check-in...",
+    successMatched: "Check-in realizado. Você está {minutes} minutos {direction}.",
+    successOnTime: "Check-in realizado, na hora certa.",
+    directionEarly: "adiantado",
+    directionLate: "atrasado",
+    successNoShift: "Check-in realizado, mas você não está na escala perto deste horário. Seu gerente vai ver isso.",
+    successWrongLocation: "Check-in realizado, mas o seu turno de hoje é em outro local.",
+    successDuplicate: "Você já fez check-in hoje. Este também foi registrado.",
+    codeExpired: "Esse código já foi usado. Escaneie o novo código na tela.",
+    failed: "Falha no check-in. Fale com seu gerente.",
+    noEmployeeRecord: "Esta conta não está vinculada a um cadastro de funcionário.",
   },
 } as const;
 

@@ -79,6 +79,9 @@ const hi = {
     exportSchedules: "स्वीकृत शेड्यूल निर्यात करें",
     myAvailability: "मेरी उपलब्धता",
     dataPrivacy: "Data & Privacy",
+    checkInQr: "चेक-इन कोड",
+    checkInReport: "चेक-इन रिपोर्ट",
+    checkIn: "चेक-इन करें",
   },
 
   // ── Team ──
@@ -910,6 +913,31 @@ const hi = {
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
+  },
+  // ── Check-In ──
+  checkIn: {
+    qrTitle: "चेक-इन कोड",
+    qrDesc: "कर्मचारी चेक-इन करने के लिए इसे स्कैन करते हैं। हर बार स्कैन होने पर कोड बदल जाता है, इसलिए इसकी फोटो उस व्यक्ति के लिए बेकार है जो यहां मौजूद नहीं है।",
+    selectLocation: "स्थान",
+    checkedInToday: "आज चेक-इन",
+    reportTitle: "चेक-इन रिपोर्ट",
+    reportDesc: "पिछले {days} दिनों में हर कर्मचारी अपने निर्धारित शुरुआत समय से कितनी दूर पहुंचा। रेखा के नीचे जल्दी है, ऊपर देर से है।",
+    allEmployees: "सभी कर्मचारी",
+    filterEmployee: "कर्मचारी",
+    minutesLate: "निर्धारित शुरुआत समय से मिनट",
+    date: "तारीख",
+    noData: "अभी तक कोई चेक-इन दर्ज नहीं हुआ है।",
+    checkingIn: "आपको चेक-इन किया जा रहा है...",
+    successMatched: "चेक-इन हो गया। आप {minutes} मिनट {direction} हैं।",
+    successOnTime: "चेक-इन हो गया, बिल्कुल समय पर।",
+    directionEarly: "जल्दी",
+    directionLate: "देर से",
+    successNoShift: "चेक-इन हो गया, लेकिन इस समय के आसपास आप रोटा में नहीं हैं। आपका मैनेजर इसे देखेगा।",
+    successWrongLocation: "चेक-इन हो गया, लेकिन आज आपकी शिफ्ट किसी अन्य स्थान पर है।",
+    successDuplicate: "आप आज पहले ही चेक-इन कर चुके हैं। यह भी दर्ज कर लिया गया है।",
+    codeExpired: "वह कोड पहले ही उपयोग हो चुका है। स्क्रीन पर दिख रहा नया कोड स्कैन करें।",
+    failed: "चेक-इन विफल रहा। अपने मैनेजर से पूछें।",
+    noEmployeeRecord: "यह खाता किसी कर्मचारी रिकॉर्ड से जुड़ा नहीं है।",
   },
 } as const;
 
