@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.models import (
     EmployeeAvailability,
+    EmployeeCheckIn,
     EmployeeInvite,
     Shift,
     ShiftSchedule,
@@ -102,6 +103,17 @@ async def run_data_retention(db: AsyncSession) -> dict:
         )
     )
     summary["old_revoked_consents_deleted"] = result.rowcount
+
+    # 7. Check-ins older than the retained window. Issue #63 specifies six
+    #    months of history; without this the table grows without bound and
+    #    the figure is decoration.
+    cutoff_check_ins = now - timedelta(days=settings.RETENTION_CHECKINS_DAYS)
+    result = await db.execute(
+        delete(EmployeeCheckIn).where(
+            EmployeeCheckIn.checked_in_at < cutoff_check_ins
+        )
+    )
+    summary["old_check_ins_deleted"] = result.rowcount
 
     await db.commit()
 
