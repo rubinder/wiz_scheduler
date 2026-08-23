@@ -2247,6 +2247,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { submitCheckIn } from "../../api/checkIns";
+import { ApiError } from "../../api/client";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
 import type { CheckInResult } from "../../types";
@@ -2274,14 +2275,22 @@ export default function CheckIn() {
     submitCheckIn(token, locationId)
       .then(setResult)
       .catch((e: unknown) => {
+        // apiFetch throws ApiError, which carries the server's `detail`
+        // object on `.data` — NOT on the error itself. The router returns
+        // detail: {code, message}, so the code lives at e.data.code.
         const code =
-          typeof e === "object" && e !== null && "code" in e
-            ? String((e as { code: unknown }).code)
+          e instanceof ApiError &&
+          typeof e.data === "object" &&
+          e.data !== null &&
+          "code" in e.data
+            ? String((e.data as { code: unknown }).code)
             : "";
         setError(
           code === "code_already_used" || code === "invalid_token"
             ? t.checkIn.codeExpired
-            : t.checkIn.failed
+            : code === "check_in_requires_paid_plan"
+              ? t.checkIn.failed
+              : t.checkIn.failed
         );
       })
       .finally(() => setBusy(false));
