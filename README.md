@@ -176,8 +176,11 @@ Tests run against in-memory SQLite — no Postgres instance required.
 | `RESEND_API_KEY` | Resend key for transactional email | (empty) |
 | `FROM_EMAIL` | Sender address | `noreply@shiftsync.example.com` |
 | `ENV` | `development` / `production` | `development` |
+| `CHECKIN_QR_SECRET` | HMAC key for the employee check-in rotating QR code | (empty) |
 
 Without `ANTHROPIC_API_KEY`, the deterministic local scheduler still works end to end.
+
+`CHECKIN_QR_SECRET` has no usable default — a predictable key would let anyone derive a valid check-in code off-site, which is the exact attack the HMAC exists to stop. The service refuses to issue or verify check-in codes while it is unset. It must be set in AWS Secrets Manager before the check-in feature is enabled in production; see `terraform/README.md`.
 
 ### Pre-deploy checks
 
