@@ -33,10 +33,12 @@ const postEmployeeManagerLinks: NavItem[] = [
   { to: "/manager/export-schedules",       labelKey: "exportSchedules" },
   { to: "/manager/data-privacy",           labelKey: "dataPrivacy" },
   { to: "/manager/check-in-qr",             labelKey: "checkInQr" },
+  { to: "/manager/check-in-report",         labelKey: "checkInReport" },
 ];
 
 const employeeLinks: NavItem[] = [
   { to: "/employee/availability", labelKey: "myAvailability" },
+  { to: "/employee/check-in", labelKey: "checkIn" },
   { to: "/employee/data-privacy", labelKey: "dataPrivacy" },
 ];
 
