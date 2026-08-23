@@ -39,7 +39,7 @@ Pure functions with no database. Everything later depends on these signatures.
 - Produces:
   - `build_check_in_token(company_slug: str, location_id: str, local_date: date, counter: int) -> str`
   - `verify_check_in_token(token: str, company_slug: str, location_id: str, local_date: date, counter: int) -> bool`
-  - `check_in_deep_link(token: str) -> str`
+  - `check_in_deep_link(token: str, location_id: str) -> str`
   - `settings.CHECKIN_QR_SECRET: str`, `settings.CHECKIN_MATCH_WINDOW_HOURS: int`, `settings.RETENTION_CHECKINS_DAYS: int`
 
 - [ ] **Step 1: Write the failing test**
@@ -274,8 +274,8 @@ def check_in_deep_link(token: str, location_id: str) -> str:
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `pytest tests/test_check_in_token.py -v`
-Expected: PASS, 9 tests (the parametrized case counts as 4)
+Run: `python -m pytest tests/test_check_in_token.py -v`
+Expected: PASS, 12 tests (8 functions, one of which is parametrized into 4)
 
 - [ ] **Step 7: Add FRONTEND_URL**
 
