@@ -181,9 +181,9 @@ Tests run against in-memory SQLite — no Postgres instance required.
 
 Without `ANTHROPIC_API_KEY`, the deterministic local scheduler still works end to end.
 
-`CHECKIN_QR_SECRET` has no usable default — a predictable key would let anyone derive a valid check-in code off-site, which is the exact attack the HMAC exists to stop. The service refuses to issue or verify check-in codes while it is unset. It must be set in AWS Secrets Manager before the check-in feature is enabled in production; see `terraform/README.md`.
+`CHECKIN_QR_SECRET` has no usable default — a predictable key would let anyone derive a valid check-in code off-site, which is the exact attack the HMAC exists to stop. Terraform provisions the Secrets Manager entry with a `CHANGE_ME_AFTER_DEPLOY` placeholder so the ECS task can start, and the service treats **that placeholder as unset** and refuses to issue codes — the string is committed to this repo, so a deployment running on it would be forgeable by anyone who can read the source. Replace it before enabling check-in; see `terraform/README.md`.
 
-`FRONTEND_URL` must be set to the deployed frontend's origin (e.g. `https://wizscheduler.com`) in production. It is the base of the URL encoded into every check-in QR code — `{FRONTEND_URL}/employee/check-in?t=...&l=...`. Unlike `CHECKIN_QR_SECRET`, there is no refusal path: a wrong or unset value silently falls back to `http://localhost:5173`, producing QR codes that scan cleanly on an employee's phone and lead nowhere. Verify it is provisioned before enabling the check-in feature in production.
+`FRONTEND_URL` must be set to the deployed frontend's origin (e.g. `https://wizscheduler.com`) in production. It is the base of the URL encoded into every check-in QR code — `{FRONTEND_URL}/employee/check-in?t=...&l=...`. `ecs.tf` derives it from `var.domain_name`. Its failure used to be silent — the `http://localhost:5173` default produced QR codes that scanned cleanly and led nowhere — so `check_in_deep_link` now refuses any non-absolute value rather than emitting a dead link. Note this means an empty `domain_name` disables check-in rather than breaking it quietly.
 
 ### Pre-deploy checks
 

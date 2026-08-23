@@ -97,6 +97,35 @@ resource "aws_secretsmanager_secret_version" "demo_seed_password" {
   }
 }
 
+resource "aws_secretsmanager_secret" "checkin_qr_secret" {
+  name                    = "${var.app_name}/${var.environment}/CHECKIN_QR_SECRET"
+  description             = "HMAC key behind the rotating employee check-in QR code"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-checkin-qr-secret" }
+}
+
+# Seeded with a placeholder so the ECS task can start before anyone sets the
+# real value — a task referencing a valueless secret fails to start, which
+# would take the service down rather than just disabling check-in.
+#
+# The application treats this exact placeholder as unset and refuses to issue
+# codes (backend/services/check_in_token.py). That is deliberate: the string
+# is committed to this repo, so a deployment still running on it would let
+# anyone who can read the source forge check-in codes. Set the real value with:
+#
+#   aws secretsmanager put-secret-value \
+#     --secret-id wizscheduler/prod/CHECKIN_QR_SECRET \
+#     --secret-string "$(openssl rand -base64 32)"
+resource "aws_secretsmanager_secret_version" "checkin_qr_secret" {
+  secret_id     = aws_secretsmanager_secret.checkin_qr_secret.id
+  secret_string = "CHANGE_ME_AFTER_DEPLOY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
 resource "aws_secretsmanager_secret" "stripe_secret_key" {
   name                    = "${var.app_name}/${var.environment}/STRIPE_SECRET_KEY"
   description             = "Stripe API secret key for billing checkout sessions"

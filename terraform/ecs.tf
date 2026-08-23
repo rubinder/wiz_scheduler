@@ -158,6 +158,12 @@ resource "aws_ecs_task_definition" "app" {
           name      = "DEMO_SEED_PASSWORD"
           valueFrom = aws_secretsmanager_secret.demo_seed_password.arn
         },
+        {
+          # HMAC key for the rotating check-in QR. The app refuses to issue
+          # codes while this is unset or still the Terraform placeholder.
+          name      = "CHECKIN_QR_SECRET"
+          valueFrom = aws_secretsmanager_secret.checkin_qr_secret.arn
+        },
       ]
 
       environment = [
@@ -180,6 +186,15 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "STRIPE_PRICE_ID"
           value = var.stripe_price_id
+        },
+        {
+          # The origin encoded into every check-in QR code. Not a secret, but
+          # load-bearing: the app's default is http://localhost:5173, so a
+          # missing value here would produce codes that scan cleanly and open
+          # nothing. check_in_deep_link refuses a non-absolute value rather
+          # than emitting a dead link.
+          name  = "FRONTEND_URL"
+          value = var.domain_name != "" ? "https://${var.domain_name}" : ""
         },
         {
           name  = "STRIPE_SUCCESS_URL"

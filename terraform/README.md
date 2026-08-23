@@ -58,7 +58,7 @@ No direct internet access to ECS tasks or the database.
 
 ### Secrets Management
 
-Four secrets are stored in AWS Secrets Manager and injected into the ECS task definition at runtime:
+Secrets are stored in AWS Secrets Manager and injected into the ECS task definition at runtime:
 
 | Secret | Path | Notes |
 |--------|------|-------|
@@ -66,33 +66,44 @@ Four secrets are stored in AWS Secrets Manager and injected into the ECS task de
 | SECRET_KEY | `wizscheduler/prod/SECRET_KEY` | JWT signing key -- replace placeholder after deploy |
 | ANTHROPIC_API_KEY | `wizscheduler/prod/ANTHROPIC_API_KEY` | Replace placeholder after deploy |
 | RESEND_API_KEY | `wizscheduler/prod/RESEND_API_KEY` | Replace placeholder after deploy |
+| DEMO_SEED_PASSWORD | `wizscheduler/prod/DEMO_SEED_PASSWORD` | Demo account login -- replace placeholder after deploy |
+| STRIPE_SECRET_KEY | `wizscheduler/prod/STRIPE_SECRET_KEY` | Replace placeholder after deploy |
+| STRIPE_WEBHOOK_SECRET | `wizscheduler/prod/STRIPE_WEBHOOK_SECRET` | Replace placeholder after deploy |
+| CHECKIN_QR_SECRET | `wizscheduler/prod/CHECKIN_QR_SECRET` | **Must be replaced -- see below** |
 
-The ECS execution role has a scoped IAM policy granting `secretsmanager:GetSecretValue` on only these four secrets.
+The ECS execution role has a scoped IAM policy granting `secretsmanager:GetSecretValue` on these
+secrets only.
 
-**`CHECKIN_QR_SECRET` (employee check-in feature) is not yet provisioned here.** It follows the
-same pattern as `DEMO_SEED_PASSWORD` -- a value with no safe default that the app refuses to run
-without -- but as of this branch there is no `aws_secretsmanager_secret` resource for it in
-`secrets.tf` and no corresponding entry in the ECS task definition's `secrets` block in `ecs.tf`.
-It is the HMAC key behind the employee check-in rotating QR code (see `CLAUDE.md` and the
-README's "Environment variables" table); the service raises rather than issuing or verifying a
-check-in code while it is unset -- there is deliberately no fallback default, because a
-predictable key is the same as no key. Before the check-in feature is enabled in production, add
-a Secrets Manager entry for `wizscheduler/prod/CHECKIN_QR_SECRET`, wire it into the ECS task
-definition alongside the secrets above, and set a real value (not the placeholder pattern used
-for the other secrets, since there is no safe placeholder for this one -- an unset or guessable
-value is a live vulnerability, not just an inconvenience).
+### `CHECKIN_QR_SECRET` must be replaced before check-in is announced
 
-**`FRONTEND_URL` also has no provisioning here**, and unlike `CHECKIN_QR_SECRET` it is not a
-secret and fails **silently**, not loudly. It is a plain environment variable (see the README's
-"Environment variables" table) that must be set to the deployed frontend's origin -- it is the
-base of the URL encoded into every check-in QR code. There is no `FRONTEND_URL` entry in
-`ecs.tf`'s environment block, so the app falls back to its `http://localhost:5173` default. A QR
-code built from that default still renders, still scans cleanly on an employee's phone, and still
-opens a browser -- it just opens to nobody's server. Nothing refuses, nothing 500s, and nothing in
-the check-in flow itself would surface the mistake; it would only show up as employees quietly
-unable to check in. Before the check-in feature is enabled in production, set `FRONTEND_URL` in
-the ECS task definition's environment block to the real deployed origin (e.g.
-`https://wizscheduler.com`).
+This is the HMAC key behind the employee check-in rotating QR code. Terraform seeds it with the
+same `CHANGE_ME_AFTER_DEPLOY` placeholder as the other secrets, because an ECS task referencing a
+secret with no value **fails to start** -- which would take the whole service down rather than
+merely disabling check-in.
+
+Unlike the other placeholders, this one is not merely useless: the string is committed to this
+repository, so a deployment still running on it can have its check-in codes forged by anyone who
+can read the source. The application therefore treats that exact value as unset and refuses to
+issue codes (`backend/services/check_in_token.py`). Check-in stays off until you run:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id wizscheduler/prod/CHECKIN_QR_SECRET \
+  --secret-string "$(openssl rand -base64 32)"
+```
+
+### `FRONTEND_URL` is not a secret, but it is load-bearing
+
+`ecs.tf` sets it from `var.domain_name` (`https://<domain_name>`). It is the origin encoded into
+every check-in QR code.
+
+It gets its own note because its failure mode used to be **silent**: the application default is
+`http://localhost:5173`, so a missing value produced QR codes that rendered correctly, scanned
+correctly on an employee's phone, and opened a browser to nobody's server. Nothing refused,
+nothing 500'd, and the only symptom was employees quietly unable to check in.
+`check_in_deep_link` now rejects any non-absolute value rather than emitting a dead link, so the
+failure is loud -- but if `var.domain_name` is empty this variable resolves to `""` and check-in
+will refuse to issue codes. Set `domain_name` for any environment where check-in is enabled.
 
 ### Logging
 
