@@ -48,6 +48,18 @@ def _as_utc(dt: datetime) -> datetime:
     by SQLite, which strips tzinfo on round-trip. We always store UTC, so
     re-attaching UTC tzinfo when missing is correct. Same pattern as
     schedule_lock.py's `_as_utc`.
+
+    WARNING for future test authors: this is a SQLite serialization
+    artifact, not a Postgres one, and it is blind to the original offset.
+    On SQLite, SQLAlchemy serializes an aware datetime's wall-clock fields
+    and drops the offset — a shift genuinely written as 09:00-04:00 (i.e.
+    13:00 UTC) reads back naive as 09:00, and this function reattaches
+    +00:00, silently producing 09:00 UTC instead of 13:00 UTC: four hours
+    early. It happens not to bite today only because every shift fixture in
+    tests/test_check_in_service.py is built with `tzinfo=timezone.utc`
+    directly. Keep doing that — never construct a shift fixture from a
+    location-offset ISO string (e.g. via `datetime.fromisoformat` on a
+    "-04:00" string) under SQLite, or this function will silently corrupt it.
     """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)

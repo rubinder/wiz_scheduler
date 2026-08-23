@@ -140,6 +140,52 @@ async def test_a_garbage_token_is_rejected(db_session: AsyncSession, tenant: dic
     assert exc.value.code == "invalid_token"
 
 
+async def test_a_forged_token_after_several_scans_is_still_invalid(
+    db_session: AsyncSession, tenant: dict
+):
+    """The replay-loop that distinguishes a spent code from a forged one
+    must not accidentally match a forgery just because it now has several
+    prior counters to check against (loop size > 1)."""
+    now = datetime(2026, 8, 23, 13, 0, tzinfo=timezone.utc)
+    await _scan(db_session, tenant, tenant["here"], now)
+    await _scan(db_session, tenant, tenant["here"], now + timedelta(minutes=10))
+    await _scan(db_session, tenant, tenant["here"], now + timedelta(minutes=20))
+    assert await current_counter(
+        db_session, tenant["here"].id, local_date_for(tenant["here"], now)) == 3
+
+    with pytest.raises(CheckInRejected) as exc:
+        await record_check_in(db_session, tenant["company_id"],
+                              tenant["employee_id"], tenant["here"],
+                              tenant["slug"], "not-a-real-token",
+                              now=now + timedelta(minutes=25))
+    assert exc.value.code == "invalid_token"
+
+
+async def test_an_early_counters_token_is_still_a_duplicate_after_several_more_scans(
+    db_session: AsyncSession, tenant: dict
+):
+    """The loop body has to actually do work at size > 1: a token good for
+    counter 0 must still resolve as spent once the counter has moved on by
+    several positions, not just by one."""
+    now = datetime(2026, 8, 23, 13, 0, tzinfo=timezone.utc)
+    first_token, first_counter = await issue_token(
+        db_session, tenant["slug"], tenant["here"], now=now)
+    assert first_counter == 0
+    await record_check_in(db_session, tenant["company_id"], tenant["employee_id"],
+                          tenant["here"], tenant["slug"], first_token, now=now)
+    await _scan(db_session, tenant, tenant["here"], now + timedelta(minutes=10))
+    await _scan(db_session, tenant, tenant["here"], now + timedelta(minutes=20))
+    assert await current_counter(
+        db_session, tenant["here"].id, local_date_for(tenant["here"], now)) == 3
+
+    with pytest.raises(CheckInRejected) as exc:
+        await record_check_in(db_session, tenant["company_id"],
+                              tenant["employee_id"], tenant["here"],
+                              tenant["slug"], first_token,
+                              now=now + timedelta(minutes=25))
+    assert exc.value.code == "code_already_used"
+
+
 # --- matching ---------------------------------------------------------------
 
 async def test_a_scan_near_the_shift_start_matches(
