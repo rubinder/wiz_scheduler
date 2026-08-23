@@ -84,3 +84,55 @@ def test_missing_secret_refuses_to_build(monkeypatch):
 def test_deep_link_embeds_the_token_and_location():
     link = check_in_deep_link("abc123", "locn0001")
     assert link.endswith("/employee/check-in?t=abc123&l=locn0001")
+
+
+# --- deployment guards ------------------------------------------------------
+#
+# Both of these turn a silent production misconfiguration into a loud one.
+# The check-in feature has two variables that must be provisioned, and until
+# this branch only one of them refused when it was wrong.
+
+
+def test_the_terraform_placeholder_is_treated_as_unset(monkeypatch):
+    """Terraform seeds the secret with a fixed placeholder so ECS can start.
+
+    That value is committed to this repo, so a deployment still running on it
+    has no secret at all — anyone reading the source could forge codes.
+    """
+    from backend.services.check_in_token import PLACEHOLDER_SECRET
+
+    monkeypatch.setattr(settings, "CHECKIN_QR_SECRET", PLACEHOLDER_SECRET)
+    with pytest.raises(RuntimeError, match="placeholder"):
+        build_check_in_token(*ARGS)
+
+
+def test_a_real_secret_is_accepted(monkeypatch):
+    """Guard against the placeholder check rejecting everything."""
+    monkeypatch.setattr(settings, "CHECKIN_QR_SECRET", "a-real-random-secret")
+    assert build_check_in_token(*ARGS)
+
+
+@pytest.mark.parametrize(
+    "bad", ["", "wizscheduler.com", "/employee", "localhost:5173"]
+)
+def test_a_non_absolute_frontend_url_is_refused(monkeypatch, bad):
+    """A relative or empty origin yields a QR that scans and goes nowhere.
+
+    This is the failure mode that has no other symptom — the code renders,
+    the camera opens it, and nothing is there.
+    """
+    monkeypatch.setattr(settings, "FRONTEND_URL", bad)
+    with pytest.raises(RuntimeError, match="absolute URL"):
+        check_in_deep_link("abc123", "locn0001")
+
+
+@pytest.mark.parametrize(
+    "good", ["https://wizscheduler.com", "https://wizscheduler.com/",
+             "http://localhost:5173"]
+)
+def test_an_absolute_frontend_url_is_accepted(monkeypatch, good):
+    monkeypatch.setattr(settings, "FRONTEND_URL", good)
+    link = check_in_deep_link("abc123", "locn0001")
+    assert link.endswith("/employee/check-in?t=abc123&l=locn0001")
+    assert "//employee" not in link  # trailing slash was stripped, not doubled
+
