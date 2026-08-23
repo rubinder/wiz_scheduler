@@ -13,6 +13,7 @@ from backend.config import settings
 from backend.dependencies import get_current_user, get_db
 from backend.models import Company, OwnershipGroup, User
 from backend.models.consent import UserConsent
+from backend.services.billing import is_demo_group
 from backend.utils.privacy import mask_ip
 from backend.schemas.auth import (
     ForgotPasswordRequest,
@@ -747,16 +748,21 @@ async def me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    # Look up the ownership_group_id and slug from the user's company
+    # Look up the ownership_group_id from the user's company
     company_result = await db.execute(
-        select(Company.ownership_group_id, Company.slug).where(Company.id == current_user.company_id)
+        select(Company.ownership_group_id).where(Company.id == current_user.company_id)
     )
     row = company_result.one_or_none()
     ownership_group_id = row[0] if row else None
-    company_slug = row[1] if row else None
 
     response = UserResponse.model_validate(current_user)
     response.ownership_group_id = ownership_group_id
-    response.is_demo = company_slug == "acme-corp"
+    # Keyed on the demo OWNERSHIP GROUP, not the literal slug "acme-corp".
+    # DemoGuard hides exactly the controls services.plan.assert_roster_editable
+    # refuses server-side; deriving the two from different facts lets them
+    # drift, and the visible failure is a live button returning 403.
+    response.is_demo = bool(ownership_group_id) and is_demo_group(
+        str(ownership_group_id)
+    )
     response.has_google = current_user.google_id is not None
     return response

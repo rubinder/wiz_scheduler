@@ -1,7 +1,7 @@
 """The public demo tenant's raised generation cap.
 
 The demo group is a free-plan group with no Stripe subscription, but it is
-shared by every visitor, so the ordinary 5/month allowance is spent almost at
+shared by every visitor, so the ordinary 2/month allowance is spent almost at
 once. It gets a raised generation cap and nothing else: the location and
 employee caps still apply, so the demo keeps showing free-plan shape.
 """

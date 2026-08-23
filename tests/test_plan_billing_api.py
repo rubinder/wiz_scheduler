@@ -47,7 +47,7 @@ async def test_get_plan_returns_free_state(
     from backend.config import settings as _s
 
     assert body["employees"]["limit"] == _s.FREE_PLAN_MAX_EMPLOYEES
-    assert body["locations"]["limit"] == 1
+    assert body["locations"]["limit"] == _s.FREE_PLAN_MAX_LOCATIONS
     assert body["can_generate_ai"] is False
 
 

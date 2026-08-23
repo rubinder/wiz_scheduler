@@ -77,23 +77,45 @@ async def test_fifth_employee_allowed(
     assert resp.status_code == 201
 
 
-async def test_second_location_refused(
+async def test_location_past_the_cap_refused(
     client: AsyncClient, db_session: AsyncSession, free_tenant: dict
 ):
-    db_session.add(Location(id=_id(), company_id=free_tenant["company_id"],
-                            region_id=free_tenant["region_id"],
-                            name="L1", timezone="UTC"))
+    for i in range(settings.FREE_PLAN_MAX_LOCATIONS):
+        db_session.add(Location(id=_id(), company_id=free_tenant["company_id"],
+                                region_id=free_tenant["region_id"],
+                                name=f"L{i}", timezone="UTC"))
     await db_session.commit()
 
     resp = await client.post(
         "/api/v1/locations/",
-        json={"region_id": free_tenant["region_id"], "name": "L2",
+        json={"region_id": free_tenant["region_id"], "name": "one too many",
               "timezone": "UTC"},
         headers={"Authorization": f"Bearer {free_tenant['token']}"},
     )
 
     assert resp.status_code == 402
     assert resp.json()["detail"]["limit"] == "locations"
+    assert resp.json()["detail"]["max"] == settings.FREE_PLAN_MAX_LOCATIONS
+
+
+async def test_location_within_the_cap_allowed(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict
+):
+    """The cap rose to 2, so a free tenant's SECOND location must go through —
+    this is the case the old test asserted was refused."""
+    db_session.add(Location(id=_id(), company_id=free_tenant["company_id"],
+                            region_id=free_tenant["region_id"],
+                            name="L0", timezone="UTC"))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/locations/",
+        json={"region_id": free_tenant["region_id"], "name": "L1",
+              "timezone": "UTC"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 201, resp.text
 
 
 async def test_paid_tenant_unaffected(
