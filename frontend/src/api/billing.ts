@@ -3,9 +3,9 @@ import type { PlanState } from "../types";
 
 export interface AiCreditStatus {
   can_generate: boolean;
-  free_remaining_usd: number;
+  included_remaining_usd: number;
   purchased_credits_usd: number;
-  is_over_free_tier: boolean;
+  is_over_included: boolean;
   monthly_cost_usd: number;
   autoreload_failed?: boolean;
 }
@@ -15,12 +15,12 @@ export interface ScheduleQuota {
   schedules_used: number;
   /**
    * The generation allowance that actually governs this tenant: the metered
-   * SCHEDULE_FREE_TIER for paid groups, the free-plan cap for free ones. Kept
+   * INCLUDED_SCHEDULES_PER_MONTH for paid groups, the free-plan cap for free ones. Kept
    * equal to PlanState.schedules.limit for free groups so this strip and the
    * plan banner cannot show different numbers.
    */
-  schedules_free_tier: number;
-  is_over_free_tier: boolean;
+  schedules_included: number;
+  is_over_included: boolean;
   purchased_credits_usd: number;
   next_block_cost_usd: number;
   autoreload_failed?: boolean;
@@ -49,21 +49,21 @@ export interface BillingUsage {
     output_tokens: number;
     raw_cost_usd: number;
     charged_usd: number;
-    free_tier_usd: number;
-    free_remaining_usd: number;
-    is_over_free_tier: boolean;
+    included_usd: number;
+    included_remaining_usd: number;
+    is_over_included: boolean;
     overage_markup: number;
   };
   storage: {
     used_gb: number;
-    free_gb: number;
+    included_gb: number;
     billable_gb: number;
     cost_per_gb: number;
     charged_usd: number;
   };
   employees: {
     count: number;
-    free_tier: number;
+    included: number;
     billable: number;
     block_size: number;
     cost_per_block: number;
@@ -71,7 +71,7 @@ export interface BillingUsage {
   };
   schedules: {
     count: number;
-    free_tier: number;
+    included: number;
     billable: number;
     block_size: number;
     cost_per_block: number;

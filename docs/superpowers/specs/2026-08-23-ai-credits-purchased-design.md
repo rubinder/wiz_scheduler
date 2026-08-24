@@ -37,7 +37,7 @@ entry, not a transfer to Anthropic.
 
 ## Billing math
 
-`LLM_FREE_TIER_USD` is **kept and defaults to `0.00`** rather than deleted.
+`INCLUDED_LLM_USD` is **kept and defaults to `0.00`** rather than deleted.
 The arithmetic in `check_and_record_usage` stays structurally intact, the diff
 stays small and reviewable, and a grant can be reinstated per environment —
 for the demo tenant, or a promotional month — without a code change.
@@ -46,8 +46,8 @@ The cost of keeping it is a dead branch. `check_and_record_usage` splits three
 ways:
 
 ```python
-if cost_before >= settings.LLM_FREE_TIER_USD:      # full charge
-elif cost_after > settings.LLM_FREE_TIER_USD:      # partially free
+if cost_before >= settings.INCLUDED_LLM_USD:      # full charge
+elif cost_after > settings.INCLUDED_LLM_USD:      # partially free
 else:                                              # entirely free
 ```
 
@@ -64,11 +64,11 @@ configuration knob and dead code nobody dares delete.
 ## API surface
 
 `check_ai_credits` and `GET /schedules/ai-credits` currently return
-`free_remaining_usd` and `is_over_free_tier`. **Both are removed**, along with
+`included_remaining_usd` and `is_over_included`. **Both are removed**, along with
 their `frontend/src/api/billing.ts` types.
 
 The frontend is the only consumer and it lives in this repo, so there is no
-external contract to protect. Pinning `free_remaining_usd` at `0` forever
+external contract to protect. Pinning `included_remaining_usd` at `0` forever
 would leave every future reader to discover for themselves that it describes a
 concept the product no longer has.
 
@@ -177,7 +177,7 @@ $2 with no notice and no migration.
 ## Testing
 
 - **The dead branch.** Assert the partially-free branch in
-  `check_and_record_usage` is unreachable at `LLM_FREE_TIER_USD = 0.00`, and
+  `check_and_record_usage` is unreachable at `INCLUDED_LLM_USD = 0.00`, and
   that a generation is charged `cost * LLM_OVERAGE_MARKUP` in full.
 - **Boundary arithmetic** at a non-zero tier, so the branch still works if a
   grant is reinstated per environment.
