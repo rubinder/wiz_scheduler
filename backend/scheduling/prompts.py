@@ -100,9 +100,17 @@ def eligible_for_slot(
     THE single eligibility gate. Both the deterministic scheduler and the
     prompt builder call this — they previously held independent copies of the
     same four filters, which is why the weight-1.0 hard preference filter
-    lives here: a candidate removed at this point is invisible to the sorting
-    code AND to the language model, so a hard constraint cannot be violated by
-    a model that never saw the candidate.
+    lives here rather than in either caller individually: a candidate removed
+    at this point is invisible to the deterministic scheduler's sorting code,
+    so a hard constraint cannot be violated there.
+
+    The prompt builder (build_schedule_prompt) also calls this function, but
+    today it does so without `day_index`, so the hard preference filter is
+    currently a no-op on that call — the language model still sees every
+    otherwise-eligible candidate regardless of preferences. Enforcing hard
+    preferences on the AI path is handled separately by a later task; do not
+    read this docstring as a guarantee that preferences are honoured there
+    yet.
 
     Callers must pass employees already prepared with `_role_names` and
     `_day_windows`. Each returned dict is the input dict plus `_skill` for the

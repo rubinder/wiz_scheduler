@@ -8,6 +8,7 @@ import anthropic
 
 from backend.config import settings
 from backend.scheduling.local_scheduler import _min_rest_violation
+from backend.scheduling.preferences import matches_range
 from backend.scheduling.prompts import build_schedule_prompt
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
@@ -873,6 +874,34 @@ def _windows_overlap(
         return False
 
 
+def _grow_range_counts(
+    shift: ShiftAssignment,
+    emp_by_id: Dict[str, Dict[str, Any]],
+    range_counts_draft: Dict[Any, int],
+) -> None:
+    """Increment range_counts_draft for one committed shift.
+
+    Mirrors the weekly_hours_draft growth beside each call site so a
+    weight-1.0 hour_range_cap holds across the whole graph run rather than
+    resetting at each location — the same cross-location pattern
+    employee_weekly_hours_draft uses for max_hours_per_week.
+
+    Shift times are ISO strings carrying the location's UTC offset but
+    encoding local wall-clock (never .astimezone()'d — see
+    tests/test_avail_local_wallclock.py), so the "HH:MM" is read directly
+    off the string rather than through a timezone conversion.
+    """
+    emp = emp_by_id.get(shift["employee_id"])
+    if not emp:
+        return
+    start_hm = shift["start_time"][11:16]
+    end_hm = shift["end_time"][11:16]
+    for cap in emp.get("hour_range_caps") or []:
+        if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
+            key = (shift["employee_id"], cap["start_time"], cap["end_time"])
+            range_counts_draft[key] = range_counts_draft.get(key, 0) + 1
+
+
 def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     """Validate parsed shifts against availability_draft for overlaps.
 
@@ -887,6 +916,12 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     weekly_hours_draft: Dict[str, float] = dict(
         state.get("employee_weekly_hours_draft", {}) or {}
     )
+    range_counts_draft: Dict[Any, int] = dict(
+        state.get("range_counts_draft", {}) or {}
+    )
+    emp_by_id: Dict[str, Dict[str, Any]] = {
+        str(e.get("id", "")): e for e in state.get("employees", [])
+    }
 
     # Deep copy availability_draft entries
     for k, v in availability_draft.items():
@@ -956,11 +991,13 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                         )
                     except (ValueError, TypeError):
                         pass
+                    _grow_range_counts(shift, emp_by_id, range_counts_draft)
 
             return {
                 "current_parsed_shifts": shifts,
                 "availability_draft": availability_draft,
                 "employee_weekly_hours_draft": weekly_hours_draft,
+                "range_counts_draft": range_counts_draft,
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
@@ -987,11 +1024,13 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                 )
             except (ValueError, TypeError):
                 pass
+            _grow_range_counts(shift, emp_by_id, range_counts_draft)
 
         return {
             "current_parsed_shifts": shifts,
             "availability_draft": availability_draft,
             "employee_weekly_hours_draft": weekly_hours_draft,
+            "range_counts_draft": range_counts_draft,
         }
 
 

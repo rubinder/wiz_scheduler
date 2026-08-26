@@ -599,6 +599,7 @@ async def _load_initial_state(
         "employees": employees,
         "availability_draft": {},
         "employee_weekly_hours_draft": {},
+        "range_counts_draft": {},
         "current_location_index": 0,
         "completed_location_ids": [],
         "retry_count": 0,

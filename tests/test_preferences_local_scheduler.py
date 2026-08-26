@@ -8,7 +8,8 @@ silently.
 
 import pytest
 
-from backend.scheduling.local_scheduler import local_schedule
+from backend.scheduling.local_scheduler import _pick_employee, local_schedule
+from backend.scheduling.nodes import validate_and_update_availability
 from backend.scheduling.preferences import blocked_by_hard_preference
 from backend.scheduling.prompts import eligible_for_slot
 from backend.scheduling.state import SchedulingState
@@ -121,21 +122,28 @@ def _cap_employee(weight: float, max_per_week: int = 1) -> dict:
     }
 
 
-def _cap_test_state(employees: list[dict]) -> SchedulingState:
-    location = {"id": "loc00001", "name": "Test Location", "timezone": "UTC"}
+def _cap_test_state(
+    employees: list[dict],
+    weekly_schedule: dict | None = None,
+    location_id: str = "loc00001",
+    availability_draft: dict | None = None,
+    employee_weekly_hours_draft: dict | None = None,
+    range_counts_draft: dict | None = None,
+) -> SchedulingState:
+    location = {"id": location_id, "name": f"Test Location {location_id}", "timezone": "UTC"}
     shift_template = {
         "id": "tmpl0001",
         "name": "Test Template",
-        "location_id": "loc00001",
-        "weekly_schedule": _THREE_DAY_SCHEDULE,
+        "location_id": location_id,
+        "weekly_schedule": weekly_schedule if weekly_schedule is not None else _THREE_DAY_SCHEDULE,
     }
     return {
         "company_id": "comp0001",
         "week_start_date": "2026-03-30",  # Monday
         "locations": [location],
-        "shift_templates": {"loc00001": shift_template},
+        "shift_templates": {location_id: shift_template},
         "employees": employees,
-        "availability_draft": {},
+        "availability_draft": availability_draft or {},
         "current_location_index": 0,
         "completed_location_ids": [],
         "retry_count": 0,
@@ -152,6 +160,8 @@ def _cap_test_state(employees: list[dict]) -> SchedulingState:
         "current_employees": employees,
         "failure_entries": [],
         "role_equivalents": {},
+        "employee_weekly_hours_draft": employee_weekly_hours_draft or {},
+        "range_counts_draft": range_counts_draft or {},
     }
 
 
@@ -201,3 +211,71 @@ def test_no_cap_configured_is_unaffected():
     result = local_schedule(state, strategy="random")
     shifts = result["current_parsed_shifts"]
     assert len(shifts) == 3
+
+
+def test_weight_1_cap_holds_across_two_locations():
+    """A weight-1.0 cap of 1 must be a *weekly* limit, not a per-location one:
+    once e1 has filled their one allowed Floor shift in this hour range at
+    location A, location B must not be able to assign them a second one.
+
+    Drives the real cross-location state-threading path: local_schedule for
+    location A, then validate_and_update_availability (the node that grows
+    range_counts_draft from committed shifts, exactly as the graph does),
+    then feeds that draft into local_schedule for location B.
+    """
+    e1 = _cap_employee(weight=1.0, max_per_week=1)
+
+    loc_a_schedule = {
+        "Monday": [{"role_name": "Floor", "role_id": "role0001", "start_time": "09:00", "end_time": "17:00", "headcount": 1}],
+    }
+    state_a = _cap_test_state([e1], weekly_schedule=loc_a_schedule, location_id="locA0001")
+    result_a = local_schedule(state_a, strategy="random")
+    assert len(result_a["current_parsed_shifts"]) == 1  # location A fills its one slot
+
+    # Thread state through validate_and_update_availability, as the real
+    # graph does between locations, to grow range_counts_draft.
+    state_a["current_parsed_shifts"] = result_a["current_parsed_shifts"]
+    validated_a = validate_and_update_availability(state_a)
+    assert validated_a["range_counts_draft"] == {("e1", "09:00", "17:00"): 1}
+
+    loc_b_schedule = {
+        "Tuesday": [{"role_name": "Floor", "role_id": "role0001", "start_time": "09:00", "end_time": "17:00", "headcount": 1}],
+    }
+    state_b = _cap_test_state(
+        [e1],
+        weekly_schedule=loc_b_schedule,
+        location_id="locB0002",
+        availability_draft=validated_a["availability_draft"],
+        employee_weekly_hours_draft=validated_a["employee_weekly_hours_draft"],
+        range_counts_draft=validated_a["range_counts_draft"],
+    )
+    result_b = local_schedule(state_b, strategy="random")
+
+    # Not a second shift for e1 elsewhere in the week: the cap held across
+    # locations, so location B's slot is VACANT rather than a 2nd assignment.
+    assert result_b["current_parsed_shifts"] == []
+
+
+def test_soft_preference_flips_which_candidate_is_chosen():
+    """Two otherwise-identical candidates for the same slot: only the soft
+    weight on e2's day preference should distinguish them, and it must be
+    e1 -- not "someone" -- that _pick_employee returns, every time.
+
+    This is the test the "delete `+ pref`" mutation must break: with two
+    genuinely different candidates instead of one, a missing preference term
+    is observable as *which* employee gets picked, not just "did the single
+    candidate get removed."
+    """
+    e1 = _emp("e1")  # no preferences at all
+    e2 = _emp("e2", day_prefs=[{"day_of_week": 2, "weight": 0.5}])  # prefers Wednesday
+
+    # Slot is on Monday (day_index=0): e2's soft Wednesday preference is
+    # violated (penalised, not removed), e1's is not -> e1 must win every time.
+    picks = {
+        _pick_employee(
+            [e1, e2], "Cook", {}, "random", set(), {},
+            day_index=0, start="09:00", end="17:00", range_counts={},
+        )["id"]
+        for _ in range(30)
+    }
+    assert picks == {"e1"}

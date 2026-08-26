@@ -52,7 +52,6 @@ def _build_eligible_map(
     employees: List[Dict[str, Any]],
     weekly_schedule: Dict[str, List[dict]],
     date_to_day: Dict[str, str],
-    range_counts: Dict[Any, int],
 ) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
     """Pre-compute eligible employees for each (day, role_name) slot."""
     required_roles: set[str] = set()
@@ -91,7 +90,6 @@ def _build_eligible_map(
                 start,
                 end,
                 day_index=_DAY_INDEX.get(day),
-                range_counts=range_counts,
             )
 
     return eligible_map
@@ -136,12 +134,17 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 role_name_to_id[rname] = rid
 
     # Weekly hour-range cap usage: (employee_id, range_start, range_end) -> count.
-    # Consulted by both the hard filter inside eligible_for_slot and the soft
-    # preference_score term in _pick_employee.
-    range_counts: Dict[Any, int] = {}
+    # Consulted only inside _pick_employee — both its hard cap filter and the
+    # soft preference_score term. NOT consulted by eligible_for_slot: that
+    # runs once per (day, role) slot before any assignments exist, so it
+    # would only ever see a count of zero (see _pick_employee's docstring).
+    # Seeded from state so a weight-1.0 cap holds across the whole graph run
+    # rather than resetting to zero at each location, the same pattern
+    # employee_weekly_hours_draft uses for max_hours_per_week below.
+    range_counts: Dict[Any, int] = dict(state.get("range_counts_draft", {}) or {})
 
     eligible_map = _build_eligible_map(
-        employees, weekly_schedule, date_to_day, range_counts,
+        employees, weekly_schedule, date_to_day,
     )
     affinity_lookup = _build_affinity_lookup(employees)
 
@@ -519,7 +522,10 @@ def _pick_employee(
             eid = str(e["id"])
             opp = e.get("_num_required_roles", 99)
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
-            pref = preference_score(e, day_index, start, end, range_counts)
+            pref = (
+                preference_score(e, day_index, start, end, range_counts)
+                if day_index is not None else 0.0
+            )
             score = opp * 100 + aff + pref
             scored.append((score, e))
 
@@ -535,7 +541,10 @@ def _pick_employee(
             opp_cost = e.get("_num_required_roles", 99)
             fills = role_fill_counts.get((eid, role_name), 0)
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
-            pref = preference_score(e, day_index, start, end, range_counts)
+            pref = (
+                preference_score(e, day_index, start, end, range_counts)
+                if day_index is not None else 0.0
+            )
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref
             scored.append((score, e))
 
@@ -556,7 +565,10 @@ def _pick_employee(
             # History component: scale minutes to a reasonable range (0-1000 points)
             # Higher minutes = higher penalty
             history_penalty = hist_mins / 60.0  # convert to hours for scaling
-            pref = preference_score(e, day_index, start, end, range_counts)
+            pref = (
+                preference_score(e, day_index, start, end, range_counts)
+                if day_index is not None else 0.0
+            )
             # Blend between random (opp_cost only) and full history consideration
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + (history_penalty * strategy_param * 10)
             scored.append((score, e))
@@ -596,7 +608,10 @@ def _pick_employee(
             current_hrs = emp_hrs.get(eid, 0.0)
             projected_hrs = current_hrs + shift_duration_hrs
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
-            pref = preference_score(e, day_index, start, end, range_counts)
+            pref = (
+                preference_score(e, day_index, start, end, range_counts)
+                if day_index is not None else 0.0
+            )
 
             # Penalty for being near/over the cap, scaled by strictness
             if projected_hrs > max_hrs:
