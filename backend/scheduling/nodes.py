@@ -966,6 +966,20 @@ def _trim_cap_violations(
             end_hm = shift["end_time"][11:16]
         except (KeyError, TypeError, IndexError):
             continue
+
+        # Evaluate every matching cap for this shift before mutating any
+        # counts. Committing increments cap-by-cap as they're checked (the
+        # previous approach) leaves an earlier cap's count permanently
+        # inflated when a *later* cap ends up vacating the shift: the shift
+        # was never actually worked, but the earlier cap already counted
+        # it, so a subsequent legitimately-workable shift against that
+        # earlier cap gets vacated one slot too early. Deciding first, then
+        # committing only for shifts that stay "ok", keeps every cap's
+        # count equal to shifts actually worked -- this matters because a
+        # shift can match more than one overlapping range (e.g. a broad
+        # cap and a narrower one nested inside it).
+        matched_keys: List[Any] = []
+        vacate = False
         for cap in prefs.get("hour_range_caps") or []:
             try:
                 if float(cap.get("weight", 0)) < 1.0:
@@ -975,17 +989,19 @@ def _trim_cap_violations(
                 ):
                     continue
                 key = (shift["employee_id"], cap["start_time"], cap["end_time"])
-                counts[key] = counts.get(key, 0) + 1
-                if counts[key] > int(cap["max_per_week"]):
-                    shift["status"] = "VACANT"
-                    break
-                # Not yet over the allowance for this cap -- keep checking
-                # the employee's remaining caps; a shift can match more than
-                # one overlapping range (e.g. a broad cap and a narrower one
-                # nested inside it), and each must get its own chance to
-                # trim.
+                matched_keys.append(key)
+                if counts.get(key, 0) + 1 > int(cap["max_per_week"]):
+                    vacate = True
             except (KeyError, ValueError, TypeError, IndexError):
                 continue
+
+        if vacate:
+            shift["status"] = "VACANT"
+            # Not actually worked -- none of this shift's matching caps
+            # count it.
+        else:
+            for key in matched_keys:
+                counts[key] = counts.get(key, 0) + 1
 
 
 def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:

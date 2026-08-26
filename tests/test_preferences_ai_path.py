@@ -95,6 +95,67 @@ def test_a_cap_within_its_allowance_vacates_nothing():
     assert all(s["status"] == "ok" for s in out["current_parsed_shifts"])
 
 
+def test_overlapping_caps_dont_leak_counts_from_a_vacated_shift():
+    """A later, narrower cap vacating a shift must not permanently inflate
+    an earlier, broader cap's count for a shift that was never worked.
+
+    Caps: A = 16:00-22:00 max 3 (listed first), B = 18:00-20:00 max 1
+    (listed second, and nested inside A's range so any 18:00-20:00 shift
+    matches both).
+
+    Shifts in date order:
+      1. 18:00-20:00 -- matches A and B. Neither at its limit -> stays ok.
+         (A=1, B=1)
+      2. 18:00-20:00 -- matches A and B. A would be fine (2<=3) but B would
+         be exceeded (2>1) -> VACATED. Because this shift is never worked,
+         neither A nor B should count it: A must stay at 1, not jump to 2.
+      3. 16:00-18:00 -- matches only A (no overlap with B). A=1+1=2<=3 ->
+         stays ok. (A=2)
+      4. 16:00-18:00 -- matches only A. Under the old (buggy) code, shift 2
+         had already inflated A's count to 2, so this shift would wrongly
+         read A=3 and get vacated one slot early -- an employee legitimately
+         entitled to a 3rd A-shift this week is refused it. With counts
+         reflecting only shifts actually worked, A's real count going into
+         this shift is 2 (shifts 1 and 3), so this is A's 3rd occurrence
+         (2+1=3<=3) and it must stay ok.
+    """
+    shifts = [
+        _shift("e1", "2026-08-31", "18:00", "20:00"),
+        _shift("e1", "2026-09-01", "18:00", "20:00"),
+        _shift("e1", "2026-09-02", "16:00", "18:00"),
+        _shift("e1", "2026-09-03", "16:00", "18:00"),
+    ]
+    caps = [
+        {"start_time": "16:00", "end_time": "22:00",
+         "max_per_week": 3, "weight": 1.0},
+        {"start_time": "18:00", "end_time": "20:00",
+         "max_per_week": 1, "weight": 1.0},
+    ]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employees": [{"id": "e1", "hour_range_caps": caps}],
+        "employee_preferences": {
+            "e1": {
+                "day_preferences": [],
+                "hour_range_preferences": [],
+                "hour_range_caps": caps,
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    statuses = [s["status"] for s in out["current_parsed_shifts"]]
+    assert statuses == ["ok", "VACANT", "ok", "ok"]
+    # The vacated 2nd shift must contribute to neither cap's count: A's
+    # three actually-worked matches are shifts 1, 3, 4; B's one
+    # actually-worked match is shift 1.
+    assert out["range_counts_draft"][("e1", "16:00", "22:00")] == 3
+    assert out["range_counts_draft"][("e1", "18:00", "20:00")] == 1
+
+
 def test_no_preferences_leaves_shifts_untouched():
     shifts = [_shift("e1", "2026-08-31", "16:00", "22:00")]
     state = {

@@ -27,6 +27,7 @@ from backend.routers import (
     regions,
     roles,
     schedules,
+    scheduling_preferences,
     shift_templates,
     special_hours,
     webhooks,
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(special_hours.router, prefix=api_prefix)
     app.include_router(check_ins.router, prefix=api_prefix)
     app.include_router(schedules.router, prefix=api_prefix)
+    app.include_router(scheduling_preferences.router, prefix=api_prefix)
     app.include_router(import_7shifts.router, prefix=api_prefix)
     app.include_router(import_deputy.router, prefix=api_prefix)
     app.include_router(export_schedules.router, prefix=api_prefix)

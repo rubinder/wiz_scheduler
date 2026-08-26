@@ -1,6 +1,7 @@
+import re
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class EmployeeRoleSchema(BaseModel):
@@ -189,5 +190,195 @@ class InviteStatusResponse(BaseModel):
     created_at: datetime
     expires_at: datetime
     accepted_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+# ── Weighted scheduling preferences ──
+#
+# Shared weight rule across all three preference types: 0.0-1.0 in
+# increments of 0.1. 1.0 is a hard rule (see EmployeeDayPreference's
+# docstring in backend/models/employee.py); anything below is a soft,
+# scored preference. Defaults to 0.7 so a manager who omits it gets a
+# reasonable soft preference rather than an inert 0.0 row.
+
+_HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _validate_hhmm(label: str, value: str) -> str:
+    if not isinstance(value, str) or not _HHMM_RE.match(value):
+        raise ValueError(f"{label} must be in HH:MM format")
+    return value
+
+
+def _validate_weight_step(v: float | None) -> float | None:
+    if v is not None and round(v, 1) != v:
+        raise ValueError("weight must be in increments of 0.1")
+    return v
+
+
+class EmployeeDayPreferenceCreate(BaseModel):
+    employee_id: str
+    day_of_week: int = Field(ge=0, le=6)
+    weight: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float) -> float:
+        if round(v, 1) != v:
+            raise ValueError("weight must be in increments of 0.1")
+        return v
+
+
+class EmployeeDayPreferenceUpdate(BaseModel):
+    day_of_week: int | None = Field(default=None, ge=0, le=6)
+    weight: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float | None) -> float | None:
+        return _validate_weight_step(v)
+
+
+class EmployeeDayPreferenceResponse(BaseModel):
+    id: str
+    company_id: str
+    employee_id: str
+    day_of_week: int
+    weight: float
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeHourRangePreferenceCreate(BaseModel):
+    employee_id: str
+    start_time: str
+    end_time: str
+    weight: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def valid_hhmm(cls, v: str) -> str:
+        return _validate_hhmm("start_time/end_time", v)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float) -> float:
+        if round(v, 1) != v:
+            raise ValueError("weight must be in increments of 0.1")
+        return v
+
+    @model_validator(mode="after")
+    def reject_zero_length_range(self) -> "EmployeeHourRangePreferenceCreate":
+        # start_time == end_time normalises to a full 24h window in
+        # overlap_fraction (the same convention overnight ranges rely on),
+        # so it would match every shift at 1.0 instead of meaning "no range".
+        if self.start_time == self.end_time:
+            raise ValueError("start_time and end_time must not be equal")
+        return self
+
+
+class EmployeeHourRangePreferenceUpdate(BaseModel):
+    start_time: str | None = None
+    end_time: str | None = None
+    weight: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def valid_hhmm(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        return _validate_hhmm("start_time/end_time", v)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float | None) -> float | None:
+        return _validate_weight_step(v)
+
+    @model_validator(mode="after")
+    def reject_zero_length_range(self) -> "EmployeeHourRangePreferenceUpdate":
+        if (
+            self.start_time is not None
+            and self.end_time is not None
+            and self.start_time == self.end_time
+        ):
+            raise ValueError("start_time and end_time must not be equal")
+        return self
+
+
+class EmployeeHourRangePreferenceResponse(BaseModel):
+    id: str
+    company_id: str
+    employee_id: str
+    start_time: str
+    end_time: str
+    weight: float
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeHourRangeCapCreate(BaseModel):
+    employee_id: str
+    start_time: str
+    end_time: str
+    max_per_week: int = Field(ge=0)
+    weight: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def valid_hhmm(cls, v: str) -> str:
+        return _validate_hhmm("start_time/end_time", v)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float) -> float:
+        if round(v, 1) != v:
+            raise ValueError("weight must be in increments of 0.1")
+        return v
+
+    @model_validator(mode="after")
+    def reject_zero_length_range(self) -> "EmployeeHourRangeCapCreate":
+        if self.start_time == self.end_time:
+            raise ValueError("start_time and end_time must not be equal")
+        return self
+
+
+class EmployeeHourRangeCapUpdate(BaseModel):
+    start_time: str | None = None
+    end_time: str | None = None
+    max_per_week: int | None = Field(default=None, ge=0)
+    weight: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def valid_hhmm(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        return _validate_hhmm("start_time/end_time", v)
+
+    @field_validator("weight")
+    @classmethod
+    def one_decimal_place(cls, v: float | None) -> float | None:
+        return _validate_weight_step(v)
+
+    @model_validator(mode="after")
+    def reject_zero_length_range(self) -> "EmployeeHourRangeCapUpdate":
+        if (
+            self.start_time is not None
+            and self.end_time is not None
+            and self.start_time == self.end_time
+        ):
+            raise ValueError("start_time and end_time must not be equal")
+        return self
+
+
+class EmployeeHourRangeCapResponse(BaseModel):
+    id: str
+    company_id: str
+    employee_id: str
+    start_time: str
+    end_time: str
+    max_per_week: int
+    weight: float
 
     model_config = {"from_attributes": True}
