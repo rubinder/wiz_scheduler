@@ -25,10 +25,10 @@ export default function WeightSlider({ value, onChange, label, hardWarning }: Pr
           onChange={(e) => onChange(Number(e.target.value))}
           className="flex-1"
         />
-        <span className="w-10 text-right tabular-nums">{value.toFixed(1)}</span>
+        <span className="w-10 text-end tabular-nums">{value.toFixed(1)}</span>
       </label>
       {value >= 1 && (
-        <p className="text-xs text-orange-700 ml-24">{hardWarning}</p>
+        <p className="text-xs text-orange-700 ms-24">{hardWarning}</p>
       )}
     </div>
   );
