@@ -23,16 +23,39 @@ def overlap_fraction(
     The denominator is deliberately the shift, not the range: a one-hour shift
     sitting entirely inside an eight-hour preferred range has fully given the
     employee what they asked for, and should score 1.0 rather than 0.125.
+
+    Both the shift and the range may be overnight (e.g. "22:00"-"06:00"),
+    following the same convention as local_scheduler._shift_duration_hours:
+    an end at or before its start means the interval crosses midnight, so
+    24h is added to the end. A genuinely zero-length shift (start == end) is
+    handled before that normalisation so it is not mistaken for a full-day
+    shift.
+
+    After normalising, the shift and range may still sit on different
+    24-hour "pages" of the clock (a 00:00-06:00 range and a 22:00-02:00
+    shift genuinely overlap even though their raw minute numbers don't line
+    up), so the range is also tried shifted by a full day earlier and later,
+    and the best overlap wins.
     """
     s_start, s_end = _minutes(shift_start), _minutes(shift_end)
+    if s_end == s_start:
+        return 0.0
+    if s_end <= s_start:
+        s_end += 24 * 60
     duration = s_end - s_start
     if duration <= 0:
         return 0.0
+
     r_start, r_end = _minutes(range_start), _minutes(range_end)
-    overlap = min(s_end, r_end) - max(s_start, r_start)
-    if overlap <= 0:
-        return 0.0
-    return overlap / duration
+    if r_end <= r_start:
+        r_end += 24 * 60
+
+    best_overlap = 0.0
+    for page in (-24 * 60, 0, 24 * 60):
+        overlap = min(s_end, r_end + page) - max(s_start, r_start + page)
+        if overlap > best_overlap:
+            best_overlap = overlap
+    return best_overlap / duration
 
 
 def matches_range(

@@ -49,3 +49,42 @@ def test_just_below_the_threshold_does_not_match():
     # a shift where the overlap is unambiguously under half:
     # 13:00-18:00 is 5h; overlap with 16:00-22:00 is 2h -> 0.4
     assert matches_range("13:00", "18:00", "16:00", "22:00") is False
+
+
+def test_overnight_shift_fully_matches_same_overnight_range():
+    # 22:00-06:00 is 8h; the identical overnight range covers all 8h.
+    assert overlap_fraction("22:00", "06:00", "22:00", "06:00") == 1.0
+
+
+def test_overnight_shift_does_not_match_a_day_range():
+    # 22:00-06:00 (wraps to next day) never touches 09:00-17:00.
+    assert overlap_fraction("22:00", "06:00", "09:00", "17:00") == 0.0
+
+
+def test_day_shift_does_not_match_an_overnight_range():
+    # 09:00-17:00 never touches an overnight 22:00-06:00 range.
+    assert overlap_fraction("09:00", "17:00", "22:00", "06:00") == 0.0
+
+
+def test_overnight_shift_partially_matches_a_range_on_the_next_page():
+    # 22:00-02:00 is 4h (crosses midnight). The 00:00-06:00 range overlaps
+    # it from 00:00-02:00 = 2h -> 2/4 = 0.5.
+    assert overlap_fraction("22:00", "02:00", "00:00", "06:00") == 0.5
+
+
+def test_zero_length_shift_is_still_zero_even_overnight_adjacent():
+    # Confirms zero-length shifts are handled before wraparound normalisation
+    # turns them into a spurious 24h shift.
+    assert overlap_fraction("13:00", "13:00", "13:00", "17:00") == 0.0
+
+
+def test_matches_range_true_for_matching_overnight_pair():
+    assert matches_range("22:00", "06:00", "22:00", "06:00") is True
+
+
+def test_matches_range_false_for_overnight_shift_against_day_range():
+    assert matches_range("22:00", "06:00", "09:00", "17:00") is False
+
+
+def test_matches_range_false_for_day_shift_against_overnight_range():
+    assert matches_range("09:00", "17:00", "22:00", "06:00") is False
