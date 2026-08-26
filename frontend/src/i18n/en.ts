@@ -82,6 +82,12 @@ const en = {
     checkInQr: "Check-In Code",
     checkInReport: "Check-In Report",
     checkIn: "Check In",
+    groupOrganization: "Organization",
+    groupRoles: "Roles & Skills",
+    groupPeople: "People",
+    groupSchedulingRules: "Scheduling Rules",
+    groupScheduling: "Scheduling",
+    groupCheckIn: "Check-In",
   },
 
   // ── Team ──

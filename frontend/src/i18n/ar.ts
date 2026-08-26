@@ -82,6 +82,12 @@ const ar = {
     checkInQr: "رمز تسجيل الحضور",
     checkInReport: "تقرير تسجيل الحضور",
     checkIn: "تسجيل الحضور",
+    groupOrganization: "التنظيم",
+    groupRoles: "الأدوار والمهارات",
+    groupPeople: "الأشخاص",
+    groupSchedulingRules: "قواعد الجدولة",
+    groupScheduling: "الجدولة",
+    groupCheckIn: "تسجيل الحضور",
   },
 
   // ── Team ──

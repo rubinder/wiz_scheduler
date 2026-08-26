@@ -82,6 +82,12 @@ const ind = {
     checkInQr: "Kode Check-in",
     checkInReport: "Laporan Check-in",
     checkIn: "Check-in",
+    groupOrganization: "Organisasi",
+    groupRoles: "Peran & Keahlian",
+    groupPeople: "Orang",
+    groupSchedulingRules: "Aturan Penjadwalan",
+    groupScheduling: "Penjadwalan",
+    groupCheckIn: "Check-in",
   },
 
   // ── Team ──

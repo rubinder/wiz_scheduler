@@ -82,6 +82,12 @@ const ta = {
     checkInQr: "செக்-இன் குறியீடு",
     checkInReport: "செக்-இன் அறிக்கை",
     checkIn: "செக்-இன் செய்",
+    groupOrganization: "அமைப்பு",
+    groupRoles: "பங்குகள் மற்றும் திறன்கள்",
+    groupPeople: "மக்கள்",
+    groupSchedulingRules: "அட்டவணை விதிகள்",
+    groupScheduling: "அட்டவணையாக்கம்",
+    groupCheckIn: "செக்-இன்",
   },
 
   // ── Team ──

@@ -82,6 +82,12 @@ const ja = {
     checkInQr: "チェックインコード",
     checkInReport: "チェックインレポート",
     checkIn: "チェックイン",
+    groupOrganization: "組織",
+    groupRoles: "役割とスキル",
+    groupPeople: "人材",
+    groupSchedulingRules: "スケジュールルール",
+    groupScheduling: "スケジュール管理",
+    groupCheckIn: "チェックイン",
   },
 
   // ── Team ──

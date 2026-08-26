@@ -82,6 +82,12 @@ const zh = {
     checkInQr: "签到码",
     checkInReport: "签到报告",
     checkIn: "签到",
+    groupOrganization: "组织",
+    groupRoles: "角色与技能",
+    groupPeople: "人员",
+    groupSchedulingRules: "排班规则",
+    groupScheduling: "排班管理",
+    groupCheckIn: "签到",
   },
 
   // ── Team ──

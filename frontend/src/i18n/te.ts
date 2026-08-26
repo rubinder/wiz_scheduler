@@ -82,6 +82,12 @@ const te = {
     checkInQr: "చెక్-ఇన్ కోడ్",
     checkInReport: "చెక్-ఇన్ నివేదిక",
     checkIn: "చెక్-ఇన్ చేయండి",
+    groupOrganization: "వ్యవస్థ",
+    groupRoles: "పాత్రలు & నైపుణ్యాలు",
+    groupPeople: "వ్యక్తులు",
+    groupSchedulingRules: "షెడ్యూల్ నియమాలు",
+    groupScheduling: "షెడ్యూలింగ్",
+    groupCheckIn: "చెక్-ఇన్",
   },
 
   // ── Team ──

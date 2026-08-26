@@ -82,6 +82,12 @@ const vi = {
     checkInQr: "Mã Check-in",
     checkInReport: "Báo cáo Check-in",
     checkIn: "Check-in",
+    groupOrganization: "Tổ chức",
+    groupRoles: "Vai trò & Kỹ năng",
+    groupPeople: "Nhân sự",
+    groupSchedulingRules: "Quy tắc lịch làm việc",
+    groupScheduling: "Lập lịch",
+    groupCheckIn: "Check-in",
   },
 
   // ── Team ──

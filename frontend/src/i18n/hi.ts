@@ -82,6 +82,12 @@ const hi = {
     checkInQr: "चेक-इन कोड",
     checkInReport: "चेक-इन रिपोर्ट",
     checkIn: "चेक-इन करें",
+    groupOrganization: "संगठन",
+    groupRoles: "भूमिकाएं और कौशल",
+    groupPeople: "लोग",
+    groupSchedulingRules: "शेड्यूलिंग नियम",
+    groupScheduling: "शेड्यूलिंग",
+    groupCheckIn: "चेक-इन",
   },
 
   // ── Team ──

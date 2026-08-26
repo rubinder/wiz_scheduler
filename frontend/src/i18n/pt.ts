@@ -82,6 +82,12 @@ const pt = {
     checkInQr: "Código de Check-in",
     checkInReport: "Relatório de Check-in",
     checkIn: "Fazer Check-in",
+    groupOrganization: "Organização",
+    groupRoles: "Funções e Habilidades",
+    groupPeople: "Pessoas",
+    groupSchedulingRules: "Regras de Escala",
+    groupScheduling: "Escalas",
+    groupCheckIn: "Check-in",
   },
 
   // ── Team ──
