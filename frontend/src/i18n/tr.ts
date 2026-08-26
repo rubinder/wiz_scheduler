@@ -89,6 +89,9 @@ const trLang = {
     groupScheduling: "Programlama",
     groupCheckIn: "Giriş",
     approvedSchedules: "Onaylı Programlar",
+    dayPreferences: "Gün Tercihleri",
+    hourRangePreferences: "Saat Aralığı Tercihleri",
+    frequencyCaps: "Sıklık Sınırları",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const trLang = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Gün Tercihleri",
+    description:
+      "Her çalışanın çalışmayı tercih ettiği haftanın günlerine 0 ile 1 arasında bir ağırlık atayın. Ağırlık ne kadar yüksekse, planlayıcı o gün için o çalışanı o kadar güçlü şekilde tercih eder; 1,0'ın altındaki herhangi bir değer, başka kimse müsait değilse yine de göz ardı edilebilecek esnek bir tercihtir.",
+    addPreference: "Tercih Ekle",
+    employee: "Çalışan",
+    dayOfWeek: "Haftanın günü",
+    weight: "Ağırlık",
+    hardWarning:
+      "1,0 ağırlıkta bu, kesin bir kurala dönüşür: çalışan başka hiçbir güne planlanmaz ve uygun çalışan kalmayan bir vardiya VACANT (boş) olarak işaretlenir.",
+    searchPlaceholder: "Çalışan ara…",
+    noPreferences: "Henüz tanımlanmış bir gün tercihi yok.",
+    pickEmployee: "Önce bir çalışan seçin.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Saat Aralığı Tercihleri",
+    description:
+      "Her çalışanın çalışmayı tercih ettiği saat aralıklarına 0 ile 1 arasında bir ağırlık atayın. Ağırlık ne kadar yüksekse, planlayıcı o aralıktaki vardiyalar için o çalışanı o kadar güçlü şekilde tercih eder; 1,0'ın altındaki herhangi bir değer, başka kimse müsait değilse yine de göz ardı edilebilecek esnek bir tercihtir.",
+    matchRule: "Bir vardiyanın en az %50'si bu aralığa denk geldiğinde, o vardiya bu aralığa sayılır.",
+    addPreference: "Tercih Ekle",
+    employee: "Çalışan",
+    timeRange: "Saat aralığı",
+    weight: "Ağırlık",
+    hardWarning:
+      "1,0 ağırlıkta bu, kesin bir kurala dönüşür: çalışan bu aralığın dışında planlanmaz ve uygun çalışan kalmayan bir vardiya VACANT (boş) olarak işaretlenir.",
+    searchPlaceholder: "Çalışan ara…",
+    noPreferences: "Henüz tanımlanmış bir saat aralığı tercihi yok.",
+    pickEmployee: "Önce bir çalışan seçin.",
+    invalidRange: "Başlangıç saati ile bitiş saati aynı olamaz.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Sıklık Sınırları",
+    description:
+      "Bir çalışanın belirli bir saat aralığında haftada kaç kez planlanabileceğini, 0 ile 1 arasında bir ağırlıkla sınırlayın. 1,0'ın altındaki herhangi bir değer, başka kimse müsait değilse yine de göz ardı edilebilecek esnek bir sınırdır.",
+    matchRule: "Bir vardiyanın en az %50'si bu aralığa denk geldiğinde, o vardiya bu aralığa sayılır.",
+    addCap: "Sınır Ekle",
+    employee: "Çalışan",
+    timeRange: "Saat aralığı",
+    maxPerWeek: "Maks. / hafta",
+    weight: "Ağırlık",
+    hardWarning:
+      "1,0 ağırlıkta bu, kesin bir sınıra dönüşür: sınıra ulaşıldığında, çalışan o hafta bu aralığa bir daha planlanmaz ve uygun çalışan kalmayan bir vardiya VACANT (boş) olarak işaretlenir.",
+    searchPlaceholder: "Çalışan ara…",
+    noCaps: "Henüz tanımlanmış bir sıklık sınırı yok.",
+    pickEmployee: "Önce bir çalışan seçin.",
+    invalidRange: "Başlangıç saati ile bitiş saati aynı olamaz.",
+    invalidMax: "0 veya daha büyük bir tam sayı girin.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

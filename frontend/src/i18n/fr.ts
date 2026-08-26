@@ -89,6 +89,9 @@ const fr = {
     groupScheduling: "Planification",
     groupCheckIn: "Pointage",
     approvedSchedules: "Plannings approuvés",
+    dayPreferences: "Préférences de Jour",
+    hourRangePreferences: "Préférences d'Horaire",
+    frequencyCaps: "Limites de Fréquence",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const fr = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Préférences de Jour",
+    description:
+      "Attribuez un poids de 0 à 1 aux jours de la semaine où chaque employé préfère travailler. Plus le poids est élevé, plus le planificateur favorise cet employé pour les quarts de ce jour ; toute valeur inférieure à 1,0 est une préférence souple qui peut être contournée si personne d'autre n'est disponible.",
+    addPreference: "Ajouter une préférence",
+    employee: "Employé",
+    dayOfWeek: "Jour de la semaine",
+    weight: "Poids",
+    hardWarning:
+      "À un poids de 1,0, cela devient une règle stricte : l'employé ne sera programmé aucun autre jour, et un quart sans employé éligible restant sera marqué VACANT (vacant).",
+    searchPlaceholder: "Rechercher des employés…",
+    noPreferences: "Aucune préférence de jour définie pour le moment.",
+    pickEmployee: "Sélectionnez d'abord un employé.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Préférences d'Horaire",
+    description:
+      "Attribuez un poids de 0 à 1 aux plages horaires où chaque employé préfère travailler. Plus le poids est élevé, plus le planificateur favorise cet employé pour les quarts de cette plage ; toute valeur inférieure à 1,0 est une préférence souple qui peut être contournée si personne d'autre n'est disponible.",
+    matchRule: "Un quart compte lorsqu'au moins 50 % de sa durée se situe dans cette plage.",
+    addPreference: "Ajouter une préférence",
+    employee: "Employé",
+    timeRange: "Plage horaire",
+    weight: "Poids",
+    hardWarning:
+      "À un poids de 1,0, cela devient une règle stricte : l'employé ne sera pas programmé en dehors de cette plage, et un quart sans employé éligible restant sera marqué VACANT (vacant).",
+    searchPlaceholder: "Rechercher des employés…",
+    noPreferences: "Aucune préférence d'horaire définie pour le moment.",
+    pickEmployee: "Sélectionnez d'abord un employé.",
+    invalidRange: "L'heure de début et l'heure de fin ne peuvent pas être identiques.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Limites de Fréquence",
+    description:
+      "Limitez le nombre de fois par semaine qu'un employé peut être programmé dans une plage horaire donnée, avec un poids de 0 à 1. Toute valeur inférieure à 1,0 est une limite souple qui peut être contournée si personne d'autre n'est disponible.",
+    matchRule: "Un quart compte lorsqu'au moins 50 % de sa durée se situe dans cette plage.",
+    addCap: "Ajouter une limite",
+    employee: "Employé",
+    timeRange: "Plage horaire",
+    maxPerWeek: "Max / semaine",
+    weight: "Poids",
+    hardWarning:
+      "À un poids de 1,0, cela devient une limite stricte : une fois atteinte, l'employé ne sera plus programmé dans cette plage cette semaine-là, et un quart sans employé éligible restant sera marqué VACANT (vacant).",
+    searchPlaceholder: "Rechercher des employés…",
+    noCaps: "Aucune limite de fréquence définie pour le moment.",
+    pickEmployee: "Sélectionnez d'abord un employé.",
+    invalidRange: "L'heure de début et l'heure de fin ne peuvent pas être identiques.",
+    invalidMax: "Saisissez un nombre entier de 0 ou plus.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

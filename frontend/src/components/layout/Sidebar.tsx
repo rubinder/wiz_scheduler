@@ -64,6 +64,9 @@ const managerNav: NavEntry[] = [
       },
       { to: "/manager/hour-restrictions", labelKey: "hourRestrictions" },
       { to: "/manager/day-blackouts", labelKey: "dayBlackouts" },
+      { to: "/manager/day-preferences", labelKey: "dayPreferences" },
+      { to: "/manager/hour-range-preferences", labelKey: "hourRangePreferences" },
+      { to: "/manager/frequency-caps", labelKey: "frequencyCaps" },
     ],
   },
   {

@@ -89,6 +89,9 @@ const en = {
     groupScheduling: "Scheduling",
     groupCheckIn: "Check-In",
     approvedSchedules: "Approved Schedules",
+    dayPreferences: "Day Preferences",
+    hourRangePreferences: "Hour Range Preferences",
+    frequencyCaps: "Frequency Caps",
   },
 
   // ── Approved Schedules ──
@@ -510,6 +513,60 @@ const en = {
     clearCap: "Clear",
     noEmployees: "No employees found.",
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
+  },
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Day Preferences",
+    description:
+      "Weight which days of the week each employee prefers to work, from 0 to 1. The scheduler favors that employee more strongly for shifts on that day; anything below 1.0 is a soft preference that can still be overridden when no one else is available.",
+    addPreference: "Add Preference",
+    employee: "Employee",
+    dayOfWeek: "Day of week",
+    weight: "Weight",
+    hardWarning:
+      "At weight 1.0 this becomes a hard rule: the employee will not be scheduled on any other day, and a shift with no eligible employee left is emitted VACANT.",
+    searchPlaceholder: "Search employees…",
+    noPreferences: "No day preferences defined yet.",
+    pickEmployee: "Pick an employee first.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Hour Range Preferences",
+    description:
+      "Weight hour ranges each employee prefers to work, from 0 to 1. The scheduler favors that employee more strongly for shifts in that range; anything below 1.0 is a soft preference that can still be overridden when no one else is available.",
+    matchRule: "A shift counts when at least 50% of it falls inside this range.",
+    addPreference: "Add Preference",
+    employee: "Employee",
+    timeRange: "Time range",
+    weight: "Weight",
+    hardWarning:
+      "At weight 1.0 this becomes a hard rule: the employee will not be scheduled outside this range, and a shift with no eligible employee left is emitted VACANT.",
+    searchPlaceholder: "Search employees…",
+    noPreferences: "No hour range preferences defined yet.",
+    pickEmployee: "Pick an employee first.",
+    invalidRange: "Start time and end time must not be equal.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Frequency Caps",
+    description:
+      "Limit how many times per week an employee can be scheduled inside a given hour range, weighted 0 to 1. Anything below 1.0 is a soft limit that can still be overridden when no one else is available.",
+    matchRule: "A shift counts when at least 50% of it falls inside this range.",
+    addCap: "Add Cap",
+    employee: "Employee",
+    timeRange: "Time range",
+    maxPerWeek: "Max / week",
+    weight: "Weight",
+    hardWarning:
+      "At weight 1.0 this becomes a hard limit: once reached, the employee will not be scheduled in this range again that week, and a shift with no eligible employee left is emitted VACANT.",
+    searchPlaceholder: "Search employees…",
+    noCaps: "No frequency caps defined yet.",
+    pickEmployee: "Pick an employee first.",
+    invalidRange: "Start time and end time must not be equal.",
+    invalidMax: "Enter a whole number of 0 or more.",
   },
 
   // ── Shift Templates ──

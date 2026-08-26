@@ -19,8 +19,11 @@ import EmployeeAssociation from "./pages/manager/EmployeeAssociation";
 import EmployeeAvailability from "./pages/manager/EmployeeAvailability";
 import EmployeeOnboarding from "./pages/manager/EmployeeOnboarding";
 import DayBlackouts from "./pages/manager/DayBlackouts";
+import DayPreferences from "./pages/manager/DayPreferences";
 import ExportSchedules from "./pages/manager/ExportSchedules";
 import ApprovedSchedules from "./pages/manager/ApprovedSchedules";
+import FrequencyCaps from "./pages/manager/FrequencyCaps";
+import HourRangePreferences from "./pages/manager/HourRangePreferences";
 import HourRestrictions from "./pages/manager/HourRestrictions";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
 import SpecialHours from "./pages/manager/SpecialHours";
@@ -118,6 +121,9 @@ export default function App() {
             <Route path="team" element={<Team />} />
             <Route path="hour-restrictions" element={<HourRestrictions />} />
             <Route path="day-blackouts" element={<DayBlackouts />} />
+            <Route path="day-preferences" element={<DayPreferences />} />
+            <Route path="hour-range-preferences" element={<HourRangePreferences />} />
+            <Route path="frequency-caps" element={<FrequencyCaps />} />
             <Route path="employee-onboarding" element={<EmployeeOnboarding />} />
             <Route path="employee-availability" element={<EmployeeAvailability />} />
             <Route path="employee-association" element={<EmployeeAssociation />} />

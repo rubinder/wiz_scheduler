@@ -89,6 +89,9 @@ const vi = {
     groupScheduling: "Lập lịch",
     groupCheckIn: "Check-in",
     approvedSchedules: "Lịch đã duyệt",
+    dayPreferences: "Ưu Tiên Ngày",
+    hourRangePreferences: "Ưu Tiên Khung Giờ",
+    frequencyCaps: "Giới Hạn Tần Suất",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const vi = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Ưu Tiên Ngày",
+    description:
+      "Đặt trọng số từ 0 đến 1 cho những ngày trong tuần mà mỗi nhân viên muốn làm việc. Trọng số càng cao, bộ lập lịch càng ưu tiên nhân viên đó cho ca làm vào ngày đó; bất kỳ giá trị nào dưới 1,0 là ưu tiên mềm, vẫn có thể bị bỏ qua nếu không còn ai khác sẵn sàng.",
+    addPreference: "Thêm Ưu Tiên",
+    employee: "Nhân viên",
+    dayOfWeek: "Ngày trong tuần",
+    weight: "Trọng số",
+    hardWarning:
+      "Ở trọng số 1,0, đây trở thành quy tắc bắt buộc: nhân viên sẽ không được xếp lịch vào bất kỳ ngày nào khác, và ca làm không còn nhân viên đủ điều kiện sẽ được đánh dấu VACANT (trống).",
+    searchPlaceholder: "Tìm nhân viên…",
+    noPreferences: "Chưa có ưu tiên ngày nào được thiết lập.",
+    pickEmployee: "Hãy chọn một nhân viên trước.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Ưu Tiên Khung Giờ",
+    description:
+      "Đặt trọng số từ 0 đến 1 cho khung giờ mà mỗi nhân viên muốn làm việc. Trọng số càng cao, bộ lập lịch càng ưu tiên nhân viên đó cho ca làm trong khung giờ đó; bất kỳ giá trị nào dưới 1,0 là ưu tiên mềm, vẫn có thể bị bỏ qua nếu không còn ai khác sẵn sàng.",
+    matchRule: "Một ca làm được tính vào khung giờ này nếu ít nhất 50% thời lượng của nó nằm trong khung giờ này.",
+    addPreference: "Thêm Ưu Tiên",
+    employee: "Nhân viên",
+    timeRange: "Khung giờ",
+    weight: "Trọng số",
+    hardWarning:
+      "Ở trọng số 1,0, đây trở thành quy tắc bắt buộc: nhân viên sẽ không được xếp lịch ngoài khung giờ này, và ca làm không còn nhân viên đủ điều kiện sẽ được đánh dấu VACANT (trống).",
+    searchPlaceholder: "Tìm nhân viên…",
+    noPreferences: "Chưa có ưu tiên khung giờ nào được thiết lập.",
+    pickEmployee: "Hãy chọn một nhân viên trước.",
+    invalidRange: "Giờ bắt đầu và giờ kết thúc không được trùng nhau.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Giới Hạn Tần Suất",
+    description:
+      "Giới hạn số lần trong tuần một nhân viên có thể được xếp lịch trong một khung giờ nhất định, với trọng số từ 0 đến 1. Bất kỳ giá trị nào dưới 1,0 là giới hạn mềm, vẫn có thể bị bỏ qua nếu không còn ai khác sẵn sàng.",
+    matchRule: "Một ca làm được tính vào khung giờ này nếu ít nhất 50% thời lượng của nó nằm trong khung giờ này.",
+    addCap: "Thêm Giới Hạn",
+    employee: "Nhân viên",
+    timeRange: "Khung giờ",
+    maxPerWeek: "Tối đa / tuần",
+    weight: "Trọng số",
+    hardWarning:
+      "Ở trọng số 1,0, đây trở thành giới hạn bắt buộc: khi đạt đến giới hạn, nhân viên sẽ không được xếp lịch lại vào khung giờ này trong tuần đó, và ca làm không còn nhân viên đủ điều kiện sẽ được đánh dấu VACANT (trống).",
+    searchPlaceholder: "Tìm nhân viên…",
+    noCaps: "Chưa có giới hạn tần suất nào được thiết lập.",
+    pickEmployee: "Hãy chọn một nhân viên trước.",
+    invalidRange: "Giờ bắt đầu và giờ kết thúc không được trùng nhau.",
+    invalidMax: "Nhập một số nguyên từ 0 trở lên.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

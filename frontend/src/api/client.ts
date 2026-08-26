@@ -47,6 +47,30 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/**
+ * Best-effort human-readable message for a caught error.
+ *
+ * ApiError.data (== the response body's `detail`) is a plain string for
+ * HTTPException detail (e.g. the "start_time and end_time must not be
+ * equal" 422 raised from update handlers), but a list of pydantic
+ * error objects for validation errors raised by a model_validator on the
+ * *Create schemas. Handle both so a manager always sees the real reason a
+ * save failed instead of a generic status text.
+ */
+export function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const data = err.data;
+    if (typeof data === "string") return data;
+    if (Array.isArray(data) && data.length > 0) {
+      const first = data[0] as { msg?: string } | undefined;
+      if (first?.msg) return first.msg;
+    }
+    if (err.message) return err.message;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
+
 export function streamFetch(
   path: string,
   body: unknown

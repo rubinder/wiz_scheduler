@@ -89,6 +89,9 @@ const ind = {
     groupScheduling: "Penjadwalan",
     groupCheckIn: "Check-in",
     approvedSchedules: "Jadwal Disetujui",
+    dayPreferences: "Preferensi Hari",
+    hourRangePreferences: "Preferensi Rentang Jam",
+    frequencyCaps: "Batas Frekuensi",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const ind = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Preferensi Hari",
+    description:
+      "Beri bobot 0 hingga 1 untuk hari dalam seminggu yang lebih disukai setiap karyawan untuk bekerja. Semakin tinggi bobotnya, semakin kuat penjadwal mengutamakan karyawan tersebut untuk shift pada hari itu; nilai di bawah 1,0 adalah preferensi lunak yang masih dapat diabaikan jika tidak ada karyawan lain yang tersedia.",
+    addPreference: "Tambah Preferensi",
+    employee: "Karyawan",
+    dayOfWeek: "Hari dalam seminggu",
+    weight: "Bobot",
+    hardWarning:
+      "Pada bobot 1,0 ini menjadi aturan mutlak: karyawan tidak akan dijadwalkan pada hari lain, dan shift yang tidak memiliki karyawan yang memenuhi syarat akan ditandai VACANT (kosong).",
+    searchPlaceholder: "Cari karyawan…",
+    noPreferences: "Belum ada preferensi hari yang ditentukan.",
+    pickEmployee: "Pilih karyawan terlebih dahulu.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Preferensi Rentang Jam",
+    description:
+      "Beri bobot 0 hingga 1 untuk rentang jam yang lebih disukai setiap karyawan untuk bekerja. Semakin tinggi bobotnya, semakin kuat penjadwal mengutamakan karyawan tersebut untuk shift pada rentang itu; nilai di bawah 1,0 adalah preferensi lunak yang masih dapat diabaikan jika tidak ada karyawan lain yang tersedia.",
+    matchRule: "Sebuah shift dihitung masuk rentang ini jika setidaknya 50% durasinya berada di dalam rentang tersebut.",
+    addPreference: "Tambah Preferensi",
+    employee: "Karyawan",
+    timeRange: "Rentang jam",
+    weight: "Bobot",
+    hardWarning:
+      "Pada bobot 1,0 ini menjadi aturan mutlak: karyawan tidak akan dijadwalkan di luar rentang ini, dan shift yang tidak memiliki karyawan yang memenuhi syarat akan ditandai VACANT (kosong).",
+    searchPlaceholder: "Cari karyawan…",
+    noPreferences: "Belum ada preferensi rentang jam yang ditentukan.",
+    pickEmployee: "Pilih karyawan terlebih dahulu.",
+    invalidRange: "Waktu mulai dan waktu selesai tidak boleh sama.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Batas Frekuensi",
+    description:
+      "Batasi berapa kali per minggu seorang karyawan dapat dijadwalkan dalam rentang jam tertentu, dengan bobot 0 hingga 1. Nilai di bawah 1,0 adalah batas lunak yang masih dapat diabaikan jika tidak ada karyawan lain yang tersedia.",
+    matchRule: "Sebuah shift dihitung masuk rentang ini jika setidaknya 50% durasinya berada di dalam rentang tersebut.",
+    addCap: "Tambah Batas",
+    employee: "Karyawan",
+    timeRange: "Rentang jam",
+    maxPerWeek: "Maks / minggu",
+    weight: "Bobot",
+    hardWarning:
+      "Pada bobot 1,0 ini menjadi batas mutlak: setelah tercapai, karyawan tidak akan dijadwalkan lagi pada rentang ini di minggu tersebut, dan shift yang tidak memiliki karyawan yang memenuhi syarat akan ditandai VACANT (kosong).",
+    searchPlaceholder: "Cari karyawan…",
+    noCaps: "Belum ada batas frekuensi yang ditentukan.",
+    pickEmployee: "Pilih karyawan terlebih dahulu.",
+    invalidRange: "Waktu mulai dan waktu selesai tidak boleh sama.",
+    invalidMax: "Masukkan bilangan bulat 0 atau lebih.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

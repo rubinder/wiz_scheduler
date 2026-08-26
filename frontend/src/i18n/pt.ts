@@ -89,6 +89,9 @@ const pt = {
     groupScheduling: "Escalas",
     groupCheckIn: "Check-in",
     approvedSchedules: "Escalas aprovadas",
+    dayPreferences: "Preferências de Dia",
+    hourRangePreferences: "Preferências de Horário",
+    frequencyCaps: "Limites de Frequência",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const pt = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Preferências de Dia",
+    description:
+      "Atribua um peso de 0 a 1 aos dias da semana em que cada funcionário prefere trabalhar. Quanto maior o peso, mais o planejador favorece esse funcionário para turnos naquele dia; qualquer valor abaixo de 1,0 é uma preferência flexível que ainda pode ser desconsiderada se ninguém mais estiver disponível.",
+    addPreference: "Adicionar Preferência",
+    employee: "Funcionário",
+    dayOfWeek: "Dia da semana",
+    weight: "Peso",
+    hardWarning:
+      "Com peso 1,0 isso se torna uma regra rígida: o funcionário não será escalado em nenhum outro dia, e um turno sem nenhum funcionário elegível restante será marcado como VACANT (vago).",
+    searchPlaceholder: "Buscar funcionários…",
+    noPreferences: "Nenhuma preferência de dia definida ainda.",
+    pickEmployee: "Selecione um funcionário primeiro.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Preferências de Horário",
+    description:
+      "Atribua um peso de 0 a 1 às faixas de horário em que cada funcionário prefere trabalhar. Quanto maior o peso, mais o planejador favorece esse funcionário para turnos nessa faixa; qualquer valor abaixo de 1,0 é uma preferência flexível que ainda pode ser desconsiderada se ninguém mais estiver disponível.",
+    matchRule: "Um turno conta quando pelo menos 50% dele está dentro desta faixa.",
+    addPreference: "Adicionar Preferência",
+    employee: "Funcionário",
+    timeRange: "Faixa de horário",
+    weight: "Peso",
+    hardWarning:
+      "Com peso 1,0 isso se torna uma regra rígida: o funcionário não será escalado fora desta faixa, e um turno sem nenhum funcionário elegível restante será marcado como VACANT (vago).",
+    searchPlaceholder: "Buscar funcionários…",
+    noPreferences: "Nenhuma preferência de horário definida ainda.",
+    pickEmployee: "Selecione um funcionário primeiro.",
+    invalidRange: "O horário de início e o de término não podem ser iguais.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Limites de Frequência",
+    description:
+      "Limite quantas vezes por semana um funcionário pode ser escalado dentro de uma faixa de horário específica, com peso de 0 a 1. Qualquer valor abaixo de 1,0 é um limite flexível que ainda pode ser desconsiderado se ninguém mais estiver disponível.",
+    matchRule: "Um turno conta quando pelo menos 50% dele está dentro desta faixa.",
+    addCap: "Adicionar Limite",
+    employee: "Funcionário",
+    timeRange: "Faixa de horário",
+    maxPerWeek: "Máx. / semana",
+    weight: "Peso",
+    hardWarning:
+      "Com peso 1,0 isso se torna um limite rígido: uma vez atingido, o funcionário não será escalado novamente nesta faixa naquela semana, e um turno sem nenhum funcionário elegível restante será marcado como VACANT (vago).",
+    searchPlaceholder: "Buscar funcionários…",
+    noCaps: "Nenhum limite de frequência definido ainda.",
+    pickEmployee: "Selecione um funcionário primeiro.",
+    invalidRange: "O horário de início e o de término não podem ser iguais.",
+    invalidMax: "Insira um número inteiro de 0 ou mais.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

@@ -89,6 +89,9 @@ const pcm = {
     groupScheduling: "Schedule Matter",
     groupCheckIn: "Check-In Matter",
     approvedSchedules: "Approved Schedules",
+    dayPreferences: "Day Wey E Like",
+    hourRangePreferences: "Time Range Wey E Like",
+    frequencyCaps: "How-Many-Time Limit",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const pcm = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Day Wey E Like",
+    description:
+      "Give weight from 0 to 1 to di days for week wey each worker like work. If di weight high pass, di scheduler go favor dat worker well-well for shift wey dey dat day; anything wey dey under 1.0 na soft preference wey fit still change if no other worker dey available.",
+    addPreference: "Add Preference",
+    employee: "Worker",
+    dayOfWeek: "Day for week",
+    weight: "Weight",
+    hardWarning:
+      "If weight reach 1.0, e don become hard rule: dem no go schedule di worker for any other day, and any shift wey no get worker wey fit fill am go show as VACANT.",
+    searchPlaceholder: "Find worker…",
+    noPreferences: "No day preference dey set yet.",
+    pickEmployee: "Pick worker first.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Time Range Wey E Like",
+    description:
+      "Give weight from 0 to 1 to di time range wey each worker like work. If di weight high pass, di scheduler go favor dat worker well-well for shift wey dey dat range; anything wey dey under 1.0 na soft preference wey fit still change if no other worker dey available.",
+    matchRule: "Shift dey count for dis range if at least 50% of am dey inside di range.",
+    addPreference: "Add Preference",
+    employee: "Worker",
+    timeRange: "Time range",
+    weight: "Weight",
+    hardWarning:
+      "If weight reach 1.0, e don become hard rule: dem no go schedule di worker outside dis range, and any shift wey no get worker wey fit fill am go show as VACANT.",
+    searchPlaceholder: "Find worker…",
+    noPreferences: "No time range preference dey set yet.",
+    pickEmployee: "Pick worker first.",
+    invalidRange: "Start time and end time no fit be di same.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "How-Many-Time Limit",
+    description:
+      "Limit how many time for week dem fit schedule worker inside one particular time range, wit weight from 0 to 1. Anything wey dey under 1.0 na soft limit wey fit still change if no other worker dey available.",
+    matchRule: "Shift dey count for dis range if at least 50% of am dey inside di range.",
+    addCap: "Add Limit",
+    employee: "Worker",
+    timeRange: "Time range",
+    maxPerWeek: "Max / week",
+    weight: "Weight",
+    hardWarning:
+      "If weight reach 1.0, e don become hard limit: once e reach am, dem no go schedule di worker for dis range again dat week, and any shift wey no get worker wey fit fill am go show as VACANT.",
+    searchPlaceholder: "Find worker…",
+    noCaps: "No how-many-time limit dey set yet.",
+    pickEmployee: "Pick worker first.",
+    invalidRange: "Start time and end time no fit be di same.",
+    invalidMax: "Enter whole number wey be 0 or pass am.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {
