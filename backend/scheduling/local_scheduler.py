@@ -20,7 +20,11 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Set, Tuple
 
 from backend.scheduling.prompts import _build_date_map, _parse_avail_by_day, eligible_for_slot
-from backend.scheduling.preferences import matches_range, preference_score
+from backend.scheduling.preferences import (
+    blocked_by_hard_preference,
+    matches_range,
+    preference_score,
+)
 from backend.scheduling.state import SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -271,6 +275,14 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     range_counts=range_counts,
                 )
 
+                if chosen is None:
+                    # Every remaining candidate is blocked by a weight-1.0
+                    # hour-range cap (day/hour-range hard preferences are
+                    # already filtered out upstream in eligible_for_slot).
+                    # Leave the rest of this slot's headcount VACANT rather
+                    # than raise.
+                    break
+
                 shift: ShiftAssignment = {
                     "employee_id": str(chosen["id"]),
                     "employee_name": str(chosen["full_name"]),
@@ -464,7 +476,7 @@ def _pick_employee(
     start: str = "00:00",
     end: str = "23:59",
     range_counts: Dict[Any, int] | None = None,
-) -> Dict[str, Any]:
+) -> Dict[str, Any] | None:
     """Select one employee from *available* based on *strategy* and affinities.
 
     All strategies incorporate affinity scores.  Hard negative affinities are
@@ -479,8 +491,27 @@ def _pick_employee(
       (1.0) preferences never reach here — they are filtered out upstream by
       eligible_for_slot. 0.0 when the employee has no preferences configured,
       which is why this term is safe to add unconditionally.
+
+    Weight-1.0 hour-range caps are also enforced here rather than upstream in
+    eligible_for_slot: the cap count only grows as assignments are made
+    within this same local_schedule run, so eligible_for_slot (evaluated once
+    per slot, before any assignments) can never see a non-zero count.
+    _pick_employee is called once per assignment with the live, incrementally
+    -updated range_counts, so this is the only point that can enforce it as a
+    structural guarantee. Applied once here, ahead of the strategy dispatch,
+    so all four branches get it without repeating the check. If every
+    candidate is removed this returns None — the caller must treat that the
+    same as "no eligible candidate" (i.e. leave the slot VACANT), not raise.
     """
     range_counts = range_counts or {}
+    if day_index is not None:
+        available = [
+            e for e in available
+            if not blocked_by_hard_preference(e, day_index, start, end, range_counts)
+        ]
+        if not available:
+            return None
+
     if strategy == "random":
         # Compute affinity-adjusted opportunity cost, pick from best tier
         scored: List[Tuple[float, Dict[str, Any]]] = []
