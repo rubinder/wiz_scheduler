@@ -43,3 +43,101 @@ def matches_range(
         overlap_fraction(shift_start, shift_end, range_start, range_end)
         >= settings.SCHEDULING_RANGE_MATCH_THRESHOLD
     )
+
+
+# Same points scale as local_scheduler._affinity_score, so preference and
+# affinity terms compose in _pick_employee without rescaling either.
+PREFERENCE_PENALTY = 50.0
+
+_HARD = 1.0
+
+
+def _cap_count(range_counts: Dict[Any, int], emp_id: str, cap: Dict[str, Any]) -> int:
+    return range_counts.get((emp_id, cap["start_time"], cap["end_time"]), 0)
+
+
+def _day_violated(emp: Dict[str, Any], day_index: int) -> List[Dict[str, Any]]:
+    """Day preferences this slot violates.
+
+    A day preference only means anything as a set: if an employee prefers Mon,
+    Tue and Wed, scheduling them on Thursday violates all three rows at once.
+    Returning them individually would multiply the penalty by the number of
+    preferred days, so the set is collapsed to at most one violation carrying
+    the strongest weight.
+    """
+    prefs = emp.get("day_preferences") or []
+    if not prefs:
+        return []
+    if any(int(p["day_of_week"]) == day_index for p in prefs):
+        return []
+    return [max(prefs, key=lambda p: float(p["weight"]))]
+
+
+def _range_violated(emp: Dict[str, Any], start: str, end: str) -> List[Dict[str, Any]]:
+    """Hour-range preferences this slot violates, by the same set logic."""
+    prefs = emp.get("hour_range_preferences") or []
+    if not prefs:
+        return []
+    if any(matches_range(start, end, p["start_time"], p["end_time"]) for p in prefs):
+        return []
+    return [max(prefs, key=lambda p: float(p["weight"]))]
+
+
+def _caps_exceeded(
+    emp: Dict[str, Any], start: str, end: str, range_counts: Dict[Any, int]
+) -> List[Dict[str, Any]]:
+    """Caps whose weekly allowance this slot would exceed."""
+    hit: List[Dict[str, Any]] = []
+    for cap in emp.get("hour_range_caps") or []:
+        if not matches_range(start, end, cap["start_time"], cap["end_time"]):
+            continue
+        if _cap_count(range_counts, emp["id"], cap) >= int(cap["max_per_week"]):
+            hit.append(cap)
+    return hit
+
+
+def blocked_by_hard_preference(
+    emp: Dict[str, Any],
+    day_index: int,
+    start: str,
+    end: str,
+    range_counts: Dict[Any, int],
+) -> bool:
+    """Whether a weight-1.0 preference makes this employee ineligible.
+
+    Called from eligible_for_slot, so a blocked employee is never offered to
+    the sorting code or to the language model. A slot where this removes every
+    candidate is emitted VACANT — that is the intended meaning of a hard
+    preference, not a failure.
+    """
+    violations = (
+        _day_violated(emp, day_index)
+        + _range_violated(emp, start, end)
+        + _caps_exceeded(emp, start, end, range_counts)
+    )
+    return any(float(v["weight"]) >= _HARD for v in violations)
+
+
+def preference_score(
+    emp: Dict[str, Any],
+    day_index: int,
+    start: str,
+    end: str,
+    range_counts: Dict[Any, int],
+) -> float:
+    """Soft-preference penalty for assigning this employee to this slot.
+
+    Lower is better, matching _affinity_score. Returns 0.0 for an employee
+    with no preferences configured — the state of every employee until a
+    manager opts them in, and what makes this feature additive.
+    """
+    violations = (
+        _day_violated(emp, day_index)
+        + _range_violated(emp, start, end)
+        + _caps_exceeded(emp, start, end, range_counts)
+    )
+    return sum(
+        float(v["weight"]) * PREFERENCE_PENALTY
+        for v in violations
+        if float(v["weight"]) < _HARD
+    )
