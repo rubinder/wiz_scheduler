@@ -86,6 +86,49 @@ def _blackout_blocks(
     return False
 
 
+def eligible_for_slot(
+    prepared_employees: List[Dict[str, Any]],
+    day: str,
+    role_name: str,
+    start: str,
+    end: str,
+) -> List[Dict[str, Any]]:
+    """Employees eligible for one (day, role, time) slot.
+
+    THE single eligibility gate. Both the deterministic scheduler and the
+    prompt builder call this — they previously held independent copies of the
+    same four filters, which is why the weight-1.0 hard preference filter
+    lives here: a candidate removed at this point is invisible to the sorting
+    code AND to the language model, so a hard constraint cannot be violated by
+    a model that never saw the candidate.
+
+    Callers must pass employees already prepared with `_role_names` and
+    `_day_windows`. Each returned dict is the input dict plus `_skill` for the
+    requested role.
+    """
+    eligible: List[Dict[str, Any]] = []
+    for e in prepared_employees:
+        if role_name not in e["_role_names"]:
+            continue
+        day_ranges = e["_day_windows"].get(day, [])
+        if not day_ranges:
+            continue
+        if not _time_covers(day_ranges, start, end):
+            continue
+        if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
+            continue
+        skill = next(
+            (
+                r.get("skill_level", 0)
+                for r in e.get("roles", [])
+                if r.get("role_name") == role_name
+            ),
+            0,
+        )
+        eligible.append({**e, "_skill": skill})
+    return eligible
+
+
 def _format_avail_str(day_windows: Dict[str, List[Tuple[str, str]]]) -> str:
     """Format day-based availability into a readable string."""
     if not day_windows:
@@ -159,23 +202,8 @@ def build_schedule_prompt(
 
             # Find eligible employees: have the role AND available that day+time
             # AND are not blocked by a per-day blackout.
-            eligible: List[str] = []
-            for e in emp_data:
-                if role_name not in e["_role_names"]:
-                    continue
-                day_ranges = e["_day_windows"].get(day, [])
-                if not day_ranges:
-                    continue
-                if not _time_covers(day_ranges, start, end):
-                    continue
-                if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
-                    continue
-                skill = next(
-                    (r.get("skill_level", 0) for r in e.get("roles", [])
-                     if r.get("role_name") == role_name),
-                    0,
-                )
-                eligible.append(f'{e["id"]} [skill={skill}]')
+            candidates = eligible_for_slot(emp_data, day, role_name, start, end)
+            eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
 
             eligible_str = ", ".join(eligible) if eligible else "NONE AVAILABLE"
             req_lines.append(

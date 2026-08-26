@@ -19,7 +19,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Set, Tuple
 
-from backend.scheduling.prompts import _blackout_blocks, _build_date_map, _parse_avail_by_day, _time_covers
+from backend.scheduling.prompts import _build_date_map, _parse_avail_by_day, eligible_for_slot
 from backend.scheduling.state import SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -73,27 +73,9 @@ def _build_eligible_map(
             role_name = slot.get("role_name", "Unknown")
             start = slot.get("start_time", "00:00")
             end = slot.get("end_time", "23:59")
-
-            eligible: List[Dict[str, Any]] = []
-            for e in emp_prepared:
-                if role_name not in e["_role_names"]:
-                    continue
-                day_ranges = e["_day_windows"].get(day, [])
-                if not day_ranges:
-                    continue
-                if not _time_covers(day_ranges, start, end):
-                    continue
-                # Hard per-day-of-week blackout: skip employees blocked out
-                # for any overlapping portion of this slot.
-                if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
-                    continue
-                skill = next(
-                    (r.get("skill_level", 0) for r in e.get("roles", [])
-                     if r.get("role_name") == role_name),
-                    0,
-                )
-                eligible.append({**e, "_skill": skill})
-            eligible_map[(day, role_name)] = eligible
+            eligible_map[(day, role_name)] = eligible_for_slot(
+                emp_prepared, day, role_name, start, end
+            )
 
     return eligible_map
 
