@@ -6,6 +6,11 @@ from backend.models.location import Location
 from backend.models.department import Department
 from backend.models.role import Role
 from backend.models.employee import Employee, EmployeeRole, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeInvite
+from backend.models.employee import (
+    EmployeeDayPreference,
+    EmployeeHourRangeCap,
+    EmployeeHourRangePreference,
+)
 from backend.models.shift_template import ShiftTemplate
 from backend.models.schedule import ShiftSchedule, Shift
 from backend.models.token_usage import TokenUsage
@@ -40,6 +45,9 @@ __all__ = [
     "EmployeeCompany",
     "EmployeeDayBlackout",
     "EmployeeInvite",
+    "EmployeeDayPreference",
+    "EmployeeHourRangeCap",
+    "EmployeeHourRangePreference",
     "ShiftTemplate",
     "ShiftSchedule",
     "Shift",

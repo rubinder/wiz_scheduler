@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, SmallInteger, String, text
+from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Integer, JSON, Numeric, SmallInteger, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -146,6 +146,130 @@ class EmployeeDayBlackout(Base):
     day_of_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     start_time: Mapped[str] = mapped_column(String(5), nullable=False)  # "HH:MM"
     end_time: Mapped[str] = mapped_column(String(5), nullable=False)    # "HH:MM"
+
+
+class EmployeeDayPreference(Base):
+    """Days of the week an employee prefers to work, with a 0-1 weight.
+
+    weight 0    -> no effect (the state of an employee with no row at all)
+    0.1 - 0.9   -> soft: scored, but violated rather than leaving a shift unfilled
+    1.0         -> hard: the employee is not eligible on other days, and a slot
+                   with no surviving candidate is emitted VACANT
+
+    day_of_week follows Python's datetime.weekday() convention (0 = Monday),
+    matching EmployeeDayBlackout.
+    """
+
+    __tablename__ = "employee_day_preferences"
+    __table_args__ = (
+        CheckConstraint(
+            "day_of_week BETWEEN 0 AND 6", name="ck_employee_day_preferences_dow"
+        ),
+        CheckConstraint(
+            "weight >= 0 AND weight <= 1", name="ck_employee_day_preferences_weight"
+        ),
+        UniqueConstraint(
+            "employee_id", "day_of_week", name="uq_employee_day_preferences"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
+    )
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
+    )
+    employee_id: Mapped[str] = mapped_column(
+        String(8),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    day_of_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    weight: Mapped[float] = mapped_column(
+        Numeric(2, 1), nullable=False, server_default=text("0.7")
+    )
+
+
+class EmployeeHourRangePreference(Base):
+    """An hour range an employee prefers to work, with a 0-1 weight.
+
+    A shift satisfies the preference when at least 50% of the shift falls
+    inside the range (SCHEDULING_RANGE_MATCH_THRESHOLD).
+    """
+
+    __tablename__ = "employee_hour_range_preferences"
+    __table_args__ = (
+        CheckConstraint(
+            "weight >= 0 AND weight <= 1",
+            name="ck_employee_hour_range_preferences_weight",
+        ),
+        UniqueConstraint(
+            "employee_id",
+            "start_time",
+            "end_time",
+            name="uq_employee_hour_range_preferences",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
+    )
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
+    )
+    employee_id: Mapped[str] = mapped_column(
+        String(8),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)  # "HH:MM"
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)    # "HH:MM"
+    weight: Mapped[float] = mapped_column(
+        Numeric(2, 1), nullable=False, server_default=text("0.7")
+    )
+
+
+class EmployeeHourRangeCap(Base):
+    """A weekly cap on how often an employee works a given hour range.
+
+    "16:00-22:00 at most 3 times a week". A shift counts toward the cap when
+    at least 50% of it falls inside the range — the same threshold the
+    hour-range preference uses.
+    """
+
+    __tablename__ = "employee_hour_range_caps"
+    __table_args__ = (
+        CheckConstraint(
+            "weight >= 0 AND weight <= 1", name="ck_employee_hour_range_caps_weight"
+        ),
+        CheckConstraint(
+            "max_per_week >= 0", name="ck_employee_hour_range_caps_max"
+        ),
+        UniqueConstraint(
+            "employee_id", "start_time", "end_time", name="uq_employee_hour_range_caps"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(8), primary_key=True, default=generate_short_id
+    )
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True
+    )
+    employee_id: Mapped[str] = mapped_column(
+        String(8),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)  # "HH:MM"
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)    # "HH:MM"
+    max_per_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    weight: Mapped[float] = mapped_column(
+        Numeric(2, 1), nullable=False, server_default=text("0.7")
+    )
 
 
 class EmployeeAvailability(Base):
