@@ -223,7 +223,7 @@ async def call_llm(state: SchedulingState) -> Dict[str, Any]:
             try:
                 # Use streaming to avoid SDK timeout on long requests
                 async with client.messages.stream(
-                    model="claude-sonnet-4-20250514",
+                    model=settings.SCHEDULING_MODEL,
                     max_tokens=64000,
                     tools=[SHIFT_SCHEDULE_TOOL],
                     tool_choice={"type": "tool", "name": "submit_schedule"},

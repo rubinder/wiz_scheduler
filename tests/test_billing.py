@@ -63,9 +63,13 @@ class TestCalculateCost:
         assert calculate_cost(0, 0) == 0.0
 
     def test_known_values(self):
-        # 1M input = $3, 1M output = $15
+        # Derived from the configured rates, not a literal: these track
+        # SCHEDULING_MODEL and changed once already when the pipeline moved off
+        # the retired claude-sonnet-4-20250514 ($3/$15) to claude-sonnet-5
+        # ($2/$10). tests/test_scheduling_model.py pins rates-to-model.
+        expected = settings.LLM_INPUT_COST_PER_M + settings.LLM_OUTPUT_COST_PER_M
         cost = calculate_cost(1_000_000, 1_000_000)
-        assert cost == 18.0
+        assert cost == expected
 
     def test_small_usage(self):
         cost = calculate_cost(1000, 500)
