@@ -12,8 +12,6 @@ means `/manager/roles`.
 import re
 from pathlib import Path
 
-import pytest
-
 _SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
 _SIDEBAR = _SRC / "components" / "layout" / "Sidebar.tsx"
 _APP = _SRC / "App.tsx"
@@ -29,7 +27,9 @@ def _routes() -> set[str]:
     for line in _APP.read_text().splitlines():
         absolute = re.search(r'<Route\s+path="(/[^"]+)"', line)
         if absolute:
-            parent = absolute.group(1).rstrip("/")
+            path = absolute.group(1).rstrip("/")
+            routes.add(path)
+            parent = path
             continue
         relative = re.search(r'<Route\s+path="([^/"][^"]*)"', line)
         if relative:
