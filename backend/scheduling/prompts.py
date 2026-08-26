@@ -92,6 +92,8 @@ def eligible_for_slot(
     role_name: str,
     start: str,
     end: str,
+    day_index: int | None = None,
+    range_counts: Dict[Any, int] | None = None,
 ) -> List[Dict[str, Any]]:
     """Employees eligible for one (day, role, time) slot.
 
@@ -105,6 +107,10 @@ def eligible_for_slot(
     Callers must pass employees already prepared with `_role_names` and
     `_day_windows`. Each returned dict is the input dict plus `_skill` for the
     requested role.
+
+    `day_index` and `range_counts` are optional: omitting `day_index` skips
+    the weight-1.0 hard preference filter entirely, which is what keeps
+    existing callers (and the no-preference case) byte-identical.
     """
     eligible: List[Dict[str, Any]] = []
     for e in prepared_employees:
@@ -117,6 +123,11 @@ def eligible_for_slot(
             continue
         if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
             continue
+        if day_index is not None:
+            from backend.scheduling.preferences import blocked_by_hard_preference
+
+            if blocked_by_hard_preference(e, day_index, start, end, range_counts or {}):
+                continue
         skill = next(
             (
                 r.get("skill_level", 0)

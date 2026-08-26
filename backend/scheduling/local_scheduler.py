@@ -20,11 +20,17 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Set, Tuple
 
 from backend.scheduling.prompts import _build_date_map, _parse_avail_by_day, eligible_for_slot
+from backend.scheduling.preferences import matches_range, preference_score
 from backend.scheduling.state import SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
 
 Strategy = Literal["random", "rotation", "rotation_history", "max_hours"]
+
+_DAY_INDEX = {
+    "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+    "Friday": 4, "Saturday": 5, "Sunday": 6,
+}
 
 
 def _tz_offset_for_location(timezone_str: str) -> str:
@@ -42,6 +48,7 @@ def _build_eligible_map(
     employees: List[Dict[str, Any]],
     weekly_schedule: Dict[str, List[dict]],
     date_to_day: Dict[str, str],
+    range_counts: Dict[Any, int],
 ) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
     """Pre-compute eligible employees for each (day, role_name) slot."""
     required_roles: set[str] = set()
@@ -74,7 +81,13 @@ def _build_eligible_map(
             start = slot.get("start_time", "00:00")
             end = slot.get("end_time", "23:59")
             eligible_map[(day, role_name)] = eligible_for_slot(
-                emp_prepared, day, role_name, start, end
+                emp_prepared,
+                day,
+                role_name,
+                start,
+                end,
+                day_index=_DAY_INDEX.get(day),
+                range_counts=range_counts,
             )
 
     return eligible_map
@@ -118,8 +131,13 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
             if rname and rid:
                 role_name_to_id[rname] = rid
 
+    # Weekly hour-range cap usage: (employee_id, range_start, range_end) -> count.
+    # Consulted by both the hard filter inside eligible_for_slot and the soft
+    # preference_score term in _pick_employee.
+    range_counts: Dict[Any, int] = {}
+
     eligible_map = _build_eligible_map(
-        employees, weekly_schedule, date_to_day,
+        employees, weekly_schedule, date_to_day, range_counts,
     )
     affinity_lookup = _build_affinity_lookup(employees)
 
@@ -247,6 +265,10 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     strategy_param2=strategy_param2,
                     employee_hours=employee_hours,
                     shift_duration_hrs=slot_duration,
+                    day_index=_DAY_INDEX.get(day),
+                    start=start_hm,
+                    end=end_hm,
+                    range_counts=range_counts,
                 )
 
                 shift: ShiftAssignment = {
@@ -270,6 +292,10 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                 employee_shift_windows.setdefault(eid, []).append(
                     {"start": start_iso, "end": end_iso}
                 )
+                for cap in chosen.get("hour_range_caps") or []:
+                    if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
+                        key = (eid, cap["start_time"], cap["end_time"])
+                        range_counts[key] = range_counts.get(key, 0) + 1
 
                 candidates = [c for c in candidates if c["id"] != chosen["id"]]
 
@@ -434,6 +460,10 @@ def _pick_employee(
     strategy_param2: float = 0.0,
     employee_hours: Dict[str, float] | None = None,
     shift_duration_hrs: float = 0.0,
+    day_index: int | None = None,
+    start: str = "00:00",
+    end: str = "23:59",
+    range_counts: Dict[Any, int] | None = None,
 ) -> Dict[str, Any]:
     """Select one employee from *available* based on *strategy* and affinities.
 
@@ -445,7 +475,12 @@ def _pick_employee(
     - rotation penalty (rotation only): fills * 10
     - skill bonus: -skill_level
     - affinity adjustment: +/- up to 100 per coworker relationship
+    - preference adjustment: soft (<1.0) weighted preference penalty. Hard
+      (1.0) preferences never reach here — they are filtered out upstream by
+      eligible_for_slot. 0.0 when the employee has no preferences configured,
+      which is why this term is safe to add unconditionally.
     """
+    range_counts = range_counts or {}
     if strategy == "random":
         # Compute affinity-adjusted opportunity cost, pick from best tier
         scored: List[Tuple[float, Dict[str, Any]]] = []
@@ -453,7 +488,8 @@ def _pick_employee(
             eid = str(e["id"])
             opp = e.get("_num_required_roles", 99)
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
-            score = opp * 100 + aff
+            pref = preference_score(e, day_index, start, end, range_counts)
+            score = opp * 100 + aff + pref
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -468,7 +504,8 @@ def _pick_employee(
             opp_cost = e.get("_num_required_roles", 99)
             fills = role_fill_counts.get((eid, role_name), 0)
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
-            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff
+            pref = preference_score(e, day_index, start, end, range_counts)
+            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -488,8 +525,9 @@ def _pick_employee(
             # History component: scale minutes to a reasonable range (0-1000 points)
             # Higher minutes = higher penalty
             history_penalty = hist_mins / 60.0  # convert to hours for scaling
+            pref = preference_score(e, day_index, start, end, range_counts)
             # Blend between random (opp_cost only) and full history consideration
-            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + (history_penalty * strategy_param * 10)
+            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + (history_penalty * strategy_param * 10)
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -527,6 +565,7 @@ def _pick_employee(
             current_hrs = emp_hrs.get(eid, 0.0)
             projected_hrs = current_hrs + shift_duration_hrs
             aff = _affinity_score(eid, current_coworkers, affinity_lookup)
+            pref = preference_score(e, day_index, start, end, range_counts)
 
             # Penalty for being near/over the cap, scaled by strictness
             if projected_hrs > max_hrs:
@@ -537,7 +576,7 @@ def _pick_employee(
             # Prefer employees with fewer hours (spread the load)
             hours_penalty = current_hrs * strictness * 5
 
-            score = opp_cost * 100 - e.get("_skill", 0) + aff + over_penalty + hours_penalty
+            score = opp_cost * 100 - e.get("_skill", 0) + aff + pref + over_penalty + hours_penalty
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
