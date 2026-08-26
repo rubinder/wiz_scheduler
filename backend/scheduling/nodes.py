@@ -901,7 +901,7 @@ def _grow_range_counts(
             if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
                 key = (shift["employee_id"], cap["start_time"], cap["end_time"])
                 range_counts_draft[key] = range_counts_draft.get(key, 0) + 1
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, IndexError):
         # A malformed/unparseable timestamp must not raise out of the
         # scheduling graph. Skip this shift's contribution to the cap
         # count and move on -- under-counting is the safe direction (it
@@ -912,6 +912,7 @@ def _grow_range_counts(
 def _trim_cap_violations(
     shifts: List[ShiftAssignment],
     employee_preferences: Dict[str, Dict[str, Any]],
+    range_counts_draft: Dict[Any, int],
 ) -> None:
     """Vacate shifts beyond a weight>=1.0 hour_range_cap's weekly allowance.
 
@@ -925,11 +926,24 @@ def _trim_cap_violations(
     and marks every assignment past max_per_week VACANT, keeping the
     earliest occurrences.
 
+    `counts` is seeded from `range_counts_draft` -- the same cross-location
+    running total employee_weekly_hours_draft's sibling accumulates in
+    _grow_range_counts -- so a cap holds across the whole graph run rather
+    than resetting to zero at each location.
+
+    Only "ok" shifts feed the count and are eligible to be trimmed. A shift
+    already marked CONFLICT is not actually worked, exactly like VACANT, so
+    it must neither consume cap allowance nor have its CONFLICT status
+    overwritten (this graph never raises -- status is the only channel a
+    failure like CONFLICT reaches the manager through, and clobbering it
+    back to VACANT would silently drop that signal from emit_result).
+
     Must run before _grow_range_counts is called on these shifts (both call
     sites below do this): a shift trimmed to VACANT here is then skipped by
-    the existing "skip VACANT" checks that guard _grow_range_counts, so a
-    vacated shift -- one that is not actually worked -- never contributes to
-    range_counts_draft for later locations in the same graph run.
+    the existing "skip VACANT" / "status == ok" checks that guard
+    _grow_range_counts, so a vacated shift -- one that is not actually
+    worked -- never contributes to range_counts_draft for later locations
+    in the same graph run.
 
     A no-op when `employee_preferences` is empty, which is the state of
     every graph run until _load_initial_state populates it. Never raises:
@@ -938,9 +952,9 @@ def _trim_cap_violations(
     """
     if not employee_preferences:
         return
-    counts: Dict[Any, int] = {}
+    counts: Dict[Any, int] = dict(range_counts_draft or {})
     ordered = sorted(
-        (s for s in shifts if s["status"] != "VACANT"),
+        (s for s in shifts if s["status"] == "ok"),
         key=lambda s: (s.get("date", ""), s.get("start_time", "")),
     )
     for shift in ordered:
@@ -964,8 +978,13 @@ def _trim_cap_violations(
                 counts[key] = counts.get(key, 0) + 1
                 if counts[key] > int(cap["max_per_week"]):
                     shift["status"] = "VACANT"
-                break
-            except (KeyError, ValueError, TypeError):
+                    break
+                # Not yet over the allowance for this cap -- keep checking
+                # the employee's remaining caps; a shift can match more than
+                # one overlapping range (e.g. a broad cap and a narrower one
+                # nested inside it), and each must get its own chance to
+                # trim.
+            except (KeyError, ValueError, TypeError, IndexError):
                 continue
 
 
@@ -1038,7 +1057,9 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                         break
 
             # Still consume windows for non-conflict shifts
-            _trim_cap_violations(shifts, state.get("employee_preferences", {}) or {})
+            _trim_cap_violations(
+                shifts, state.get("employee_preferences", {}) or {}, range_counts_draft,
+            )
             for shift in shifts:
                 if shift["status"] == "ok":
                     emp_id = shift["employee_id"]
@@ -1069,7 +1090,9 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
-        _trim_cap_violations(shifts, state.get("employee_preferences", {}) or {})
+        _trim_cap_violations(
+            shifts, state.get("employee_preferences", {}) or {}, range_counts_draft,
+        )
         for shift in shifts:
             if shift["status"] == "VACANT":
                 continue

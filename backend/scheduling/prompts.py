@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
+from backend.scheduling.preferences import preference_score
+
 # Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
 # duplicated here rather than imported: local_scheduler already imports from
 # this module, so importing back would create a circular import.
@@ -112,13 +114,17 @@ def eligible_for_slot(
     at this point is invisible to the deterministic scheduler's sorting code,
     so a hard constraint cannot be violated there.
 
-    The prompt builder (build_schedule_prompt) also calls this function, but
-    today it does so without `day_index`, so the hard preference filter is
-    currently a no-op on that call — the language model still sees every
-    otherwise-eligible candidate regardless of preferences. Enforcing hard
-    preferences on the AI path is handled separately by a later task; do not
-    read this docstring as a guarantee that preferences are honoured there
-    yet.
+    The prompt builder (build_schedule_prompt) also calls this function, and
+    passes `day_index` (plus a `range_counts` that is always empty, since a
+    whole week is generated in one LLM call and no running per-slot count
+    exists yet), so the weight-1.0 day/hour-range hard filters above are
+    fully enforced on the Eligible list the model sees. The one hard
+    preference this call site cannot pre-filter is the weekly frequency cap
+    (`hour_range_caps`), since with an always-empty `range_counts` no
+    candidate can ever appear "already at their cap" here — that constraint
+    is enforced after generation instead, by nodes._trim_cap_violations,
+    which vacates over-cap assignments once the whole week's shifts exist to
+    count against.
 
     Callers must pass employees already prepared with `_role_names` and
     `_day_windows`. Each returned dict is the input dict plus `_skill` for the
@@ -229,10 +235,7 @@ def build_schedule_prompt(
 
             # Find eligible employees: have the role AND available that day+time
             # AND are not blocked by a per-day blackout or a weight-1.0 hard
-            # preference. Imported locally to avoid a circular import (this
-            # module is imported by local_scheduler.py).
-            from backend.scheduling.preferences import preference_score
-
+            # preference.
             candidates = eligible_for_slot(
                 emp_data, day, role_name, start, end,
                 day_index=_DAY_INDEX_FOR_PROMPT.get(day), range_counts={},
