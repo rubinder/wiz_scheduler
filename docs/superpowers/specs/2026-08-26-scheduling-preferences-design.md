@@ -1,7 +1,7 @@
 # Weighted Scheduling Preferences — Design Spec
 
 Issue: [#83](https://github.com/rubinder/wiz_scheduler/issues/83)
-Status: approved, not yet implemented
+Status: implemented
 
 Split from the original #83, which also carried approved-schedule editing and
 a calendar view. Those moved to [#84](https://github.com/rubinder/wiz_scheduler/issues/84)
@@ -87,6 +87,31 @@ instruction-following.
 When no candidate survives the filter, the slot is emitted VACANT. That is the
 intended behaviour of a hard preference, not a failure.
 
+**One exception: the frequency cap is not enforced at this shared filter.**
+`_build_eligible_map` builds its map once, before any assignment exists for
+the week, so the `range_counts` it can pass `eligible_for_slot` is always
+empty — no candidate can ever look "already at their cap" there. For the
+deterministic scheduler, the cap is instead enforced in `_pick_employee`
+(`local_scheduler.py:509-516`), which is called once per assignment and can
+consult a running, incrementally-updated count. Day and hour-range
+preferences have no such problem and are fully enforced at
+`eligible_for_slot` in both modes, as described above.
+
+**Post-review addition: a post-generation re-check for day/hour-range on the
+AI path too.** `eligible_for_slot` keeps a hard-blocked employee off the
+Eligible list the prompt renders, but pre-filtering the prompt does not
+enforce anything by itself — nothing previously re-checked the model's
+actual picks, so a model that ignored the Eligible list could still assign a
+hard-blocked employee and no code would catch it.
+`nodes._trim_hard_preference_violations` closes this gap the same way
+`_trim_cap_violations` already closes it for frequency caps: a
+post-generation pass, run immediately after the cap trim, that vacates any
+surviving `"ok"` shift `preferences.blocked_by_hard_preference` still flags
+on day or hour-range grounds (with `hour_range_caps` stripped from the check,
+since caps were already enforced by the preceding pass). This makes all
+three parameters' weight-1.0 guarantee structural on both paths, matching
+this section's original premise.
+
 ### Soft weights: one scoring function, two consumers
 
 ```
@@ -118,6 +143,18 @@ One named constant, one shared overlap-fraction helper, tested once, and one
 sentence to explain in the UI. Both tabs state the same rule, so a manager
 learns it once rather than holding two numbers in their head.
 
+**Overnight shifts and ranges.** Both the shift and the configured range may
+cross midnight (e.g. a "22:00"-"06:00" range, following the same end-at-or-
+before-start convention `local_scheduler._shift_duration_hours` already
+uses). `overlap_fraction` normalises either side that wraps by adding 24h to
+its end, then — because the normalised shift and range can still land on
+different 24-hour "pages" of the clock even though they genuinely overlap
+(a "00:00"-"06:00" range and a "22:00"-"02:00" shift, for instance) — tries
+the range shifted a full day earlier and later as well, keeping whichever
+alignment gives the largest overlap. A genuinely zero-length shift
+(start == end) is handled before normalisation so it isn't mistaken for a
+full-day shift.
+
 ### Frequency-cap counting
 
 The cap needs running per-employee, per-range counts for the week. The
@@ -135,6 +172,23 @@ This is a real asymmetry and is stated rather than hidden: two of three
 parameters carry an identical structural guarantee in both modes; the third is
 structural in deterministic mode and post-hoc in AI mode. The observable
 outcome is the same — the cap is never exceeded in a delivered schedule.
+
+**Cross-location weekly semantics: `range_counts_draft`.** The graph
+processes a company's locations serially in one run (see
+`SchedulingState`), and a `max_per_week` cap is per employee, not
+per-location — an employee who splits their week across two locations must
+still be capped on the sum. `range_counts_draft` is the mechanism: a
+`{(employee_id, start_time, end_time): count}` map threaded through
+`SchedulingState` alongside `availability_draft` and
+`employee_weekly_hours_draft`, seeded into each location's trim and grown by
+`_grow_range_counts` only for shifts that end up actually committed (status
+`"ok"`) at that location. `nodes._trim_cap_violations` seeds its running
+`counts` from this draft rather than from zero, so a cap already exhausted
+at an earlier location carries forward and continues trimming at the next
+one, and a shift the trim vacates never contributes to the running total —
+it was never worked. The deterministic scheduler's `_pick_employee` reads
+and grows the same structure per assignment, so both modes share one
+cross-location count.
 
 ## Data model
 
@@ -234,7 +288,7 @@ Check-in ▸          QR · Report
 Data Privacy
 ```
 
-Nine top-level rows instead of twenty. The new preferences sit beside the
+Eight top-level rows instead of twenty. The new preferences sit beside the
 existing per-employee constraint pages rather than in a separate silo.
 
 **This regrouping ships as its own PR, before the preferences feature.** It
@@ -273,9 +327,14 @@ feature — and it is cheap to guarantee, because absent rows contribute nothing
   model exceeds `max_per_week` and the validator has to trim.
 - **Multi-tenancy** — a preference must never influence another company's
   schedule.
-- **Database constraints** — weight outside 0–1 rejected, two decimal places
-  rejected by `Numeric(2, 1)`, duplicate rows rejected by the unique
-  constraints.
+- **Database constraints** — weight outside 0–1 rejected, duplicate rows
+  rejected by the unique constraints. A dedicated test asserting
+  `Numeric(2, 1)` rejects two decimal places was deliberately dropped: the
+  suite runs on SQLite, which does not enforce numeric column precision, so
+  such a test would pass for the wrong reason (or not exercise the
+  constraint at all). Enforcement of "one decimal place" moved to the
+  Pydantic validator instead (`one_decimal_place` on the create/update
+  schemas), which the API-level tests do cover.
 
 Error handling follows the pipeline's existing contract: degrade to VACANT,
 never raise. Over-constraining is possible — day preference 1.0 combined with

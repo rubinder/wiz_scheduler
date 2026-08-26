@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
-from backend.scheduling.preferences import preference_score
+from backend.scheduling.preferences import blocked_by_hard_preference, preference_score
 
 # Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
 # duplicated here rather than imported: local_scheduler already imports from
@@ -146,8 +146,6 @@ def eligible_for_slot(
         if _blackout_blocks(e.get("day_blackouts", []), day, start, end):
             continue
         if day_index is not None:
-            from backend.scheduling.preferences import blocked_by_hard_preference
-
             if blocked_by_hard_preference(e, day_index, start, end, range_counts or {}):
                 continue
         skill = next(
@@ -236,12 +234,20 @@ def build_schedule_prompt(
             # Find eligible employees: have the role AND available that day+time
             # AND are not blocked by a per-day blackout or a weight-1.0 hard
             # preference.
+            day_index = _DAY_INDEX_FOR_PROMPT.get(day)
             candidates = eligible_for_slot(
                 emp_data, day, role_name, start, end,
-                day_index=_DAY_INDEX_FOR_PROMPT.get(day), range_counts={},
+                day_index=day_index, range_counts={},
             )
-            candidates.sort(key=lambda c: preference_score(
-                c, _DAY_INDEX_FOR_PROMPT.get(day, 0), start, end, {}
+            # An unknown day name (day_index is None) must skip the day-
+            # preference term the same way eligible_for_slot's hard filter
+            # skips it above, rather than silently scoring the slot as if
+            # it were Monday -- matching the `if day_index is not None`
+            # pattern local_scheduler._pick_employee uses for the same
+            # reason.
+            candidates.sort(key=lambda c: (
+                preference_score(c, day_index, start, end, {})
+                if day_index is not None else 0.0
             ))
             eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
 
@@ -297,6 +303,22 @@ def build_schedule_prompt(
             f"\n"
         )
 
+    # Rule 7 (below) only makes sense once at least one employee in the
+    # roster has a preference row -- otherwise the Eligible list order
+    # carries no preference signal at all (preference_score is 0.0 for
+    # everyone), and emitting the rule anyway would drift the prompt for
+    # every existing tenant with zero preferences configured for no reason.
+    has_preferences = any(
+        e.get("day_preferences") or e.get("hour_range_preferences") or e.get("hour_range_caps")
+        for e in emp_data
+    )
+    preference_rule = (
+        f"7. The Eligible list is ordered BEST FIRST by employee scheduling\n"
+        f"   preferences. Prefer earlier entries when candidates are otherwise\n"
+        f"   equal.\n"
+        if has_preferences else ""
+    )
+
     prompt = (
         f"You are a scheduling assistant for {location['name']} (timezone: {location['timezone']}).\n"
         f"\n"
@@ -325,9 +347,7 @@ def build_schedule_prompt(
         f"4. Distribute hours fairly — avoid giving one employee all the shifts.\n"
         f"5. Prefer higher skill_level employees.\n"
         f"6. Honour affinity constraints if present.\n"
-        f"7. The Eligible list is ordered BEST FIRST by employee scheduling\n"
-        f"   preferences. Prefer earlier entries when candidates are otherwise\n"
-        f"   equal.\n"
+        f"{preference_rule}"
         f"\n"
         f"OUTPUT FORMAT\n"
         f"=============\n"

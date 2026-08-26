@@ -156,6 +156,153 @@ def test_overlapping_caps_dont_leak_counts_from_a_vacated_shift():
     assert out["range_counts_draft"][("e1", "18:00", "20:00")] == 1
 
 
+def test_cap_trimmed_shift_gets_the_canonical_vacant_shape():
+    """A cap-trimmed shift must look exactly like a natively-VACANT shift --
+    employee_id == "VACANT" and a VACANT-prefixed employee_name, not just
+    status == "VACANT".
+
+    Downstream, backend.routers.schedules._subtract_availability_for_shifts
+    decides whether to consume an employee's availability window by checking
+    employee_id (and, defence in depth, status). A trim that only flipped
+    status left employee_id pointing at the real employee, so approving the
+    schedule would burn that employee's availability for a shift they never
+    worked.
+    """
+    shifts = [
+        _shift("e1", "2026-08-31", "16:00", "22:00"),
+        _shift("e1", "2026-09-01", "16:00", "22:00"),
+    ]
+    caps = [
+        {"start_time": "16:00", "end_time": "22:00",
+         "max_per_week": 1, "weight": 1.0}
+    ]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employees": [{"id": "e1", "hour_range_caps": caps}],
+        "employee_preferences": {
+            "e1": {
+                "day_preferences": [],
+                "hour_range_preferences": [],
+                "hour_range_caps": caps,
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    trimmed = out["current_parsed_shifts"][1]
+    assert trimmed["status"] == "VACANT"
+    assert trimmed["employee_id"] == "VACANT"
+    assert trimmed["employee_name"].startswith("VACANT-")
+
+
+def test_hard_day_preference_violated_by_the_model_is_vacated():
+    """Guarantee-by-construction for the AI path: eligible_for_slot keeps a
+    hard-blocked employee off the Eligible list the model sees, but nothing
+    previously re-checked the model's actual picks. A model that ignores the
+    Eligible list and assigns the employee anyway must still be caught here,
+    the same structural guarantee _trim_cap_violations gives frequency caps.
+
+    2026-08-31 is a Monday (weekday index 0); the employee's only preferred
+    day is Tuesday (index 1), at hard weight 1.0.
+    """
+    shifts = [_shift("e1", "2026-08-31", "09:00", "17:00")]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employee_preferences": {
+            "e1": {
+                "day_preferences": [{"day_of_week": 1, "weight": 1.0}],
+                "hour_range_preferences": [],
+                "hour_range_caps": [],
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    trimmed = out["current_parsed_shifts"][0]
+    assert trimmed["status"] == "VACANT"
+    assert trimmed["employee_id"] == "VACANT"
+    assert trimmed["employee_name"].startswith("VACANT-")
+
+
+def test_soft_day_preference_at_point_nine_is_not_vacated():
+    """The same violation at weight 0.9 (soft) must never be vacated -- only
+    a weight >= 1.0 preference is a hard, by-construction guarantee."""
+    shifts = [_shift("e1", "2026-08-31", "09:00", "17:00")]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employee_preferences": {
+            "e1": {
+                "day_preferences": [{"day_of_week": 1, "weight": 0.9}],
+                "hour_range_preferences": [],
+                "hour_range_caps": [],
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    assert out["current_parsed_shifts"][0]["status"] == "ok"
+
+
+def test_hard_hour_range_preference_violated_by_the_model_is_vacated():
+    """Same guarantee as the day-preference case above, for hour ranges: the
+    shift (09:00-17:00) has no overlap at all with the employee's only
+    preferred range (18:00-22:00) at hard weight 1.0."""
+    shifts = [_shift("e1", "2026-08-31", "09:00", "17:00")]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employee_preferences": {
+            "e1": {
+                "day_preferences": [],
+                "hour_range_preferences": [
+                    {"start_time": "18:00", "end_time": "22:00", "weight": 1.0}
+                ],
+                "hour_range_caps": [],
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    trimmed = out["current_parsed_shifts"][0]
+    assert trimmed["status"] == "VACANT"
+    assert trimmed["employee_id"] == "VACANT"
+
+
+def test_employee_with_no_preferences_is_untouched_by_hard_preference_trim():
+    """An employee absent from employee_preferences entirely -- the state of
+    every employee until a manager opts them in -- must never be vacated by
+    the hard day/hour-range pass, even when another employee in the same run
+    does have a hard preference."""
+    shifts = [_shift("e1", "2026-08-31", "09:00", "17:00")]
+    state = {
+        "current_parsed_shifts": shifts,
+        "availability_draft": {},
+        "retry_count": 1,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "employee_preferences": {
+            "e2": {
+                "day_preferences": [{"day_of_week": 1, "weight": 1.0}],
+                "hour_range_preferences": [],
+                "hour_range_caps": [],
+            }
+        },
+    }
+    out = validate_and_update_availability(state)
+    assert out["current_parsed_shifts"][0]["status"] == "ok"
+
+
 def test_no_preferences_leaves_shifts_untouched():
     shifts = [_shift("e1", "2026-08-31", "16:00", "22:00")]
     state = {

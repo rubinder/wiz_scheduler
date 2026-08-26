@@ -1,14 +1,14 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Tuple
 
 import anthropic
 
 from backend.config import settings
 from backend.scheduling.local_scheduler import _min_rest_violation
-from backend.scheduling.preferences import matches_range
+from backend.scheduling.preferences import blocked_by_hard_preference, matches_range
 from backend.scheduling.prompts import build_schedule_prompt
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
@@ -996,12 +996,85 @@ def _trim_cap_violations(
                 continue
 
         if vacate:
+            # Match the canonical VACANT shape used elsewhere (the staffing-
+            # shortage placeholders above): employee_id/employee_name must
+            # also be reset, not just status. Approving a schedule reads
+            # employee_id == "VACANT" to decide which shifts consume real
+            # availability (backend.routers.schedules._subtract_availability_
+            # for_shifts) -- leaving the original employee_id here would
+            # silently burn that employee's availability window for a shift
+            # they will never work.
             shift["status"] = "VACANT"
+            shift["employee_id"] = "VACANT"
+            shift["employee_name"] = "VACANT-Frequency Cap"
             # Not actually worked -- none of this shift's matching caps
             # count it.
         else:
             for key in matched_keys:
                 counts[key] = counts.get(key, 0) + 1
+
+
+def _trim_hard_preference_violations(
+    shifts: List[ShiftAssignment],
+    employee_preferences: Dict[str, Dict[str, Any]],
+) -> None:
+    """Vacate shifts a weight-1.0 day or hour-range preference forbids.
+
+    `eligible_for_slot` already keeps the AI path from being *offered* a
+    hard-blocked candidate (it filters the Eligible list rendered into the
+    prompt), but nothing previously re-checked the model's actual picks
+    afterwards -- a model that ignored the Eligible list could still assign
+    a hard-blocked employee and nothing would catch it. This closes that
+    gap the same way `_trim_cap_violations` closes it for frequency caps:
+    a post-generation pass that is the structural guarantee, not a trust in
+    the model following instructions.
+
+    Reuses `preferences.blocked_by_hard_preference`, which is also the
+    function `eligible_for_slot` and `_pick_employee` call for the same
+    check, so all three enforcement points agree on what "hard-blocked"
+    means. That function also covers weight-1.0 frequency caps, but caps are
+    deliberately excluded here: `_trim_cap_violations` must run first (both
+    call sites below do this) and already vacates every cap violation among
+    these shifts, so re-checking caps here would evaluate the same
+    constraint a second time against a different, incomplete count (this
+    pass does no counting of its own). Each employee's `hour_range_caps` are
+    stripped from the dict passed in so `blocked_by_hard_preference` has
+    nothing to check but day/hour-range.
+
+    Only "ok" shifts are eligible to be trimmed -- a CONFLICT shift is left
+    alone for the same reason `_trim_cap_violations` leaves it alone (see
+    its docstring): this graph never raises, and CONFLICT is the only
+    channel that failure reaches the manager through.
+
+    A no-op when `employee_preferences` is empty. Never raises: a malformed
+    shift or preference entry is skipped rather than blocking the rest of
+    the pass.
+    """
+    if not employee_preferences:
+        return
+    for shift in shifts:
+        if shift["status"] != "ok":
+            continue
+        prefs = employee_preferences.get(shift.get("employee_id", ""))
+        if not prefs:
+            continue
+        try:
+            day_index = date.fromisoformat(shift["date"]).weekday()
+            start_hm = shift["start_time"][11:16]
+            end_hm = shift["end_time"][11:16]
+        except (KeyError, ValueError, TypeError, IndexError):
+            continue
+
+        day_and_range_only = {**prefs, "hour_range_caps": []}
+        if blocked_by_hard_preference(
+            day_and_range_only, day_index, start_hm, end_hm, {}
+        ):
+            # Same canonical VACANT shape as _trim_cap_violations -- see its
+            # comment for why employee_id/employee_name must also change,
+            # not just status.
+            shift["status"] = "VACANT"
+            shift["employee_id"] = "VACANT"
+            shift["employee_name"] = "VACANT-Preference"
 
 
 def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
@@ -1076,6 +1149,9 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
             _trim_cap_violations(
                 shifts, state.get("employee_preferences", {}) or {}, range_counts_draft,
             )
+            _trim_hard_preference_violations(
+                shifts, state.get("employee_preferences", {}) or {},
+            )
             for shift in shifts:
                 if shift["status"] == "ok":
                     emp_id = shift["employee_id"]
@@ -1108,6 +1184,9 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
         # No conflicts: consume all windows (skip VACANT placeholders)
         _trim_cap_violations(
             shifts, state.get("employee_preferences", {}) or {}, range_counts_draft,
+        )
+        _trim_hard_preference_violations(
+            shifts, state.get("employee_preferences", {}) or {},
         )
         for shift in shifts:
             if shift["status"] == "VACANT":

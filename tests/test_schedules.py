@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import (
@@ -230,6 +231,72 @@ async def test_approve_skips_vacant_shifts(
     )
     assert resp.status_code == 200
     assert resp.json()["shifts"] == []
+
+
+async def test_approve_does_not_consume_availability_for_a_trimmed_shift(
+    client: AsyncClient,
+    manager_token: str,
+    db_session: AsyncSession,
+    seed_employees,
+    seed_location,
+    seed_roles,
+):
+    """A shift a hard preference/cap trim vacated (status != "ok") must not
+    burn the employee's availability window on approval, even though its
+    employee_id still names a real employee -- exactly what nodes.py's
+    _trim_cap_violations used to leave behind before it was fixed to also
+    reset employee_id to "VACANT" like every other VACANT shift. This test
+    exercises the router-side defence in depth
+    (_subtract_availability_for_shifts also checking status), independent
+    of whether the trim's own sentinel fix is in place.
+    """
+    from backend.models.employee import EmployeeAvailability
+
+    db_session.add(EmployeeAvailability(
+        id="avtrimd1", company_id=COMPANY_ID, employee_id=EMPLOYEE1_ID,
+        year=2026, month=4, day=13,
+        start_time=datetime(2026, 4, 13, 9, tzinfo=timezone.utc),
+        end_time=datetime(2026, 4, 13, 17, tzinfo=timezone.utc),
+    ))
+    await db_session.commit()
+
+    shifts = [
+        {
+            "employee_id": EMPLOYEE1_ID,
+            "employee_name": "Alice Johnson",
+            "role_id": ROLE_FLOOR_ID,
+            "role_name": "Floor Associate",
+            "location_id": LOCATION_ID,
+            "date": "2026-04-13",
+            "start_time": "2026-04-13T09:00:00",
+            "end_time": "2026-04-13T17:00:00",
+            "status": "VACANT",  # trimmed -- never actually worked
+        },
+    ]
+    sid = await _create_schedule(db_session, raw_shifts=shifts)
+    resp = await client.post(
+        f"/api/v1/schedules/{sid}/approve",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200
+    # No Shift record for the trimmed assignment.
+    assert resp.json()["shifts"] == []
+
+    # The original 09:00-17:00 window must survive untouched -- not deleted,
+    # not split into remnants -- because the shift was never worked.
+    db_session.expire_all()
+    remaining = (
+        await db_session.execute(
+            select(EmployeeAvailability).where(
+                EmployeeAvailability.employee_id == EMPLOYEE1_ID,
+                EmployeeAvailability.year == 2026,
+                EmployeeAvailability.month == 4,
+                EmployeeAvailability.day == 13,
+            )
+        )
+    ).scalars().all()
+    assert len(remaining) == 1
+    assert remaining[0].id == "avtrimd1"
 
 
 # ---------------------------------------------------------------------------

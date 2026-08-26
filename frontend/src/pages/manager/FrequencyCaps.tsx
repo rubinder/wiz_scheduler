@@ -25,6 +25,19 @@ interface DraftRow {
   error: string | null;
 }
 
+// Blank, non-integer, or negative input must never fall through to the
+// numeric guards below: Number("") is 0, not NaN, so a naive
+// `Number.isFinite(parsed) && parsed >= 0` check silently accepts a cleared
+// field as max_per_week: 0 -- which at weight 1.0 means "never schedule this
+// range". Only a string of digits (no sign, no decimal point, non-empty)
+// is accepted.
+function parseMaxPerWeek(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return Number.isSafeInteger(n) ? n : null;
+}
+
 function toDraft(cap: EmployeeHourRangeCap): DraftRow {
   return {
     id: cap.id,
@@ -107,8 +120,8 @@ export default function FrequencyCaps() {
       setCreateError(t.frequencyCaps.invalidRange);
       return;
     }
-    const parsedMax = Number(maxPerWeek);
-    if (!Number.isFinite(parsedMax) || parsedMax < 0) {
+    const parsedMax = parseMaxPerWeek(maxPerWeek);
+    if (parsedMax === null) {
       setCreateError(t.frequencyCaps.invalidMax);
       return;
     }
@@ -152,8 +165,8 @@ export default function FrequencyCaps() {
   const handleSave = async (id: string) => {
     const row = rows.find((r) => r.id === id);
     if (!row) return;
-    const parsedMax = Number(row.max_per_week);
-    if (!Number.isFinite(parsedMax) || parsedMax < 0) {
+    const parsedMax = parseMaxPerWeek(row.max_per_week);
+    if (parsedMax === null) {
       setRows((prev) =>
         prev.map((r) =>
           r.id === id ? { ...r, error: t.frequencyCaps.invalidMax } : r

@@ -321,7 +321,12 @@ class EmployeeHourRangeCapCreate(BaseModel):
     employee_id: str
     start_time: str
     end_time: str
-    max_per_week: int = Field(ge=0)
+    # le=168: a week has 168 hours, an unambiguous upper bound for a count
+    # of weekly shift occurrences without hardcoding a business assumption
+    # about shift length. Also keeps this comfortably under the
+    # SmallInteger column's real ceiling (32767), whose DataError on
+    # overflow isn't caught by the IntegrityError handlers below (-> 500).
+    max_per_week: int = Field(ge=0, le=168)
     weight: float = Field(default=0.7, ge=0.0, le=1.0)
 
     @field_validator("start_time", "end_time")
@@ -346,7 +351,7 @@ class EmployeeHourRangeCapCreate(BaseModel):
 class EmployeeHourRangeCapUpdate(BaseModel):
     start_time: str | None = None
     end_time: str | None = None
-    max_per_week: int | None = Field(default=None, ge=0)
+    max_per_week: int | None = Field(default=None, ge=0, le=168)
     weight: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @field_validator("start_time", "end_time")
