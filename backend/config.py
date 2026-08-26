@@ -110,6 +110,13 @@ class Settings(BaseSettings):
     # what customers are billed, so a mismatch overcharges or undercharges.
     SCHEDULING_MODEL: str = "claude-sonnet-5"
 
+    # Fraction of a SHIFT that must fall inside a configured hour range for
+    # that shift to count. Used by BOTH the hour-range preference ("did this
+    # employee get the hours they prefer?") and the frequency cap ("does this
+    # shift count against their weekly allowance?"). One number, one rule,
+    # one sentence to explain in the UI.
+    SCHEDULING_RANGE_MATCH_THRESHOLD: float = 0.5
+
     # LLM billing
     INCLUDED_LLM_USD: float = 2.00           # LLM spend included in the subscription
     LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost once the included spend is used
