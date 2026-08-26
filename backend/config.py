@@ -90,22 +90,34 @@ class Settings(BaseSettings):
     # could be folded onto it later.
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # ---------------------------------------------------------------------
+    # Metered allowances INCLUDED IN THE $18 SUBSCRIPTION.
+    #
+    # Not to be confused with FREE_PLAN_MAX_* further down, which caps what a
+    # tenant who pays NOTHING may do. These two were both called "free tier"
+    # until 2026-08-24, and the collision was live: check_ai_credits and
+    # check_schedule_quota each had their own is_over_free_tier for entirely
+    # different products, so a rename-by-name would silently break schedule
+    # billing. The word "free" is deliberately absent from this family now —
+    # a better adjective would have preserved the ambiguity.
+    # ---------------------------------------------------------------------
+
     # LLM billing
-    LLM_FREE_TIER_USD: float = 2.00          # free credits per ownership group per month
-    LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost after free tier exhausted
+    INCLUDED_LLM_USD: float = 2.00           # LLM spend included in the subscription
+    LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost once the included spend is used
     LLM_INPUT_COST_PER_M: float = 3.00       # $ per 1M input tokens (Claude Sonnet)
     LLM_OUTPUT_COST_PER_M: float = 15.00     # $ per 1M output tokens (Claude Sonnet)
 
     # Storage billing
-    STORAGE_FREE_GB: float = 0.5             # free storage per ownership group
-    STORAGE_COST_PER_GB: float = 0.50        # $/GB/month after free tier
+    INCLUDED_STORAGE_GB: float = 0.5         # storage included in the subscription
+    STORAGE_COST_PER_GB: float = 0.50        # $/GB/month beyond the included storage
 
     # Employee billing
-    EMPLOYEE_FREE_TIER: int = 1_000           # free employees per ownership group
-    EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 1k employees after free tier
+    INCLUDED_EMPLOYEES: int = 1_000          # employees included in the subscription
+    EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 1k employees beyond the included count
     EMPLOYEE_BLOCK_SIZE: int = 1_000         # employees per billing block
 
-    # Free plan hard limits (distinct from EMPLOYEE_FREE_TIER above, which is
+    # Free plan hard limits (distinct from INCLUDED_EMPLOYEES above, which is
     # a metered-overage threshold for PAID customers). These are the caps that
     # decide whether an ownership group must subscribe at all.
 
@@ -133,7 +145,7 @@ class Settings(BaseSettings):
     FREE_PLAN_MAX_EMPLOYEES: int = 25
 
     # Free plan may run this many schedule generations per calendar month.
-    # Independent of SCHEDULE_FREE_TIER below, which is the PAID metered
+    # Independent of INCLUDED_SCHEDULES_PER_MONTH below, which is the PAID metered
     # threshold (50/month then overage) and is unchanged by this.
     #
     # Lowered 5 -> 2 on 2026-08-21. This is the conversion gate: a generation
@@ -156,7 +168,7 @@ class Settings(BaseSettings):
     DEMO_PLAN_MAX_SCHEDULES_PER_MONTH: int = 50
 
     # Schedule generation billing
-    SCHEDULE_FREE_TIER: int = 50             # free schedules per ownership group per month
+    INCLUDED_SCHEDULES_PER_MONTH: int = 50   # generations included per month
     SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 50 schedules after free tier
     SCHEDULE_BLOCK_SIZE: int = 50            # schedules per billing block
 

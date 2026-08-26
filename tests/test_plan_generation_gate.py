@@ -152,7 +152,7 @@ async def test_free_at_generation_cap_blocks_ai_too(
 async def test_paid_is_not_subject_to_free_generation_cap(
     db_session: AsyncSession, tenant: dict
 ):
-    """Paid keeps SCHEDULE_FREE_TIER=50-then-metered; the free cap must not apply."""
+    """Paid keeps INCLUDED_SCHEDULES_PER_MONTH=50-then-metered; the free cap must not apply."""
     og = await db_session.get(OwnershipGroup, tenant["og_id"])
     og.stripe_subscription_id = "sub_1"
     await db_session.commit()

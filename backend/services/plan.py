@@ -269,7 +269,7 @@ async def check_can_generate(
     # Free-plan monthly generation cap. Checked after over_limit so a tenant
     # who is both over-limit and out of generations hears about the limit that
     # actually requires an upgrade decision. Paid groups never reach here —
-    # they keep SCHEDULE_FREE_TIER metered overage instead.
+    # they keep INCLUDED_SCHEDULES_PER_MONTH metered overage instead.
     sched = state["schedules"]
     if sched["limit"] is not None and sched["count"] >= sched["limit"]:
         raise HTTPException(

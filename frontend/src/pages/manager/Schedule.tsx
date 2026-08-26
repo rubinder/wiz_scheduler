@@ -1003,9 +1003,9 @@ export default function Schedule() {
             }`}>
               <div className="flex items-center gap-4">
                 <span>
-                  {t.schedule.schedulesUsed}: {scheduleQuota.schedules_used} / {scheduleQuota.schedules_free_tier}
+                  {t.schedule.schedulesUsed}: {scheduleQuota.schedules_used} / {scheduleQuota.schedules_included}
                 </span>
-                {scheduleQuota.is_over_free_tier && (
+                {scheduleQuota.is_over_included && (
                   <span className={`text-xs ${text.muted}`}>
                     ({t.schedule.scheduleFreeTierUsed})
                   </span>
@@ -1016,7 +1016,7 @@ export default function Schedule() {
                   buying them could not unblock a free tenant. Shown disabled
                   rather than removed, with the reason, so the path stays
                   visible; the plan banner offers Upgrade. */}
-              {scheduleQuota.is_over_free_tier && !scheduleQuota.can_generate && (
+              {scheduleQuota.is_over_included && !scheduleQuota.can_generate && (
                 <div className="flex items-center gap-2">
                   {scheduleQuota.plan === "free" && (
                     <span id="buy-credits-reason" className={`text-xs ${text.muted}`}>
@@ -1047,18 +1047,18 @@ export default function Schedule() {
               <div className="flex items-center gap-4">
                 <span>
                   {t.schedule.aiCredits}:
-                  {creditStatus.is_over_free_tier
+                  {creditStatus.is_over_included
                     ? ` $${creditStatus.purchased_credits_usd.toFixed(2)} ${t.schedule.purchasedRemaining}`
-                    : ` $${creditStatus.free_remaining_usd.toFixed(2)} ${t.schedule.freeRemaining}`
+                    : ` $${creditStatus.included_remaining_usd.toFixed(2)} ${t.schedule.freeRemaining}`
                   }
                 </span>
-                {creditStatus.is_over_free_tier && (
+                {creditStatus.is_over_included && (
                   <span className={`text-xs ${text.muted}`}>
                     ({t.schedule.freeTierUsed})
                   </span>
                 )}
               </div>
-              {creditStatus.is_over_free_tier && !creditStatus.can_generate && (
+              {creditStatus.is_over_included && !creditStatus.can_generate && (
                 <button
                   onClick={() => { setPurchaseReason("ai"); setShowBillingModal(true); }}
                   className="glass-btn-primary text-xs px-3 py-1"

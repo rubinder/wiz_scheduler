@@ -78,11 +78,11 @@ class TestCalculateStorageCharge:
         assert calculate_storage_charge(0.3) == 0.0
 
     def test_at_free_tier_boundary(self):
-        assert calculate_storage_charge(settings.STORAGE_FREE_GB) == 0.0
+        assert calculate_storage_charge(settings.INCLUDED_STORAGE_GB) == 0.0
 
     def test_over_free_tier(self):
         charge = calculate_storage_charge(1.5)
-        expected = round((1.5 - settings.STORAGE_FREE_GB) * settings.STORAGE_COST_PER_GB, 4)
+        expected = round((1.5 - settings.INCLUDED_STORAGE_GB) * settings.STORAGE_COST_PER_GB, 4)
         assert charge == expected
 
 
@@ -91,15 +91,15 @@ class TestCalculateEmployeeCharge:
         assert calculate_employee_charge(500) == 0.0
 
     def test_at_free_tier(self):
-        assert calculate_employee_charge(settings.EMPLOYEE_FREE_TIER) == 0.0
+        assert calculate_employee_charge(settings.INCLUDED_EMPLOYEES) == 0.0
 
     def test_one_block_over(self):
-        count = settings.EMPLOYEE_FREE_TIER + 1
+        count = settings.INCLUDED_EMPLOYEES + 1
         charge = calculate_employee_charge(count)
         assert charge == settings.EMPLOYEE_COST_PER_BLOCK
 
     def test_exact_block_boundary(self):
-        count = settings.EMPLOYEE_FREE_TIER + settings.EMPLOYEE_BLOCK_SIZE
+        count = settings.INCLUDED_EMPLOYEES + settings.EMPLOYEE_BLOCK_SIZE
         charge = calculate_employee_charge(count)
         assert charge == settings.EMPLOYEE_COST_PER_BLOCK
 
@@ -109,10 +109,10 @@ class TestCalculateScheduleCharge:
         assert calculate_schedule_charge(10) == 0.0
 
     def test_at_free_tier(self):
-        assert calculate_schedule_charge(settings.SCHEDULE_FREE_TIER) == 0.0
+        assert calculate_schedule_charge(settings.INCLUDED_SCHEDULES_PER_MONTH) == 0.0
 
     def test_over_free_tier(self):
-        count = settings.SCHEDULE_FREE_TIER + 1
+        count = settings.INCLUDED_SCHEDULES_PER_MONTH + 1
         charge = calculate_schedule_charge(count)
         assert charge == settings.SCHEDULE_COST_PER_BLOCK
 
@@ -147,8 +147,8 @@ async def test_check_and_record_usage_within_free_tier(db_session: AsyncSession,
     result = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     assert result["cost_usd"] > 0
     assert result["charged_usd"] == 0.0
-    assert result["is_over_free_tier"] is False
-    assert result["free_remaining_usd"] > 0
+    assert result["is_over_included"] is False
+    assert result["included_remaining_usd"] > 0
 
 
 async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, seed_og):
@@ -164,23 +164,23 @@ async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, s
         input_tokens=0,
         output_tokens=0,
         total_tokens=0,
-        cost_usd=settings.LLM_FREE_TIER_USD + 1.0,
+        cost_usd=settings.INCLUDED_LLM_USD + 1.0,
         charged_usd=0.0,
     )
     db_session.add(usage)
     await db_session.commit()
 
     result = await check_and_record_usage(db_session, COMPANY_ID, 100_000, 10_000)
-    assert result["is_over_free_tier"] is True
+    assert result["is_over_included"] is True
     assert result["charged_usd"] > 0
-    assert result["free_remaining_usd"] == 0
+    assert result["included_remaining_usd"] == 0
 
 
 async def test_check_ai_credits_within_free_tier(db_session: AsyncSession, seed_og):
     result = await check_ai_credits(db_session, COMPANY_ID)
     assert result["can_generate"] is True
-    assert result["is_over_free_tier"] is False
-    assert result["free_remaining_usd"] == settings.LLM_FREE_TIER_USD
+    assert result["is_over_included"] is False
+    assert result["included_remaining_usd"] == settings.INCLUDED_LLM_USD
 
 
 async def test_check_ai_credits_over_free_tier_no_purchased(db_session: AsyncSession, seed_og):
@@ -192,14 +192,14 @@ async def test_check_ai_credits_over_free_tier_no_purchased(db_session: AsyncSes
         input_tokens=0,
         output_tokens=0,
         total_tokens=0,
-        cost_usd=settings.LLM_FREE_TIER_USD + 1.0,
+        cost_usd=settings.INCLUDED_LLM_USD + 1.0,
         charged_usd=0.0,
     )
     db_session.add(usage)
     await db_session.commit()
 
     result = await check_ai_credits(db_session, COMPANY_ID)
-    assert result["is_over_free_tier"] is True
+    assert result["is_over_included"] is True
     assert result["can_generate"] is False
 
 
@@ -212,7 +212,7 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
         input_tokens=0,
         output_tokens=0,
         total_tokens=0,
-        cost_usd=settings.LLM_FREE_TIER_USD + 1.0,
+        cost_usd=settings.INCLUDED_LLM_USD + 1.0,
         charged_usd=0.0,
     )
     db_session.add(usage)
@@ -220,7 +220,7 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
     await db_session.commit()
 
     result = await check_ai_credits(db_session, COMPANY_ID)
-    assert result["is_over_free_tier"] is True
+    assert result["is_over_included"] is True
     assert result["can_generate"] is True
     assert result["purchased_credits_usd"] == 10.0
 
@@ -260,7 +260,7 @@ async def test_count_employees_for_group(db_session: AsyncSession, seed_og):
 async def test_check_schedule_quota_within_free_tier(db_session: AsyncSession, seed_og):
     result = await check_schedule_quota(db_session, COMPANY_ID)
     assert result["can_generate"] is True
-    assert result["is_over_free_tier"] is False
+    assert result["is_over_included"] is False
     assert result["schedules_used"] == 0
 
 
@@ -470,7 +470,7 @@ async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
         input_tokens=1_000_000_000,  # absurd to ensure cost > free tier
         output_tokens=0,
         total_tokens=1_000_000_000,
-        cost_usd=settings.LLM_FREE_TIER_USD + 5.0,
+        cost_usd=settings.INCLUDED_LLM_USD + 5.0,
         charged_usd=5.0,
     )
     db_session.add(usage)
@@ -501,7 +501,7 @@ async def test_deduct_credits_for_schedule_triggers_reload(
 
     # Create > free tier schedules so overage applies
     now = datetime.now(timezone.utc)
-    for _ in range(settings.SCHEDULE_FREE_TIER + 1):
+    for _ in range(settings.INCLUDED_SCHEDULES_PER_MONTH + 1):
         db_session.add(ShiftSchedule(
             company_id=COMPANY_ID,
             location_id=_id(),

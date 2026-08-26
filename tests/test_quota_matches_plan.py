@@ -1,7 +1,7 @@
 """The quota strip and the plan banner must report the same number.
 
 The Schedule page renders two figures: check_schedule_quota's
-schedules_free_tier ("Schedules this month: X / Y") and get_plan_state's
+schedules_included ("Schedules this month: X / Y") and get_plan_state's
 schedules.limit ("... N of M generations this month"). They used to come from
 unrelated sources, so a free tenant saw 0/50 against 0/5 and the demo saw
 0/250 against 0/50.
@@ -57,8 +57,8 @@ async def test_free_tenant_sees_one_number(db_session: AsyncSession):
     quota = await check_schedule_quota(db_session, company_id)
     plan = await get_plan_state(db_session, company_id)
 
-    assert quota["schedules_free_tier"] == plan["schedules"]["limit"]
-    assert quota["schedules_free_tier"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert quota["schedules_included"] == plan["schedules"]["limit"]
+    assert quota["schedules_included"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
 
 
 async def test_demo_tenant_sees_one_number(db_session: AsyncSession):
@@ -68,18 +68,18 @@ async def test_demo_tenant_sees_one_number(db_session: AsyncSession):
     quota = await check_schedule_quota(db_session, company_id)
     plan = await get_plan_state(db_session, company_id)
 
-    assert quota["schedules_free_tier"] == plan["schedules"]["limit"]
-    assert quota["schedules_free_tier"] == settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
-    assert quota["schedules_free_tier"] == 50
+    assert quota["schedules_included"] == plan["schedules"]["limit"]
+    assert quota["schedules_included"] == settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert quota["schedules_included"] == 50
 
 
 async def test_paid_tenant_keeps_metered_threshold(db_session: AsyncSession):
-    """Paid groups meter against SCHEDULE_FREE_TIER and pay overage past it.
+    """Paid groups meter against INCLUDED_SCHEDULES_PER_MONTH and pay overage past it.
     That behaviour is unchanged."""
     company_id = await _make_og(db_session, _id(), paid=True)
 
     quota = await check_schedule_quota(db_session, company_id)
-    assert quota["schedules_free_tier"] == settings.SCHEDULE_FREE_TIER
+    assert quota["schedules_included"] == settings.INCLUDED_SCHEDULES_PER_MONTH
     assert quota["plan"] == "paid"
 
     plan = await get_plan_state(db_session, company_id)
@@ -103,7 +103,7 @@ async def test_credits_do_not_unblock_a_free_tenant(db_session: AsyncSession):
     )
 
     quota = await check_schedule_quota(db_session, company_id)
-    assert quota["is_over_free_tier"] is True
+    assert quota["is_over_included"] is True
     assert quota["purchased_credits_usd"] == 25.0
     assert quota["can_generate"] is False
 
@@ -111,10 +111,10 @@ async def test_credits_do_not_unblock_a_free_tenant(db_session: AsyncSession):
 async def test_credits_still_unblock_a_paid_tenant(db_session: AsyncSession):
     """The paid overage path must be untouched by the fix above."""
     company_id = await _make_og(db_session, _id(), paid=True, credits=25.0)
-    await _add_schedules(db_session, company_id, settings.SCHEDULE_FREE_TIER)
+    await _add_schedules(db_session, company_id, settings.INCLUDED_SCHEDULES_PER_MONTH)
 
     quota = await check_schedule_quota(db_session, company_id)
-    assert quota["is_over_free_tier"] is True
+    assert quota["is_over_included"] is True
     assert quota["can_generate"] is True
 
 
@@ -128,9 +128,9 @@ async def test_demo_agreement_holds_at_the_cap(db_session: AsyncSession):
     quota = await check_schedule_quota(db_session, company_id)
     plan = await get_plan_state(db_session, company_id)
 
-    assert quota["schedules_free_tier"] == plan["schedules"]["limit"]
+    assert quota["schedules_included"] == plan["schedules"]["limit"]
     assert quota["schedules_used"] == plan["schedules"]["count"]
-    assert quota["is_over_free_tier"] is True
+    assert quota["is_over_included"] is True
     assert plan["block_reason"] == "schedule_limit_reached"
 
 
@@ -146,5 +146,5 @@ async def test_no_tenant_slug_is_hardcoded(db_session: AsyncSession):
     await db_session.commit()
 
     quota = await check_schedule_quota(db_session, company_id)
-    assert quota["schedules_free_tier"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-    assert quota["schedules_free_tier"] != 250
+    assert quota["schedules_included"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert quota["schedules_included"] != 250

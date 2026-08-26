@@ -150,15 +150,15 @@ async def check_and_record_usage(
     Returns a dict with:
         - cost_usd: raw cost of this usage
         - charged_usd: amount charged (0 if within free tier, cost*markup if over)
-        - is_over_free_tier: whether the group has exceeded the free tier
+        - is_over_included: whether the group has exceeded the free tier
         - monthly_cost_usd: total cost this month after this usage
         - monthly_charged_usd: total charged this month after this usage
-        - free_remaining_usd: remaining free credits (0 if exhausted)
+        - included_remaining_usd: remaining free credits (0 if exhausted)
     """
     og_id = await get_ownership_group_id(db, company_id)
     if not og_id:
-        return {"cost_usd": 0, "charged_usd": 0, "is_over_free_tier": False,
-                "monthly_cost_usd": 0, "monthly_charged_usd": 0, "free_remaining_usd": settings.LLM_FREE_TIER_USD}
+        return {"cost_usd": 0, "charged_usd": 0, "is_over_included": False,
+                "monthly_cost_usd": 0, "monthly_charged_usd": 0, "included_remaining_usd": settings.INCLUDED_LLM_USD}
 
     now = datetime.now(timezone.utc)
     usage = await get_monthly_usage(db, og_id)
@@ -169,10 +169,10 @@ async def check_and_record_usage(
         cost_before = usage.cost_usd
         cost_after = cost_before + this_cost
 
-        if cost_before >= settings.LLM_FREE_TIER_USD:
+        if cost_before >= settings.INCLUDED_LLM_USD:
             this_charge = round(this_cost * settings.LLM_OVERAGE_MARKUP, 6)
-        elif cost_after > settings.LLM_FREE_TIER_USD:
-            overage = cost_after - settings.LLM_FREE_TIER_USD
+        elif cost_after > settings.INCLUDED_LLM_USD:
+            overage = cost_after - settings.INCLUDED_LLM_USD
             this_charge = round(overage * settings.LLM_OVERAGE_MARKUP, 6)
         else:
             this_charge = 0.0
@@ -184,8 +184,8 @@ async def check_and_record_usage(
         usage.charged_usd += this_charge
         usage.updated_at = now
     else:
-        if this_cost > settings.LLM_FREE_TIER_USD:
-            overage = this_cost - settings.LLM_FREE_TIER_USD
+        if this_cost > settings.INCLUDED_LLM_USD:
+            overage = this_cost - settings.INCLUDED_LLM_USD
             this_charge = round(overage * settings.LLM_OVERAGE_MARKUP, 6)
         else:
             this_charge = 0.0
@@ -239,20 +239,20 @@ async def check_and_record_usage(
 
     await db.flush()
 
-    free_remaining = max(0, settings.LLM_FREE_TIER_USD - usage.cost_usd)
+    included_remaining = max(0, settings.INCLUDED_LLM_USD - usage.cost_usd)
 
     logger.info(
-        "[BILLING] group=%s cost=%.4f charged=%.4f monthly_total=%.4f free_remaining=%.4f",
-        og_id, this_cost, this_charge, usage.cost_usd, free_remaining,
+        "[BILLING] group=%s cost=%.4f charged=%.4f monthly_total=%.4f included_remaining=%.4f",
+        og_id, this_cost, this_charge, usage.cost_usd, included_remaining,
     )
 
     return {
         "cost_usd": this_cost,
         "charged_usd": this_charge,
-        "is_over_free_tier": usage.cost_usd > settings.LLM_FREE_TIER_USD,
+        "is_over_included": usage.cost_usd > settings.INCLUDED_LLM_USD,
         "monthly_cost_usd": usage.cost_usd,
         "monthly_charged_usd": usage.charged_usd,
-        "free_remaining_usd": free_remaining,
+        "included_remaining_usd": included_remaining,
     }
 
 
@@ -333,7 +333,7 @@ def calculate_storage_charge(storage_gb: float) -> float:
 
     First 0.5 GB free, then $0.50/GB for each additional GB.
     """
-    billable_gb = max(0, storage_gb - settings.STORAGE_FREE_GB)
+    billable_gb = max(0, storage_gb - settings.INCLUDED_STORAGE_GB)
     return round(billable_gb * settings.STORAGE_COST_PER_GB, 4)
 
 
@@ -425,7 +425,7 @@ def calculate_employee_charge(employee_count: int) -> float:
 
     First 250k free, then $0.20 per 250k block (rounded up).
     """
-    billable = max(0, employee_count - settings.EMPLOYEE_FREE_TIER)
+    billable = max(0, employee_count - settings.INCLUDED_EMPLOYEES)
     if billable == 0:
         return 0.0
     blocks = math.ceil(billable / settings.EMPLOYEE_BLOCK_SIZE)
@@ -502,7 +502,7 @@ def calculate_schedule_charge(schedule_count: int) -> float:
 
     First 50 free, then $0.10 per 100 schedules (rounded up to next block).
     """
-    billable = max(0, schedule_count - settings.SCHEDULE_FREE_TIER)
+    billable = max(0, schedule_count - settings.INCLUDED_SCHEDULES_PER_MONTH)
     if billable == 0:
         return 0.0
     blocks = math.ceil(billable / settings.SCHEDULE_BLOCK_SIZE)
@@ -552,8 +552,8 @@ async def check_schedule_quota(
     Returns:
         - can_generate: True if within free tier or has purchased credits
         - schedules_used: number of schedules generated this month
-        - schedules_free_tier: free tier limit
-        - is_over_free_tier: whether the free tier is exhausted
+        - schedules_included: free tier limit
+        - is_over_included: whether the free tier is exhausted
         - purchased_credits_usd: purchased credit balance (shared with AI)
         - next_block_cost_usd: cost for the next block of schedules
     """
@@ -562,8 +562,8 @@ async def check_schedule_quota(
         return {
             "can_generate": True,
             "schedules_used": 0,
-            "schedules_free_tier": settings.SCHEDULE_FREE_TIER,
-            "is_over_free_tier": False,
+            "schedules_included": settings.INCLUDED_SCHEDULES_PER_MONTH,
+            "is_over_included": False,
             "purchased_credits_usd": 0.0,
             "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
         }
@@ -574,8 +574,8 @@ async def check_schedule_quota(
         return {
             "can_generate": False,
             "schedules_used": 0,
-            "schedules_free_tier": settings.SCHEDULE_FREE_TIER,
-            "is_over_free_tier": True,
+            "schedules_included": settings.INCLUDED_SCHEDULES_PER_MONTH,
+            "is_over_included": True,
             "purchased_credits_usd": float(og_full.ai_credits_usd),
             "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
             "autoreload_failed": True,
@@ -584,7 +584,7 @@ async def check_schedule_quota(
     schedule_count = await count_schedules_this_month(db, og_id)
 
     # Which number governs depends on the plan. A PAID group meters against
-    # SCHEDULE_FREE_TIER and pays overage past it. A FREE group never reaches
+    # INCLUDED_SCHEDULES_PER_MONTH and pays overage past it. A FREE group never reaches
     # metering — services.plan.check_can_generate stops it at the plan cap
     # first — so reporting the metered threshold to a free tenant overstates
     # what they have and contradicts the plan banner. Report the cap that
@@ -593,7 +593,7 @@ async def check_schedule_quota(
         og_full.stripe_subscription_id is not None and og_full.canceled_at is None
     )
     free_tier = (
-        settings.SCHEDULE_FREE_TIER if is_paid else free_plan_schedule_limit(og_id)
+        settings.INCLUDED_SCHEDULES_PER_MONTH if is_paid else free_plan_schedule_limit(og_id)
     )
 
     is_over = schedule_count >= free_tier
@@ -609,8 +609,8 @@ async def check_schedule_quota(
     return {
         "can_generate": can_generate,
         "schedules_used": schedule_count,
-        "schedules_free_tier": free_tier,
-        "is_over_free_tier": is_over,
+        "schedules_included": free_tier,
+        "is_over_included": is_over,
         "purchased_credits_usd": round(purchased_credits, 4),
         "next_block_cost_usd": settings.SCHEDULE_COST_PER_BLOCK,
         # Lets the UI offer Upgrade rather than Buy credits to free tenants.
@@ -632,7 +632,7 @@ async def deduct_credits_for_schedule_overage(
         return
 
     schedule_count = await count_schedules_this_month(db, og_id)
-    if schedule_count <= settings.SCHEDULE_FREE_TIER:
+    if schedule_count <= settings.INCLUDED_SCHEDULES_PER_MONTH:
         return
 
     # Per-schedule cost = block cost / block size
@@ -663,17 +663,17 @@ async def check_ai_credits(
 
     Returns:
         - can_generate: True if within free tier or has purchased credits
-        - free_remaining_usd: remaining free tier credits
+        - included_remaining_usd: remaining free tier credits
         - purchased_credits_usd: purchased credit balance
-        - is_over_free_tier: whether the free tier is exhausted
+        - is_over_included: whether the free tier is exhausted
     """
     og_id = await get_ownership_group_id(db, company_id)
     if not og_id:
         return {
             "can_generate": True,
-            "free_remaining_usd": settings.LLM_FREE_TIER_USD,
+            "included_remaining_usd": settings.INCLUDED_LLM_USD,
             "purchased_credits_usd": 0.0,
-            "is_over_free_tier": False,
+            "is_over_included": False,
             "monthly_cost_usd": 0.0,
         }
 
@@ -682,17 +682,17 @@ async def check_ai_credits(
     if og_full and og_full.autoreload_failed_at is not None:
         return {
             "can_generate": False,
-            "free_remaining_usd": 0.0,
+            "included_remaining_usd": 0.0,
             "purchased_credits_usd": float(og_full.ai_credits_usd),
-            "is_over_free_tier": True,
+            "is_over_included": True,
             "monthly_cost_usd": 0.0,
             "autoreload_failed": True,
         }
 
     usage = await get_monthly_usage(db, og_id)
     monthly_cost = usage.cost_usd if usage else 0.0
-    free_remaining = max(0.0, settings.LLM_FREE_TIER_USD - monthly_cost)
-    is_over = monthly_cost >= settings.LLM_FREE_TIER_USD
+    included_remaining = max(0.0, settings.INCLUDED_LLM_USD - monthly_cost)
+    is_over = monthly_cost >= settings.INCLUDED_LLM_USD
 
     purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
@@ -700,9 +700,9 @@ async def check_ai_credits(
 
     return {
         "can_generate": can_generate,
-        "free_remaining_usd": round(free_remaining, 4),
+        "included_remaining_usd": round(included_remaining, 4),
         "purchased_credits_usd": round(purchased_credits, 4),
-        "is_over_free_tier": is_over,
+        "is_over_included": is_over,
         "monthly_cost_usd": round(monthly_cost, 4),
     }
 
@@ -744,7 +744,7 @@ async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
     usage = await get_monthly_usage(db, og_id)
     llm_cost = usage.cost_usd if usage else 0.0
     llm_charged = usage.charged_usd if usage else 0.0
-    llm_free_remaining = max(0, settings.LLM_FREE_TIER_USD - llm_cost)
+    llm_included_remaining = max(0, settings.INCLUDED_LLM_USD - llm_cost)
 
     # Storage
     storage_gb = await calculate_storage_gb(db, og_id)
@@ -774,30 +774,30 @@ async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
             "output_tokens": usage.output_tokens if usage else 0,
             "raw_cost_usd": round(llm_cost, 4),
             "charged_usd": round(llm_charged, 4),
-            "free_tier_usd": settings.LLM_FREE_TIER_USD,
-            "free_remaining_usd": round(llm_free_remaining, 4),
-            "is_over_free_tier": llm_cost > settings.LLM_FREE_TIER_USD,
+            "included_usd": settings.INCLUDED_LLM_USD,
+            "included_remaining_usd": round(llm_included_remaining, 4),
+            "is_over_included": llm_cost > settings.INCLUDED_LLM_USD,
             "overage_markup": settings.LLM_OVERAGE_MARKUP,
         },
         "storage": {
             "used_gb": round(storage_gb, 4),
-            "free_gb": settings.STORAGE_FREE_GB,
-            "billable_gb": round(max(0, storage_gb - settings.STORAGE_FREE_GB), 4),
+            "included_gb": settings.INCLUDED_STORAGE_GB,
+            "billable_gb": round(max(0, storage_gb - settings.INCLUDED_STORAGE_GB), 4),
             "cost_per_gb": settings.STORAGE_COST_PER_GB,
             "charged_usd": storage_charge,
         },
         "employees": {
             "count": employee_count,
-            "free_tier": settings.EMPLOYEE_FREE_TIER,
-            "billable": max(0, employee_count - settings.EMPLOYEE_FREE_TIER),
+            "included": settings.INCLUDED_EMPLOYEES,
+            "billable": max(0, employee_count - settings.INCLUDED_EMPLOYEES),
             "block_size": settings.EMPLOYEE_BLOCK_SIZE,
             "cost_per_block": settings.EMPLOYEE_COST_PER_BLOCK,
             "charged_usd": employee_charge,
         },
         "schedules": {
             "count": schedule_count,
-            "free_tier": settings.SCHEDULE_FREE_TIER,
-            "billable": max(0, schedule_count - settings.SCHEDULE_FREE_TIER),
+            "included": settings.INCLUDED_SCHEDULES_PER_MONTH,
+            "billable": max(0, schedule_count - settings.INCLUDED_SCHEDULES_PER_MONTH),
             "block_size": settings.SCHEDULE_BLOCK_SIZE,
             "cost_per_block": settings.SCHEDULE_COST_PER_BLOCK,
             "charged_usd": schedule_charge,
