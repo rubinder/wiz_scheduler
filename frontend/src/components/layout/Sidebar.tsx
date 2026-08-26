@@ -160,7 +160,7 @@ export default function Sidebar() {
                 <span aria-hidden="true" className="text-xs">{isOpen ? "▾" : "▸"}</span>
               </button>
               {isOpen && (
-                <div className="ml-3 pl-2 border-l border-gray-200 space-y-1 mt-1">
+                <div className={`ms-3 ps-2 border-s ${border.default} space-y-1 mt-1`}>
                   {children.map((child) => (
                     <NavLink key={child.to} to={child.to} className={linkClass}>
                       {label(child.labelKey)}

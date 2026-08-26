@@ -210,15 +210,17 @@ Each page adds:
 
 ### Sidebar
 
-`Sidebar.tsx` is 93 lines of flat `NavItem[]` — `baseManagerLinks` (12) plus
-`postEmployeeManagerLinks` (8), joined conditionally on `hasEmployees`. Twenty
-items today; these three would make twenty-three.
+`Sidebar.tsx` shipped a sibling `NavGroup` type alongside `NavItem`, with
+`NavEntry = NavItem | NavGroup` and an `isGroup` type guard distinguishing
+them. A `requiresEmployees` flag on individual items replaced the old
+positional slice, so gating is no longer tied to array order. Twenty items
+before the regroup; these three make twenty-three.
 
-`NavItem` gains an optional `children`. A parent renders as a clickable row
-that expands an indented list. The group containing the active route
+A parent (`NavGroup`) renders as a clickable row that expands an indented
+list of `NavItem` children. The group containing the active route
 auto-expands, so a deep link never lands in a collapsed tree. The
-`hasEmployees` gating carries over unchanged — it hides children instead of
-flat rows.
+`requiresEmployees` gating carries over unchanged — it hides children instead
+of flat rows.
 
 ```
 Dashboard

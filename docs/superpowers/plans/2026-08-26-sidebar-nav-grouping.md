@@ -25,7 +25,7 @@
 
 The safety net, written first. A nav refactor's characteristic failure is a sidebar link pointing at a route that does not exist — invisible to `tsc`, since both are strings. This test parses both files and fails if they disagree.
 
-Verified against the current tree: 23 nav targets, 23 routes, zero mismatches.
+Verified against the current tree: 23 nav targets, 35 routes, zero mismatches.
 
 **Files:**
 - Test: `tests/test_sidebar_routes.py`
@@ -51,11 +51,10 @@ means `/manager/roles`.
 import re
 from pathlib import Path
 
-import pytest
-
 _SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
 _SIDEBAR = _SRC / "components" / "layout" / "Sidebar.tsx"
 _APP = _SRC / "App.tsx"
+_EN = _SRC / "i18n" / "en.ts"
 
 
 def _nav_targets() -> set[str]:
@@ -68,7 +67,9 @@ def _routes() -> set[str]:
     for line in _APP.read_text().splitlines():
         absolute = re.search(r'<Route\s+path="(/[^"]+)"', line)
         if absolute:
-            parent = absolute.group(1).rstrip("/")
+            path = absolute.group(1).rstrip("/")
+            routes.add(path)
+            parent = path
             continue
         relative = re.search(r'<Route\s+path="([^/"][^"]*)"', line)
         if relative:
@@ -90,12 +91,25 @@ def test_the_parser_still_finds_both_sides():
     vacuously."""
     assert len(_nav_targets()) >= 20, "parsed too few nav targets — parser is stale"
     assert len(_routes()) >= 20, "parsed too few routes — parser is stale"
+
+
+def test_every_label_key_exists_in_en_translations():
+    """Sidebar.tsx does `t.nav[key as keyof typeof t.nav]`, which bypasses
+    key validation — a labelKey missing from en.ts silently renders blank."""
+    label_keys = set(re.findall(r'labelKey:\s*"([^"]+)"', _SIDEBAR.read_text()))
+    nav_block = re.search(r"nav:\s*\{(.*?)\n\s*\},", _EN.read_text(), re.DOTALL)
+    assert nav_block, "could not find `nav: {` block in en.ts — parser is stale"
+    nav_keys = set(re.findall(r"(\w+):", nav_block.group(1)))
+    missing = sorted(label_keys - nav_keys)
+    assert not missing, (
+        f"Sidebar.tsx labelKeys missing from en.ts nav block: {missing}"
+    )
 ```
 
 - [ ] **Step 2: Run it against the un-refactored tree**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_sidebar_routes.py -v`
-Expected: **2 passed**. It passes today — that is the point. It must still pass after the refactor.
+Expected: **3 passed**. It passes today — that is the point. It must still pass after the refactor.
 
 - [ ] **Step 3: Verify it can fail**
 
@@ -227,7 +241,7 @@ const employeeNav: NavEntry[] = [
 - [ ] **Step 2: Confirm the link set is unchanged**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_sidebar_routes.py -v`
-Expected: **2 passed**. Every `to:` still resolves. The file will not compile yet — Task 3 replaces the renderer — but this test parses source text, so it runs regardless.
+Expected: **3 passed**. Every `to:` still resolves. The file will not compile yet — Task 3 replaces the renderer — but this test parses source text, so it runs regardless.
 
 - [ ] **Step 3: Do not commit yet**
 

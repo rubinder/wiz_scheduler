@@ -1665,7 +1665,12 @@ Three `nav` keys (`dayPreferences`, `hourRangePreferences`, `frequencyCaps`) plu
 cd frontend && npx tsc --noEmit && npm run build
 cd .. && backend/.venv/bin/python -m pytest tests/test_sidebar_routes.py -v
 ```
-Expected: `tsc` exit 0, build succeeds, and the route guard confirms all three new links resolve.
+Expected: `tsc` exit 0, build succeeds, and `tests/test_sidebar_routes.py` passes in full —
+the route guard confirms all three new links resolve, and
+`test_every_label_key_exists_in_en_translations` confirms the three new
+`labelKey`s added in Step 5 (`dayPreferences`, `hourRangePreferences`,
+`frequencyCaps`) all have matching `nav` keys added in Step 6. That test is
+the only thing that catches a mismatch between those two steps.
 
 - [ ] **Step 8: Commit**
 
