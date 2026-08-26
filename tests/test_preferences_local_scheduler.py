@@ -279,3 +279,39 @@ def test_soft_preference_flips_which_candidate_is_chosen():
         for _ in range(30)
     }
     assert picks == {"e1"}
+
+
+
+def test_malformed_timestamp_does_not_raise_or_corrupt_counts():
+    """A dashless ISO timestamp (e.g. "20260330T090000+00:00") passes
+    Python 3.11+'s relaxed datetime.fromisoformat, so validate_schedule's
+    own gate does not catch it. _grow_range_counts's HH:MM slicing then
+    produces garbage ("0000+") that is not a valid int -- this must be
+    swallowed, not raised, and must not add a bogus/partial count.
+
+    Deliberately calls validate_and_update_availability directly (not
+    local_schedule, which always emits well-formed timestamps) since this
+    is reproducing a defect in how a malformed timestamp is *consumed*,
+    not in how one would be produced.
+    """
+    e1 = _cap_employee(weight=1.0, max_per_week=1)
+    malformed_shift = {
+        "employee_id": "e1",
+        "employee_name": "Alice Cap",
+        "role_id": "role0001",
+        "role_name": "Floor",
+        "location_id": "loc00001",
+        "date": "2026-03-30",
+        "start_time": "20260330T090000+00:00",  # dashless -- still ISO-valid
+        "end_time": "20260330T170000+00:00",
+        "status": "ok",
+    }
+    state = _cap_test_state([e1])
+    state["current_parsed_shifts"] = [malformed_shift]
+
+    result = validate_and_update_availability(state)  # must not raise
+
+    # Malformed timestamp -> the shift's contribution to the cap count is
+    # skipped entirely (under-counting is the safe direction), not partially
+    # applied and not raised.
+    assert result["range_counts_draft"] == {}

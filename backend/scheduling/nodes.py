@@ -894,12 +894,19 @@ def _grow_range_counts(
     emp = emp_by_id.get(shift["employee_id"])
     if not emp:
         return
-    start_hm = shift["start_time"][11:16]
-    end_hm = shift["end_time"][11:16]
-    for cap in emp.get("hour_range_caps") or []:
-        if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
-            key = (shift["employee_id"], cap["start_time"], cap["end_time"])
-            range_counts_draft[key] = range_counts_draft.get(key, 0) + 1
+    try:
+        start_hm = shift["start_time"][11:16]
+        end_hm = shift["end_time"][11:16]
+        for cap in emp.get("hour_range_caps") or []:
+            if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
+                key = (shift["employee_id"], cap["start_time"], cap["end_time"])
+                range_counts_draft[key] = range_counts_draft.get(key, 0) + 1
+    except (ValueError, TypeError):
+        # A malformed/unparseable timestamp must not raise out of the
+        # scheduling graph. Skip this shift's contribution to the cap
+        # count and move on -- under-counting is the safe direction (it
+        # can only fail to block someone, never spuriously block them).
+        pass
 
 
 def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
