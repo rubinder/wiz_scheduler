@@ -909,6 +909,66 @@ def _grow_range_counts(
         pass
 
 
+def _trim_cap_violations(
+    shifts: List[ShiftAssignment],
+    employee_preferences: Dict[str, Dict[str, Any]],
+) -> None:
+    """Vacate shifts beyond a weight>=1.0 hour_range_cap's weekly allowance.
+
+    The deterministic scheduler enforces frequency caps at pick-time via
+    eligible_for_slot's hard filter, because it assigns one slot at a time
+    and can consult a running range_counts as it goes. The AI path generates
+    a whole week in a single LLM call, so no such running count exists until
+    after generation -- this is the "enforced after generation instead"
+    mentioned in this module's tests. It walks the week's shifts in date
+    order, counts matches per (employee_id, cap range) with matches_range,
+    and marks every assignment past max_per_week VACANT, keeping the
+    earliest occurrences.
+
+    Must run before _grow_range_counts is called on these shifts (both call
+    sites below do this): a shift trimmed to VACANT here is then skipped by
+    the existing "skip VACANT" checks that guard _grow_range_counts, so a
+    vacated shift -- one that is not actually worked -- never contributes to
+    range_counts_draft for later locations in the same graph run.
+
+    A no-op when `employee_preferences` is empty, which is the state of
+    every graph run until _load_initial_state populates it. Never raises:
+    a malformed shift or preference entry is skipped rather than blocking
+    the rest of the pass, matching this node's degrade-don't-raise contract.
+    """
+    if not employee_preferences:
+        return
+    counts: Dict[Any, int] = {}
+    ordered = sorted(
+        (s for s in shifts if s["status"] != "VACANT"),
+        key=lambda s: (s.get("date", ""), s.get("start_time", "")),
+    )
+    for shift in ordered:
+        prefs = employee_preferences.get(shift.get("employee_id", ""))
+        if not prefs:
+            continue
+        try:
+            start_hm = shift["start_time"][11:16]
+            end_hm = shift["end_time"][11:16]
+        except (KeyError, TypeError, IndexError):
+            continue
+        for cap in prefs.get("hour_range_caps") or []:
+            try:
+                if float(cap.get("weight", 0)) < 1.0:
+                    continue
+                if not matches_range(
+                    start_hm, end_hm, cap["start_time"], cap["end_time"]
+                ):
+                    continue
+                key = (shift["employee_id"], cap["start_time"], cap["end_time"])
+                counts[key] = counts.get(key, 0) + 1
+                if counts[key] > int(cap["max_per_week"]):
+                    shift["status"] = "VACANT"
+                break
+            except (KeyError, ValueError, TypeError):
+                continue
+
+
 def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     """Validate parsed shifts against availability_draft for overlaps.
 
@@ -978,6 +1038,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                         break
 
             # Still consume windows for non-conflict shifts
+            _trim_cap_violations(shifts, state.get("employee_preferences", {}) or {})
             for shift in shifts:
                 if shift["status"] == "ok":
                     emp_id = shift["employee_id"]
@@ -1008,6 +1069,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
+        _trim_cap_violations(shifts, state.get("employee_preferences", {}) or {})
         for shift in shifts:
             if shift["status"] == "VACANT":
                 continue

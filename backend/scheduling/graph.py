@@ -591,6 +591,18 @@ async def _load_initial_state(
             "hour_range_caps": emp_range_caps_map.get(eid, []),
         })
 
+    # Per-employee preferences, duplicated out of `employees` in the shape
+    # validate_and_update_availability's cap-trimming pass expects (see
+    # SchedulingState.employee_preferences).
+    employee_preferences: Dict[str, Dict[str, Any]] = {
+        e["id"]: {
+            "day_preferences": e["day_preferences"],
+            "hour_range_preferences": e["hour_range_preferences"],
+            "hour_range_caps": e["hour_range_caps"],
+        }
+        for e in employees
+    }
+
     initial_state: Dict[str, Any] = {
         "company_id": company_id,
         "week_start_date": week_start_date,
@@ -600,6 +612,7 @@ async def _load_initial_state(
         "availability_draft": {},
         "employee_weekly_hours_draft": {},
         "range_counts_draft": {},
+        "employee_preferences": employee_preferences,
         "current_location_index": 0,
         "completed_location_ids": [],
         "retry_count": 0,

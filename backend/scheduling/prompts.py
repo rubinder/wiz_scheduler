@@ -1,6 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
+# Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
+# duplicated here rather than imported: local_scheduler already imports from
+# this module, so importing back would create a circular import.
+_DAY_INDEX_FOR_PROMPT = {
+    "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+    "Friday": 4, "Saturday": 5, "Sunday": 6,
+}
+
 
 def _build_date_map(week_start_date: str, num_days: int = 7) -> Dict[str, str]:
     """Build a mapping of day names to YYYY-MM-DD dates for the schedule range."""
@@ -220,8 +228,18 @@ def build_schedule_prompt(
             end = slot.get("end_time", "??:??")
 
             # Find eligible employees: have the role AND available that day+time
-            # AND are not blocked by a per-day blackout.
-            candidates = eligible_for_slot(emp_data, day, role_name, start, end)
+            # AND are not blocked by a per-day blackout or a weight-1.0 hard
+            # preference. Imported locally to avoid a circular import (this
+            # module is imported by local_scheduler.py).
+            from backend.scheduling.preferences import preference_score
+
+            candidates = eligible_for_slot(
+                emp_data, day, role_name, start, end,
+                day_index=_DAY_INDEX_FOR_PROMPT.get(day), range_counts={},
+            )
+            candidates.sort(key=lambda c: preference_score(
+                c, _DAY_INDEX_FOR_PROMPT.get(day, 0), start, end, {}
+            ))
             eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
 
             eligible_str = ", ".join(eligible) if eligible else "NONE AVAILABLE"
@@ -304,6 +322,9 @@ def build_schedule_prompt(
         f"4. Distribute hours fairly — avoid giving one employee all the shifts.\n"
         f"5. Prefer higher skill_level employees.\n"
         f"6. Honour affinity constraints if present.\n"
+        f"7. The Eligible list is ordered BEST FIRST by employee scheduling\n"
+        f"   preferences. Prefer earlier entries when candidates are otherwise\n"
+        f"   equal.\n"
         f"\n"
         f"OUTPUT FORMAT\n"
         f"=============\n"
