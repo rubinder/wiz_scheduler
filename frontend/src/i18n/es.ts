@@ -89,6 +89,9 @@ const es = {
     groupScheduling: "Programación",
     groupCheckIn: "Registro de Entrada",
     approvedSchedules: "Horarios aprobados",
+    dayPreferences: "Preferencias de Día",
+    hourRangePreferences: "Preferencias de Horario",
+    frequencyCaps: "Límites de Frecuencia",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const es = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Preferencias de Día",
+    description:
+      "Asigne un peso de 0 a 1 a los días de la semana en que cada empleado prefiere trabajar. Cuanto mayor sea el peso, más favorecerá el planificador a ese empleado para turnos ese día; cualquier valor inferior a 1.0 es una preferencia flexible que puede ignorarse si nadie más está disponible.",
+    addPreference: "Agregar Preferencia",
+    employee: "Empleado",
+    dayOfWeek: "Día de la semana",
+    weight: "Peso",
+    hardWarning:
+      "Con un peso de 1.0 esto se convierte en una regla estricta: el empleado no será programado ningún otro día, y un turno sin ningún empleado elegible restante se marcará como VACANT (vacante).",
+    searchPlaceholder: "Buscar empleados…",
+    noPreferences: "Aún no se han definido preferencias de día.",
+    pickEmployee: "Primero seleccione un empleado.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Preferencias de Horario",
+    description:
+      "Asigne un peso de 0 a 1 a los rangos horarios en que cada empleado prefiere trabajar. Cuanto mayor sea el peso, más favorecerá el planificador a ese empleado para turnos en ese rango; cualquier valor inferior a 1.0 es una preferencia flexible que puede ignorarse si nadie más está disponible.",
+    matchRule: "Un turno cuenta cuando al menos el 50% de él cae dentro de este rango.",
+    addPreference: "Agregar Preferencia",
+    employee: "Empleado",
+    timeRange: "Rango horario",
+    weight: "Peso",
+    hardWarning:
+      "Con un peso de 1.0 esto se convierte en una regla estricta: el empleado no será programado fuera de este rango, y un turno sin ningún empleado elegible restante se marcará como VACANT (vacante).",
+    searchPlaceholder: "Buscar empleados…",
+    noPreferences: "Aún no se han definido preferencias de horario.",
+    pickEmployee: "Primero seleccione un empleado.",
+    invalidRange: "La hora de inicio y la hora de fin no pueden ser iguales.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Límites de Frecuencia",
+    description:
+      "Limite cuántas veces por semana se puede programar a un empleado dentro de un rango horario determinado, con un peso de 0 a 1. Cualquier valor inferior a 1.0 es un límite flexible que puede ignorarse si nadie más está disponible.",
+    matchRule: "Un turno cuenta cuando al menos el 50% de él cae dentro de este rango.",
+    addCap: "Agregar Límite",
+    employee: "Empleado",
+    timeRange: "Rango horario",
+    maxPerWeek: "Máx. / semana",
+    weight: "Peso",
+    hardWarning:
+      "Con un peso de 1.0 esto se convierte en un límite estricto: una vez alcanzado, el empleado no será programado de nuevo en este rango esa semana, y un turno sin ningún empleado elegible restante se marcará como VACANT (vacante).",
+    searchPlaceholder: "Buscar empleados…",
+    noCaps: "Aún no se han definido límites de frecuencia.",
+    pickEmployee: "Primero seleccione un empleado.",
+    invalidRange: "La hora de inicio y la hora de fin no pueden ser iguales.",
+    invalidMax: "Ingrese un número entero de 0 o más.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

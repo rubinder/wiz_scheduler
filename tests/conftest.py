@@ -358,3 +358,32 @@ async def seeded_company(
         location_id=seed_location.id,
         og_id=seed_company.ownership_group_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# Fixtures for scheduling-preferences API tests
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def seeded_employee_id(seed_employees: list[Employee]) -> str:
+    """A single employee id belonging to the seeded (manager_token) company."""
+    return seed_employees[0].id
+
+
+@pytest_asyncio.fixture
+async def other_company_employee_id(db_session: AsyncSession) -> str:
+    """An employee belonging to a DIFFERENT company than `manager_token`.
+
+    Used to assert that write endpoints refuse to act on another company's
+    employee even when the request is otherwise well-formed.
+    """
+    company = Company(id=COMPANY2_ID, name="Other Co", slug="other-co")
+    db_session.add(company)
+    await db_session.flush()
+    employee = Employee(
+        id=_id(), company_id=COMPANY2_ID, full_name="Outsider Employee"
+    )
+    db_session.add(employee)
+    await db_session.commit()
+    return employee.id

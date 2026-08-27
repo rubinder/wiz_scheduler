@@ -89,6 +89,9 @@ const ja = {
     groupScheduling: "スケジュール管理",
     groupCheckIn: "チェックイン",
     approvedSchedules: "承認済みスケジュール",
+    dayPreferences: "曜日の希望",
+    hourRangePreferences: "時間帯の希望",
+    frequencyCaps: "頻度の上限",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const ja = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "曜日の希望",
+    description:
+      "各従業員が勤務を希望する曜日に0から1の重みを設定します。重みが高いほど、スケジューラーはその曜日のシフトでその従業員をより強く優先します。1.0未満の値はソフトな希望であり、他に対応できる従業員がいない場合は無視されることがあります。",
+    addPreference: "希望を追加",
+    employee: "従業員",
+    dayOfWeek: "曜日",
+    weight: "重み",
+    hardWarning:
+      "重みが1.0の場合、これは絶対ルールになります。その従業員は他の曜日にはスケジュールされず、条件を満たす従業員が残らないシフトはVACANT(欠員)として出力されます。",
+    searchPlaceholder: "従業員を検索…",
+    noPreferences: "曜日の希望はまだ設定されていません。",
+    pickEmployee: "先に従業員を選択してください。",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "時間帯の希望",
+    description:
+      "各従業員が勤務を希望する時間帯に0から1の重みを設定します。重みが高いほど、スケジューラーはその時間帯のシフトでその従業員をより強く優先します。1.0未満の値はソフトな希望であり、他に対応できる従業員がいない場合は無視されることがあります。",
+    matchRule: "シフトの少なくとも50%がこの時間帯に含まれる場合、そのシフトはこの範囲内としてカウントされます。",
+    addPreference: "希望を追加",
+    employee: "従業員",
+    timeRange: "時間帯",
+    weight: "重み",
+    hardWarning:
+      "重みが1.0の場合、これは絶対ルールになります。その従業員はこの時間帯以外にはスケジュールされず、条件を満たす従業員が残らないシフトはVACANT(欠員)として出力されます。",
+    searchPlaceholder: "従業員を検索…",
+    noPreferences: "時間帯の希望はまだ設定されていません。",
+    pickEmployee: "先に従業員を選択してください。",
+    invalidRange: "開始時刻と終了時刻を同じにすることはできません。",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "頻度の上限",
+    description:
+      "特定の時間帯内で従業員を週に何回スケジュールできるかを、0から1の重みで制限します。1.0未満の値はソフトな上限であり、他に対応できる従業員がいない場合は無視されることがあります。",
+    matchRule: "シフトの少なくとも50%がこの時間帯に含まれる場合、そのシフトはこの範囲内としてカウントされます。",
+    addCap: "上限を追加",
+    employee: "従業員",
+    timeRange: "時間帯",
+    maxPerWeek: "週の上限",
+    weight: "重み",
+    hardWarning:
+      "重みが1.0の場合、これは絶対的な上限になります。上限に達すると、その週はこの時間帯に再びスケジュールされず、条件を満たす従業員が残らないシフトはVACANT(欠員)として出力されます。",
+    searchPlaceholder: "従業員を検索…",
+    noCaps: "頻度の上限はまだ設定されていません。",
+    pickEmployee: "先に従業員を選択してください。",
+    invalidRange: "開始時刻と終了時刻を同じにすることはできません。",
+    invalidMax: "0以上の整数を入力してください。",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

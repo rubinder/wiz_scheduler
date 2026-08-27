@@ -38,7 +38,7 @@
 - Consumes: nothing
 - Produces: `EmployeeDayPreference`, `EmployeeHourRangePreference`, `EmployeeHourRangeCap` — all exported from `backend.models`. Fields on each: `id`, `company_id`, `employee_id`, `weight`. Plus `day_of_week: int` on the first; `start_time: str` / `end_time: str` on the second; `start_time` / `end_time` / `max_per_week: int` on the third.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Schema guarantees for the three preference tables.
@@ -172,12 +172,12 @@ async def test_cap_stores_max_per_week(db_session: AsyncSession):
     assert result.scalars().one().max_per_week == 3
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_scheduling_preferences_model.py -v`
 Expected: FAIL — `ImportError: cannot import name 'EmployeeDayPreference'`.
 
-- [ ] **Step 3: Add the models**
+- [x] **Step 3: Add the models**
 
 Append to `backend/models/employee.py`, after `EmployeeDayBlackout`. Add `Numeric` and `UniqueConstraint` to the existing `sqlalchemy` import at the top of the file, and `text` if not already imported.
 
@@ -306,7 +306,7 @@ class EmployeeHourRangeCap(Base):
     )
 ```
 
-- [ ] **Step 4: Export them**
+- [x] **Step 4: Export them**
 
 In `backend/models/__init__.py`, add to the `employee` import line and to `__all__`:
 
@@ -324,7 +324,7 @@ from backend.models.employee import (
     "EmployeeHourRangePreference",
 ```
 
-- [ ] **Step 5: Write the migration**
+- [x] **Step 5: Write the migration**
 
 Create `backend/alembic/versions/0031_add_scheduling_preferences.py`. The current head is `0030`.
 
@@ -422,7 +422,7 @@ def downgrade() -> None:
     op.drop_table("employee_day_preferences")
 ```
 
-- [ ] **Step 6: Apply the migration and run the tests**
+- [x] **Step 6: Apply the migration and run the tests**
 
 ```bash
 cd backend && .venv/bin/python -m alembic upgrade head && .venv/bin/python -m alembic current
@@ -430,12 +430,12 @@ cd .. && backend/.venv/bin/python -m pytest tests/test_scheduling_preferences_mo
 ```
 Expected: `alembic current` reports `0031 (head)`; all 8 tests PASS.
 
-- [ ] **Step 7: Confirm nothing else broke**
+- [x] **Step 7: Confirm nothing else broke**
 
 Run: `backend/.venv/bin/python -m pytest tests/ -q`
 Expected: all pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/models/ backend/alembic/versions/0031_add_scheduling_preferences.py tests/test_scheduling_preferences_model.py
@@ -463,7 +463,7 @@ no existing schedule changes until a manager opts an employee in."
 - Consumes: `EmployeeDayPreference` etc. are *not* used yet — that is Task 5.
 - Produces: `eligible_for_slot(prepared_employees, day, role_name, start, end) -> list[dict]` in `backend/scheduling/prompts.py`. Returns the matching prepared-employee dicts, each with a `_skill` key added. Tasks 5 and 6 both extend this one function.
 
-- [ ] **Step 1: Write the failing guard test**
+- [x] **Step 1: Write the failing guard test**
 
 ```python
 """Both scheduling paths share one eligibility builder.
@@ -547,12 +547,12 @@ def test_shared_builder_excludes_wrong_role_and_wrong_day():
     assert eligible_for_slot(prepared, "Tuesday", "Cook", "09:00", "17:00") == []
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_eligibility_shared.py -v`
 Expected: FAIL — `ImportError: cannot import name 'eligible_for_slot'`.
 
-- [ ] **Step 3: Add the shared builder to `prompts.py`**
+- [x] **Step 3: Add the shared builder to `prompts.py`**
 
 Insert after `_blackout_blocks` (which ends around line 80):
 
@@ -600,7 +600,7 @@ def eligible_for_slot(
     return eligible
 ```
 
-- [ ] **Step 4: Rewrite the `prompts.py` requirements loop**
+- [x] **Step 4: Rewrite the `prompts.py` requirements loop**
 
 Replace the inline filter at lines 151–188 (from `# Find eligible employees:` through `eligible.append(f'{e["id"]} [skill={skill}]')`) so the loop body becomes:
 
@@ -609,7 +609,7 @@ Replace the inline filter at lines 151–188 (from `# Find eligible employees:` 
             eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
 ```
 
-- [ ] **Step 5: Rewrite `_build_eligible_map`**
+- [x] **Step 5: Rewrite `_build_eligible_map`**
 
 In `local_scheduler.py`, replace the inner `for e in emp_prepared:` loop (lines ~76–96) with a single call, and add `eligible_for_slot` to the import on line 22:
 
@@ -639,7 +639,7 @@ from backend.scheduling.prompts import (
 
 `_blackout_blocks` and `_time_covers` may now be unused in `local_scheduler.py`. If so, drop them from the import — `test_no_path_reimplements_the_blackout_filter` requires zero `_blackout_blocks` call sites there.
 
-- [ ] **Step 6: Run the guard and the full suite**
+- [x] **Step 6: Run the guard and the full suite**
 
 ```bash
 backend/.venv/bin/python -m pytest tests/test_eligibility_shared.py -v
@@ -647,7 +647,7 @@ backend/.venv/bin/python -m pytest tests/ -q
 ```
 Expected: guard tests PASS, and **the full suite passes with the same count as before this task** — this refactor must change no behaviour. If any scheduling test changed outcome, the extraction is wrong; do not proceed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/scheduling/prompts.py backend/scheduling/local_scheduler.py tests/test_eligibility_shared.py
@@ -674,7 +674,7 @@ which has to live in exactly one place to be a guarantee."
 - Consumes: nothing
 - Produces: `overlap_fraction(shift_start: str, shift_end: str, range_start: str, range_end: str) -> float` and `matches_range(shift_start, shift_end, range_start, range_end) -> bool` in `backend.scheduling.preferences`; `settings.SCHEDULING_RANGE_MATCH_THRESHOLD`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """The 50% overlap rule, shared by the hour-range preference and the cap.
@@ -730,12 +730,12 @@ def test_just_below_the_threshold_does_not_match():
     assert matches_range("13:00", "18:00", "16:00", "22:00") is False
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preference_overlap.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'backend.scheduling.preferences'`.
 
-- [ ] **Step 3: Add the setting**
+- [x] **Step 3: Add the setting**
 
 In `backend/config.py`, add above the `# LLM billing` block:
 
@@ -748,7 +748,7 @@ In `backend/config.py`, add above the `# LLM billing` block:
     SCHEDULING_RANGE_MATCH_THRESHOLD: float = 0.5
 ```
 
-- [ ] **Step 4: Create the module**
+- [x] **Step 4: Create the module**
 
 ```python
 """Weighted scheduling preferences: overlap arithmetic and scoring.
@@ -786,8 +786,48 @@ def overlap_fraction(
     if overlap <= 0:
         return 0.0
     return overlap / duration
+```
 
+**This body predates overnight handling and does not match what shipped.**
+Task 5 (Step 1 of the fix wave that follows this one) found that a naive
+`min/max` overlap silently returns 0 for a shift or range that crosses
+midnight (e.g. "22:00"-"06:00"), because `_minutes("06:00")` is *smaller*
+than `_minutes("22:00")`, making `duration` negative and short-circuiting
+before any real overlap is computed. The shipped `overlap_fraction`
+(`backend/scheduling/preferences.py`) normalises either side that wraps past
+midnight by adding 24h to its end, handles a genuinely zero-length shift
+before that normalisation so it isn't mistaken for a full-day shift, and then
+tries the range shifted a full day earlier and later as well — because even
+after normalising, the shift and range can land on different 24-hour "pages"
+of the clock while still genuinely overlapping — keeping whichever alignment
+gives the largest overlap:
 
+```python
+def overlap_fraction(
+    shift_start: str, shift_end: str, range_start: str, range_end: str
+) -> float:
+    s_start, s_end = _minutes(shift_start), _minutes(shift_end)
+    if s_end == s_start:
+        return 0.0
+    if s_end <= s_start:
+        s_end += 24 * 60
+    duration = s_end - s_start
+    if duration <= 0:
+        return 0.0
+
+    r_start, r_end = _minutes(range_start), _minutes(range_end)
+    if r_end <= r_start:
+        r_end += 24 * 60
+
+    best_overlap = 0.0
+    for page in (-24 * 60, 0, 24 * 60):
+        overlap = min(s_end, r_end + page) - max(s_start, r_start + page)
+        if overlap > best_overlap:
+            best_overlap = overlap
+    return best_overlap / duration
+```
+
+```python
 def matches_range(
     shift_start: str, shift_end: str, range_start: str, range_end: str
 ) -> bool:
@@ -798,12 +838,12 @@ def matches_range(
     )
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preference_overlap.py -v`
 Expected: 9 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/config.py backend/scheduling/preferences.py tests/test_preference_overlap.py
@@ -826,7 +866,7 @@ git commit -m "feat(scheduling): 50% shift-overlap rule for hour ranges"
   - `PREFERENCE_PENALTY = 50.0`
   - Each employee dict is expected to carry `day_preferences`, `hour_range_preferences` and `hour_range_caps` lists (Task 5 loads them). `range_counts` maps `(employee_id, range_start, range_end)` to how many shifts already assigned this week.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Hard filtering and soft scoring for the three preference parameters.
@@ -935,12 +975,12 @@ def test_penalties_from_several_parameters_add_up():
     assert preference_score(emp, TUESDAY, "06:00", "10:00", {}) == expected
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preference_scoring.py -v`
 Expected: FAIL — `ImportError: cannot import name 'PREFERENCE_PENALTY'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `backend/scheduling/preferences.py`:
 
@@ -1043,12 +1083,12 @@ def preference_score(
     )
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preference_scoring.py -v`
 Expected: 13 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/scheduling/preferences.py tests/test_preference_scoring.py
@@ -1073,7 +1113,7 @@ fourth."
 - Consumes: `blocked_by_hard_preference`, `preference_score` (Task 4); `eligible_for_slot` (Task 2).
 - Produces: `eligible_for_slot` gains two optional keyword arguments — `day_index: int | None = None`, `range_counts: dict | None = None`. When both are omitted the hard filter is skipped, so existing callers keep working.
 
-- [ ] **Step 1: Write the failing test — the no-op regression first**
+- [x] **Step 1: Write the failing test — the no-op regression first**
 
 ```python
 """Preferences change the deterministic scheduler only when configured.
@@ -1151,12 +1191,12 @@ def test_soft_preference_does_not_remove_the_candidate():
     assert [e["id"] for e in out] == ["e1"]
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preferences_local_scheduler.py -v`
 Expected: FAIL — `eligible_for_slot() got an unexpected keyword argument 'day_index'`.
 
-- [ ] **Step 3: Add the hard filter to `eligible_for_slot`**
+- [x] **Step 3: Add the hard filter to `eligible_for_slot`**
 
 In `prompts.py`, change the signature and add one condition. Import at the top of the function body to avoid a circular import at module load:
 
@@ -1184,7 +1224,7 @@ and immediately after the `_blackout_blocks` check inside the loop:
 
 Update the docstring to note that omitting `day_index` skips the preference filter.
 
-- [ ] **Step 4: Pass the day index and counts from `_build_eligible_map`**
+- [x] **Step 4: Pass the day index and counts from `_build_eligible_map`**
 
 `weekly_schedule` is keyed by day *name*. Map it to the `datetime.weekday()` index the preferences use. In `local_scheduler.py`, above `_build_eligible_map`:
 
@@ -1205,13 +1245,19 @@ and in the loop:
                 start,
                 end,
                 day_index=_DAY_INDEX.get(day),
-                range_counts=range_counts,
             )
 ```
 
-`_build_eligible_map` gains a `range_counts: Dict[Any, int]` parameter, passed through from `local_schedule`.
+**Corrected from the original plan:** `_build_eligible_map` does *not* gain a
+`range_counts` parameter, and no `range_counts = {}` is introduced here.
+`eligible_for_slot` is called with `range_counts` simply omitted, which
+defaults to `None` and is treated as `{}` inside the function — a map built
+once before any assignment exists can never see a non-empty count regardless,
+so there is nothing for a parameter to thread through at this call site. The
+real `range_counts` (see Step 5) lives in `local_schedule` and is only ever
+passed to `_pick_employee`, not to `_build_eligible_map`.
 
-- [ ] **Step 5: Track counts and score in `local_schedule` / `_pick_employee`**
+- [x] **Step 5: Track counts and score in `local_schedule` / `_pick_employee`**
 
 In `local_schedule`, initialise `range_counts: Dict[Any, int] = {}` alongside the other draft state. After each assignment, for every cap on the chosen employee whose range the shift matches, increment `range_counts[(emp_id, cap["start_time"], cap["end_time"])]`.
 
@@ -1223,11 +1269,11 @@ In `_pick_employee`, add the preference term to each candidate's score in all fo
 
 and include `pref` in the tuple that `scored.sort(key=lambda x: x[0])` orders on.
 
-- [ ] **Step 6: Load preferences onto employee dicts**
+- [x] **Step 6: Load preferences onto employee dicts**
 
 In `backend/scheduling/graph.py`, where employees are loaded with their roles, affinities and `day_blackouts`, also select the three preference tables filtered by `company_id`, and attach `day_preferences`, `hour_range_preferences` and `hour_range_caps` lists to each employee dict. Each entry is a plain dict with the model's column names, weights cast to `float`.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 ```bash
 backend/.venv/bin/python -m pytest tests/test_preferences_local_scheduler.py -v
@@ -1235,7 +1281,7 @@ backend/.venv/bin/python -m pytest tests/ -q
 ```
 Expected: new tests PASS; **the full suite passes with no change to existing scheduling test outcomes** — the seeded demo has no preference rows, so every existing schedule must be unchanged.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend/scheduling/ tests/test_preferences_local_scheduler.py
@@ -1259,7 +1305,7 @@ case is provably unchanged."
 - Consumes: `preference_score`, `matches_range` (Tasks 3–4); `eligible_for_slot` with the hard filter (Task 5).
 - Produces: no new public names. `validate_and_update_availability` gains cap-trimming behaviour, setting `shift["status"] = "VACANT"` on assignments beyond `max_per_week`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Preferences reach the AI path two ways.
@@ -1361,12 +1407,12 @@ def test_no_preferences_leaves_shifts_untouched():
     assert out["current_parsed_shifts"][0]["status"] == "ok"
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_preferences_ai_path.py -v`
 Expected: FAIL — no cap trimming yet, so `statuses.count("VACANT") == 0`.
 
-- [ ] **Step 3: Order the prompt's eligible list**
+- [x] **Step 3: Order the prompt's eligible list**
 
 In `prompts.py`, the requirements loop from Task 2 Step 4 becomes:
 
@@ -1381,7 +1427,16 @@ In `prompts.py`, the requirements loop from Task 2 Step 4 becomes:
             eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
 ```
 
-Define `_DAY_INDEX_FOR_PROMPT` in `prompts.py` with the same mapping as `_DAY_INDEX`, and import `preference_score` inside the function to avoid a circular import.
+Define `_DAY_INDEX_FOR_PROMPT` in `prompts.py` with the same mapping as `_DAY_INDEX`.
+
+**Corrected from the original plan:** `preference_score` ships as a module-level
+import in `prompts.py` (alongside the existing module-level import of the same
+name), not imported inside the function. There is no circular import between
+`prompts.py` and `preferences.py` to avoid — `preferences.py` imports nothing
+from `prompts.py` — so the function-local import this plan originally called
+for was unnecessary, and a review round moved it (along with the
+`blocked_by_hard_preference` import Task 5 added the same way) to module level
+for consistency.
 
 Add one line to the numbered instruction block (currently ending at rule 6, `prompts.py:259`):
 
@@ -1391,17 +1446,17 @@ Add one line to the numbered instruction block (currently ending at rule 6, `pro
         f"   equal.\n"
 ```
 
-- [ ] **Step 4: Trim cap violations in the validator**
+- [x] **Step 4: Trim cap violations in the validator**
 
 In `validate_and_update_availability` (`nodes.py:806`), after the existing conflict handling and before returning, add a pass that walks the shifts in date order, counts matches per `(employee_id, cap range)` using `matches_range`, and sets `shift["status"] = "VACANT"` on any assignment beyond `max_per_week` for a cap with `weight >= 1.0`. Read preferences from `state.get("employee_preferences", {})`; when the key is absent the pass is a no-op.
 
 Never raise here — the graph's contract is that this node degrades rather than throwing.
 
-- [ ] **Step 5: Populate `employee_preferences` in state**
+- [x] **Step 5: Populate `employee_preferences` in state**
 
 Add `employee_preferences: Dict[str, Dict[str, list]]` to `SchedulingState` in `backend/scheduling/state.py`, and populate it in `graph.py` alongside the per-employee lists added in Task 5 Step 6.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 ```bash
 backend/.venv/bin/python -m pytest tests/test_preferences_ai_path.py -v
@@ -1409,7 +1464,7 @@ backend/.venv/bin/python -m pytest tests/ -q
 ```
 Expected: 3 new tests PASS; full suite green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/scheduling/ tests/test_preferences_ai_path.py
@@ -1434,7 +1489,7 @@ trimmed after generation in the validator."
 - Consumes: the three models from Task 1.
 - Produces: `GET|POST|PUT|DELETE /api/v1/scheduling-preferences/days`, `/hour-ranges`, `/caps`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """API surface for the three preference types.
@@ -1517,12 +1572,12 @@ async def test_cannot_create_for_another_companys_employee(
 
 Reuse the `client`, `manager_token` and employee fixtures already used by `tests/test_plan_enforcement.py`; add `other_company_employee_id` to `tests/conftest.py` if it does not exist.
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `backend/.venv/bin/python -m pytest tests/test_scheduling_preferences_api.py -v`
 Expected: FAIL — 404 on every route.
 
-- [ ] **Step 3: Write the router**
+- [x] **Step 3: Write the router**
 
 Create `backend/routers/scheduling_preferences.py` with a `router = APIRouter(prefix="/scheduling-preferences", tags=["scheduling-preferences"])` and, for each of the three resources, `GET` (list for the company), `POST` (create, 201), `PUT /{id}` (update weight and fields), `DELETE /{id}` (204). Every handler takes `current_user: User = Depends(require_manager)` and filters by `current_user.company_id`. Creating or updating verifies the target employee belongs to the caller's company before writing.
 
@@ -1541,7 +1596,7 @@ def one_decimal_place(cls, v: float) -> float:
 
 **Do not call `assert_paid_plan`.**
 
-- [ ] **Step 4: Register the router**
+- [x] **Step 4: Register the router**
 
 In `backend/main.py`, beside the other `include_router` calls (line ~102):
 
@@ -1549,7 +1604,7 @@ In `backend/main.py`, beside the other `include_router` calls (line ~102):
     app.include_router(scheduling_preferences.router, prefix=api_prefix)
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 ```bash
 backend/.venv/bin/python -m pytest tests/test_scheduling_preferences_api.py -v
@@ -1557,7 +1612,7 @@ backend/.venv/bin/python -m pytest tests/ -q
 ```
 Expected: 6 new tests PASS; full suite green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/routers/scheduling_preferences.py backend/main.py tests/test_scheduling_preferences_api.py tests/conftest.py
@@ -1587,11 +1642,11 @@ Depends on `docs/superpowers/plans/2026-08-26-sidebar-nav-grouping.md` having sh
 - Consumes: the endpoints from Task 7.
 - Produces: routes `/manager/day-preferences`, `/manager/hour-range-preferences`, `/manager/frequency-caps`.
 
-- [ ] **Step 1: Add the typed API client**
+- [x] **Step 1: Add the typed API client**
 
 `frontend/src/api/schedulingPreferences.ts`, following `frontend/src/api/affinities.ts` — one exported interface and list/create/update/remove function per resource, all through the shared `apiFetch`.
 
-- [ ] **Step 2: Build `WeightSlider`**
+- [x] **Step 2: Build `WeightSlider`**
 
 One shared component used by all three pages, so the 1.0 warning is written once:
 
@@ -1629,13 +1684,13 @@ export default function WeightSlider({ value, onChange, label, hardWarning }: Pr
 
 The warning renders only at 1.0, where the consequence is real — a manager must see it at the moment of choosing, not discover it in the next schedule.
 
-- [ ] **Step 3: Build the three pages**
+- [x] **Step 3: Build the three pages**
 
 Follow `frontend/src/pages/manager/HourRestrictions.tsx` (278 lines: local draft rows, a name filter, save/delete per row). New rows start at `weight = 0.7`. Employees with no row are not listed — that is weight 0.
 
 Both range pages render the matching rule verbatim: **"A shift counts when at least 50% of it falls inside this range."**
 
-- [ ] **Step 4: Add routes**
+- [x] **Step 4: Add routes**
 
 In `App.tsx`, beside the other manager routes:
 
@@ -1645,7 +1700,7 @@ In `App.tsx`, beside the other manager routes:
             <Route path="frequency-caps" element={<FrequencyCaps />} />
 ```
 
-- [ ] **Step 5: Add the sidebar entries**
+- [x] **Step 5: Add the sidebar entries**
 
 In `Sidebar.tsx`, append to the `groupSchedulingRules` children array:
 
@@ -1655,11 +1710,11 @@ In `Sidebar.tsx`, append to the `groupSchedulingRules` children array:
       { to: "/manager/frequency-caps", labelKey: "frequencyCaps" },
 ```
 
-- [ ] **Step 6: Add i18n keys to all 19 locales**
+- [x] **Step 6: Add i18n keys to all 19 locales**
 
 Three `nav` keys (`dayPreferences`, `hourRangePreferences`, `frequencyCaps`) plus a page-strings block per feature — titles, column headers, the 50% sentence, and the 1.0 VACANT warning. Translate per locale; do not paste English.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 ```bash
 cd frontend && npx tsc --noEmit && npm run build
@@ -1672,7 +1727,7 @@ the route guard confirms all three new links resolve, and
 `frequencyCaps`) all have matching `nav` keys added in Step 6. That test is
 the only thing that catches a mismatch between those two steps.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src tests/
@@ -1711,9 +1766,11 @@ Raise the weight to `1.0` on an employee whose role is thinly staffed, so no oth
 
 - [ ] **Step 5: Confirm the frequency cap in both modes**
 
-Set a cap of 1 per week on a range covering the template's main slot, weight `1.0`. Generate with `use_local: true` and confirm no employee exceeds it. Repeat with `use_local: false` (AI mode requires a paid ownership group locally — set `stripe_subscription_id` on the demo group, then **revert it afterwards**) and confirm the post-generation trim vacates the excess.
+Set a cap of 1 per week on a range covering the template's main slot, weight `1.0`. Generate with `use_local: true` and confirm no employee exceeds it.
 
-- [ ] **Step 6: Full suite and frontend gates**
+**Out of scope, not required PR evidence:** this step originally also asked to repeat generation with `use_local: false` (AI mode) against a live Anthropic call. That was ruled out of scope for this feature's PR evidence — this branch is based on `main`, which already hardcodes a retired model id (`claude-sonnet-4-20250514` at `backend/scheduling/nodes.py:227`), a pre-existing problem unrelated to scheduling preferences. Fixing it is separate work; blocking this PR's evidence on a live AI-mode run through a broken model pin would conflate the two. The AI path's preference logic (prompt filtering, post-generation trim) is covered by the unit tests in Task 6, which do not call the LLM.
+
+- [x] **Step 6: Full suite and frontend gates**
 
 ```bash
 backend/.venv/bin/python -m pytest tests/ -q

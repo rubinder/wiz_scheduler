@@ -89,6 +89,9 @@ const zh = {
     groupScheduling: "排班管理",
     groupCheckIn: "签到",
     approvedSchedules: "已批准排班",
+    dayPreferences: "日期偏好",
+    hourRangePreferences: "时段偏好",
+    frequencyCaps: "频率上限",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const zh = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "日期偏好",
+    description:
+      "为每位员工偏好工作的星期几设置0到1的权重。权重越高，排班系统就越倾向于在那一天为该员工安排班次；低于1.0的任何值都是软性偏好，在没有其他人可用时仍可被覆盖。",
+    addPreference: "添加偏好",
+    employee: "员工",
+    dayOfWeek: "星期几",
+    weight: "权重",
+    hardWarning:
+      "权重为1.0时，这将变为硬性规则：该员工不会被安排在其他任何一天，若某班次没有剩余符合条件的员工，将被标记为VACANT(空缺)。",
+    searchPlaceholder: "搜索员工…",
+    noPreferences: "尚未设置任何日期偏好。",
+    pickEmployee: "请先选择一名员工。",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "时段偏好",
+    description:
+      "为每位员工偏好工作的时间段设置0到1的权重。权重越高，排班系统就越倾向于在该时间段内为该员工安排班次；低于1.0的任何值都是软性偏好，在没有其他人可用时仍可被覆盖。",
+    matchRule: "只要一个班次至少有50%落在此时间段内，即计入该时间段。",
+    addPreference: "添加偏好",
+    employee: "员工",
+    timeRange: "时间段",
+    weight: "权重",
+    hardWarning:
+      "权重为1.0时，这将变为硬性规则：该员工不会被安排在此时间段之外，若某班次没有剩余符合条件的员工，将被标记为VACANT(空缺)。",
+    searchPlaceholder: "搜索员工…",
+    noPreferences: "尚未设置任何时段偏好。",
+    pickEmployee: "请先选择一名员工。",
+    invalidRange: "开始时间和结束时间不能相同。",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "频率上限",
+    description:
+      "限制一名员工每周在指定时间段内可被安排的次数，权重为0到1。低于1.0的任何值都是软性上限，在没有其他人可用时仍可被覆盖。",
+    matchRule: "只要一个班次至少有50%落在此时间段内，即计入该时间段。",
+    addCap: "添加上限",
+    employee: "员工",
+    timeRange: "时间段",
+    maxPerWeek: "每周上限",
+    weight: "权重",
+    hardWarning:
+      "权重为1.0时，这将变为硬性上限：一旦达到上限，该员工当周将不再被安排到此时间段，若某班次没有剩余符合条件的员工，将被标记为VACANT(空缺)。",
+    searchPlaceholder: "搜索员工…",
+    noCaps: "尚未设置任何频率上限。",
+    pickEmployee: "请先选择一名员工。",
+    invalidRange: "开始时间和结束时间不能相同。",
+    invalidMax: "请输入0或更大的整数。",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {

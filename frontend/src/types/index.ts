@@ -178,6 +178,40 @@ export interface EmployeeDayBlackout {
   end_time: string;    // "HH:MM"
 }
 
+// ── Weighted scheduling preferences ──
+//
+// Shared weight rule across all three: 0.0-1.0 in increments of 0.1. 1.0 is
+// a hard rule (a slot with no surviving candidate is emitted VACANT);
+// anything below is a soft, scored preference. An employee with no row for
+// a given resource is equivalent to weight 0 (no effect).
+
+export interface EmployeeDayPreference {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  day_of_week: number; // 0 = Monday ... 6 = Sunday
+  weight: number;
+}
+
+export interface EmployeeHourRangePreference {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  start_time: string; // "HH:MM"
+  end_time: string;   // "HH:MM"
+  weight: number;
+}
+
+export interface EmployeeHourRangeCap {
+  id: string;
+  company_id: string;
+  employee_id: string;
+  start_time: string; // "HH:MM"
+  end_time: string;   // "HH:MM"
+  max_per_week: number;
+  weight: number;
+}
+
 // ── Shift Template ──
 
 export interface ShiftTemplate {

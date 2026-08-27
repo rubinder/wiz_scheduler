@@ -37,7 +37,13 @@ async def _subtract_availability_for_shifts(
     """
     for s in shifts_data:
         emp_id = s.get("employee_id", "")
-        if not emp_id or emp_id == "VACANT":
+        # Defence in depth alongside the sibling loops elsewhere in this
+        # module that build Shift rows / accumulate worked minutes -- both
+        # check status AND employee_id. This also covers a shift whose
+        # status was flipped to something other than "ok" (e.g. a
+        # preference/cap trim to VACANT) without its employee_id sentinel
+        # being updated for some reason.
+        if not emp_id or emp_id == "VACANT" or s.get("status") != "ok":
             continue
 
         try:

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Regroup the manager sidebar from 20 flat links into 9 top-level rows with one level of expandable, indented children.
+**Goal:** Regroup the manager sidebar from 20 flat links into 8 top-level rows with one level of expandable, indented children.
 
 **Architecture:** `NavItem` gains an optional `requiresEmployees` flag and a sibling `NavGroup` type holding `children`. The flat arrays become one `NavEntry[]`. The group containing the active route auto-expands. No routing changes, no page changes — only how existing routes are presented.
 
@@ -348,6 +348,18 @@ export default function Sidebar() {
                     </NavLink>
                   ))}
                 </div>
+```
+
+**Corrected from the original plan:** the shipped indent rail uses logical
+(RTL-safe) properties instead — `ms-3 ps-2 border-s ${border.default}` — not
+the physical `ml-3 pl-2 border-l border-gray-200` shown above. A review round
+(`fix(nav): RTL-safe indent rail, theme border, labelKey guard test, stale
+docs`) caught that `ml-3`/`pl-2`/`border-l` render on the wrong edge in an
+RTL locale (e.g. `ar`, `ur`), and that `border-gray-200` didn't follow the
+app's theme border token. `ms-3`/`ps-2`/`border-s` flip automatically with
+text direction, and `${border.default}` tracks the theme.
+
+```tsx
               )}
             </div>
           );
@@ -429,7 +441,7 @@ Expected: all pass, including `tests/test_sidebar_routes.py`.
 - [ ] **Step 6: Manual check — the one thing no test covers**
 
 Run `npm run dev` and confirm, as a manager:
-1. Nine top-level rows; groups collapsed except the one owning the current page.
+1. Eight top-level rows; groups collapsed except the one owning the current page.
 2. Clicking a group header expands and collapses it.
 3. Deep-linking to `/manager/day-blackouts` lands with **Scheduling Rules** already expanded.
 4. **The `hasEmployees` behaviour:** with a company that has zero employees, Employee Availability and Employee Association are both hidden — and because People and Scheduling Rules still have other children, neither group disappears.
@@ -440,7 +452,7 @@ Run `npm run dev` and confirm, as a manager:
 git add frontend/src/components/layout/Sidebar.tsx frontend/src/i18n/
 git commit -m "feat(nav): group the manager sidebar into expandable sections
 
-Twenty flat links become nine top-level rows with one level of indented
+Twenty flat links become eight top-level rows with one level of indented
 children. The group owning the active route auto-expands.
 
 Replaces the positional \`postEmployeeManagerLinks.slice(2)\` with an explicit

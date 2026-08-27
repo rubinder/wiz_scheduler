@@ -67,3 +67,18 @@ class SchedulingState(TypedDict):
     # locations in this graph run. Used to enforce per-employee
     # max_hours_per_week caps across multi-location schedules.
     employee_weekly_hours_draft: Dict[str, float]
+    # Running count of committed shifts per (employee_id, range_start,
+    # range_end) across already-processed locations in this graph run.
+    # Used to enforce weight-1.0 hour_range_caps ("N times a week") across
+    # multi-location schedules, the same way employee_weekly_hours_draft
+    # enforces max_hours_per_week. Grown in validate_and_update_availability
+    # from committed shifts, and seeded into local_schedule's range_counts.
+    range_counts_draft: Dict[Any, int]
+    # Per-employee scheduling preferences, keyed by employee_id:
+    # {"day_preferences": [...], "hour_range_preferences": [...],
+    # "hour_range_caps": [...]}. Same shape as the per-employee fields
+    # embedded in each `employees` dict, duplicated here so
+    # validate_and_update_availability can trim weight>=1.0 hour_range_cap
+    # violations after AI generation without threading the whole employees
+    # list through. Populated by _load_initial_state.
+    employee_preferences: Dict[str, Dict[str, list]]

@@ -89,6 +89,9 @@ const de = {
     groupScheduling: "Planung",
     groupCheckIn: "Check-in",
     approvedSchedules: "Genehmigte Pläne",
+    dayPreferences: "Tagespräferenzen",
+    hourRangePreferences: "Zeitraum-Präferenzen",
+    frequencyCaps: "Häufigkeitsgrenzen",
   },
 
   // ── Team ──
@@ -509,6 +512,60 @@ const de = {
     invalidValue: "Enter a number between 0 and 168, or leave blank for no cap.",
   },
 
+
+  // ── Day Preferences ──
+  dayPreferences: {
+    title: "Tagespräferenzen",
+    description:
+      "Gewichten Sie von 0 bis 1, an welchen Wochentagen ein Mitarbeiter bevorzugt arbeitet. Je höher die Gewichtung, desto stärker bevorzugt der Planer diesen Mitarbeiter für Schichten an diesem Tag; alles unter 1,0 ist eine weiche Präferenz, die bei Bedarf übergangen werden kann, wenn niemand sonst verfügbar ist.",
+    addPreference: "Präferenz hinzufügen",
+    employee: "Mitarbeiter",
+    dayOfWeek: "Wochentag",
+    weight: "Gewichtung",
+    hardWarning:
+      "Bei Gewichtung 1,0 wird dies zu einer festen Regel: Der Mitarbeiter wird an keinem anderen Tag eingeplant, und eine Schicht ohne verbleibenden geeigneten Mitarbeiter wird als VACANT (unbesetzt) markiert.",
+    searchPlaceholder: "Mitarbeiter suchen…",
+    noPreferences: "Noch keine Tagespräferenzen festgelegt.",
+    pickEmployee: "Wählen Sie zuerst einen Mitarbeiter aus.",
+  },
+
+  // ── Hour Range Preferences ──
+  hourRangePreferences: {
+    title: "Zeitraum-Präferenzen",
+    description:
+      "Gewichten Sie von 0 bis 1, in welchen Zeiträumen ein Mitarbeiter bevorzugt arbeitet. Je höher die Gewichtung, desto stärker bevorzugt der Planer diesen Mitarbeiter für Schichten in diesem Zeitraum; alles unter 1,0 ist eine weiche Präferenz, die bei Bedarf übergangen werden kann, wenn niemand sonst verfügbar ist.",
+    matchRule: "Eine Schicht zählt, wenn mindestens 50 % von ihr in diesen Zeitraum fällt.",
+    addPreference: "Präferenz hinzufügen",
+    employee: "Mitarbeiter",
+    timeRange: "Zeitraum",
+    weight: "Gewichtung",
+    hardWarning:
+      "Bei Gewichtung 1,0 wird dies zu einer festen Regel: Der Mitarbeiter wird außerhalb dieses Zeitraums nicht eingeplant, und eine Schicht ohne verbleibenden geeigneten Mitarbeiter wird als VACANT (unbesetzt) markiert.",
+    searchPlaceholder: "Mitarbeiter suchen…",
+    noPreferences: "Noch keine Zeitraum-Präferenzen festgelegt.",
+    pickEmployee: "Wählen Sie zuerst einen Mitarbeiter aus.",
+    invalidRange: "Start- und Endzeit dürfen nicht gleich sein.",
+  },
+
+  // ── Frequency Caps ──
+  frequencyCaps: {
+    title: "Häufigkeitsgrenzen",
+    description:
+      "Begrenzen Sie, wie oft pro Woche ein Mitarbeiter innerhalb eines bestimmten Zeitraums eingeplant werden kann, gewichtet von 0 bis 1. Alles unter 1,0 ist eine weiche Grenze, die bei Bedarf übergangen werden kann, wenn niemand sonst verfügbar ist.",
+    matchRule: "Eine Schicht zählt, wenn mindestens 50 % von ihr in diesen Zeitraum fällt.",
+    addCap: "Grenze hinzufügen",
+    employee: "Mitarbeiter",
+    timeRange: "Zeitraum",
+    maxPerWeek: "Max. / Woche",
+    weight: "Gewichtung",
+    hardWarning:
+      "Bei Gewichtung 1,0 wird dies zu einer festen Grenze: Ist sie erreicht, wird der Mitarbeiter diese Woche nicht erneut in diesem Zeitraum eingeplant, und eine Schicht ohne verbleibenden geeigneten Mitarbeiter wird als VACANT (unbesetzt) markiert.",
+    searchPlaceholder: "Mitarbeiter suchen…",
+    noCaps: "Noch keine Häufigkeitsgrenzen festgelegt.",
+    pickEmployee: "Wählen Sie zuerst einen Mitarbeiter aus.",
+    invalidRange: "Start- und Endzeit dürfen nicht gleich sein.",
+    invalidMax: "Geben Sie eine ganze Zahl von 0 oder mehr ein.",
+  },
 
   // ── Shift Templates ──
   shiftTemplates: {
