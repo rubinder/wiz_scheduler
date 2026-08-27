@@ -134,8 +134,11 @@ async def test_horizon_starts_today(db_session: AsyncSession, demo_roster):
     first = date(windows[0].year, windows[0].month, windows[0].day)
     last = date(windows[-1].year, windows[-1].month, windows[-1].day)
 
-    assert first == date.today()
-    assert last == date.today() + timedelta(days=AVAILABILITY_HORIZON_DAYS - 1)
+    # seed.py:269 builds the horizon from datetime.now(timezone.utc).date().
+    # Asserting against the LOCAL date fails whenever the two differ (#87).
+    today_utc = datetime.now(timezone.utc).date()
+    assert first == today_utc
+    assert last == today_utc + timedelta(days=AVAILABILITY_HORIZON_DAYS - 1)
 
 
 async def test_reseeding_replaces_rather_than_duplicates(
@@ -178,7 +181,7 @@ async def test_reseeding_clears_windows_in_a_foreign_id_scheme(
 
 async def test_availability_ids_are_unique_across_the_whole_grid():
     """Ids are packed into an 8-char column; a collision silently drops a row."""
-    start = date.today()
+    start = datetime.now(timezone.utc).date()
     ids = {
         _availability_id(emp_idx, start + timedelta(days=offset))
         for emp_idx in range(DEMO_EMPLOYEE_COUNT)

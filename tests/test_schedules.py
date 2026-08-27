@@ -661,7 +661,7 @@ async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
 
     db_session.add(TokenUsageDaily(
         ownership_group_id=og.id,
-        usage_date=_date.today(),
+        usage_date=datetime.now(timezone.utc).date(),
         input_tokens=0, output_tokens=0, total_tokens=0,
         cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD + 0.01,
     ))
@@ -701,7 +701,7 @@ async def test_generate_local_mode_bypasses_daily_cost_cap(
 
     db_session.add(TokenUsageDaily(
         ownership_group_id=og.id,
-        usage_date=_date.today(),
+        usage_date=datetime.now(timezone.utc).date(),
         input_tokens=0, output_tokens=0, total_tokens=0,
         cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD * 10,  # way over
     ))

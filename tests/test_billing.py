@@ -2213,7 +2213,8 @@ async def test_check_and_record_usage_writes_daily_row(
         )
     )).scalar_one_or_none()
     assert daily is not None
-    assert daily.usage_date == _date.today()
+    # billing.py stamps usage_date from datetime.now(timezone.utc) (#87).
+    assert daily.usage_date == datetime.now(timezone.utc).date()
     assert daily.input_tokens == 1000
     assert daily.output_tokens == 500
     assert daily.cost_usd > 0
@@ -2245,7 +2246,7 @@ async def test_get_og_anthropic_spend_24h_sums_today_plus_yesterday_fraction(
 
     from backend.services.billing import get_og_anthropic_spend_24h
 
-    today = _date.today()
+    today = datetime.now(timezone.utc).date()
     db_session.add(TokenUsageDaily(
         ownership_group_id=OG_ID,
         usage_date=today,
@@ -2264,9 +2265,19 @@ async def test_get_og_anthropic_spend_24h_sums_today_plus_yesterday_fraction(
     # Today's $10 + some fraction of yesterday's $24. Fraction depends on
     # the wall-clock minute the test runs, so assert on the band.
     assert 10.0 <= spend <= 34.0
-    # And a sane upper bound — at midnight UTC + 1s, yesterday contributes
-    # ~$24 in full; at 23:59 UTC it contributes ~$0.
-    assert spend > 10.0 or _date.today() == today  # tautology guards midnight rollover
+    # Previously this line was `spend > 10.0 or _date.today() == today`, a
+    # deliberate tautology that asserted nothing precisely when the midnight
+    # rollover it named actually happened (#87). Now that `today` is derived
+    # in UTC — matching get_og_anthropic_spend_24h — the value is predictable,
+    # so assert it. This mirrors the implementation's formula on purpose: it
+    # is what catches a changed constant, a dropped fraction, or bad rounding.
+    _now = datetime.now(timezone.utc)
+    _into_today = (_now - _now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
+    _expected = 10.0 + 24.0 * max(0.0, 1.0 - _into_today / 86400.0)
+    assert abs(spend - _expected) < 0.01, (
+        f"expected ~{_expected:.4f} from $10 today plus yesterday's prorated "
+        f"$24, got {spend}"
+    )
 
 
 async def test_get_og_anthropic_spend_24h_zero_when_no_rows(
@@ -2285,7 +2296,7 @@ async def test_billing_usage_includes_daily_cost_block(
 
     db_session.add(TokenUsageDaily(
         ownership_group_id=OG_ID,
-        usage_date=_date.today(),
+        usage_date=datetime.now(timezone.utc).date(),
         input_tokens=0, output_tokens=0, total_tokens=0,
         cost_usd=settings.OG_ANTHROPIC_DAILY_CAP_USD + 1,
     ))
