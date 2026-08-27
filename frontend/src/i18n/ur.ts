@@ -82,6 +82,12 @@ const ur = {
     checkInQr: "چیک اِن کوڈ",
     checkInReport: "چیک اِن رپورٹ",
     checkIn: "چیک اِن کریں",
+    groupOrganization: "تنظیم",
+    groupRoles: "کردار اور مہارتیں",
+    groupPeople: "لوگ",
+    groupSchedulingRules: "شیڈول کے اصول",
+    groupScheduling: "شیڈولنگ",
+    groupCheckIn: "چیک اِن",
   },
 
   // ── Team ──

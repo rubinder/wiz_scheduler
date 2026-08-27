@@ -82,6 +82,12 @@ const ru = {
     checkInQr: "Код регистрации",
     checkInReport: "Отчёт о регистрации",
     checkIn: "Регистрация прихода",
+    groupOrganization: "Организация",
+    groupRoles: "Роли и навыки",
+    groupPeople: "Люди",
+    groupSchedulingRules: "Правила расписания",
+    groupScheduling: "Планирование",
+    groupCheckIn: "Регистрация",
   },
 
   // ── Team ──

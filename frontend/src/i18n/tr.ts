@@ -82,6 +82,12 @@ const trLang = {
     checkInQr: "Giriş Kodu",
     checkInReport: "Giriş Raporu",
     checkIn: "Giriş Yap",
+    groupOrganization: "Organizasyon",
+    groupRoles: "Roller ve Beceriler",
+    groupPeople: "Kişiler",
+    groupSchedulingRules: "Program Kuralları",
+    groupScheduling: "Programlama",
+    groupCheckIn: "Giriş",
   },
 
   // ── Team ──

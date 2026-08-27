@@ -82,6 +82,12 @@ const bn = {
     checkInQr: "চেক-ইন কোড",
     checkInReport: "চেক-ইন রিপোর্ট",
     checkIn: "চেক-ইন করুন",
+    groupOrganization: "সংগঠন",
+    groupRoles: "ভূমিকা ও দক্ষতা",
+    groupPeople: "মানুষ",
+    groupSchedulingRules: "সময়সূচি নিয়ম",
+    groupScheduling: "সময়সূচি ব্যবস্থাপনা",
+    groupCheckIn: "চেক-ইন",
   },
 
   // ── Team ──

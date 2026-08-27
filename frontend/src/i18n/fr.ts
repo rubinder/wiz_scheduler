@@ -82,6 +82,12 @@ const fr = {
     checkInQr: "Code de pointage",
     checkInReport: "Rapport de pointage",
     checkIn: "Pointer",
+    groupOrganization: "Organisation",
+    groupRoles: "Rôles et compétences",
+    groupPeople: "Personnes",
+    groupSchedulingRules: "Règles de planification",
+    groupScheduling: "Planification",
+    groupCheckIn: "Pointage",
   },
 
   // ── Team ──

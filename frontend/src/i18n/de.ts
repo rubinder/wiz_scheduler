@@ -82,6 +82,12 @@ const de = {
     checkInQr: "Check-in-Code",
     checkInReport: "Check-in-Bericht",
     checkIn: "Einchecken",
+    groupOrganization: "Organisation",
+    groupRoles: "Rollen & Fähigkeiten",
+    groupPeople: "Personal",
+    groupSchedulingRules: "Planungsregeln",
+    groupScheduling: "Planung",
+    groupCheckIn: "Check-in",
   },
 
   // ── Team ──

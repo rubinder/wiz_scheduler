@@ -82,6 +82,12 @@ const es = {
     checkInQr: "Código de fichaje",
     checkInReport: "Informe de fichajes",
     checkIn: "Fichar",
+    groupOrganization: "Organización",
+    groupRoles: "Roles y Habilidades",
+    groupPeople: "Personas",
+    groupSchedulingRules: "Reglas de Programación",
+    groupScheduling: "Programación",
+    groupCheckIn: "Registro de Entrada",
   },
 
   // ── Team ──

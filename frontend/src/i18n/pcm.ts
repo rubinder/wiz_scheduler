@@ -82,6 +82,12 @@ const pcm = {
     checkInQr: "Code For Check-In",
     checkInReport: "Report For Check-In",
     checkIn: "Check In",
+    groupOrganization: "Organization",
+    groupRoles: "Roles & Skill",
+    groupPeople: "Worker Dem",
+    groupSchedulingRules: "Schedule Rules",
+    groupScheduling: "Schedule Matter",
+    groupCheckIn: "Check-In Matter",
   },
 
   // ── Team ──
