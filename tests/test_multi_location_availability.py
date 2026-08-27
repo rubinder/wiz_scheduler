@@ -164,20 +164,27 @@ async def test_fully_consumed_window_removed():
     assert remaining == [], "Fully consumed window should be removed"
 
 
-async def test_partial_overlap_window_kept():
-    """A window only partially overlapped by consumed time is kept."""
+async def test_partial_overlap_is_carved_out_not_kept_whole(): 
+    """Consumed time is subtracted, leaving the unused remainder on each side.
+
+    This previously asserted the window was kept WHOLE, which is what allowed
+    the same hours to be booked again at another location (#85). Keeping the
+    employee available is right; keeping the consumed hours available is not.
+    """
     emp = _make_employee(
         _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
         windows=[{"start": f"{_MONDAY}T08:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}],
     )
-    # Consumed covers only 09:00-13:00, does not fully cover 08:00-17:00
+    # Worked 09:00-13:00; 08:00-09:00 and 13:00-17:00 remain free.
     draft = {
         _EMP_SHARED_ID: [
             {"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T13:00:00{_TZ}"},
         ]
     }
     remaining = _filter_availability_against_draft(emp, draft)
-    assert len(remaining) == 1, "Partially overlapped window should be kept"
+    assert len(remaining) == 2, "A mid-window booking splits the window in two"
+    assert "T08:00:00" in remaining[0]["start"] and "T09:00:00" in remaining[0]["end"]
+    assert "T13:00:00" in remaining[1]["start"] and "T17:00:00" in remaining[1]["end"]
 
 
 async def test_no_consumed_windows_all_kept():
@@ -262,10 +269,8 @@ async def test_shared_employee_availability_removed_after_first_location():
     assert len(carol["available_windows"]) == 1
 
 
-async def test_shared_employee_partial_day_still_available():
-    """If a shared employee has a long window and only part is consumed
-    at location A, the window is still available at location B
-    (partial overlap is not removed)."""
+async def test_shared_employee_partial_day_keeps_only_the_unused_hours():
+    """A partly-used window returns its unused remainder, not the whole window."""
     employees = [
         _make_employee(
             _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID, _LOCATION_B_ID],
@@ -284,9 +289,10 @@ async def test_shared_employee_partial_day_still_available():
 
     result = load_location_context(state)
     alice = next(e for e in result["current_employees"] if e["id"] == _EMP_SHARED_ID)
-    assert len(alice["available_windows"]) == 1, (
-        "Partially consumed window should still be available"
-    )
+    # 06:00-22:00 minus the 09:00-13:00 worked at A -> 06:00-09:00 and 13:00-22:00
+    assert len(alice["available_windows"]) == 2
+    assert "T09:00:00" in alice["available_windows"][0]["end"]
+    assert "T13:00:00" in alice["available_windows"][1]["start"]
 
 
 # ---------------------------------------------------------------------------
@@ -640,3 +646,137 @@ async def test_three_locations_cumulative_availability_drain():
 
     # All three locations should be conflict-free
     assert all(s["status"] == "ok" for s in state["draft_schedules"])
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #85 — cross-location double-booking
+#
+# The fixtures above use one consistent offset (_TZ) on BOTH sides, which is
+# exactly why the timezone half of #85 went unnoticed for so long. Production
+# does not: availability is persisted as local wall-clock TAGGED UTC (+00:00,
+# the #61 contract) while generated shifts carry the location's real offset.
+# These tests reproduce that mismatch deliberately.
+# ---------------------------------------------------------------------------
+
+_UTC = "+00:00"       # how availability actually reaches the pipeline
+_REAL = "-04:00"      # how a generated America/New_York shift actually looks
+
+
+async def test_mixed_offsets_still_consume_the_window():
+    """The production shape: +00:00 availability vs -04:00 consumed shift.
+
+    Before #85 these were compared as instants, so 09:00-04:00 (13:00 UTC)
+    never looked like it touched 09:00+00:00 and the employee stayed fully
+    available at the next location.
+    """
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T09:00:00{_UTC}", "end": f"{_MONDAY}T17:00:00{_UTC}"}],
+    )
+    draft = {
+        _EMP_SHARED_ID: [
+            {"start": f"{_MONDAY}T09:00:00{_REAL}", "end": f"{_MONDAY}T17:00:00{_REAL}"},
+        ]
+    }
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert remaining == [], (
+        "A shift worked 09:00-17:00 local must consume the 09:00-17:00 window "
+        "even though the two sides carry different offsets"
+    )
+
+
+async def test_mixed_offsets_partial_booking_carves_correctly():
+    """Same offset mismatch, but only part of the day is worked."""
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T06:00:00{_UTC}", "end": f"{_MONDAY}T22:00:00{_UTC}"}],
+    )
+    draft = {
+        _EMP_SHARED_ID: [
+            {"start": f"{_MONDAY}T09:00:00{_REAL}", "end": f"{_MONDAY}T13:00:00{_REAL}"},
+        ]
+    }
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert len(remaining) == 2
+    assert "T06:00:00" in remaining[0]["start"] and "T09:00:00" in remaining[0]["end"]
+    assert "T13:00:00" in remaining[1]["start"] and "T22:00:00" in remaining[1]["end"]
+
+
+async def test_output_preserves_each_windows_own_offset():
+    """Subtraction must not silently rewrite the offset it was handed."""
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T08:00:00{_UTC}", "end": f"{_MONDAY}T17:00:00{_UTC}"}],
+    )
+    draft = {
+        _EMP_SHARED_ID: [
+            {"start": f"{_MONDAY}T09:00:00{_REAL}", "end": f"{_MONDAY}T13:00:00{_REAL}"},
+        ]
+    }
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert all(w["start"].endswith(_UTC) and w["end"].endswith(_UTC) for w in remaining)
+
+
+async def test_booking_at_the_start_leaves_only_the_tail():
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}],
+    )
+    draft = {_EMP_SHARED_ID: [
+        {"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T12:00:00{_TZ}"}]}
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert len(remaining) == 1
+    assert "T12:00:00" in remaining[0]["start"] and "T17:00:00" in remaining[0]["end"]
+
+
+async def test_booking_at_the_end_leaves_only_the_head():
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}],
+    )
+    draft = {_EMP_SHARED_ID: [
+        {"start": f"{_MONDAY}T14:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}]}
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert len(remaining) == 1
+    assert "T09:00:00" in remaining[0]["start"] and "T14:00:00" in remaining[0]["end"]
+
+
+async def test_two_bookings_leave_the_gap_between_them():
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T06:00:00{_TZ}", "end": f"{_MONDAY}T22:00:00{_TZ}"}],
+    )
+    draft = {_EMP_SHARED_ID: [
+        {"start": f"{_MONDAY}T06:00:00{_TZ}", "end": f"{_MONDAY}T10:00:00{_TZ}"},
+        {"start": f"{_MONDAY}T18:00:00{_TZ}", "end": f"{_MONDAY}T22:00:00{_TZ}"}]}
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert len(remaining) == 1
+    assert "T10:00:00" in remaining[0]["start"] and "T18:00:00" in remaining[0]["end"]
+
+
+async def test_a_different_day_is_untouched():
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[
+            {"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"},
+            {"start": f"{_TUESDAY}T09:00:00{_TZ}", "end": f"{_TUESDAY}T17:00:00{_TZ}"},
+        ],
+    )
+    draft = {_EMP_SHARED_ID: [
+        {"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}]}
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert len(remaining) == 1
+    assert _TUESDAY in remaining[0]["start"]
+
+
+async def test_a_malformed_consumed_window_does_not_raise():
+    """The scheduling graph degrades; it never throws."""
+    emp = _make_employee(
+        _EMP_SHARED_ID, "Alice", [_LOCATION_A_ID],
+        windows=[{"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}],
+    )
+    draft = {_EMP_SHARED_ID: [
+        {"start": "not-a-timestamp", "end": "also-not"},
+        {"start": f"{_MONDAY}T09:00:00{_TZ}", "end": f"{_MONDAY}T17:00:00{_TZ}"}]}
+    remaining = _filter_availability_against_draft(emp, draft)
+    assert remaining == [], "the parseable window is still applied"
