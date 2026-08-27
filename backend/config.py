@@ -102,11 +102,19 @@ class Settings(BaseSettings):
     # a better adjective would have preserved the ambiguity.
     # ---------------------------------------------------------------------
 
+    # The model the scheduling pipeline calls. A knob rather than a literal
+    # because model IDs get RETIRED: claude-sonnet-4-20250514 was hardcoded in
+    # scheduling/nodes.py until 2026-08-26, and once Anthropic retired it every
+    # AI generation failed with a 404 that surfaced only as status="PARSE_ERROR".
+    # Keep LLM_*_COST_PER_M below in step with whatever this names — they are
+    # what customers are billed, so a mismatch overcharges or undercharges.
+    SCHEDULING_MODEL: str = "claude-sonnet-5"
+
     # LLM billing
     INCLUDED_LLM_USD: float = 2.00           # LLM spend included in the subscription
     LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost once the included spend is used
-    LLM_INPUT_COST_PER_M: float = 3.00       # $ per 1M input tokens (Claude Sonnet)
-    LLM_OUTPUT_COST_PER_M: float = 15.00     # $ per 1M output tokens (Claude Sonnet)
+    LLM_INPUT_COST_PER_M: float = 2.00       # $ per 1M input tokens (Claude Sonnet 5)
+    LLM_OUTPUT_COST_PER_M: float = 10.00     # $ per 1M output tokens (Claude Sonnet 5)
 
     # Storage billing
     INCLUDED_STORAGE_GB: float = 0.5         # storage included in the subscription
