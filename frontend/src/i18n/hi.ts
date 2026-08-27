@@ -88,9 +88,21 @@ const hi = {
     groupSchedulingRules: "शेड्यूलिंग नियम",
     groupScheduling: "शेड्यूलिंग",
     groupCheckIn: "चेक-इन",
+    approvedSchedules: "स्वीकृत शेड्यूल",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "स्वीकृत शेड्यूल",
+    subtitle: "पिछले सप्ताह को ठीक वैसे ही देखें जैसे वह बनाया गया था।",
+    weekOf: "सप्ताह",
+    dotLegend: "स्वीकृत शेड्यूल है",
+    emptyWeek: "इस सप्ताह के लिए कोई स्वीकृत शेड्यूल नहीं है।",
+    loadError: "इस सप्ताह के शेड्यूल लोड नहीं हो सके।",
+    previousMonth: "पिछला महीना",
+    nextMonth: "अगला महीना",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

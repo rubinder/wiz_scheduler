@@ -88,9 +88,21 @@ const trLang = {
     groupSchedulingRules: "Program Kuralları",
     groupScheduling: "Programlama",
     groupCheckIn: "Giriş",
+    approvedSchedules: "Onaylı Programlar",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Onaylı Programlar",
+    subtitle: "Geçmiş bir haftayı oluşturulduğu haliyle tam olarak görüntüleyin.",
+    weekOf: "Hafta",
+    dotLegend: "onaylı programı var",
+    emptyWeek: "Bu hafta için onaylı program yok.",
+    loadError: "Bu haftanın programları yüklenemedi.",
+    previousMonth: "Önceki ay",
+    nextMonth: "Sonraki ay",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

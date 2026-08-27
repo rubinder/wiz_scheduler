@@ -88,9 +88,21 @@ const pt = {
     groupSchedulingRules: "Regras de Escala",
     groupScheduling: "Escalas",
     groupCheckIn: "Check-in",
+    approvedSchedules: "Escalas aprovadas",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Escalas aprovadas",
+    subtitle: "Veja uma semana passada exatamente como ficou ao ser gerada.",
+    weekOf: "Semana de",
+    dotLegend: "tem escala aprovada",
+    emptyWeek: "Nenhuma escala aprovada para esta semana.",
+    loadError: "Não foi possível carregar as escalas desta semana.",
+    previousMonth: "Mês anterior",
+    nextMonth: "Próximo mês",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

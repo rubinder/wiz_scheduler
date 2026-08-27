@@ -88,9 +88,21 @@ const bn = {
     groupSchedulingRules: "সময়সূচি নিয়ম",
     groupScheduling: "সময়সূচি ব্যবস্থাপনা",
     groupCheckIn: "চেক-ইন",
+    approvedSchedules: "অনুমোদিত সময়সূচি",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "অনুমোদিত সময়সূচি",
+    subtitle: "একটি পুরনো সপ্তাহ ঠিক যেমন তৈরি হয়েছিল তেমনভাবে দেখুন।",
+    weekOf: "সপ্তাহ",
+    dotLegend: "অনুমোদিত সময়সূচি আছে",
+    emptyWeek: "এই সপ্তাহের জন্য কোনো অনুমোদিত সময়সূচি নেই।",
+    loadError: "এই সপ্তাহের সময়সূচি লোড করা যায়নি।",
+    previousMonth: "পূর্ববর্তী মাস",
+    nextMonth: "পরবর্তী মাস",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

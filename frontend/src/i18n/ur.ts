@@ -88,9 +88,21 @@ const ur = {
     groupSchedulingRules: "شیڈول کے اصول",
     groupScheduling: "شیڈولنگ",
     groupCheckIn: "چیک اِن",
+    approvedSchedules: "منظور شدہ شیڈول",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "منظور شدہ شیڈول",
+    subtitle: "گزشتہ ہفتہ بالکل اسی طرح دیکھیں جیسے وہ بنایا گیا تھا۔",
+    weekOf: "ہفتہ",
+    dotLegend: "منظور شدہ شیڈول موجود ہے",
+    emptyWeek: "اس ہفتے کے لیے کوئی منظور شدہ شیڈول نہیں۔",
+    loadError: "اس ہفتے کے شیڈول لوڈ نہیں ہو سکے۔",
+    previousMonth: "پچھلا مہینہ",
+    nextMonth: "اگلا مہینہ",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

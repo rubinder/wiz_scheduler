@@ -48,6 +48,10 @@ class ShiftResponse(BaseModel):
     date: date
     start_time: datetime
     end_time: datetime
+    # Resolved by the caller, not stored on Shift. The approved-schedule
+    # viewer renders names, and export_schedules.py already builds the same
+    # employee_id -> full_name map for the same reason.
+    employee_name: str = ""
 
     model_config = {"from_attributes": True}
 

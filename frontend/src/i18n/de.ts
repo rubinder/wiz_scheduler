@@ -88,9 +88,21 @@ const de = {
     groupSchedulingRules: "Planungsregeln",
     groupScheduling: "Planung",
     groupCheckIn: "Check-in",
+    approvedSchedules: "Genehmigte Pläne",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Genehmigte Pläne",
+    subtitle: "Sehen Sie sich eine vergangene Woche genau so an, wie sie erstellt wurde.",
+    weekOf: "Woche vom",
+    dotLegend: "hat einen genehmigten Plan",
+    emptyWeek: "Für diese Woche gibt es keinen genehmigten Plan.",
+    loadError: "Die Pläne dieser Woche konnten nicht geladen werden.",
+    previousMonth: "Vorheriger Monat",
+    nextMonth: "Nächster Monat",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

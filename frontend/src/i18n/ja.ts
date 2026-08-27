@@ -88,9 +88,21 @@ const ja = {
     groupSchedulingRules: "スケジュールルール",
     groupScheduling: "スケジュール管理",
     groupCheckIn: "チェックイン",
+    approvedSchedules: "承認済みスケジュール",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "承認済みスケジュール",
+    subtitle: "過去の週を生成時とまったく同じ形で確認できます。",
+    weekOf: "週",
+    dotLegend: "承認済みスケジュールあり",
+    emptyWeek: "この週の承認済みスケジュールはありません。",
+    loadError: "この週のスケジュールを読み込めませんでした。",
+    previousMonth: "前の月",
+    nextMonth: "次の月",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

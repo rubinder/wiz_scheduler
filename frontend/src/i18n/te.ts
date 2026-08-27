@@ -88,9 +88,21 @@ const te = {
     groupSchedulingRules: "షెడ్యూల్ నియమాలు",
     groupScheduling: "షెడ్యూలింగ్",
     groupCheckIn: "చెక్-ఇన్",
+    approvedSchedules: "ఆమోదించిన షెడ్యూల్‌లు",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "ఆమోదించిన షెడ్యూల్‌లు",
+    subtitle: "గత వారాన్ని అది రూపొందించినప్పుడు ఎలా ఉందో అలాగే చూడండి.",
+    weekOf: "వారం",
+    dotLegend: "ఆమోదించిన షెడ్యూల్ ఉంది",
+    emptyWeek: "ఈ వారానికి ఆమోదించిన షెడ్యూల్ లేదు.",
+    loadError: "ఈ వారం షెడ్యూల్‌లను లోడ్ చేయలేకపోయాము.",
+    previousMonth: "మునుపటి నెల",
+    nextMonth: "తదుపరి నెల",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

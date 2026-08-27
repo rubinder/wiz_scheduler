@@ -88,9 +88,21 @@ const zh = {
     groupSchedulingRules: "排班规则",
     groupScheduling: "排班管理",
     groupCheckIn: "签到",
+    approvedSchedules: "已批准排班",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "已批准排班",
+    subtitle: "查看过去某一周，与生成时完全一致。",
+    weekOf: "周",
+    dotLegend: "有已批准排班",
+    emptyWeek: "本周没有已批准的排班。",
+    loadError: "无法加载本周的排班。",
+    previousMonth: "上个月",
+    nextMonth: "下个月",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

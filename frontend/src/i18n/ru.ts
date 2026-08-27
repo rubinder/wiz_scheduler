@@ -88,9 +88,21 @@ const ru = {
     groupSchedulingRules: "Правила расписания",
     groupScheduling: "Планирование",
     groupCheckIn: "Регистрация",
+    approvedSchedules: "Утверждённые графики",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Утверждённые графики",
+    subtitle: "Просмотрите прошедшую неделю в том же виде, в каком она была создана.",
+    weekOf: "Неделя с",
+    dotLegend: "есть утверждённый график",
+    emptyWeek: "На эту неделю нет утверждённого графика.",
+    loadError: "Не удалось загрузить графики за эту неделю.",
+    previousMonth: "Предыдущий месяц",
+    nextMonth: "Следующий месяц",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

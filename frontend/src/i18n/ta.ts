@@ -88,9 +88,21 @@ const ta = {
     groupSchedulingRules: "அட்டவணை விதிகள்",
     groupScheduling: "அட்டவணையாக்கம்",
     groupCheckIn: "செக்-இன்",
+    approvedSchedules: "அங்கீகரிக்கப்பட்ட அட்டவணைகள்",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "அங்கீகரிக்கப்பட்ட அட்டவணைகள்",
+    subtitle: "கடந்த வாரத்தை உருவாக்கப்பட்டபோது இருந்தது போலவே பாருங்கள்.",
+    weekOf: "வாரம்",
+    dotLegend: "அங்கீகரிக்கப்பட்ட அட்டவணை உள்ளது",
+    emptyWeek: "இந்த வாரத்திற்கு அங்கீகரிக்கப்பட்ட அட்டவணை இல்லை.",
+    loadError: "இந்த வாரத்தின் அட்டவணைகளை ஏற்ற முடியவில்லை.",
+    previousMonth: "முந்தைய மாதம்",
+    nextMonth: "அடுத்த மாதம்",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",
