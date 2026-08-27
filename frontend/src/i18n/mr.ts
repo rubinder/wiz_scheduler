@@ -88,9 +88,21 @@ const mr = {
     groupSchedulingRules: "वेळापत्रक नियम",
     groupScheduling: "वेळापत्रक व्यवस्थापन",
     groupCheckIn: "चेक-इन",
+    approvedSchedules: "मंजूर वेळापत्रके",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "मंजूर वेळापत्रके",
+    subtitle: "मागील आठवडा जसा तयार झाला होता तसाच पाहा.",
+    weekOf: "आठवडा",
+    dotLegend: "मंजूर वेळापत्रक आहे",
+    emptyWeek: "या आठवड्यासाठी मंजूर वेळापत्रक नाही.",
+    loadError: "या आठवड्याची वेळापत्रके लोड करता आली नाहीत.",
+    previousMonth: "मागील महिना",
+    nextMonth: "पुढील महिना",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

@@ -88,9 +88,21 @@ const es = {
     groupSchedulingRules: "Reglas de Programación",
     groupScheduling: "Programación",
     groupCheckIn: "Registro de Entrada",
+    approvedSchedules: "Horarios aprobados",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Horarios aprobados",
+    subtitle: "Consulta una semana pasada tal como se veía al generarla.",
+    weekOf: "Semana del",
+    dotLegend: "tiene un horario aprobado",
+    emptyWeek: "No hay horario aprobado para esta semana.",
+    loadError: "No se pudieron cargar los horarios de esta semana.",
+    previousMonth: "Mes anterior",
+    nextMonth: "Mes siguiente",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

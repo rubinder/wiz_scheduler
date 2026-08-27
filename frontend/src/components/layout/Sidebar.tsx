@@ -71,6 +71,7 @@ const managerNav: NavEntry[] = [
     children: [
       { to: "/manager/shift-templates", labelKey: "shiftTemplates" },
       { to: "/manager/schedule", labelKey: "schedule" },
+      { to: "/manager/approved-schedules", labelKey: "approvedSchedules" },
       { to: "/manager/export-schedules", labelKey: "exportSchedules" },
     ],
   },

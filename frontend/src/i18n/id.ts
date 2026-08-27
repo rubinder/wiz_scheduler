@@ -88,9 +88,21 @@ const ind = {
     groupSchedulingRules: "Aturan Penjadwalan",
     groupScheduling: "Penjadwalan",
     groupCheckIn: "Check-in",
+    approvedSchedules: "Jadwal Disetujui",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Jadwal Disetujui",
+    subtitle: "Lihat minggu sebelumnya persis seperti saat dibuat.",
+    weekOf: "Minggu",
+    dotLegend: "memiliki jadwal disetujui",
+    emptyWeek: "Tidak ada jadwal disetujui untuk minggu ini.",
+    loadError: "Tidak dapat memuat jadwal minggu ini.",
+    previousMonth: "Bulan sebelumnya",
+    nextMonth: "Bulan berikutnya",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

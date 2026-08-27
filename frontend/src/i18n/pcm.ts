@@ -88,9 +88,21 @@ const pcm = {
     groupSchedulingRules: "Schedule Rules",
     groupScheduling: "Schedule Matter",
     groupCheckIn: "Check-In Matter",
+    approvedSchedules: "Approved Schedules",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Approved Schedules",
+    subtitle: "Look one week wey don pass, exactly as e be when dem generate am.",
+    weekOf: "Week of",
+    dotLegend: "get approved schedule",
+    emptyWeek: "No approved schedule for dis week.",
+    loadError: "We no fit load di schedules for dis week.",
+    previousMonth: "Month wey pass",
+    nextMonth: "Next month",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

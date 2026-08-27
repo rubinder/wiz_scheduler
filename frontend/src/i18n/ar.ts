@@ -88,9 +88,21 @@ const ar = {
     groupSchedulingRules: "قواعد الجدولة",
     groupScheduling: "الجدولة",
     groupCheckIn: "تسجيل الحضور",
+    approvedSchedules: "الجداول المعتمدة",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "الجداول المعتمدة",
+    subtitle: "تصفح أسبوعًا سابقًا تمامًا كما بدا عند إنشائه.",
+    weekOf: "أسبوع",
+    dotLegend: "لديه جدول معتمد",
+    emptyWeek: "لا يوجد جدول معتمد لهذا الأسبوع.",
+    loadError: "تعذر تحميل جداول هذا الأسبوع.",
+    previousMonth: "الشهر السابق",
+    nextMonth: "الشهر التالي",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

@@ -88,6 +88,19 @@ const en = {
     groupSchedulingRules: "Scheduling Rules",
     groupScheduling: "Scheduling",
     groupCheckIn: "Check-In",
+    approvedSchedules: "Approved Schedules",
+  },
+
+  // ── Approved Schedules ──
+  approvedSchedules: {
+    title: "Approved Schedules",
+    subtitle: "Browse a past week exactly as it looked when it was generated.",
+    weekOf: "Week of",
+    dotLegend: "has an approved schedule",
+    emptyWeek: "No approved schedule for this week.",
+    loadError: "Could not load schedules for this week.",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
   },
 
   // ── Team ──

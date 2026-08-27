@@ -2,13 +2,13 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
-from backend.models import Shift, ShiftSchedule, User
+from backend.models import Employee, Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.models.employee import EmployeeAvailability
@@ -555,16 +555,34 @@ async def reject_schedule(
 @router.get("/week/{week_start_date}", response_model=list[ShiftScheduleResponse])
 async def get_week_schedules(
     week_start_date: date,
+    status_filter: str | None = Query(None, alias="status"),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[ShiftScheduleResponse]:
-    result = await db.execute(
-        select(ShiftSchedule).where(
-            ShiftSchedule.company_id == current_user.company_id,
-            ShiftSchedule.week_start_date == week_start_date,
-        )
-    )
+    """Schedules for one week, newest-relevant first.
+
+    `?status=approved` narrows to approved schedules. Without it every
+    generation that was never approved comes back too — a week can easily
+    hold dozens of empty drafts before RETENTION_STALE_DRAFTS_DAYS clears
+    them, and callers that only render approved schedules should not pay
+    for that.
+    """
+    conditions = [
+        ShiftSchedule.company_id == current_user.company_id,
+        ShiftSchedule.week_start_date == week_start_date,
+    ]
+    if status_filter:
+        conditions.append(ShiftSchedule.status == status_filter)
+
+    result = await db.execute(select(ShiftSchedule).where(*conditions))
     schedules = result.scalars().all()
+
+    # Resolve employee names once for the whole week rather than per shift.
+    # Same approach as export_schedules.py, which needs the identical map.
+    emp_rows = (await db.execute(
+        select(Employee).where(Employee.company_id == current_user.company_id)
+    )).scalars().all()
+    emp_names = {e.id: (e.full_name or str(e.id)) for e in emp_rows}
 
     responses: list[ShiftScheduleResponse] = []
     for sched in schedules:
@@ -573,14 +591,21 @@ async def get_week_schedules(
         )
         shifts = shift_result.scalars().all()
         resp = ShiftScheduleResponse.model_validate(sched)
-        resp.shifts = [_shift_to_response(s) for s in shifts]
+        resp.shifts = [_shift_to_response(s, emp_names) for s in shifts]
         responses.append(resp)
 
     return responses
 
 
-def _shift_to_response(shift: Shift) -> dict:
-    """Convert a Shift ORM object to a dict matching ShiftResponse."""
+def _shift_to_response(shift: Shift, emp_names: dict[str, str] | None = None) -> dict:
+    """Convert a Shift ORM object to a dict matching ShiftResponse.
+
+    employee_name is not a column on Shift, so callers that render names pass
+    a resolved employee_id -> full_name map.
+    """
     from backend.schemas.schedule import ShiftResponse
 
-    return ShiftResponse.model_validate(shift)
+    resp = ShiftResponse.model_validate(shift)
+    if emp_names:
+        resp.employee_name = emp_names.get(shift.employee_id, "")
+    return resp

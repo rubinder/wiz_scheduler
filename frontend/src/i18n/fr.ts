@@ -88,9 +88,21 @@ const fr = {
     groupSchedulingRules: "Règles de planification",
     groupScheduling: "Planification",
     groupCheckIn: "Pointage",
+    approvedSchedules: "Plannings approuvés",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Plannings approuvés",
+    subtitle: "Consultez une semaine passée exactement telle qu'elle a été générée.",
+    weekOf: "Semaine du",
+    dotLegend: "a un planning approuvé",
+    emptyWeek: "Aucun planning approuvé pour cette semaine.",
+    loadError: "Impossible de charger les plannings de cette semaine.",
+    previousMonth: "Mois précédent",
+    nextMonth: "Mois suivant",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",

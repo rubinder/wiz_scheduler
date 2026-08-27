@@ -88,9 +88,21 @@ const vi = {
     groupSchedulingRules: "Quy tắc lịch làm việc",
     groupScheduling: "Lập lịch",
     groupCheckIn: "Check-in",
+    approvedSchedules: "Lịch đã duyệt",
   },
 
   // ── Team ──
+  approvedSchedules: {
+    title: "Lịch đã duyệt",
+    subtitle: "Xem lại một tuần trước đúng như khi nó được tạo.",
+    weekOf: "Tuần",
+    dotLegend: "có lịch đã duyệt",
+    emptyWeek: "Không có lịch đã duyệt cho tuần này.",
+    loadError: "Không thể tải lịch của tuần này.",
+    previousMonth: "Tháng trước",
+    nextMonth: "Tháng sau",
+  },
+
   team: {
     title: "Team",
     inviteButton: "Invite manager",
