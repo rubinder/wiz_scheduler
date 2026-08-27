@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import anthropic
 
@@ -27,38 +27,108 @@ def _filter_employees_for_location(
     return filtered
 
 
+def _wall_clock(ts: str) -> datetime:
+    """Parse a timestamp as a naive local wall-clock face, ignoring its offset.
+
+    The two sides of the availability comparison use different conventions and
+    must NOT be reconciled by converting either one:
+
+      * Availability is stored as local wall-clock TAGGED UTC — a 09:00 shift
+        window is persisted as "09:00:00+00:00" regardless of the location's
+        real zone. That is the deliberate contract from #61, and calling
+        .astimezone() on it is what that PR exists to prevent.
+      * Generated shifts carry the location's REAL offset, e.g. "09:00:00-04:00".
+
+    Compared as instants those two differ by the location's offset, which is
+    why cross-location double-booking slipped through (#85): 09:00-04:00 is
+    13:00 UTC and never looked like it overlapped 09:00+00:00. Compared as
+    wall-clock faces they correctly coincide.
+    """
+    return datetime.fromisoformat(ts).replace(tzinfo=None)
+
+
+def _subtract_consumed(
+    window_start: datetime,
+    window_end: datetime,
+    consumed: List[Tuple[datetime, datetime]],
+) -> List[Tuple[datetime, datetime]]:
+    """Carve every consumed interval out of one availability window.
+
+    Returns the remaining sub-intervals, in order. A consumed span in the
+    middle splits the window in two; one that covers it entirely returns [].
+    All datetimes are naive wall-clock (see _wall_clock).
+    """
+    remaining: List[Tuple[datetime, datetime]] = [(window_start, window_end)]
+    for c_start, c_end in consumed:
+        if c_end <= c_start:
+            continue
+        nxt: List[Tuple[datetime, datetime]] = []
+        for r_start, r_end in remaining:
+            if c_end <= r_start or c_start >= r_end:
+                nxt.append((r_start, r_end))
+                continue
+            if c_start > r_start:
+                nxt.append((r_start, c_start))
+            if c_end < r_end:
+                nxt.append((c_end, r_end))
+        remaining = nxt
+    return remaining
+
+
 def _filter_availability_against_draft(
     employee: Dict[str, Any],
     availability_draft: Dict[str, List[Dict[str, str]]],
 ) -> List[Dict[str, str]]:
-    """Filter an employee's available_windows by removing already-consumed windows
-    that overlap with their availability.
+    """Remove already-consumed time from an employee's available_windows.
 
-    Returns a new list of available_windows with consumed time removed.
+    This is the guard that stops one employee being scheduled at two locations
+    at once. Consumed time is genuinely subtracted, so a window that is only
+    partly used comes back as its unused remainder(s) rather than being kept
+    whole — keeping it whole is what allowed the same hours to be booked twice.
+
+    Comparison is done on wall-clock faces, never on instants; see _wall_clock.
+    Output timestamps are rebuilt with each window's own original offset so the
+    shape handed downstream is unchanged.
     """
     emp_id = str(employee.get("id", ""))
     windows: List[Dict[str, str]] = list(employee.get("available_windows", []))
-    consumed: List[Dict[str, str]] = availability_draft.get(emp_id, [])
+    consumed_raw: List[Dict[str, str]] = availability_draft.get(emp_id, [])
+
+    if not consumed_raw:
+        return windows
+
+    consumed: List[Tuple[datetime, datetime]] = []
+    for c in consumed_raw:
+        try:
+            consumed.append((_wall_clock(c["start"]), _wall_clock(c["end"])))
+        except (KeyError, ValueError, TypeError):
+            # A window we cannot parse is skipped rather than raised on: the
+            # scheduling graph degrades, it never throws.
+            continue
 
     if not consumed:
         return windows
 
     remaining: List[Dict[str, str]] = []
     for window in windows:
-        w_start = datetime.fromisoformat(window["start"])
-        w_end = datetime.fromisoformat(window["end"])
-
-        has_full_overlap = False
-        for c in consumed:
-            c_start = datetime.fromisoformat(c["start"])
-            c_end = datetime.fromisoformat(c["end"])
-            # If the consumed window fully covers this availability window, skip it
-            if c_start <= w_start and c_end >= w_end:
-                has_full_overlap = True
-                break
-
-        if not has_full_overlap:
+        try:
+            w_start_aware = datetime.fromisoformat(window["start"])
+            w_end_aware = datetime.fromisoformat(window["end"])
+        except (KeyError, ValueError, TypeError):
             remaining.append(window)
+            continue
+
+        tz = w_start_aware.tzinfo
+        pieces = _subtract_consumed(
+            w_start_aware.replace(tzinfo=None),
+            w_end_aware.replace(tzinfo=None),
+            consumed,
+        )
+        for p_start, p_end in pieces:
+            remaining.append({
+                "start": p_start.replace(tzinfo=tz).isoformat(),
+                "end": p_end.replace(tzinfo=tz).isoformat(),
+            })
 
     return remaining
 
