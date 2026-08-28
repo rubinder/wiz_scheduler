@@ -21,6 +21,7 @@ from backend.utils.id_gen import generate_short_id
 from tests.conftest import (
     COMPANY_ID,
     EMPLOYEE1_ID,
+    EMPLOYEE2_ID,
     LOCATION_ID,
     ROLE_FLOOR_ID,
 )
@@ -321,3 +322,58 @@ async def test_a_malformed_shift_timestamp_does_not_raise(
         "a shift that cannot be safely read must not hold the employee's "
         "time -- the full window returns, same as when the shift is deleted"
     )
+
+
+@pytest_asyncio.fixture
+async def second_employee_id(
+    db_session: AsyncSession, approved_schedule_fixture, seed_employees,
+) -> str:
+    """A second employee in the same company as `approved_schedule_fixture`'s
+    employee, available 09:00-17:00 on that same `work_date`.
+
+    `seed_employees` already creates EMPLOYEE2_ID ("Bob Smith") in
+    COMPANY_ID; this just gives them the matching availability window so a
+    reassigned shift has something to consume.
+    """
+    _, work_date = approved_schedule_fixture
+    db_session.add(EmployeeAvailability(
+        id="avholds2",
+        company_id=COMPANY_ID,
+        employee_id=EMPLOYEE2_ID,
+        year=work_date.year,
+        month=work_date.month,
+        day=work_date.day,
+        start_time=datetime(work_date.year, work_date.month, work_date.day, 9, 0, tzinfo=timezone.utc),
+        end_time=datetime(work_date.year, work_date.month, work_date.day, 17, 0, tzinfo=timezone.utc),
+    ))
+    await db_session.commit()
+    return EMPLOYEE2_ID
+
+
+async def test_reassigning_moves_the_hold(
+    db_session: AsyncSession, approved_schedule_fixture, second_employee_id,
+):
+    """Changing employee_id frees one employee and commits the other, with no
+    explicit release step -- the hold IS the row.
+
+    approved_schedule_fixture's shift is 13:00-21:00 for EMPLOYEE1_ID.
+    Reassigning it to second_employee_id (also available 09:00-17:00) must:
+    fully restore EMPLOYEE1_ID's window (nothing references those hours any
+    more), and carve the same 13:00-17:00 overlap out of second_employee_id's
+    window instead -- no separate "release" call, just the row changing.
+    """
+    from backend.models import Shift
+    from backend.scheduling.graph import _load_employee_availability
+
+    emp_id, work_date = approved_schedule_fixture
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.employee_id == emp_id)
+    )).scalars().first()
+    shift.employee_id = second_employee_id
+    await db_session.commit()
+
+    avail = await _load_employee_availability(
+        db_session, company_id=COMPANY_ID, week_start_date=work_date.isoformat(), num_days=7,
+    )
+    assert avail[emp_id][0]["end"].endswith("T17:00:00+00:00"), "original employee freed"
+    assert avail[second_employee_id][0]["end"].endswith("T13:00:00+00:00"), "new employee committed"
