@@ -207,22 +207,65 @@ other.
 
 ## Timezone
 
-Edited times stay wall-clock carrying the location's offset and are never
-`.astimezone()`d — the contract from #61 that both #85 and #92 turn on.
+There is no single blanket rule here — the treatment depends on what kind of
+aware datetime is in hand, and conflating the two is exactly the Critical a
+fix round during implementation caught (see `_shift_local_face`,
+`backend/scheduling/graph.py:246-302`, which documents this distinction in
+full):
+
+- **Availability** (`EmployeeAvailability`, and an edit's own incoming
+  `start_time`/`end_time` payload) is local wall-clock *falsely tagged* UTC —
+  the #61 contract. It is not a true instant, so `.astimezone()`ing it would
+  move the face it represents. It stays a plain tag-strip via `_wall_clock`.
+- **`Shift` timestamps read back from the database** are true instants stored
+  in a `timestamptz` column. Postgres normalises them on storage, so a shift
+  written `09:00-04:00` reads back as `13:00+00:00`; stripping the tag at
+  that point reads the wrong face. Converting the instant into its own
+  location's zone via `.astimezone()` *recovers* the intended face rather
+  than moving it, and is required — see `_shift_local_face`.
+
+The two columns are both plain "aware datetime" attributes and look
+interchangeable; they are not. Any code path that reads a `Shift` row's
+`start_time`/`end_time` back from the database — including stage 2's
+`no_availability`/`already_booked` checks over an employee's *other* shifts —
+must go through `_shift_local_face`, not `_wall_clock`.
 
 ---
 
 # Testing
 
-## Stage 1's non-negotiable test
+## Stage 1's equivalence gate
 
 **With no editing, generation output is unchanged.** Approve no longer carves
 availability and the pipeline now subtracts shifts instead; the net result must
 be identical, or the change has altered scheduling behaviour rather than
 relocating where it is computed.
 
-Same gate used for the eligibility extraction in #83, and it is what makes the
-rest of stage 1 safe to review.
+This was originally going to be gated by "removing consumption turns existing
+tests red, restoring it turns them green" — the same shape of gate used for
+the eligibility extraction in #83. That gate turned out to be **vacuous** for
+this change: deleting the consumption subtraction entirely broke zero existing
+tests, because no test at the time drove approve → regenerate through a real
+database. A red/green check against a suite that doesn't exercise the path
+proves nothing.
+
+What actually established equivalence:
+
+- A **Postgres-shaped unit test**, not SQLite. SQLite's `DateTime(timezone=True)`
+  columns drop tzinfo on read but preserve the original local digits, so a
+  naive tag-strip happens to still return the right face there — SQLite is
+  structurally incapable of reproducing the bug. Postgres preserves the aware
+  tag and normalises the stored instant to UTC, actually moving the face, so
+  only a Postgres-backed test can catch a regression here.
+- Targeted tests for the specific behaviours in the Stage 1 list below
+  (release-on-delete, hold-survives-check-in, no double-subtraction,
+  reassignment moves the hold, malformed-timestamp degrade).
+- A live end-to-end run against the real deployment, exercising approve →
+  regenerate manually.
+
+Record this plainly rather than the red/green claim: this branch did not meet
+that original gate, and the substitute above is what actually backs the
+equivalence claim.
 
 ## Stage 1
 

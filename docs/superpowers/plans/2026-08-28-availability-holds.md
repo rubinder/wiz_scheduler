@@ -199,11 +199,12 @@ subtracted anywhere. The next commit restores that from the Shift rows."
 ### Task 3: The pipeline subtracts shifts at load time
 
 **Files:**
-- Modify: `backend/scheduling/graph.py` — add `Shift` to the model imports (~line 8-22), and insert the subtraction after `emp_avail_map` is built (~line 486)
+- Modify: `backend/scheduling/graph.py` — add `Shift` and `Location` to the model imports (~line 8-22), add `from zoneinfo import ZoneInfo, ZoneInfoNotFoundError`, and insert the subtraction after `emp_avail_map` is built (~line 486)
 - Test: `tests/test_availability_holds.py` (extend)
 
 **Interfaces:**
-- Consumes: `backend.scheduling.nodes._wall_clock(ts: str) -> datetime` and `backend.scheduling.nodes._subtract_consumed(window_start: datetime, window_end: datetime, consumed: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]`. Both already exist, added by #85.
+- Consumes: `backend.scheduling.nodes._subtract_consumed(window_start: datetime, window_end: datetime, consumed: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]`, added by #85. `_wall_clock` is NOT used for `Shift` rows — see Step 4 — only for availability, which stays a plain tag-strip.
+- Produces (new, this task): `_shift_local_face(shift: Shift, location: Location) -> tuple[datetime, datetime] | None`, converting a `Shift`'s stored instant into its own location's wall-clock face via `ZoneInfo`.
 - Produces: `emp_avail_map` values already have committed shifts carved out before the pipeline sees them. Nothing downstream changes shape — still `list[dict]` with `"start"` / `"end"` ISO strings.
 
 - [ ] **Step 1: Write the failing tests**
@@ -379,11 +380,89 @@ Replace the inline block in the calling function with:
     )
 ```
 
-- [ ] **Step 4: Add the two helpers**
+- [ ] **Step 4: Add the helpers**
 
-Place them immediately above `_load_employee_availability`:
+Place them immediately above `_load_employee_availability`. This step originally
+specified reading `Shift.start_time`/`end_time` back with `_wall_clock` — a
+plain tag-strip, the same treatment `_wall_clock` gives `EmployeeAvailability`.
+That is wrong for `Shift` and was caught as a Critical during implementation:
+`Shift.start_time`/`end_time` are `timestamptz` columns, i.e. true instants,
+not wall-clock-tagged-UTC values like availability. `local_scheduler.py`
+writes an aware datetime carrying the location's real offset (e.g.
+`"09:00:00-04:00"`), and Postgres normalises that to UTC on storage, so it
+reads back as `"13:00:00+00:00"`. Stripping the tag at that point reads the
+WRONG face — 13:00, not the 09:00 the shift actually covers — which silently
+opens a phantom hold-free window. (SQLite can't surface this in a test: its
+`DateTime(timezone=True)` columns drop tzinfo on read but preserve the local
+digits, so a naive tag-strip happens to still work there. Only a
+Postgres-shaped test catches it — see Task 3's non-negotiable-test note.)
+
+The fix recovers the true face by converting the instant into the shift's
+*own location's* zone rather than stripping its tag — this does not violate
+the "never `.astimezone()`" rule from #61/#85, because that rule protects
+availability specifically (a wall-clock value falsely tagged UTC, and
+therefore not a true instant — `.astimezone()` on it would move the face it
+represents). A `Shift` timestamp *is* a true instant, so
+`.astimezone(location's zone)` recovers the intended face instead of moving
+it.
+
+Add a `_shift_local_face` helper that does this conversion, a location join
+so each shift knows which zone to convert into, and a SQL widening so a shift
+whose UTC instant has rolled across the day line isn't dropped (or wrongly
+included) before its face is recovered:
 
 ```python
+def _shift_local_face(
+    shift: Shift,
+    location: Location,
+) -> Tuple[datetime, datetime] | None:
+    """Recover the wall-clock face a committed Shift occupies at its location.
+
+    Shift.start_time/end_time are timestamptz columns -- true instants, NOT
+    wall-clock-tagged-UTC like availability. Converting the instant into ITS
+    OWN location's zone recovers the intended face; stripping the tag (as
+    _wall_clock does for availability) would read the wrong one. See the
+    note on Step 4 above for the full explanation and why this does not
+    violate the "never .astimezone()" rule from #61/#85 -- that rule protects
+    availability, which is not a true instant, and does not apply here.
+
+    A naive value (as SQLite hands back, dropping tzinfo but preserving the
+    local digits) is trusted as already being the correct face and is not
+    converted -- only an aware value goes through .astimezone().
+
+    Returns None -- rather than raising -- if location.timezone is missing,
+    invalid, or the shift's timestamps are unusable: the scheduling graph
+    degrades, it never throws. Log a warning naming the shift id and the bad
+    timezone value when this happens; do not fail silently.
+    """
+    tz_name = getattr(location, "timezone", None)
+    if not tz_name:
+        logger.warning(
+            "[SCHED-TRACE] shift %s has no usable location.timezone (%r); "
+            "dropping its hold", getattr(shift, "id", "?"), tz_name,
+        )
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+        start_raw = shift.start_time
+        end_raw = shift.end_time
+        start = (
+            start_raw.astimezone(tz).replace(tzinfo=None)
+            if start_raw.tzinfo is not None else start_raw
+        )
+        end = (
+            end_raw.astimezone(tz).replace(tzinfo=None)
+            if end_raw.tzinfo is not None else end_raw
+        )
+    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
+        logger.warning(
+            "[SCHED-TRACE] shift %s has an unparseable timezone (%r); "
+            "dropping its hold", getattr(shift, "id", "?"), tz_name,
+        )
+        return None
+    return start, end
+
+
 async def _committed_shifts_by_employee(
     db: AsyncSession,
     company_id: str,
@@ -392,26 +471,38 @@ async def _committed_shifts_by_employee(
 ) -> Dict[str, List[Tuple[datetime, datetime]]]:
     """Already-committed shift spans for the week, per employee.
 
-    Returned as naive wall-clock pairs. Shift timestamps carry the location's
-    real offset while availability is wall-clock tagged UTC, so they are only
-    comparable face-to-face — see _wall_clock (#85).
+    Returned as naive wall-clock pairs, comparable face-to-face with
+    availability (see _shift_local_face for why Shift timestamps need their
+    own conversion rather than a tag-strip).
+
+    The SQL window is widened by a day on each side because Shift.start_time
+    is a UTC instant: comparing it directly against the wall-clock week
+    boundary can silently drop (or wrongly include) a shift whose instant has
+    rolled across the UTC day line relative to its location's offset. The
+    face-based filter below narrows back down to the true week using the
+    same converted face used for subtraction.
     """
     rows = (await db.execute(
-        select(Shift).where(
+        select(Shift, Location)
+        .join(Location, Shift.location_id == Location.id)
+        .where(
             Shift.company_id == company_id,
-            Shift.start_time >= week_start,
-            Shift.start_time < week_end,
+            Location.company_id == company_id,
+            Shift.start_time >= week_start - timedelta(days=1),
+            Shift.start_time < week_end + timedelta(days=1),
         )
-    )).scalars().all()
+    )).all()
+
+    naive_week_start = week_start.replace(tzinfo=None)
+    naive_week_end = week_end.replace(tzinfo=None)
 
     by_emp: Dict[str, List[Tuple[datetime, datetime]]] = {}
-    for s in rows:
-        try:
-            start = _wall_clock(s.start_time.isoformat())
-            end = _wall_clock(s.end_time.isoformat())
-        except (AttributeError, ValueError, TypeError):
-            # A row we cannot read is skipped rather than raised on: the
-            # scheduling graph degrades, it never throws.
+    for s, loc in rows:
+        face = _shift_local_face(s, loc)
+        if face is None:
+            continue
+        start, end = face
+        if start < naive_week_start or start >= naive_week_end:
             continue
         by_emp.setdefault(str(s.employee_id), []).append((start, end))
     return by_emp

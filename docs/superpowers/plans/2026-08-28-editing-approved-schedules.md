@@ -520,7 +520,7 @@ rows — proving the edit did not just touch raw_llm_output."
 - Test: `tests/test_edit_approved_warnings.py`
 
 **Interfaces:**
-- Consumes: `_wall_clock`, `_subtract_consumed` from `backend.scheduling.nodes`; `EditWarning` from Task 1.
+- Consumes: `_wall_clock`, `_subtract_consumed` from `backend.scheduling.nodes`; `_shift_local_face` from `backend.scheduling.graph`; `EditWarning` from Task 1.
 - Produces: `collect_edit_warnings(db, company_id, edits, schedule) -> list[EditWarning]` in `backend/services/edit_warnings.py`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -654,7 +654,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import EmployeeAvailability, Shift
+from backend.models import EmployeeAvailability, Location, Shift
+from backend.scheduling.graph import _shift_local_face
 from backend.scheduling.nodes import _subtract_consumed, _wall_clock
 
 
@@ -698,6 +699,13 @@ async def collect_edit_warnings(
             # Partial edit that does not move the assignment — nothing to check.
             continue
 
+        # `edit.start_time`/`edit.end_time` are the incoming request payload,
+        # not a value read back from a `Shift` row: they arrive from the
+        # client already carrying the location's own offset and have never
+        # passed through a timestamptz column, so `_wall_clock` (a tag-strip)
+        # is correct here exactly as it is for availability. Do NOT convert
+        # these with `_shift_local_face`/`.astimezone()` — see the note below
+        # on `others`, where the opposite correction applies.
         span_start = _wall_clock(start.isoformat())
         span_end = _wall_clock(end.isoformat())
 
@@ -709,17 +717,42 @@ async def collect_edit_warnings(
                 EmployeeAvailability.employee_id == emp_id,
             )
         )).scalars().all()
-        others = (await db.execute(
-            select(Shift).where(
+
+        # `others` are committed `Shift` rows read back from the database, so
+        # they carry the same timestamptz normalisation `graph.py` had to
+        # correct for: Shift.start_time/end_time are true instants, and
+        # Postgres stores them normalised to UTC. A shift written
+        # "09:00-04:00" reads back as "13:00+00:00" — stripping the tag with
+        # `_wall_clock` the way we do for the edit's own payload above (or
+        # for availability) would silently read the wrong face and open a
+        # phantom hold-free window, which is the exact Critical that graph.py
+        # fixed for schedule generation (see `_shift_local_face`,
+        # backend/scheduling/graph.py:246-302). We must not reintroduce it
+        # here: join each shift to its Location and convert the instant into
+        # that location's own zone to recover the true face.
+        other_rows = (await db.execute(
+            select(Shift, Location)
+            .join(Location, Shift.location_id == Location.id)
+            .where(
                 Shift.company_id == company_id,
+                Location.company_id == company_id,
                 Shift.employee_id == emp_id,
                 Shift.id != (edit.shift_id or ""),
             )
-        )).scalars().all()
-        other_spans = [
-            (_wall_clock(s.start_time.isoformat()), _wall_clock(s.end_time.isoformat()))
-            for s in others
-        ]
+        )).all()
+        other_spans = []
+        for s, loc in other_rows:
+            face = _shift_local_face(s, loc)
+            if face is None:
+                # Bad/missing location.timezone: degrade rather than raise,
+                # same convention as graph.py. This drops the shift from the
+                # overlap check entirely, so it is a silent widening of
+                # "available" — acceptable for an advisory warning, but not a
+                # place to get casual about; log it if this is ever lifted
+                # out of the plan into real code (see graph.py's own
+                # degrade-path logging fix).
+                continue
+            other_spans.append(face)
 
         covered = False
         for w in windows:

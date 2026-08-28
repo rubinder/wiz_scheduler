@@ -1,3 +1,4 @@
+import logging
 from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -38,6 +39,8 @@ from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
 )
+
+logger = logging.getLogger(__name__)
 
 
 _DAY_NAMES = [
@@ -283,6 +286,11 @@ def _shift_local_face(
     """
     tz_name = getattr(location, "timezone", None)
     if not tz_name:
+        logger.warning(
+            "[SCHED-TRACE] shift %s has no usable location.timezone (%r); "
+            "dropping its hold and releasing the hours it covers",
+            getattr(shift, "id", "?"), tz_name,
+        )
         return None
     try:
         tz = ZoneInfo(tz_name)
@@ -297,6 +305,11 @@ def _shift_local_face(
             if end_raw.tzinfo is not None else end_raw
         )
     except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
+        logger.warning(
+            "[SCHED-TRACE] shift %s has an unparseable timezone (%r); "
+            "dropping its hold and releasing the hours it covers",
+            getattr(shift, "id", "?"), tz_name,
+        )
         return None
     return start, end
 
