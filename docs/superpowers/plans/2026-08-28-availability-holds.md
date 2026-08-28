@@ -17,7 +17,7 @@
 - **Do not install new dependencies.**
 - **No migration.** This stage adds no table and no column.
 - **Never raise inside the scheduling graph.** It degrades to a status; it does not throw.
-- **Times are wall-clock and must never be `.astimezone()`d on read.** Availability is stored as local wall-clock tagged UTC (`09:00:00+00:00`) while shifts carry the location's real offset (`09:00:00-04:00`). Comparing them as instants is the bug #85 fixed; compare their wall-clock faces via `_wall_clock`.
+- **EmployeeAvailability timestamps are wall-clock tagged UTC and must never be `.astimezone()`d.** They are not true instants; calling `.astimezone()` moves the face they represent. Use `_wall_clock` to compare their wall-clock faces. **Shift timestamps are true instants** stored in `timestamptz` columns; they are normalized to UTC on storage, so they read back in UTC face (e.g., "13:00+00:00" when written as "09:00-04:00"). Recovering the intended wall-clock face requires converting them to their location's zone via `_shift_local_face`, which calls `.astimezone()` — this does not violate the rule from #61/#85 because that rule protects availability specifically, not true instants.
 - **Multi-tenancy:** every query filters by `company_id`.
 - **This stage ships alone.** Editing approved schedules is a separate plan; `schedules.py:356` still blocks it when this lands.
 

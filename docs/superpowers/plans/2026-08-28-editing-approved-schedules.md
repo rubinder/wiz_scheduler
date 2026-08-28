@@ -16,7 +16,7 @@
 - **Run tests with `backend/.venv/bin/python -m pytest`** from the repo root. Never bare `pytest` — the system Anaconda python lacks this project's dependencies.
 - **Do not install new dependencies.**
 - **Multi-tenancy:** every query filters by `company_id`; an edit must verify the schedule and every referenced employee belong to the caller's company.
-- **Times are wall-clock carrying the location's offset and must never be `.astimezone()`d.** This is the contract from #61 that #85 and #92 both turn on.
+- **EmployeeAvailability timestamps are wall-clock falsely tagged UTC and must never be `.astimezone()`d.** Request payloads arriving from the client for an edit carry the location's offset and have never passed through `timestamptz` storage, so `_wall_clock` is correct for them just as it is for availability. **Shift rows read from the database are true instants** — they have been normalized to UTC on storage and must be converted to their location's zone via `_shift_local_face` to recover the intended wall-clock face; this `.astimezone()` conversion does not violate the rule from #61/#85, which protects availability specifically (wall-clock tagged UTC, not true instants).
 - **All 19 locale files must carry every new key** (`ar bn de en es fr hi id ja mr pcm pt ru ta te tr ur vi zh`). `LanguageContext.tsx` types translations as `Record<Language, Translations>`, so a key added to `en.ts` alone fails the TypeScript build.
 - **The frontend has NO test runner.** Gates are `npx tsc --noEmit` and `npm run build` from `frontend/`, plus `tests/test_sidebar_routes.py`, which catches a nav link with no route and a `labelKey` missing from `en.ts` — `tsc` cannot, because the lookup goes through `as keyof typeof t.nav`.
 
