@@ -1,5 +1,6 @@
 from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from langgraph.graph import END, StateGraph
 from sqlalchemy import select
@@ -24,7 +25,6 @@ from backend.models import (
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.nodes import (
     _subtract_consumed,
-    _wall_clock,
     build_prompt,
     call_llm,
     emit_result,
@@ -243,6 +243,64 @@ def _validate_num_days(num_days: int) -> None:
         )
 
 
+def _shift_local_face(
+    shift: Shift,
+    location: Location,
+) -> Tuple[datetime, datetime] | None:
+    """Recover the wall-clock face a committed Shift occupies at its location.
+
+    Shift.start_time/end_time are timestamptz columns -- true instants, NOT
+    wall-clock-tagged-UTC like availability. local_scheduler.py emits an
+    aware datetime with the location's real offset (e.g. "09:00:00-04:00");
+    approve parses that and Postgres normalises it to UTC on storage, so it
+    comes back as "13:00:00+00:00". Stripping the tag at that point (the way
+    _wall_clock does for availability, in nodes.py, #85) reads the WRONG
+    face -- 13:00, not the 09:00 the shift actually covers.
+
+    The fix is to convert the instant into ITS OWN location's zone and take
+    THAT face. This does not violate the "never .astimezone()" rule from
+    #61/#85: that rule protects availability, which is a wall-clock value
+    falsely tagged UTC and therefore NOT a true instant -- calling
+    .astimezone() on it would move the face it represents. A Shift timestamp
+    IS a true instant, so .astimezone(location's zone) recovers the intended
+    face instead of moving it. The two columns are both "aware datetime"
+    attributes and look interchangeable; they are not, and that similarity is
+    exactly what made the original bug (reading the UTC-normalised face
+    directly) easy to write and easy to miss.
+
+    One more wrinkle: this only matters for a driver that actually preserves
+    the offset. SQLite's DateTime(timezone=True) columns drop tzinfo on
+    read -- the value that comes back is naive but its digits are still the
+    original local face (SQLite never normalises to UTC the way Postgres
+    does). Calling .astimezone() on THAT naive value would misinterpret it as
+    the host's system timezone and move it again, introducing a second bug.
+    So the conversion below only applies when the value is actually aware; a
+    naive value is trusted as already being the correct face.
+
+    Returns None -- rather than raising -- if location.timezone is missing,
+    invalid, or the shift's timestamps are unusable: the scheduling graph
+    degrades, it never throws.
+    """
+    tz_name = getattr(location, "timezone", None)
+    if not tz_name:
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+        start_raw = shift.start_time
+        end_raw = shift.end_time
+        start = (
+            start_raw.astimezone(tz).replace(tzinfo=None)
+            if start_raw.tzinfo is not None else start_raw
+        )
+        end = (
+            end_raw.astimezone(tz).replace(tzinfo=None)
+            if end_raw.tzinfo is not None else end_raw
+        )
+    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
+        return None
+    return start, end
+
+
 async def _committed_shifts_by_employee(
     db: AsyncSession,
     company_id: str,
@@ -251,26 +309,38 @@ async def _committed_shifts_by_employee(
 ) -> Dict[str, List[Tuple[datetime, datetime]]]:
     """Already-committed shift spans for the week, per employee.
 
-    Returned as naive wall-clock pairs. Shift timestamps carry the location's
-    real offset while availability is wall-clock tagged UTC, so they are only
-    comparable face-to-face — see _wall_clock (#85).
+    Returned as naive wall-clock pairs, comparable face-to-face with
+    availability (see _shift_local_face for why Shift timestamps need their
+    own conversion rather than a tag-strip).
+
+    The SQL window is widened by a day on each side because Shift.start_time
+    is a UTC instant: comparing it directly against the wall-clock week
+    boundary can silently drop (or wrongly include) a shift whose instant has
+    rolled across the UTC day line relative to its location's offset. The
+    face-based filter below narrows back down to the true week using the
+    same converted face used for subtraction.
     """
     rows = (await db.execute(
-        select(Shift).where(
+        select(Shift, Location)
+        .join(Location, Shift.location_id == Location.id)
+        .where(
             Shift.company_id == company_id,
-            Shift.start_time >= week_start,
-            Shift.start_time < week_end,
+            Location.company_id == company_id,
+            Shift.start_time >= week_start - timedelta(days=1),
+            Shift.start_time < week_end + timedelta(days=1),
         )
-    )).scalars().all()
+    )).all()
+
+    naive_week_start = week_start.replace(tzinfo=None)
+    naive_week_end = week_end.replace(tzinfo=None)
 
     by_emp: Dict[str, List[Tuple[datetime, datetime]]] = {}
-    for s in rows:
-        try:
-            start = _wall_clock(s.start_time.isoformat())
-            end = _wall_clock(s.end_time.isoformat())
-        except (AttributeError, ValueError, TypeError):
-            # A row we cannot read is skipped rather than raised on: the
-            # scheduling graph degrades, it never throws.
+    for s, loc in rows:
+        face = _shift_local_face(s, loc)
+        if face is None:
+            continue
+        start, end = face
+        if start < naive_week_start or start >= naive_week_end:
             continue
         by_emp.setdefault(str(s.employee_id), []).append((start, end))
     return by_emp

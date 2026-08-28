@@ -13,7 +13,6 @@ from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
-from backend.utils.id_gen import generate_short_id
 
 logger = logging.getLogger(__name__)
 
