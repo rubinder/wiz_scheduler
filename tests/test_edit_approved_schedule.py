@@ -210,6 +210,61 @@ async def checked_in_shift(
 
 
 @pytest_asyncio.fixture
+async def seed_role_id(seed_roles) -> str:
+    return ROLE_FLOOR_ID
+
+
+@pytest_asyncio.fixture
+async def approved_shift(
+    db_session: AsyncSession, seed_employees: list[Employee],
+) -> tuple[str, str]:
+    """An approved schedule with one shift, no check-in attached, so it is
+    free to be edited or deleted. week_start_date matches the date the
+    week-endpoint visibility test queries."""
+    sched_id = _id()
+    shift_id = _id()
+    db_session.add(ShiftSchedule(
+        id=sched_id,
+        company_id=COMPANY_ID,
+        location_id=LOCATION_ID,
+        week_start_date=date(2026, 8, 31),
+        status="approved",
+        created_at=datetime.now(timezone.utc),
+    ))
+    db_session.add(Shift(
+        id=shift_id,
+        company_id=COMPANY_ID,
+        shift_schedule_id=sched_id,
+        location_id=LOCATION_ID,
+        employee_id=EMPLOYEE1_ID,
+        role_id=ROLE_FLOOR_ID,
+        role_name="Floor Associate",
+        date=date(2026, 8, 31),
+        start_time=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 8, 31, 17, 0, tzinfo=timezone.utc),
+    ))
+    await db_session.commit()
+    return sched_id, shift_id
+
+
+@pytest_asyncio.fixture
+async def held_lock(db_session: AsyncSession, seed_manager) -> None:
+    """Acquires the company schedule lock as a different user, simulating a
+    second manager already mid-edit. `approve_schedule` and this endpoint
+    both take this same lock, so an edit request made while it is held must
+    be refused rather than silently racing the other manager's changes."""
+    from backend.models import ScheduleLock
+
+    db_session.add(ScheduleLock(
+        company_id=COMPANY_ID,
+        locked_by_user_id=_id(),
+        operation="edit_approved",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
 async def other_company_schedule_id(db_session: AsyncSession) -> str:
     """An approved schedule belonging to a DIFFERENT company than
     `manager_token`. Used to assert the endpoint 404s instead of leaking
@@ -374,3 +429,125 @@ async def test_another_companys_schedule_is_not_found(
         json={"edits": []},
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Applying edits (#84 stage 2)
+# ---------------------------------------------------------------------------
+
+
+async def test_deleting_a_shift_removes_the_row(
+    client: AsyncClient, manager_token: str, approved_shift, db_session,
+):
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "deleted": True}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 1
+
+    remaining = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one_or_none()
+    assert remaining is None
+
+
+async def test_reassigning_changes_the_employee(
+    client: AsyncClient, manager_token: str, approved_shift, second_employee_id, db_session,
+):
+    """The hold moves with the row — no separate release step (stage 1)."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "employee_id": second_employee_id}]},
+    )
+    assert resp.status_code == 200
+
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one()
+    assert shift.employee_id == second_employee_id
+
+
+async def test_an_edit_is_visible_to_the_week_endpoint(
+    client: AsyncClient, manager_token: str, approved_shift,
+):
+    """Proves the edit wrote to the shifts table, not raw_llm_output.
+
+    The week endpoint reads materialised Shift rows — the same source
+    export_schedules.py and the approved-schedule calendar read. An edit that
+    only touched the blob would leave this response unchanged."""
+    schedule_id, shift_id = approved_shift
+    await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "deleted": True}]},
+    )
+    week = await client.get(
+        f"{BASE}/week/2026-08-31?status=approved",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    ids = [s["id"] for sched in week.json() for s in sched["shifts"]]
+    assert shift_id not in ids
+
+
+async def test_adding_a_shift_creates_a_row(
+    client: AsyncClient, manager_token: str, approved_schedule_id, second_employee_id, seed_role_id,
+):
+    resp = await client.put(
+        f"{BASE}/{approved_schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{
+            "shift_id": None,
+            "employee_id": second_employee_id,
+            "role_id": seed_role_id,
+            "date": "2026-08-31",
+            "start_time": "2026-08-31T09:00:00-04:00",
+            "end_time": "2026-08-31T13:00:00-04:00",
+        }]},
+    )
+    assert resp.status_code == 201 or resp.json()["applied"] == 1
+
+
+async def test_two_concurrent_edits_conflict(
+    client: AsyncClient, manager_token: str, approved_schedule_id, held_lock,
+):
+    """Approve takes the same lock; without it two managers editing one week
+    silently overwrite each other."""
+    resp = await client.put(
+        f"{BASE}/{approved_schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": []},
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "schedule_locked"
+
+
+async def test_reassigning_to_another_companys_employee_is_not_found(
+    client: AsyncClient, manager_token: str, approved_shift, other_company_employee_id, db_session,
+):
+    """A manager must not be able to schedule another tenant's staff."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "employee_id": other_company_employee_id}]},
+    )
+    assert resp.status_code == 404
+
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one()
+    assert shift.employee_id == EMPLOYEE1_ID

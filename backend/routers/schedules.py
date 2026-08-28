@@ -338,10 +338,100 @@ async def edit_approved_shifts(
                 },
             )
 
-    # Edits are not applied yet — that lands in the next task (#84 stage 3).
-    # This handler is refusals-only for now, so applied is deliberately 0
-    # regardless of body.edits, not a bug.
-    return EditApprovedResponse(applied=0, warnings=[])
+    try:
+        lock = await acquire_lock(
+            db,
+            company_id=str(current_user.company_id),
+            user_id=str(current_user.id),
+            operation="edit_approved",
+        )
+    except LockHeld as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_locked",
+                "locked_by": e.locked_by_full_name,
+                "expires_at": e.expires_at.isoformat(),
+            },
+        )
+
+    try:
+        from backend.models import Role
+
+        applied = 0
+        for edit in body.edits:
+            if edit.employee_id is not None:
+                # Every employee referenced must belong to the caller's
+                # company — otherwise a manager could schedule another
+                # tenant's staff.
+                employee = (await db.execute(
+                    select(Employee.id).where(
+                        Employee.id == edit.employee_id,
+                        Employee.company_id == current_user.company_id,
+                    )
+                )).scalar_one_or_none()
+                if employee is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Employee not found",
+                    )
+
+            if edit.shift_id:
+                shift = (await db.execute(
+                    select(Shift).where(
+                        Shift.id == edit.shift_id,
+                        Shift.company_id == current_user.company_id,
+                    )
+                )).scalar_one_or_none()
+                if shift is None:
+                    continue
+                if edit.deleted:
+                    await db.delete(shift)
+                    applied += 1
+                    continue
+                if edit.employee_id is not None:
+                    shift.employee_id = edit.employee_id
+                if edit.role_id is not None:
+                    shift.role_id = edit.role_id
+                if edit.date is not None:
+                    shift.date = edit.date
+                if edit.start_time is not None:
+                    shift.start_time = edit.start_time
+                if edit.end_time is not None:
+                    shift.end_time = edit.end_time
+                applied += 1
+            else:
+                role_name = (await db.execute(
+                    select(Role.name).where(
+                        Role.id == edit.role_id,
+                        Role.company_id == current_user.company_id,
+                    )
+                )).scalar_one_or_none()
+                if role_name is None:
+                    continue
+                db.add(Shift(
+                    company_id=current_user.company_id,
+                    shift_schedule_id=schedule.id,
+                    location_id=schedule.location_id,
+                    employee_id=edit.employee_id,
+                    role_id=edit.role_id,
+                    role_name=role_name,
+                    date=edit.date,
+                    start_time=edit.start_time,
+                    end_time=edit.end_time,
+                ))
+                applied += 1
+
+        await db.commit()
+        result = EditApprovedResponse(applied=applied, warnings=[])
+    except Exception:
+        await db.rollback()
+        raise
+    finally:
+        await release_lock(db, lock.id)
+        await db.commit()
+
+    return result
 
 
 @router.post("/{schedule_id}/approve", response_model=ShiftScheduleResponse)
