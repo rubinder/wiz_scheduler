@@ -15,6 +15,7 @@ from backend.utils.privacy import mask_ip
 from backend.schemas.schedule import (
     EditApprovedResponse,
     EditApprovedShiftsRequest,
+    EditWarning,
     GenerateRequest,
     ShiftScheduleResponse,
     UpdateShiftsRequest,
@@ -357,6 +358,15 @@ async def edit_approved_shifts(
 
     try:
         from backend.models import Role
+        from backend.services.edit_warnings import collect_edit_warnings
+
+        # Collect warnings BEFORE any edit is applied: the checks below read
+        # committed `Shift` rows back out of the database, and doing this
+        # after the mutation loop would compare a shift against its own
+        # post-edit state, making already_booked meaningless.
+        warning_dicts = await collect_edit_warnings(
+            db, str(current_user.company_id), body.edits, schedule,
+        )
 
         applied = 0
         for idx, edit in enumerate(body.edits):
@@ -469,7 +479,10 @@ async def edit_approved_shifts(
                 applied += 1
 
         await db.commit()
-        result = EditApprovedResponse(applied=applied, warnings=[])
+        result = EditApprovedResponse(
+            applied=applied,
+            warnings=[EditWarning(**w) for w in warning_dicts],
+        )
     except Exception:
         await db.rollback()
         raise
