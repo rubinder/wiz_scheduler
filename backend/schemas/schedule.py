@@ -1,3 +1,4 @@
+import datetime as _datetime_module
 from datetime import date, datetime
 
 from pydantic import BaseModel, Field
@@ -54,6 +55,43 @@ class ShiftResponse(BaseModel):
     employee_name: str = ""
 
     model_config = {"from_attributes": True}
+
+
+class ApprovedShiftEdit(BaseModel):
+    """One edit to an approved schedule.
+
+    shift_id is None for a new shift. deleted=True removes an existing one,
+    in which case the other fields are ignored.
+    """
+
+    shift_id: str | None = None
+    deleted: bool = False
+    employee_id: str | None = None
+    role_id: str | None = None
+    # Qualified reference, not the bare `date` imported above: an annotated
+    # assignment evaluates its RHS default before its annotation, so a field
+    # literally named `date` with a default would bind the name `date` to
+    # None in this class's namespace before `date | None` is evaluated,
+    # raising "unsupported operand type(s) for |: 'NoneType' and 'NoneType'".
+    date: _datetime_module.date | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+
+
+class EditApprovedShiftsRequest(BaseModel):
+    edits: list[ApprovedShiftEdit]
+
+
+class EditWarning(BaseModel):
+    code: str
+    shift_id: str | None
+    employee_id: str
+    detail: str
+
+
+class EditApprovedResponse(BaseModel):
+    applied: int
+    warnings: list[EditWarning] = []
 
 
 class ShiftScheduleResponse(BaseModel):

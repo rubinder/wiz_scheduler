@@ -1,17 +1,24 @@
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.dependencies import get_db, require_manager
-from backend.models import Employee, Shift, ShiftSchedule, User
+from backend.models import Employee, EmployeeCheckIn, Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
-from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
+from backend.schemas.schedule import (
+    EditApprovedResponse,
+    EditApprovedShiftsRequest,
+    GenerateRequest,
+    ShiftScheduleResponse,
+    UpdateShiftsRequest,
+)
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -264,6 +271,74 @@ async def update_shifts(
     schedule.raw_llm_output = json.dumps([s.model_dump() for s in body.shifts])
     await db.commit()
     return {"ok": True}
+
+
+@router.put("/{schedule_id}/approved-shifts", response_model=EditApprovedResponse)
+async def edit_approved_shifts(
+    schedule_id: str,
+    body: EditApprovedShiftsRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> EditApprovedResponse:
+    """Edit an approved schedule's shifts.
+
+    Writes to the `shifts` table, not raw_llm_output: after approval every
+    consumer reads the table (export_schedules.py, gdpr.py, check-ins), so
+    editing the blob would be a silent no-op.
+    """
+    schedule = (await db.execute(
+        select(ShiftSchedule).where(
+            ShiftSchedule.id == schedule_id,
+            ShiftSchedule.company_id == current_user.company_id,
+        )
+    )).scalar_one_or_none()
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+
+    if schedule.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "not_approved", "message": "This endpoint edits approved schedules only."},
+        )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS)
+    created_at = schedule.created_at
+    if created_at.tzinfo is None:
+        # SQLite (the test DB) returns DateTime(timezone=True) columns as
+        # naive; Postgres always returns aware. created_at is written in UTC
+        # either way, so tag it rather than convert it.
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    if created_at < cutoff:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "edit_window_closed",
+                "message": (
+                    f"Approved schedules can be edited for "
+                    f"{settings.APPROVED_SCHEDULE_EDIT_DAYS} days after approval."
+                ),
+            },
+        )
+
+    touched_ids = [e.shift_id for e in body.edits if e.shift_id]
+    if touched_ids:
+        locked = (await db.execute(
+            select(EmployeeCheckIn.shift_id).where(
+                EmployeeCheckIn.company_id == current_user.company_id,
+                EmployeeCheckIn.shift_id.in_(touched_ids),
+            )
+        )).scalars().all()
+        if locked:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "shift_locked_by_checkin",
+                    "message": "An employee has already checked in against this shift.",
+                    "shift_ids": [str(s) for s in locked],
+                },
+            )
+
+    return EditApprovedResponse(applied=0, warnings=[])
 
 
 @router.post("/{schedule_id}/approve", response_model=ShiftScheduleResponse)

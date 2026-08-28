@@ -210,6 +210,11 @@ class Settings(BaseSettings):
     # Check-in retention. Six months, per issue #63.
     RETENTION_CHECKINS_DAYS: int = 180
 
+    # How long an approved schedule stays editable, measured from created_at
+    # (the basis specified in #84 — not week_start_date, which diverges for a
+    # schedule approved well ahead of the week it covers).
+    APPROVED_SCHEDULE_EDIT_DAYS: int = 30
+
     # Rotating check-in QR code.
     #
     # The payload is an HMAC over company slug, location, local date and the
