@@ -1,5 +1,6 @@
 import type { ShiftAssignment } from "../types";
-import { apiFetch } from "./client";
+import { apiFetch, ApiError } from "./client";
+import { ScheduleLockedError } from "../hooks/useScheduleStream";
 
 /** One location's schedule for a week, as stored after generation. */
 export interface WeekSchedule {
@@ -55,4 +56,58 @@ export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
     end_time: s.end_time,
     status: "ok",
   }));
+}
+
+/** One of the three overridable warnings `PUT .../approved-shifts` can
+ *  return. The edit has already been applied by the time a warning is
+ *  returned — a 200 is not a request for confirmation. */
+export interface EditWarning {
+  code: "no_availability" | "already_booked" | "already_exported";
+  shift_id: string | null;
+  employee_id: string;
+  detail: string;
+}
+
+/** One edit to an approved schedule's shifts. `shift_id` is omitted (or
+ *  null) to create a new shift; `deleted: true` removes an existing one, in
+ *  which case the other fields are ignored by the server. */
+export interface ApprovedShiftEdit {
+  shift_id?: string | null;
+  deleted?: boolean;
+  employee_id?: string;
+  role_id?: string;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+/** Apply edits to an approved schedule's materialised `Shift` rows.
+ *
+ *  A 409 with code `schedule_locked` is normalised to `ScheduleLockedError`,
+ *  matching how `schedules.ts` handles the same lock — the caller can
+ *  `instanceof` it regardless of which endpoint produced it. The other two
+ *  refusal codes (`shift_locked_by_checkin` on 409, `invalid_edit` on 400)
+ *  and the three warning codes are left on the thrown `ApiError` / the
+ *  resolved response for the caller to inspect directly. */
+export async function editApprovedShifts(
+  scheduleId: string,
+  edits: ApprovedShiftEdit[]
+): Promise<{ applied: number; warnings: EditWarning[] }> {
+  try {
+    return await apiFetch(`/schedules/${scheduleId}/approved-shifts`, {
+      method: "PUT",
+      body: JSON.stringify({ edits }),
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const data = err.data as { code?: string; locked_by?: string; expires_at?: string } | undefined;
+      if (data?.code === "schedule_locked") {
+        throw new ScheduleLockedError(
+          String(data.locked_by ?? "another manager"),
+          new Date(String(data.expires_at ?? Date.now())),
+        );
+      }
+    }
+    throw err;
+  }
 }
