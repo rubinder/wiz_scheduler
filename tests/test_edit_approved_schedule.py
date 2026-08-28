@@ -14,12 +14,13 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Shift, ShiftSchedule
+from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift, ShiftSchedule
 from tests.conftest import (
     COMPANY_ID,
     EMPLOYEE1_ID,
     LOCATION_ID,
     ROLE_FLOOR_ID,
+    ROLE_LEAD_ID,
     _id,
 )
 
@@ -262,6 +263,22 @@ async def held_lock(db_session: AsyncSession, seed_manager) -> None:
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
     ))
     await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def other_company_role_id(db_session: AsyncSession) -> str:
+    """A Role belonging to a DIFFERENT company than `manager_token`.
+
+    Used to assert that reassigning a shift's role_id refuses to point it at
+    another tenant's role (the modify-path counterpart of
+    other_company_employee_id)."""
+    other_company_id = _id()
+    db_session.add(Company(id=other_company_id, name="Other Role Co", slug=_id()))
+    await db_session.flush()
+    role = Role(id=_id(), company_id=other_company_id, name="Outsider Role")
+    db_session.add(role)
+    await db_session.commit()
+    return role.id
 
 
 @pytest_asyncio.fixture
@@ -515,7 +532,8 @@ async def test_adding_a_shift_creates_a_row(
             "end_time": "2026-08-31T13:00:00-04:00",
         }]},
     )
-    assert resp.status_code == 201 or resp.json()["applied"] == 1
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 1
 
 
 async def test_two_concurrent_edits_conflict(
@@ -551,3 +569,105 @@ async def test_reassigning_to_another_companys_employee_is_not_found(
         select(Shift).where(Shift.id == shift_id)
     )).scalar_one()
     assert shift.employee_id == EMPLOYEE1_ID
+
+
+# ---------------------------------------------------------------------------
+# Fix round 1: role_id cross-tenant IDOR, stale role_name, all-or-nothing
+# batch behaviour, and accurate `applied` counting.
+# ---------------------------------------------------------------------------
+
+
+async def test_reassigning_the_role_updates_role_id_and_role_name(
+    client: AsyncClient, manager_token: str, approved_shift, db_session,
+):
+    """role_name is denormalised onto Shift and read by the UI and the
+    7shifts export — it must move with role_id, not go stale next to it."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "role_id": ROLE_LEAD_ID}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 1
+
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one()
+    assert shift.role_id == ROLE_LEAD_ID
+    assert shift.role_name == "Team Lead"
+
+
+async def test_reassigning_to_another_companys_role_is_not_found(
+    client: AsyncClient, manager_token: str, approved_shift, other_company_role_id, db_session,
+):
+    """A manager must not be able to point a shift at another tenant's role.
+
+    Critical finding: the modify path built the new role_id directly from
+    the request with no company filter, unlike the employee check and the
+    add-path role check right next to it."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "role_id": other_company_role_id}]},
+    )
+    assert resp.status_code == 404
+
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one()
+    assert shift.role_id == ROLE_FLOOR_ID
+    assert shift.role_name == "Floor Associate"
+
+
+async def test_a_failed_edit_in_a_batch_leaves_earlier_edits_unapplied(
+    client: AsyncClient, manager_token: str, approved_shift, db_session,
+):
+    """Partial application is the worst outcome for a scheduling tool: the
+    manager would believe the schedule says something it does not. The first
+    edit here is perfectly valid on its own; the second references a shift
+    that doesn't exist. Neither may land."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [
+            {"shift_id": shift_id, "deleted": True},
+            {"shift_id": "doesnotexist", "deleted": True},
+        ]},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_edit"
+    assert resp.json()["detail"]["index"] == 1
+
+    # The first edit (deleting shift_id) must NOT have been applied.
+    remaining = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one_or_none()
+    assert remaining is not None
+
+
+async def test_an_edit_with_no_fields_set_is_not_counted_as_applied(
+    client: AsyncClient, manager_token: str, approved_shift,
+):
+    """A matched, non-deleted shift_id edit whose optional fields are all
+    None changes nothing on the row — it must not inflate `applied`, which
+    the UI reports back to the manager as a count of real changes."""
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 0

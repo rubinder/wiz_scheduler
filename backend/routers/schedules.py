@@ -359,7 +359,7 @@ async def edit_approved_shifts(
         from backend.models import Role
 
         applied = 0
-        for edit in body.edits:
+        for idx, edit in enumerate(body.edits):
             if edit.employee_id is not None:
                 # Every employee referenced must belong to the caller's
                 # company — otherwise a manager could schedule another
@@ -384,22 +384,60 @@ async def edit_approved_shifts(
                     )
                 )).scalar_one_or_none()
                 if shift is None:
-                    continue
+                    # All-or-nothing: an edit list is a single manager
+                    # decision. Silently skipping one edit while committing
+                    # the rest would leave the manager believing the whole
+                    # batch applied, so any unresolvable edit fails (and
+                    # rolls back) the entire request instead.
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": edit.shift_id,
+                            "reason": "shift not found",
+                        },
+                    )
                 if edit.deleted:
                     await db.delete(shift)
                     applied += 1
                     continue
+                changed = False
                 if edit.employee_id is not None:
                     shift.employee_id = edit.employee_id
+                    changed = True
                 if edit.role_id is not None:
+                    # Same company check as the employee check above — a
+                    # manager must not be able to point a shift at another
+                    # tenant's role. role_name is denormalised onto Shift
+                    # (read by the UI and the 7shifts export), so it has to
+                    # be refreshed here too or it goes stale next to the new
+                    # role_id.
+                    role_name = (await db.execute(
+                        select(Role.name).where(
+                            Role.id == edit.role_id,
+                            Role.company_id == current_user.company_id,
+                        )
+                    )).scalar_one_or_none()
+                    if role_name is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Role not found",
+                        )
                     shift.role_id = edit.role_id
+                    shift.role_name = role_name
+                    changed = True
                 if edit.date is not None:
                     shift.date = edit.date
+                    changed = True
                 if edit.start_time is not None:
                     shift.start_time = edit.start_time
+                    changed = True
                 if edit.end_time is not None:
                     shift.end_time = edit.end_time
-                applied += 1
+                    changed = True
+                if changed:
+                    applied += 1
             else:
                 role_name = (await db.execute(
                     select(Role.name).where(
@@ -408,7 +446,15 @@ async def edit_approved_shifts(
                     )
                 )).scalar_one_or_none()
                 if role_name is None:
-                    continue
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": None,
+                            "reason": "role not found",
+                        },
+                    )
                 db.add(Shift(
                     company_id=current_user.company_id,
                     shift_schedule_id=schedule.id,
