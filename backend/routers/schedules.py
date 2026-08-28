@@ -338,6 +338,9 @@ async def edit_approved_shifts(
                 },
             )
 
+    # Edits are not applied yet — that lands in the next task (#84 stage 3).
+    # This handler is refusals-only for now, so applied is deliberately 0
+    # regardless of body.edits, not a bug.
     return EditApprovedResponse(applied=0, warnings=[])
 
 

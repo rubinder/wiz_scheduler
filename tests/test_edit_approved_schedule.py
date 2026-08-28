@@ -12,6 +12,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Shift, ShiftSchedule
 from tests.conftest import (
     COMPANY_ID,
@@ -72,6 +73,70 @@ async def old_approved_schedule_id(db_session: AsyncSession, seed_location: Loca
         week_start_date=date(2026, 1, 5),
         status="approved",
         created_at=datetime.now(timezone.utc) - timedelta(days=40),
+    ))
+    await db_session.commit()
+    return sid
+
+
+@pytest_asyncio.fixture
+async def schedule_at_exact_boundary_id(db_session: AsyncSession, seed_location: Location) -> str:
+    """created_at is exactly APPROVED_SCHEDULE_EDIT_DAYS days before fixture setup.
+
+    The endpoint computes its own cutoff (`now() - APPROVED_SCHEDULE_EDIT_DAYS`)
+    at request time, strictly later than this fixture ran, and compares with a
+    strict `<`. So `created_at` here is always slightly earlier than that
+    later cutoff, and the strict `<` refuses it. There is no way to observe
+    the reverse (allowed) side of an exact tie in a real request, because any
+    elapsed wall-clock time between "created" and "now" — even a microsecond
+    of test/request overhead — pushes `created_at` under the cutoff. So the
+    documented, exercised convention is: a schedule is editable while strictly
+    younger than APPROVED_SCHEDULE_EDIT_DAYS days; the instant it turns
+    exactly that old, it is refused.
+    """
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid,
+        company_id=COMPANY_ID,
+        location_id=LOCATION_ID,
+        week_start_date=date(2026, 1, 5),
+        status="approved",
+        created_at=datetime.now(timezone.utc) - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS),
+    ))
+    await db_session.commit()
+    return sid
+
+
+@pytest_asyncio.fixture
+async def schedule_just_inside_window_id(db_session: AsyncSession, seed_location: Location) -> str:
+    """created_at is one hour short of the window — must remain editable."""
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid,
+        company_id=COMPANY_ID,
+        location_id=LOCATION_ID,
+        week_start_date=date(2026, 1, 5),
+        status="approved",
+        created_at=datetime.now(timezone.utc)
+        - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS)
+        + timedelta(hours=1),
+    ))
+    await db_session.commit()
+    return sid
+
+
+@pytest_asyncio.fixture
+async def schedule_just_outside_window_id(db_session: AsyncSession, seed_location: Location) -> str:
+    """created_at is one hour past the window — must be refused."""
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid,
+        company_id=COMPANY_ID,
+        location_id=LOCATION_ID,
+        week_start_date=date(2026, 1, 5),
+        status="approved",
+        created_at=datetime.now(timezone.utc)
+        - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS)
+        - timedelta(hours=1),
     ))
     await db_session.commit()
     return sid
@@ -198,6 +263,48 @@ async def test_an_edit_past_the_window_is_refused(
     """created_date is the basis, per #84."""
     resp = await client.put(
         f"{BASE}/{old_approved_schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": []},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "edit_window_closed"
+
+
+async def test_the_exact_boundary_instant_is_refused(
+    client: AsyncClient, manager_token: str, schedule_at_exact_boundary_id: str,
+):
+    """Pinning the convention: the comparison is strict `<`, so a schedule
+    created exactly APPROVED_SCHEDULE_EDIT_DAYS days before "now" is already
+    refused — see the fixture's docstring for why an exact tie always lands
+    on this side in practice."""
+    resp = await client.put(
+        f"{BASE}/{schedule_at_exact_boundary_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": []},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "edit_window_closed"
+
+
+async def test_just_inside_the_window_is_allowed(
+    client: AsyncClient, manager_token: str, schedule_just_inside_window_id: str,
+):
+    """An hour short of the boundary must still be editable."""
+    resp = await client.put(
+        f"{BASE}/{schedule_just_inside_window_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": []},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 0
+
+
+async def test_just_outside_the_window_is_refused(
+    client: AsyncClient, manager_token: str, schedule_just_outside_window_id: str,
+):
+    """An hour past the boundary must be refused."""
+    resp = await client.put(
+        f"{BASE}/{schedule_just_outside_window_id}/approved-shifts",
         headers={"Authorization": f"Bearer {manager_token}"},
         json={"edits": []},
     )
