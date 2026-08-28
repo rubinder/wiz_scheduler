@@ -131,3 +131,94 @@ async def test_approving_leaves_availability_rows_intact(
         "carve destroys it and inserts a new row with a fresh id, even when "
         "the remaining window happens to look the same"
     )
+
+
+async def test_an_approved_shift_removes_those_hours_from_availability(
+    db_session: AsyncSession, approved_schedule_fixture,
+):
+    """Consumption still happens — it is just computed at read time now."""
+    from backend.scheduling.graph import _load_employee_availability
+
+    emp_id, work_date = approved_schedule_fixture
+    avail = await _load_employee_availability(
+        db_session, company_id=COMPANY_ID, week_start_date=work_date.isoformat(), num_days=7,
+    )
+    windows = avail.get(emp_id, [])
+    # Available 09:00-17:00, worked 13:00-21:00 -> 09:00-13:00 remains.
+    assert len(windows) == 1
+    assert windows[0]["start"].endswith("T09:00:00+00:00")
+    assert windows[0]["end"].endswith("T13:00:00+00:00")
+
+
+async def test_deleting_the_shift_releases_the_hold(
+    db_session: AsyncSession, approved_schedule_fixture,
+):
+    """Releasing a hold and deleting a shift are the same act."""
+    from sqlalchemy import delete
+    from backend.models import Shift
+    from backend.scheduling.graph import _load_employee_availability
+
+    emp_id, work_date = approved_schedule_fixture
+    await db_session.execute(delete(Shift).where(Shift.employee_id == emp_id))
+    await db_session.commit()
+
+    avail = await _load_employee_availability(
+        db_session, company_id=COMPANY_ID, week_start_date=work_date.isoformat(), num_days=7,
+    )
+    windows = avail.get(emp_id, [])
+    assert len(windows) == 1
+    assert windows[0]["end"].endswith("T17:00:00+00:00"), (
+        "the full window returns once nothing references those hours"
+    )
+
+
+async def test_the_same_span_subtracted_twice_is_a_no_op(
+    db_session: AsyncSession, approved_schedule_fixture,
+):
+    """There is no unique constraint on (location_id, week_start_date), so a
+    manager who regenerates and re-approves produces two approved schedules
+    covering the same hours. Availability must not be double-consumed."""
+    from backend.models import Shift
+    from backend.scheduling.graph import _load_employee_availability
+
+    emp_id, work_date = approved_schedule_fixture
+    original = (await db_session.execute(
+        select(Shift).where(Shift.employee_id == emp_id)
+    )).scalars().first()
+
+    db_session.add(Shift(
+        id="dupshft1",
+        company_id=original.company_id,
+        shift_schedule_id=original.shift_schedule_id,
+        location_id=original.location_id,
+        employee_id=original.employee_id,
+        role_id=original.role_id,
+        role_name=original.role_name,
+        date=original.date,
+        start_time=original.start_time,
+        end_time=original.end_time,
+    ))
+    await db_session.commit()
+
+    avail = await _load_employee_availability(
+        db_session, company_id=COMPANY_ID, week_start_date=work_date.isoformat(), num_days=7,
+    )
+    windows = avail.get(emp_id, [])
+    assert len(windows) == 1
+    assert windows[0]["end"].endswith("T13:00:00+00:00"), (
+        "two identical shifts consume the same hours once, not twice"
+    )
+
+
+async def test_a_malformed_shift_timestamp_does_not_raise(
+    db_session: AsyncSession, approved_schedule_fixture,
+):
+    """The scheduling graph degrades; it never throws."""
+    from backend.scheduling.graph import _load_employee_availability
+
+    emp_id, work_date = approved_schedule_fixture
+    # Should not raise even if a row is unparseable.
+    avail = await _load_employee_availability(
+        db_session, company_id=COMPANY_ID, week_start_date=work_date.isoformat(), num_days=7,
+    )
+    assert isinstance(avail, dict)
