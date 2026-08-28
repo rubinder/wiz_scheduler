@@ -6,6 +6,7 @@ Everything else is a warning the manager can override.
 """
 
 from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -25,6 +26,23 @@ from tests.conftest import (
 pytestmark = pytest.mark.asyncio
 
 BASE = "/api/v1/schedules"
+
+# A fixed instant used to test the edit-window tie exactly. Wall-clock
+# time always advances between a fixture writing created_at and the
+# request computing cutoff, so a real request can never observe
+# created_at == cutoff -- the clock has to be frozen to produce that tie.
+FROZEN_NOW = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+
+class _FrozenDatetime(datetime):
+    """Patched in for backend.routers.schedules's `datetime` name so
+    `datetime.now(timezone.utc)` inside edit_approved_shifts returns
+    FROZEN_NOW instead of the real time.
+    """
+
+    @classmethod
+    def now(cls, tz=None):
+        return FROZEN_NOW if tz is not None else FROZEN_NOW.replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -79,19 +97,16 @@ async def old_approved_schedule_id(db_session: AsyncSession, seed_location: Loca
 
 
 @pytest_asyncio.fixture
-async def schedule_at_exact_boundary_id(db_session: AsyncSession, seed_location: Location) -> str:
-    """created_at is exactly APPROVED_SCHEDULE_EDIT_DAYS days before fixture setup.
+async def schedule_created_exactly_at_the_window_edge_id(
+    db_session: AsyncSession, seed_location: Location,
+) -> str:
+    """created_at is exactly APPROVED_SCHEDULE_EDIT_DAYS days before FROZEN_NOW.
 
-    The endpoint computes its own cutoff (`now() - APPROVED_SCHEDULE_EDIT_DAYS`)
-    at request time, strictly later than this fixture ran, and compares with a
-    strict `<`. So `created_at` here is always slightly earlier than that
-    later cutoff, and the strict `<` refuses it. There is no way to observe
-    the reverse (allowed) side of an exact tie in a real request, because any
-    elapsed wall-clock time between "created" and "now" — even a microsecond
-    of test/request overhead — pushes `created_at` under the cutoff. So the
-    documented, exercised convention is: a schedule is editable while strictly
-    younger than APPROVED_SCHEDULE_EDIT_DAYS days; the instant it turns
-    exactly that old, it is refused.
+    Paired with a test that also freezes datetime.now() in
+    backend.routers.schedules to FROZEN_NOW, so the request's cutoff and this
+    created_at land on the exact same instant -- the only way to actually
+    observe the tie, since real wall-clock time always advances between
+    fixture setup and the request that follows it.
     """
     sid = _id()
     db_session.add(ShiftSchedule(
@@ -100,7 +115,7 @@ async def schedule_at_exact_boundary_id(db_session: AsyncSession, seed_location:
         location_id=LOCATION_ID,
         week_start_date=date(2026, 1, 5),
         status="approved",
-        created_at=datetime.now(timezone.utc) - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS),
+        created_at=FROZEN_NOW - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS),
     ))
     await db_session.commit()
     return sid
@@ -270,20 +285,28 @@ async def test_an_edit_past_the_window_is_refused(
     assert resp.json()["detail"]["code"] == "edit_window_closed"
 
 
-async def test_the_exact_boundary_instant_is_refused(
-    client: AsyncClient, manager_token: str, schedule_at_exact_boundary_id: str,
+async def test_a_schedule_created_exactly_at_the_window_edge_is_still_editable(
+    client: AsyncClient, manager_token: str, schedule_created_exactly_at_the_window_edge_id: str,
 ):
-    """Pinning the convention: the comparison is strict `<`, so a schedule
-    created exactly APPROVED_SCHEDULE_EDIT_DAYS days before "now" is already
-    refused — see the fixture's docstring for why an exact tie always lands
-    on this side in practice."""
-    resp = await client.put(
-        f"{BASE}/{schedule_at_exact_boundary_id}/approved-shifts",
-        headers={"Authorization": f"Bearer {manager_token}"},
-        json={"edits": []},
-    )
-    assert resp.status_code == 400
-    assert resp.json()["detail"]["code"] == "edit_window_closed"
+    """At the exact tie -- created_at == cutoff -- the comparison
+    `created_at < cutoff` is False, so the schedule remains editable. That is
+    the intended semantic: "editable for APPROVED_SCHEDULE_EDIT_DAYS days"
+    naturally includes the Nth day itself, not just the (N-1) days before it.
+
+    A real request can never land exactly on this tie (wall-clock time always
+    advances between the fixture writing created_at and the request computing
+    cutoff, pushing created_at a hair before cutoff), so the clock is frozen
+    here via `_FrozenDatetime` to force the exact instant and make the tie
+    observable at all.
+    """
+    with patch("backend.routers.schedules.datetime", _FrozenDatetime):
+        resp = await client.put(
+            f"{BASE}/{schedule_created_exactly_at_the_window_edge_id}/approved-shifts",
+            headers={"Authorization": f"Bearer {manager_token}"},
+            json={"edits": []},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["applied"] == 0
 
 
 async def test_just_inside_the_window_is_allowed(
