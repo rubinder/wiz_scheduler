@@ -1,5 +1,7 @@
+import logging
 from datetime import date as date_type, datetime, timedelta, timezone
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any, AsyncGenerator, Dict, List, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from langgraph.graph import END, StateGraph
 from sqlalchemy import select
@@ -18,10 +20,12 @@ from backend.models import (
     EmployeeRole,
     Location,
     Role,
+    Shift,
     ShiftTemplate,
 )
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.nodes import (
+    _subtract_consumed,
     build_prompt,
     call_llm,
     emit_result,
@@ -35,6 +39,8 @@ from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
 )
+
+logger = logging.getLogger(__name__)
 
 
 _DAY_NAMES = [
@@ -238,6 +244,223 @@ def _validate_num_days(num_days: int) -> None:
             f"num_days must be between 1 and {MAX_SCHEDULE_DAYS} "
             f"(one calendar week); got {num_days}"
         )
+
+
+def _shift_local_face(
+    shift: Shift,
+    location: Location,
+) -> Tuple[datetime, datetime] | None:
+    """Recover the wall-clock face a committed Shift occupies at its location.
+
+    Shift.start_time/end_time are timestamptz columns -- true instants, NOT
+    wall-clock-tagged-UTC like availability. local_scheduler.py emits an
+    aware datetime with the location's real offset (e.g. "09:00:00-04:00");
+    approve parses that and Postgres normalises it to UTC on storage, so it
+    comes back as "13:00:00+00:00". Stripping the tag at that point (the way
+    _wall_clock does for availability, in nodes.py, #85) reads the WRONG
+    face -- 13:00, not the 09:00 the shift actually covers.
+
+    The fix is to convert the instant into ITS OWN location's zone and take
+    THAT face. This does not violate the "never .astimezone()" rule from
+    #61/#85: that rule protects availability, which is a wall-clock value
+    falsely tagged UTC and therefore NOT a true instant -- calling
+    .astimezone() on it would move the face it represents. A Shift timestamp
+    IS a true instant, so .astimezone(location's zone) recovers the intended
+    face instead of moving it. The two columns are both "aware datetime"
+    attributes and look interchangeable; they are not, and that similarity is
+    exactly what made the original bug (reading the UTC-normalised face
+    directly) easy to write and easy to miss.
+
+    One more wrinkle: this only matters for a driver that actually preserves
+    the offset. SQLite's DateTime(timezone=True) columns drop tzinfo on
+    read -- the value that comes back is naive but its digits are still the
+    original local face (SQLite never normalises to UTC the way Postgres
+    does). Calling .astimezone() on THAT naive value would misinterpret it as
+    the host's system timezone and move it again, introducing a second bug.
+    So the conversion below only applies when the value is actually aware; a
+    naive value is trusted as already being the correct face.
+
+    Returns None -- rather than raising -- if location.timezone is missing,
+    invalid, or the shift's timestamps are unusable: the scheduling graph
+    degrades, it never throws.
+    """
+    tz_name = getattr(location, "timezone", None)
+    if not tz_name:
+        logger.warning(
+            "[SCHED-TRACE] shift %s has no usable location.timezone (%r); "
+            "dropping its hold and releasing the hours it covers",
+            getattr(shift, "id", "?"), tz_name,
+        )
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+        start_raw = shift.start_time
+        end_raw = shift.end_time
+        start = (
+            start_raw.astimezone(tz).replace(tzinfo=None)
+            if start_raw.tzinfo is not None else start_raw
+        )
+        end = (
+            end_raw.astimezone(tz).replace(tzinfo=None)
+            if end_raw.tzinfo is not None else end_raw
+        )
+    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
+        logger.warning(
+            "[SCHED-TRACE] shift %s has an unparseable timezone (%r); "
+            "dropping its hold and releasing the hours it covers",
+            getattr(shift, "id", "?"), tz_name,
+        )
+        return None
+    return start, end
+
+
+async def _committed_shifts_by_employee(
+    db: AsyncSession,
+    company_id: str,
+    week_start: datetime,
+    week_end: datetime,
+) -> Dict[str, List[Tuple[datetime, datetime]]]:
+    """Already-committed shift spans for the week, per employee.
+
+    Returned as naive wall-clock pairs, comparable face-to-face with
+    availability (see _shift_local_face for why Shift timestamps need their
+    own conversion rather than a tag-strip).
+
+    The SQL window is widened by a day on each side because Shift.start_time
+    is a UTC instant: comparing it directly against the wall-clock week
+    boundary can silently drop (or wrongly include) a shift whose instant has
+    rolled across the UTC day line relative to its location's offset. The
+    face-based filter below narrows back down to the true week using the
+    same converted face used for subtraction.
+    """
+    rows = (await db.execute(
+        select(Shift, Location)
+        .join(Location, Shift.location_id == Location.id)
+        .where(
+            Shift.company_id == company_id,
+            Location.company_id == company_id,
+            Shift.start_time >= week_start - timedelta(days=1),
+            Shift.start_time < week_end + timedelta(days=1),
+        )
+    )).all()
+
+    naive_week_start = week_start.replace(tzinfo=None)
+    naive_week_end = week_end.replace(tzinfo=None)
+
+    by_emp: Dict[str, List[Tuple[datetime, datetime]]] = {}
+    for s, loc in rows:
+        face = _shift_local_face(s, loc)
+        if face is None:
+            continue
+        start, end = face
+        if start < naive_week_start or start >= naive_week_end:
+            continue
+        by_emp.setdefault(str(s.employee_id), []).append((start, end))
+    return by_emp
+
+
+def _subtract_committed_shifts(
+    emp_avail_map: Dict[str, List[Dict[str, str]]],
+    committed: Dict[str, List[Tuple[datetime, datetime]]],
+) -> Dict[str, List[Dict[str, str]]]:
+    """Carve each employee's committed shifts out of their availability.
+
+    Output timestamps are rebuilt with each window's own original offset, so
+    the shape handed to the pipeline is unchanged.
+    """
+    out: Dict[str, List[Dict[str, str]]] = {}
+    for eid, windows in emp_avail_map.items():
+        spans = committed.get(eid, [])
+        if not spans:
+            out[eid] = windows
+            continue
+
+        rebuilt: List[Dict[str, str]] = []
+        for w in windows:
+            try:
+                start_aware = datetime.fromisoformat(w["start"])
+                end_aware = datetime.fromisoformat(w["end"])
+            except (KeyError, ValueError, TypeError):
+                rebuilt.append(w)
+                continue
+
+            tz = start_aware.tzinfo
+            for p_start, p_end in _subtract_consumed(
+                start_aware.replace(tzinfo=None), end_aware.replace(tzinfo=None), spans,
+            ):
+                rebuilt.append({
+                    "start": p_start.replace(tzinfo=tz).isoformat(),
+                    "end": p_end.replace(tzinfo=tz).isoformat(),
+                })
+        out[eid] = rebuilt
+    return out
+
+
+async def _load_employee_availability(
+    db: AsyncSession,
+    company_id: str,
+    week_start_date: str,
+    num_days: int,
+    all_employee_ids: set[str] | None = None,
+) -> Dict[str, List[Dict[str, str]]]:
+    """Employee availability for the week, minus hours already committed.
+
+    A Shift row IS a hold: rather than carving employee_availability at
+    approve time (which destroyed it irreversibly), consumption is derived
+    here at read time. Deleting a shift therefore releases its hold with no
+    separate release step, and the two cannot disagree.
+
+    Both scheduling paths load availability through this one function, so
+    neither can bypass it.
+    """
+    week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    week_end = week_start + timedelta(days=num_days)
+
+    avail_result = await db.execute(
+        select(EmployeeAvailability).where(
+            EmployeeAvailability.company_id == company_id,
+            EmployeeAvailability.start_time >= week_start,
+            EmployeeAvailability.start_time < week_end,
+        )
+    )
+    emp_avail_map: Dict[str, List[Dict[str, str]]] = {}
+    for av in avail_result.scalars().all():
+        eid = str(av.employee_id)
+        emp_avail_map.setdefault(eid, [])
+
+        start_dt = av.start_time
+        end_dt = av.end_time
+        # Availability is contractually local wall-clock TAGGED UTC (#61); if
+        # the driver round-tripped it as naive (SQLite drops tzinfo on
+        # DateTime(timezone=True) columns; Postgres does not), restore that
+        # tag rather than leaving it ambiguous. This re-attaches the tag the
+        # value has always meant -- it is not an instant conversion.
+        if start_dt is not None and start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt is not None and end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        # Fix midnight end times: if end <= start, the end_time was stored as
+        # 00:00:00 on the same date (meaning "end of day"), so bump it to 23:59.
+        if start_dt and end_dt and end_dt <= start_dt:
+            end_dt = start_dt.replace(hour=23, minute=59, second=0, microsecond=0)
+
+        emp_avail_map[eid].append({
+            "start": start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt),
+            "end": end_dt.isoformat() if hasattr(end_dt, "isoformat") else str(end_dt),
+        })
+
+    emp_avail_map = _subtract_committed_shifts(
+        emp_avail_map,
+        await _committed_shifts_by_employee(db, company_id, week_start, week_end),
+    )
+
+    # Employees with NO availability records are treated as "not available".
+    # They get an empty list so the LLM and validator will not schedule them
+    # until explicit availability is provided.
+    for eid in (all_employee_ids or set()) - set(emp_avail_map.keys()):
+        emp_avail_map[eid] = []
+
+    return emp_avail_map
 
 
 async def _load_initial_state(
@@ -454,44 +677,12 @@ async def _load_initial_state(
             "level": float(aff.level),
         })
 
-    # Load employee availability for the relevant week
-    week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    week_end = week_start + timedelta(days=num_days)
-
-    avail_result = await db.execute(
-        select(EmployeeAvailability).where(
-            EmployeeAvailability.company_id == company_id,
-            EmployeeAvailability.start_time >= week_start,
-            EmployeeAvailability.start_time < week_end,
-        )
+    # Load employee availability for the relevant week, minus hours already
+    # committed to a Shift row (see _load_employee_availability).
+    emp_avail_map = await _load_employee_availability(
+        db, company_id, week_start_date, num_days,
+        all_employee_ids={str(emp.id) for emp in employees_orm},
     )
-    avail_orm = avail_result.scalars().all()
-    emp_avail_map: Dict[str, List[Dict[str, str]]] = {}
-    for av in avail_orm:
-        eid = str(av.employee_id)
-        if eid not in emp_avail_map:
-            emp_avail_map[eid] = []
-
-        start_dt = av.start_time
-        end_dt = av.end_time
-
-        # Fix midnight end times: if end <= start, the end_time was stored as
-        # 00:00:00 on the same date (meaning "end of day"), so bump it to 23:59.
-        if start_dt and end_dt and end_dt <= start_dt:
-            end_dt = start_dt.replace(hour=23, minute=59, second=0, microsecond=0)
-
-        emp_avail_map[eid].append({
-            "start": start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt),
-            "end": end_dt.isoformat() if hasattr(end_dt, "isoformat") else str(end_dt),
-        })
-
-    # Employees with NO availability records are treated as "not available".
-    # They get an empty availability list so the LLM and validator will not
-    # schedule them until explicit availability is provided.
-    all_emp_ids = {str(emp.id) for emp in employees_orm}
-    emps_with_avail = set(emp_avail_map.keys())
-    for eid in all_emp_ids - emps_with_avail:
-        emp_avail_map[eid] = []
 
     # Load day blackouts (recurring per-day-of-week time ranges during which
     # an employee must NOT be scheduled, e.g. "no work Mon 20:00-22:00").

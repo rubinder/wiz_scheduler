@@ -242,13 +242,16 @@ async def test_approve_does_not_consume_availability_for_a_trimmed_shift(
     seed_roles,
 ):
     """A shift a hard preference/cap trim vacated (status != "ok") must not
-    burn the employee's availability window on approval, even though its
+    become a committed hold on the employee's time, even though its
     employee_id still names a real employee -- exactly what nodes.py's
     _trim_cap_violations used to leave behind before it was fixed to also
-    reset employee_id to "VACANT" like every other VACANT shift. This test
-    exercises the router-side defence in depth
-    (_subtract_availability_for_shifts also checking status), independent
-    of whether the trim's own sentinel fix is in place.
+    reset employee_id to "VACANT" like every other VACANT shift. Approve's
+    shift-materialisation step checks status before writing a Shift row at
+    all (the defence in depth this test exercises): a status != "ok" shift
+    never becomes a Shift row, so backend.scheduling.graph's read-time
+    subtraction can never see it as a hold. This pins the outcome -- no
+    Shift row, availability untouched -- independent of whether the trim's
+    own sentinel fix is in place.
     """
     from backend.models.employee import EmployeeAvailability
 

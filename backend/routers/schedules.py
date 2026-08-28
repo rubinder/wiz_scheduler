@@ -11,106 +11,12 @@ from backend.dependencies import get_db, require_manager
 from backend.models import Employee, Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
-from backend.models.employee import EmployeeAvailability
 from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
-from backend.utils.id_gen import generate_short_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
-
-
-async def _subtract_availability_for_shifts(
-    db: AsyncSession,
-    company_id: str,
-    shifts_data: list[dict],
-) -> None:
-    """Remove scheduled hours from employee availability windows.
-
-    For each shift, find the availability window that covers it on the same
-    day.  Delete that window and insert replacement windows for any remaining
-    time before/after the shift.
-
-    Availability is stored as local times tagged as UTC, so comparisons use
-    HH:MM on matching dates (consistent with the scheduling pipeline).
-    """
-    for s in shifts_data:
-        emp_id = s.get("employee_id", "")
-        # Defence in depth alongside the sibling loops elsewhere in this
-        # module that build Shift rows / accumulate worked minutes -- both
-        # check status AND employee_id. This also covers a shift whose
-        # status was flipped to something other than "ok" (e.g. a
-        # preference/cap trim to VACANT) without its employee_id sentinel
-        # being updated for some reason.
-        if not emp_id or emp_id == "VACANT" or s.get("status") != "ok":
-            continue
-
-        try:
-            shift_start = datetime.fromisoformat(s["start_time"])
-            shift_end = datetime.fromisoformat(s["end_time"])
-            shift_date = date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"]
-        except (ValueError, KeyError):
-            continue
-
-        shift_start_hm = shift_start.strftime("%H:%M")
-        shift_end_hm = shift_end.strftime("%H:%M")
-
-        # Find availability windows for this employee on the shift date
-        avail_result = await db.execute(
-            select(EmployeeAvailability).where(
-                EmployeeAvailability.employee_id == emp_id,
-                EmployeeAvailability.year == shift_date.year,
-                EmployeeAvailability.month == shift_date.month,
-                EmployeeAvailability.day == shift_date.day,
-            )
-        )
-        avail_rows = avail_result.scalars().all()
-
-        for avail in avail_rows:
-            w_start_hm = avail.start_time.strftime("%H:%M")
-            w_end_hm = avail.end_time.strftime("%H:%M")
-
-            # Check if this window covers (overlaps with) the shift
-            if w_start_hm >= shift_end_hm or w_end_hm <= shift_start_hm:
-                continue  # no overlap
-
-            # This window overlaps — delete it and create remnants
-            await db.delete(avail)
-
-            # Remnant before the shift: window_start .. shift_start
-            if w_start_hm < shift_start_hm:
-                before = EmployeeAvailability(
-                    id=generate_short_id(),
-                    company_id=avail.company_id,
-                    employee_id=emp_id,
-                    year=avail.year,
-                    month=avail.month,
-                    day=avail.day,
-                    start_time=avail.start_time,
-                    end_time=avail.start_time.replace(
-                        hour=shift_start.hour, minute=shift_start.minute, second=0,
-                    ),
-                )
-                db.add(before)
-
-            # Remnant after the shift: shift_end .. window_end
-            if w_end_hm > shift_end_hm:
-                after = EmployeeAvailability(
-                    id=generate_short_id(),
-                    company_id=avail.company_id,
-                    employee_id=emp_id,
-                    year=avail.year,
-                    month=avail.month,
-                    day=avail.day,
-                    start_time=avail.start_time.replace(
-                        hour=shift_end.hour, minute=shift_end.minute, second=0,
-                    ),
-                    end_time=avail.end_time,
-                )
-                db.add(after)
-
-    await db.flush()
 
 
 @router.get("/ai-credits")
@@ -464,13 +370,6 @@ async def approve_schedule(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to parse schedule data: {exc}",
                 )
-
-            # Subtract consumed hours from employee availability.
-            # For each approved shift, find the overlapping availability window
-            # and split it around the shift (removing only the scheduled hours).
-            await _subtract_availability_for_shifts(
-                db, current_user.company_id, shifts_data,
-            )
 
             # Accumulate worked minutes into employee_role_minutes for history tracking
             from backend.models.employee_role_minutes import EmployeeRoleMinutes

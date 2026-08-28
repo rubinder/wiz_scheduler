@@ -161,12 +161,13 @@ def test_cap_trimmed_shift_gets_the_canonical_vacant_shape():
     employee_id == "VACANT" and a VACANT-prefixed employee_name, not just
     status == "VACANT".
 
-    Downstream, backend.routers.schedules._subtract_availability_for_shifts
-    decides whether to consume an employee's availability window by checking
-    employee_id (and, defence in depth, status). A trim that only flipped
-    status left employee_id pointing at the real employee, so approving the
-    schedule would burn that employee's availability for a shift they never
-    worked.
+    Downstream, approve_schedule only materialises a Shift row for a shift
+    whose employee_id names a real employee and whose status == "ok"; a
+    Shift row is what backend.scheduling.graph reads back as a committed
+    hold on that employee's time. A trim that only flipped status left
+    employee_id pointing at the real employee, so approving the schedule
+    would wrongly materialise a Shift row -- and therefore hold that
+    employee's time -- for a shift they never worked.
     """
     shifts = [
         _shift("e1", "2026-08-31", "16:00", "22:00"),
