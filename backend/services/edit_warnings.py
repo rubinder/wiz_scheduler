@@ -24,6 +24,20 @@ def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: date
     return a_start < b_end and b_start < a_end
 
 
+def _already_exported_warning(shift: Shift, employee_id: str | None = None) -> dict:
+    """The `already_exported` warning dict -- 7shifts now disagrees with the
+    schedule and nothing re-exports automatically. Shared by the delete
+    branch (which only ever has the shift's own employee) and the
+    modify/add branch (which prefers the edit's employee_id when the edit
+    reassigns the shift)."""
+    return {
+        "code": "already_exported",
+        "shift_id": str(shift.id),
+        "employee_id": str(employee_id) if employee_id is not None else str(shift.employee_id),
+        "detail": "This shift was exported to 7shifts; the external schedule will now disagree.",
+    }
+
+
 async def collect_edit_warnings(
     db: AsyncSession,
     company_id: str,
@@ -54,6 +68,12 @@ async def collect_edit_warnings(
                     Shift.id == edit.shift_id,
                     Shift.company_id == company_id,
                     Location.company_id == company_id,
+                    # Pin the shift to the schedule named in the URL -- the
+                    # same tenant can have other schedules, and without this
+                    # a shift_id that happens to belong to a different one
+                    # (e.g. one whose edit window is already closed) would
+                    # still be found here.
+                    Shift.shift_schedule_id == schedule.id,
                 )
             )).first()
             if row is not None:
@@ -62,12 +82,7 @@ async def collect_edit_warnings(
         if edit.deleted:
             # Removing a shift cannot make anyone unavailable or double-booked.
             if shift is not None and shift.exported_at is not None:
-                warnings.append({
-                    "code": "already_exported",
-                    "shift_id": str(shift.id),
-                    "employee_id": str(shift.employee_id),
-                    "detail": "This shift was exported to 7shifts; the external schedule will now disagree.",
-                })
+                warnings.append(_already_exported_warning(shift))
             continue
 
         # The employee this edit assigns. If the edit doesn't change the
@@ -176,11 +191,6 @@ async def collect_edit_warnings(
 
         # 3. already_exported
         if shift is not None and shift.exported_at is not None:
-            warnings.append({
-                "code": "already_exported",
-                "shift_id": str(shift.id),
-                "employee_id": str(emp_id) if emp_id is not None else str(shift.employee_id),
-                "detail": "This shift was exported to 7shifts; the external schedule will now disagree.",
-            })
+            warnings.append(_already_exported_warning(shift, emp_id))
 
     return warnings

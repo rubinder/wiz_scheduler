@@ -448,6 +448,36 @@ async def test_another_companys_schedule_is_not_found(
     assert resp.status_code == 404
 
 
+async def test_a_shift_from_another_schedule_cannot_be_edited_via_this_one(
+    client: AsyncClient, manager_token: str, approved_shift, approved_schedule_id: str, db_session,
+):
+    """`shift_id` alone is not enough: it must also belong to the schedule
+    named in the URL. Without pinning the lookup to `schedule.id`, a manager
+    could pass a DIFFERENT (also approved, same-tenant) schedule's id and
+    still reach a shift that belongs elsewhere -- including one whose own
+    30-day edit window has already closed, defeating that refusal entirely.
+
+    `approved_shift`'s shift belongs to its own schedule, not
+    `approved_schedule_id` -- exactly the cross-schedule case."""
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    _other_schedule_id, foreign_shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{approved_schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": foreign_shift_id, "deleted": True}]},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_edit"
+
+    # Must not have been touched.
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == foreign_shift_id)
+    )).scalar_one_or_none()
+    assert shift is not None
+
+
 # ---------------------------------------------------------------------------
 # Applying edits (#84 stage 2)
 # ---------------------------------------------------------------------------

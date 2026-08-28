@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
-from backend.models import Employee, EmployeeCheckIn, Shift, ShiftSchedule, User
+from backend.models import Employee, EmployeeCheckIn, Location, Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.schemas.schedule import (
@@ -391,6 +391,13 @@ async def edit_approved_shifts(
                     select(Shift).where(
                         Shift.id == edit.shift_id,
                         Shift.company_id == current_user.company_id,
+                        # A shift_id alone is not enough: without pinning it
+                        # to the schedule named in the URL, a manager could
+                        # pass a recently-approved schedule's id and edit
+                        # shifts belonging to a DIFFERENT schedule in the
+                        # same tenant -- including one whose edit window has
+                        # already closed, defeating that refusal entirely.
+                        Shift.shift_schedule_id == schedule.id,
                     )
                 )).scalar_one_or_none()
                 if shift is None:
@@ -449,6 +456,26 @@ async def edit_approved_shifts(
                 if changed:
                     applied += 1
             else:
+                # A new shift needs all four of these; without this check a
+                # malformed create (e.g. no start_time) falls through to the
+                # Shift() construction below and raises an IntegrityError on
+                # commit -- an unhandled 500, where every sibling failure on
+                # this endpoint returns a 400 invalid_edit instead.
+                if (
+                    edit.employee_id is None
+                    or edit.date is None
+                    or edit.start_time is None
+                    or edit.end_time is None
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": None,
+                            "reason": "employee_id, date, start_time and end_time are required to create a shift",
+                        },
+                    )
                 role_name = (await db.execute(
                     select(Role.name).where(
                         Role.id == edit.role_id,
@@ -716,6 +743,16 @@ async def get_week_schedules(
     )).scalars().all()
     emp_names = {e.id: (e.full_name or str(e.id)) for e in emp_rows}
 
+    # Same idea for locations: every schedule's location has to be resolved
+    # to convert its shifts' start_time/end_time from the raw timestamptz
+    # instant into that location's own wall-clock face before serializing
+    # (see _shift_to_response) -- resolve the whole company's set once
+    # rather than per shift.
+    loc_rows = (await db.execute(
+        select(Location).where(Location.company_id == current_user.company_id)
+    )).scalars().all()
+    locations = {loc.id: loc for loc in loc_rows}
+
     responses: list[ShiftScheduleResponse] = []
     for sched in schedules:
         shift_result = await db.execute(
@@ -723,21 +760,43 @@ async def get_week_schedules(
         )
         shifts = shift_result.scalars().all()
         resp = ShiftScheduleResponse.model_validate(sched)
-        resp.shifts = [_shift_to_response(s, emp_names) for s in shifts]
+        location = locations.get(sched.location_id)
+        resp.shifts = [_shift_to_response(s, emp_names, location) for s in shifts]
         responses.append(resp)
 
     return responses
 
 
-def _shift_to_response(shift: Shift, emp_names: dict[str, str] | None = None) -> dict:
+def _shift_to_response(
+    shift: Shift,
+    emp_names: dict[str, str] | None = None,
+    location: Location | None = None,
+) -> dict:
     """Convert a Shift ORM object to a dict matching ShiftResponse.
 
     employee_name is not a column on Shift, so callers that render names pass
     a resolved employee_id -> full_name map.
+
+    location, when given, converts start_time/end_time from the raw
+    timestamptz instant into the location's own wall-clock face (see
+    _shift_local_face, backend/scheduling/graph.py) before serializing. This
+    matters because the client (EditShiftModal.tsx) slices the face and
+    offset straight out of this response and reattaches them verbatim when
+    posting an edit back to PUT .../approved-shifts, where
+    edit_warnings.py's _wall_clock treats the payload as already being a
+    genuine location face. Serializing the raw instant instead (which on
+    Postgres a shift written "09:00-04:00" reads back as "13:00+00:00")
+    would make the client hold and return a face shifted by the location's
+    offset -- wrong warnings, and on a time edit, the wrong instant stored.
     """
     from backend.schemas.schedule import ShiftResponse
+    from backend.scheduling.graph import _shift_local_face
 
     resp = ShiftResponse.model_validate(shift)
     if emp_names:
         resp.employee_name = emp_names.get(shift.employee_id, "")
+    if location is not None:
+        face = _shift_local_face(shift, location, keep_tzinfo=True)
+        if face is not None:
+            resp.start_time, resp.end_time = face
     return resp
