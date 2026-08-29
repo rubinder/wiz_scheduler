@@ -1,19 +1,36 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as approvedApi from "../../api/approvedSchedules";
-import type { WeekSchedule } from "../../api/approvedSchedules";
+import type { WeekSchedule, WeekShift } from "../../api/approvedSchedules";
 import { listApprovedDates } from "../../api/exportSchedules";
 import * as locationsApi from "../../api/locations";
+import { listEmployees } from "../../api/employees";
+import * as rolesApi from "../../api/roles";
 import ScheduleGrid from "../../components/shared/ScheduleGrid";
+import EditShiftModal from "../../components/shared/EditShiftModal";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday, spinner as spinnerClass } from "../../theme";
 
 // The repo styles panels with the global `glass-card` class (see
 // HourRestrictions.tsx:192), not a theme token.
 const card = "glass-card";
-import type { Location } from "../../types";
+import type { Employee, Location, Role } from "../../types";
+
+// Approved schedules stay editable for this many days after approval — kept
+// in sync with `settings.APPROVED_SCHEDULE_EDIT_DAYS` on the backend, which
+// remains the actual authority. This only decides whether to offer the
+// affordance; the server refuses (400 `edit_window_closed`) either way.
+const EDIT_WINDOW_DAYS = 30;
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Whether `createdAt` is still inside the edit window. Client-side only —
+ *  an affordance check, not enforcement. */
+function withinEditWindow(createdAt: string): boolean {
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created < EDIT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
 
 /** Monday of the week containing `d`. Schedules are keyed by week_start_date,
@@ -57,11 +74,19 @@ export default function ApprovedSchedules() {
   const [selectedWeek, setSelectedWeek] = useState<string>(() => mondayOf(toDateStr(new Date())));
   const [schedules, setSchedules] = useState<WeekSchedule[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editingShift, setEditingShift] = useState<{
+    scheduleId: string;
+    shift: WeekShift;
+  } | null>(null);
 
   useEffect(() => {
     locationsApi.listLocations().then(setLocations).catch(() => setLocations([]));
+    listEmployees().then(setEmployees).catch(() => setEmployees([]));
+    rolesApi.listRoles().then(setRoles).catch(() => setRoles([]));
   }, []);
 
   // Dots marking which dates already have an approved schedule.
@@ -204,25 +229,49 @@ export default function ApprovedSchedules() {
           )}
 
           {!loading &&
-            schedules.map((sched) => (
-              <div key={sched.id} className={`${card} p-4 mb-4`}>
-                <div className={`flex items-baseline justify-between mb-3 pb-2 border-b ${border.subtle}`}>
-                  <h3 className={`font-semibold ${text.primary}`}>
-                    {locationName(sched.location_id)}
-                  </h3>
-                  <span className={`text-xs ${text.muted}`}>
-                    {sched.shifts.length} {sched.shifts.length === 1 ? t.common.shift : t.common.shifts}
-                  </span>
+            schedules.map((sched) => {
+              const editable = withinEditWindow(sched.created_at);
+              return (
+                <div key={sched.id} className={`${card} p-4 mb-4`}>
+                  <div className={`flex items-baseline justify-between mb-3 pb-2 border-b ${border.subtle}`}>
+                    <h3 className={`font-semibold ${text.primary}`}>
+                      {locationName(sched.location_id)}
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      {!editable && (
+                        <span className={`text-xs ${text.muted}`}>
+                          {t.approvedSchedules.readOnlyNotice}
+                        </span>
+                      )}
+                      <span className={`text-xs ${text.muted}`}>
+                        {sched.shifts.length} {sched.shifts.length === 1 ? t.common.shift : t.common.shifts}
+                      </span>
+                    </div>
+                  </div>
+                  <ScheduleGrid
+                    shifts={approvedApi.toAssignments(sched.shifts)}
+                    editable={editable}
+                    employees={[]}
+                    onEditShift={(idx) =>
+                      setEditingShift({ scheduleId: sched.id, shift: sched.shifts[idx] })
+                    }
+                  />
                 </div>
-                <ScheduleGrid
-                  shifts={approvedApi.toAssignments(sched.shifts)}
-                  editable={false}
-                  employees={[]}
-                />
-              </div>
-            ))}
+              );
+            })}
         </div>
       </div>
+
+      {editingShift && (
+        <EditShiftModal
+          scheduleId={editingShift.scheduleId}
+          shift={editingShift.shift}
+          employees={employees}
+          roles={roles}
+          onClose={() => setEditingShift(null)}
+          onApplied={() => loadWeek(selectedWeek)}
+        />
+      )}
     </div>
   );
 }

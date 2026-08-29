@@ -249,6 +249,8 @@ def _validate_num_days(num_days: int) -> None:
 def _shift_local_face(
     shift: Shift,
     location: Location,
+    *,
+    keep_tzinfo: bool = False,
 ) -> Tuple[datetime, datetime] | None:
     """Recover the wall-clock face a committed Shift occupies at its location.
 
@@ -280,6 +282,14 @@ def _shift_local_face(
     So the conversion below only applies when the value is actually aware; a
     naive value is trusted as already being the correct face.
 
+    By default the returned datetimes are naive (tzinfo stripped) -- the shape
+    every internal comparison against other wall-clock values (availability,
+    other shifts) expects. Pass keep_tzinfo=True to get an aware datetime in
+    the location's own zone instead of a naive one; the only caller that wants
+    that is one serializing the face back out to a client (see
+    `_shift_to_response`, backend/routers/schedules.py), which needs the
+    offset itself to survive the round trip.
+
     Returns None -- rather than raising -- if location.timezone is missing,
     invalid, or the shift's timestamps are unusable: the scheduling graph
     degrades, it never throws.
@@ -296,14 +306,18 @@ def _shift_local_face(
         tz = ZoneInfo(tz_name)
         start_raw = shift.start_time
         end_raw = shift.end_time
-        start = (
-            start_raw.astimezone(tz).replace(tzinfo=None)
-            if start_raw.tzinfo is not None else start_raw
-        )
-        end = (
-            end_raw.astimezone(tz).replace(tzinfo=None)
-            if end_raw.tzinfo is not None else end_raw
-        )
+        if keep_tzinfo:
+            start = start_raw.astimezone(tz) if start_raw.tzinfo is not None else start_raw
+            end = end_raw.astimezone(tz) if end_raw.tzinfo is not None else end_raw
+        else:
+            start = (
+                start_raw.astimezone(tz).replace(tzinfo=None)
+                if start_raw.tzinfo is not None else start_raw
+            )
+            end = (
+                end_raw.astimezone(tz).replace(tzinfo=None)
+                if end_raw.tzinfo is not None else end_raw
+            )
     except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
         logger.warning(
             "[SCHED-TRACE] shift %s has an unparseable timezone (%r); "

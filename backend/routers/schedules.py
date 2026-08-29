@@ -1,17 +1,25 @@
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.dependencies import get_db, require_manager
-from backend.models import Employee, Shift, ShiftSchedule, User
+from backend.models import Employee, EmployeeCheckIn, Location, Shift, ShiftSchedule, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
-from backend.schemas.schedule import GenerateRequest, ShiftScheduleResponse, UpdateShiftsRequest
+from backend.schemas.schedule import (
+    EditApprovedResponse,
+    EditApprovedShiftsRequest,
+    EditWarning,
+    GenerateRequest,
+    ShiftScheduleResponse,
+    UpdateShiftsRequest,
+)
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -266,6 +274,252 @@ async def update_shifts(
     return {"ok": True}
 
 
+@router.put("/{schedule_id}/approved-shifts", response_model=EditApprovedResponse)
+async def edit_approved_shifts(
+    schedule_id: str,
+    body: EditApprovedShiftsRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> EditApprovedResponse:
+    """Edit an approved schedule's shifts.
+
+    Writes to the `shifts` table, not raw_llm_output: after approval every
+    consumer reads the table (export_schedules.py, gdpr.py, check-ins), so
+    editing the blob would be a silent no-op.
+    """
+    schedule = (await db.execute(
+        select(ShiftSchedule).where(
+            ShiftSchedule.id == schedule_id,
+            ShiftSchedule.company_id == current_user.company_id,
+        )
+    )).scalar_one_or_none()
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+
+    if schedule.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "not_approved", "message": "This endpoint edits approved schedules only."},
+        )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.APPROVED_SCHEDULE_EDIT_DAYS)
+    created_at = schedule.created_at
+    if created_at.tzinfo is None:
+        # SQLite (the test DB) returns DateTime(timezone=True) columns as
+        # naive; Postgres always returns aware. created_at is written in UTC
+        # either way, so tag it rather than convert it.
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    if created_at < cutoff:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "edit_window_closed",
+                "message": (
+                    f"Approved schedules can be edited for "
+                    f"{settings.APPROVED_SCHEDULE_EDIT_DAYS} days after approval."
+                ),
+            },
+        )
+
+    touched_ids = [e.shift_id for e in body.edits if e.shift_id]
+    if touched_ids:
+        locked = (await db.execute(
+            select(EmployeeCheckIn.shift_id).where(
+                EmployeeCheckIn.company_id == current_user.company_id,
+                EmployeeCheckIn.shift_id.in_(touched_ids),
+            )
+        )).scalars().all()
+        if locked:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "shift_locked_by_checkin",
+                    "message": "An employee has already checked in against this shift.",
+                    "shift_ids": [str(s) for s in locked],
+                },
+            )
+
+    try:
+        lock = await acquire_lock(
+            db,
+            company_id=str(current_user.company_id),
+            user_id=str(current_user.id),
+            operation="edit_approved",
+        )
+    except LockHeld as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_locked",
+                "locked_by": e.locked_by_full_name,
+                "expires_at": e.expires_at.isoformat(),
+            },
+        )
+
+    try:
+        from backend.models import Role
+        from backend.services.edit_warnings import collect_edit_warnings
+
+        # Collect warnings BEFORE any edit is applied: the checks below read
+        # committed `Shift` rows back out of the database, and doing this
+        # after the mutation loop would compare a shift against its own
+        # post-edit state, making already_booked meaningless.
+        warning_dicts = await collect_edit_warnings(
+            db, str(current_user.company_id), body.edits, schedule,
+        )
+
+        applied = 0
+        for idx, edit in enumerate(body.edits):
+            if edit.employee_id is not None:
+                # Every employee referenced must belong to the caller's
+                # company — otherwise a manager could schedule another
+                # tenant's staff.
+                employee = (await db.execute(
+                    select(Employee.id).where(
+                        Employee.id == edit.employee_id,
+                        Employee.company_id == current_user.company_id,
+                    )
+                )).scalar_one_or_none()
+                if employee is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Employee not found",
+                    )
+
+            if edit.shift_id:
+                shift = (await db.execute(
+                    select(Shift).where(
+                        Shift.id == edit.shift_id,
+                        Shift.company_id == current_user.company_id,
+                        # A shift_id alone is not enough: without pinning it
+                        # to the schedule named in the URL, a manager could
+                        # pass a recently-approved schedule's id and edit
+                        # shifts belonging to a DIFFERENT schedule in the
+                        # same tenant -- including one whose edit window has
+                        # already closed, defeating that refusal entirely.
+                        Shift.shift_schedule_id == schedule.id,
+                    )
+                )).scalar_one_or_none()
+                if shift is None:
+                    # All-or-nothing: an edit list is a single manager
+                    # decision. Silently skipping one edit while committing
+                    # the rest would leave the manager believing the whole
+                    # batch applied, so any unresolvable edit fails (and
+                    # rolls back) the entire request instead.
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": edit.shift_id,
+                            "reason": "shift not found",
+                        },
+                    )
+                if edit.deleted:
+                    await db.delete(shift)
+                    applied += 1
+                    continue
+                changed = False
+                if edit.employee_id is not None:
+                    shift.employee_id = edit.employee_id
+                    changed = True
+                if edit.role_id is not None:
+                    # Same company check as the employee check above — a
+                    # manager must not be able to point a shift at another
+                    # tenant's role. role_name is denormalised onto Shift
+                    # (read by the UI and the 7shifts export), so it has to
+                    # be refreshed here too or it goes stale next to the new
+                    # role_id.
+                    role_name = (await db.execute(
+                        select(Role.name).where(
+                            Role.id == edit.role_id,
+                            Role.company_id == current_user.company_id,
+                        )
+                    )).scalar_one_or_none()
+                    if role_name is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Role not found",
+                        )
+                    shift.role_id = edit.role_id
+                    shift.role_name = role_name
+                    changed = True
+                if edit.date is not None:
+                    shift.date = edit.date
+                    changed = True
+                if edit.start_time is not None:
+                    shift.start_time = edit.start_time
+                    changed = True
+                if edit.end_time is not None:
+                    shift.end_time = edit.end_time
+                    changed = True
+                if changed:
+                    applied += 1
+            else:
+                # A new shift needs all four of these; without this check a
+                # malformed create (e.g. no start_time) falls through to the
+                # Shift() construction below and raises an IntegrityError on
+                # commit -- an unhandled 500, where every sibling failure on
+                # this endpoint returns a 400 invalid_edit instead.
+                if (
+                    edit.employee_id is None
+                    or edit.date is None
+                    or edit.start_time is None
+                    or edit.end_time is None
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": None,
+                            "reason": "employee_id, date, start_time and end_time are required to create a shift",
+                        },
+                    )
+                role_name = (await db.execute(
+                    select(Role.name).where(
+                        Role.id == edit.role_id,
+                        Role.company_id == current_user.company_id,
+                    )
+                )).scalar_one_or_none()
+                if role_name is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "invalid_edit",
+                            "index": idx,
+                            "shift_id": None,
+                            "reason": "role not found",
+                        },
+                    )
+                db.add(Shift(
+                    company_id=current_user.company_id,
+                    shift_schedule_id=schedule.id,
+                    location_id=schedule.location_id,
+                    employee_id=edit.employee_id,
+                    role_id=edit.role_id,
+                    role_name=role_name,
+                    date=edit.date,
+                    start_time=edit.start_time,
+                    end_time=edit.end_time,
+                ))
+                applied += 1
+
+        await db.commit()
+        result = EditApprovedResponse(
+            applied=applied,
+            warnings=[EditWarning(**w) for w in warning_dicts],
+        )
+    except Exception:
+        await db.rollback()
+        raise
+    finally:
+        await release_lock(db, lock.id)
+        await db.commit()
+
+    return result
+
+
 @router.post("/{schedule_id}/approve", response_model=ShiftScheduleResponse)
 async def approve_schedule(
     schedule_id: str,
@@ -489,6 +743,16 @@ async def get_week_schedules(
     )).scalars().all()
     emp_names = {e.id: (e.full_name or str(e.id)) for e in emp_rows}
 
+    # Same idea for locations: every schedule's location has to be resolved
+    # to convert its shifts' start_time/end_time from the raw timestamptz
+    # instant into that location's own wall-clock face before serializing
+    # (see _shift_to_response) -- resolve the whole company's set once
+    # rather than per shift.
+    loc_rows = (await db.execute(
+        select(Location).where(Location.company_id == current_user.company_id)
+    )).scalars().all()
+    locations = {loc.id: loc for loc in loc_rows}
+
     responses: list[ShiftScheduleResponse] = []
     for sched in schedules:
         shift_result = await db.execute(
@@ -496,21 +760,43 @@ async def get_week_schedules(
         )
         shifts = shift_result.scalars().all()
         resp = ShiftScheduleResponse.model_validate(sched)
-        resp.shifts = [_shift_to_response(s, emp_names) for s in shifts]
+        location = locations.get(sched.location_id)
+        resp.shifts = [_shift_to_response(s, emp_names, location) for s in shifts]
         responses.append(resp)
 
     return responses
 
 
-def _shift_to_response(shift: Shift, emp_names: dict[str, str] | None = None) -> dict:
+def _shift_to_response(
+    shift: Shift,
+    emp_names: dict[str, str] | None = None,
+    location: Location | None = None,
+) -> dict:
     """Convert a Shift ORM object to a dict matching ShiftResponse.
 
     employee_name is not a column on Shift, so callers that render names pass
     a resolved employee_id -> full_name map.
+
+    location, when given, converts start_time/end_time from the raw
+    timestamptz instant into the location's own wall-clock face (see
+    _shift_local_face, backend/scheduling/graph.py) before serializing. This
+    matters because the client (EditShiftModal.tsx) slices the face and
+    offset straight out of this response and reattaches them verbatim when
+    posting an edit back to PUT .../approved-shifts, where
+    edit_warnings.py's _wall_clock treats the payload as already being a
+    genuine location face. Serializing the raw instant instead (which on
+    Postgres a shift written "09:00-04:00" reads back as "13:00+00:00")
+    would make the client hold and return a face shifted by the location's
+    offset -- wrong warnings, and on a time edit, the wrong instant stored.
     """
     from backend.schemas.schedule import ShiftResponse
+    from backend.scheduling.graph import _shift_local_face
 
     resp = ShiftResponse.model_validate(shift)
     if emp_names:
         resp.employee_name = emp_names.get(shift.employee_id, "")
+    if location is not None:
+        face = _shift_local_face(shift, location, keep_tzinfo=True)
+        if face is not None:
+            resp.start_time, resp.end_time = face
     return resp

@@ -156,12 +156,34 @@ week?) and gets **its own issue**. Out of scope here.
 
 ## What an edit may do
 
-Change a shift's employee, times, or role; add a shift; remove a shift. Allowed
-while the schedule is within a month of `created_date` — the basis specified in
-#84.
+`PUT /schedules/{schedule_id}/approved-shifts` takes `{"edits": [...]}` — a
+batch, not a single shift — and each entry can change a shift's employee,
+times, or role; add a shift; or remove one. Every `shift_id` an edit names must
+belong to `schedule_id` in the URL, not merely to the caller's tenant — a
+manager cannot reach into a different (even a same-tenant, also-approved)
+schedule's shifts through this endpoint. Allowed while the schedule is within
+a month of `created_date` — the basis specified in #84.
 
 Edits write to the `shifts` table, not `raw_llm_output`. The blob stays as the
 historical record of what was generated.
+
+## The batch is all-or-nothing
+
+One edit list is one manager decision. If any edit in the batch cannot be
+resolved — an unknown `shift_id`, an `employee_id`/`role_id` outside the
+tenant, a new shift missing a required field — the whole request 400s with
+`{"code": "invalid_edit", "index": <i>, "shift_id": <id-or-null>, "reason": <str>}`
+and nothing in the batch is applied, including edits before the failing one.
+Silently committing the edits that did resolve while dropping the rest would
+leave the manager believing the entire batch landed when only part of it did,
+which is worse for a scheduling tool than refusing the whole thing.
+
+The response's `applied` count reflects only edits that actually changed
+something: a delete or an add always counts, but a modify to an existing shift
+counts only if at least one field on it actually changed. An edit that names a
+`shift_id` and sets none of the optional fields is a no-op and is not counted
+— `applied` is read by the UI as a count of real changes, not a count of
+edits submitted.
 
 ## Three response classes
 
@@ -171,6 +193,8 @@ historical record of what was generated.
   refuses it, and the attendance record is factual: rewriting the shift beneath
   it would make the record describe something that never happened.
 - Past a month from `created_date` — the schedule is read-only.
+- Any edit in the batch that fails validation — see "the batch is
+  all-or-nothing" above; this refuses the whole request, not just that edit.
 
 **Warned, but applied.** Three warnings, each a structured code so the UI can
 style them differently and tests can assert on them:
@@ -197,6 +221,15 @@ Availability for the warning check is computed exactly as the pipeline computes
 it: the employee's windows minus their existing shifts, via
 `_subtract_consumed`. One definition used by both the scheduler and the editor,
 so a hand-edited schedule is judged by the same standard as a generated one.
+
+When an edit's payload doesn't carry a new `start_time`/`end_time` — a pure
+reassignment or role change — the warning service does not skip the
+availability/overlap checks; it falls back to the shift's own committed span,
+read back from the database and converted into the location's wall-clock face
+via `_shift_local_face` (never `_wall_clock` — see Timezone, below). A time
+change is not the only way to create a conflict: moving a shift to a new
+employee can just as easily double-book them against a span that already
+existed before this edit touched anything.
 
 ## Locking
 
@@ -297,3 +330,13 @@ equivalence claim.
 - Notifying employees whose shifts changed. Worth deciding later; an explicit
   omission rather than an oversight.
 - Restoring availability destroyed by approvals that already happened.
+- Adjusting `employee_role_minutes` on edit. `approve_schedule` credits worked
+  minutes into that table when a schedule is first approved; the edit path
+  does not touch it at all. Deleting a shift through an edit leaves its
+  minutes still booked, and reassigning a shift credits the minutes to
+  whichever employee originally held it rather than the one now working it.
+  The fairness history `_load_role_history_minutes`
+  (`backend/scheduling/graph.py`) feeds into future generations therefore
+  drifts from what was actually edited. This is a deliberate deferral, not an
+  oversight — reconciling `employee_role_minutes` with the edit path is its
+  own piece of work.
