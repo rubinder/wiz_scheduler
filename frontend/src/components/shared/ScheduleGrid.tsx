@@ -2,13 +2,15 @@ import { useMemo } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, roleColorsLight } from "../../theme";
 import type { Employee, ShiftAssignment, SpecialHoursDay } from "../../types";
+import { formatTime } from "../../utils/shiftTime";
 
 const ROLE_COLORS = roleColorsLight;
 
 // Extracted verbatim from Schedule.tsx so the approved-schedule viewer and the
 // post-generation review are guaranteed to render identically — two components
 // that agree today drift tomorrow. Behaviour is deliberately unchanged; see the
-// PR for two pre-existing issues noted but not fixed here.
+// PR for two pre-existing issues noted but not fixed here. (#92, the
+// timezone one, is since fixed — formatTime now comes from utils/shiftTime.)
 
 /** Extract HH:MM from an HH:MM or HH:MM:SS string */
 export const fmtHM = (t: string) => (t.length >= 5 ? t.slice(0, 5) : t);
@@ -23,23 +25,6 @@ export function getDayLabel(dateStr: string): string {
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   dayLabelCache[dateStr] = label;
   return label;
-}
-
-export function formatTime(t: string): string {
-  if (t.includes("T")) {
-    const d = new Date(t);
-    return d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }
-  const [hStr, mStr] = t.split(":");
-  const h = parseInt(hStr, 10);
-  const m = mStr ?? "00";
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${m} ${ampm}`;
 }
 
 interface ScheduleGridProps {

@@ -75,6 +75,12 @@ jobs:
           VITE_DEMO_PASSWORD: ${{ secrets.DEMO_SEED_PASSWORD }}
         run: cd frontend && npm ci && npm run build
 
+      # Runs under a non-UTC timezone on purpose: these tests pin that shift
+      # times render in the location's timezone, not the viewer's (#92), and
+      # a UTC runner would pass even against the bug.
+      - name: Run frontend tests
+        run: cd frontend && npm test
+
       - name: Upload frontend build artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4

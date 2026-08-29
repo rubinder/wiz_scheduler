@@ -10,7 +10,8 @@
     "verify:shoot": "node scripts/verify/shoot.mjs",
     "verify:interact": "node scripts/verify/interact.mjs",
     "verify:contrast": "node scripts/verify/contrast.mjs",
-    "verify:marker": "node scripts/verify/marker.mjs"
+    "verify:marker": "node scripts/verify/marker.mjs",
+    "test": "TZ=Asia/Tokyo vitest run"
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.0.1",
@@ -29,6 +30,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.11"
   }
 }

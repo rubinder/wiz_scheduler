@@ -24,18 +24,7 @@ import type {
   ShiftTemplate,
   SpecialHoursDay,
 } from "../../types";
-
-
-// ── helpers ──
-
-/** Extract HH:MM from an ISO datetime or HH:MM string */
-function toTimeInput(t: string): string {
-  if (t.includes("T")) {
-    const d = new Date(t);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  }
-  return t.slice(0, 5);
-}
+import { extractTime, extractOffset } from "../../utils/shiftTime";
 
 
 // ── EditShiftModal ──
@@ -60,8 +49,8 @@ function EditShiftModal({
   const { t } = useLanguage();
   const [employeeId, setEmployeeId] = useState(shift.employee_id);
   const [roleName, setRoleName] = useState(shift.role_name);
-  const [startTime, setStartTime] = useState(toTimeInput(shift.start_time));
-  const [endTime, setEndTime] = useState(toTimeInput(shift.end_time));
+  const [startTime, setStartTime] = useState(extractTime(shift.start_time));
+  const [endTime, setEndTime] = useState(extractTime(shift.end_time));
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
 
@@ -73,8 +62,10 @@ function EditShiftModal({
       employee_id: employeeId,
       employee_name: selectedEmployee?.full_name ?? shift.employee_name,
       role_name: roleName,
-      start_time: `${datePrefix}T${startTime}:00`,
-      end_time: `${datePrefix}T${endTime}:00`,
+      // Reattach the offset the shift arrived with: dropping it silently
+      // re-anchors the shift to a different instant (issue #92).
+      start_time: `${datePrefix}T${startTime}:00${extractOffset(shift.start_time)}`,
+      end_time: `${datePrefix}T${endTime}:00${extractOffset(shift.end_time)}`,
     });
   };
 
