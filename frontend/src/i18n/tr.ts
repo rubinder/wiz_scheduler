@@ -300,7 +300,7 @@ const trLang = {
     reasonAiRequiresPaid: "AI ile programlama ücretli bir plan gerektirir. AI olmadan yine de oluşturabilirsiniz.",
     reasonScheduleLimitReached: "Bu ay için tüm ücretsiz program oluşturma hakkınızı kullandınız. Sınır gelecek ayın başında sıfırlanır — kaldırmak için yükseltin.",
     usage: "{employeeCount}/{employeeLimit} çalışan · {locationCount}/{locationLimit} konum",
-    usageGenerations: " · bu ay {generationCount}/{generationLimit} oluşturma",
+    usageGenerations: " · bu ay {generationLimit} lokasyondan {generationCount} tanesi planlandı",
     upgradeButton: "Yükselt",
     upgrading: "Yönlendiriliyor…",
     upgradeFailed: "Yükseltme ödemesi başlatılamadı.",

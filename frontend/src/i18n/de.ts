@@ -300,7 +300,7 @@ const de = {
     reasonAiRequiresPaid: "Die KI-Planung erfordert einen kostenpflichtigen Plan. Sie können weiterhin ohne KI generieren.",
     reasonScheduleLimitReached: "Sie haben alle kostenlosen Dienstplan-Generierungen für diesen Monat aufgebraucht. Das Limit wird zu Beginn des nächsten Monats zurückgesetzt — upgraden Sie, um es aufzuheben.",
     usage: "{employeeCount} von {employeeLimit} Mitarbeitern · {locationCount} von {locationLimit} Standorten",
-    usageGenerations: " · {generationCount} von {generationLimit} Generierungen in diesem Monat",
+    usageGenerations: " · {generationCount} von {generationLimit} Standorten diesen Monat geplant",
     upgradeButton: "Upgraden",
     upgrading: "Weiterleitung…",
     upgradeFailed: "Upgrade-Checkout konnte nicht gestartet werden.",

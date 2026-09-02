@@ -6,8 +6,10 @@ schedules.limit ("... N of M generations this month"). They used to come from
 unrelated sources, so a free tenant saw 0/50 against 0/5 and the demo saw
 0/250 against 0/50.
 
-Both now resolve through free_plan_schedule_limit for free groups. These tests
-pin that agreement so the two cannot drift apart again.
+Both now resolve through the same source for free groups —
+location_quota.free_plan_usage, which counts LOCATIONS holding a schedule
+this month. These tests pin that agreement so the two cannot drift apart
+again.
 """
 
 from datetime import date
@@ -57,8 +59,9 @@ async def test_free_tenant_sees_one_number(db_session: AsyncSession):
     quota = await check_schedule_quota(db_session, company_id)
     plan = await get_plan_state(db_session, company_id)
 
+    # The agreement is the point, whatever the number happens to be.
     assert quota["schedules_included"] == plan["schedules"]["limit"]
-    assert quota["schedules_included"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert quota["schedules_used"] == plan["schedules"]["count"]
 
 
 async def test_demo_tenant_sees_one_number(db_session: AsyncSession):
@@ -97,10 +100,25 @@ async def test_credits_do_not_unblock_a_free_tenant(db_session: AsyncSession):
     """Credits are a paid-plan overage mechanism. check_can_generate raises
     schedule_limit_reached on the plan cap regardless of balance, so reporting
     can_generate=True here would let the UI sell credits that buy nothing."""
+    from backend.models import Location, Region
+
     company_id = await _make_og(db_session, _id(), credits=25.0)
-    await _add_schedules(
-        db_session, company_id, settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-    )
+
+    # Give the tenant a location and spend its one free week, so this is a
+    # genuinely over-allowance free group rather than one with nothing to
+    # schedule.
+    region_id, location_id = _id(), _id()
+    db_session.add(Region(id=region_id, company_id=company_id, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id=location_id, company_id=company_id,
+                            region_id=region_id, name="L",
+                            timezone="America/New_York"))
+    await db_session.flush()
+    db_session.add(ShiftSchedule(
+        id=_id(), company_id=company_id, location_id=location_id,
+        week_start_date=date(2026, 8, 10), status="draft",
+    ))
+    await db_session.commit()
 
     quota = await check_schedule_quota(db_session, company_id)
     assert quota["is_over_included"] is True
@@ -146,5 +164,6 @@ async def test_no_tenant_slug_is_hardcoded(db_session: AsyncSession):
     await db_session.commit()
 
     quota = await check_schedule_quota(db_session, company_id)
-    assert quota["schedules_included"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    # Ordinary free rules, never the demo's raised pooled cap.
+    assert quota["schedules_included"] != settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
     assert quota["schedules_included"] != 250

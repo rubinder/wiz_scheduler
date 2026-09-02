@@ -138,17 +138,10 @@ class Settings(BaseSettings):
 
     # Raised 1 -> 2 on 2026-08-23.
     #
-    # WARNING, and the reason this number is not free to change: generation
-    # writes one ShiftSchedule row PER LOCATION PER RUN, and
-    # count_schedules_this_month counts ROWS. While this was 1, a row and a
-    # run were the same thing for every tenant that could reach the check, so
-    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH could be read as "runs". At 2 they
-    # diverge: a free group with two locations spends its whole monthly
-    # allowance on a SINGLE run. See the "Rows vs. runs" note in
-    # docs/superpowers/specs/2026-08-10-free-tier-design.md, which called this
-    # out as load-bearing. Counting runs needs a batch id on ShiftSchedule;
-    # until that exists, a two-location free tenant effectively gets
-    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH / 2 generations.
+    # The "rows vs. runs" warning that stood here is resolved: the generation
+    # allowance is no longer a pooled row count, so raising this number no
+    # longer silently divides a tenant's generations. Each location now
+    # carries its own allowance — see FREE_PLAN_SCHEDULES_PER_LOCATION.
     FREE_PLAN_MAX_LOCATIONS: int = 2
     # Raised 5 -> 10 on 2026-08-21, then 10 -> 25 on 2026-08-23. A go-to-market
     # number, not a cost one: a free employee is a row and little else, so at
@@ -156,24 +149,41 @@ class Settings(BaseSettings):
     # run about $0.004/month in AWS, and free tenants cannot reach AI
     # generation at all so they draw no Anthropic spend.
     # Headcount is deliberately NOT the conversion gate — see
-    # FREE_PLAN_MAX_SCHEDULES_PER_MONTH below, which is.
+    # FREE_PLAN_SCHEDULES_PER_LOCATION below, which is.
     FREE_PLAN_MAX_EMPLOYEES: int = 25
 
-    # Free plan may run this many schedule generations per calendar month.
-    # Independent of INCLUDED_SCHEDULES_PER_MONTH below, which is the PAID metered
-    # threshold (50/month then overage) and is unchanged by this.
+    # ---------------------------------------------------------------------
+    # Free plan generation allowance — PER LOCATION, per calendar month.
     #
-    # Lowered 5 -> 2 on 2026-08-21. This is the conversion gate: a generation
-    # covers at most one week (GenerateRequest.num_days is capped at 7), so 2
-    # per month is roughly half a month of coverage — enough to evaluate the
-    # product, not enough to run a rota on. Raising num_days' cap would
-    # silently widen this allowance, which is why that cap is enforced in the
-    # schema AND guarded in the pipeline.
-    FREE_PLAN_MAX_SCHEDULES_PER_MONTH: int = 2
+    # Replaces the old pooled FREE_PLAN_MAX_SCHEDULES_PER_MONTH, which was
+    # incoherent for multi-location tenants: generation writes one
+    # ShiftSchedule row PER LOCATION PER RUN and the counter counted rows,
+    # so a two-location free tenant spent a two-row allowance on a SINGLE
+    # run while a one-location tenant got two runs. The allowance is now
+    # expressed in the unit it was always really about.
+    #
+    # SCHEDULES: how many schedules a location may end the month holding.
+    # One — a generation covers at most one week (GenerateRequest.num_days
+    # is capped at 7), so this is a week of coverage per location: enough
+    # to evaluate the product, not enough to run a rota on.
+    #
+    # ATTEMPTS: how many generations a location may run in the month,
+    # counting rejected ones. Two, so a first run against a half-entered
+    # roster or the wrong shift template is recoverable. Without it the
+    # free tier is one-shot, and a bad first impression is unrecoverable
+    # for up to 30 days — which is exactly when a new user gives up.
+    #
+    # A retry must target the SAME WEEK as the schedule it replaces. The
+    # second attempt exists to redo a bad week, not to buy a second one;
+    # allowing a different week would quietly make the allowance two weeks
+    # per location and undo the cap above.
+    # ---------------------------------------------------------------------
+    FREE_PLAN_SCHEDULES_PER_LOCATION: int = 1
+    FREE_PLAN_ATTEMPTS_PER_LOCATION: int = 2
 
     # The public demo tenant. It is a free-plan group like any other — no
-    # Stripe subscription — but it is shared by every visitor, so the normal
-    # 2/month cap is spent almost immediately and the demo then refuses to
+    # Stripe subscription — but it is shared by every visitor, so a
+    # per-location allowance is spent almost immediately and the demo refuses to
     # generate anything. Raise only its generation cap; the location and
     # employee caps still apply, so the demo keeps showing free-plan shape.
     # AI generation stays off (can_generate_ai is False for every free group),

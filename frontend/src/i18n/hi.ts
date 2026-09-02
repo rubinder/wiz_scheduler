@@ -300,7 +300,7 @@ const hi = {
     reasonAiRequiresPaid: "AI शेड्यूलिंग के लिए पेड प्लान आवश्यक है। आप अभी भी बिना AI के जनरेट कर सकते हैं।",
     reasonScheduleLimitReached: "आपने इस महीने के सभी मुफ्त शेड्यूल जनरेशन का उपयोग कर लिया है। सीमा अगले महीने की शुरुआत में रीसेट हो जाएगी — इसे हटाने के लिए अपग्रेड करें।",
     usage: "{employeeCount} में से {employeeLimit} कर्मचारी · {locationCount} में से {locationLimit} स्थान",
-    usageGenerations: " · इस महीने {generationCount} में से {generationLimit} जनरेशन",
+    usageGenerations: " · इस माह {generationLimit} में से {generationCount} स्थानों का शेड्यूल बना",
     upgradeButton: "अपग्रेड करें",
     upgrading: "रीडायरेक्ट हो रहा है…",
     upgradeFailed: "अपग्रेड चेकआउट शुरू नहीं हो सका।",

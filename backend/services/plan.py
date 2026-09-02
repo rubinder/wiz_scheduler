@@ -29,9 +29,12 @@ from backend.services.billing import (
     count_employees_for_group,
     count_locations_for_group,
     count_schedules_this_month,
-    free_plan_schedule_limit,
     get_ownership_group_id,
     is_demo_group,
+)
+from backend.services.location_quota import (
+    any_location_available,
+    free_plan_usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,8 +93,11 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
 
     loc_count = await count_locations_for_group(db, og_id)
     emp_count = await count_employees_for_group(db, og_id)
-    sched_count = await count_schedules_this_month(db, og_id)
-    sched_limit = free_plan_schedule_limit(og_id)
+    # Schedules are counted PER LOCATION now: how many of this group's
+    # locations already hold a schedule this month, out of how many they
+    # could. The old pooled row count meant different things to
+    # single- and multi-location tenants — see services/location_quota.py.
+    sched_count, sched_limit = await free_plan_usage(db, og_id)
     over_limit = (
         loc_count > settings.FREE_PLAN_MAX_LOCATIONS
         or emp_count > settings.FREE_PLAN_MAX_EMPLOYEES
@@ -105,12 +111,17 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
             "subscription_canceled" if og.canceled_at is not None
             else "plan_limit_exceeded"
         )
-    elif sched_count >= sched_limit:
-        # Not over_limit, but the monthly generation cap is exhausted — the
-        # PlanBanner otherwise falls back to "AI requires a paid plan" copy
-        # for ANY non-null-block_reason-less free tenant, which is wrong
-        # for a tenant who is well within employee/location limits and
-        # simply used up their 5 free generations this month.
+    elif sched_limit and sched_count >= sched_limit and not await any_location_available(db, company_id):
+        # Every location has spent its month. Reported separately from the
+        # plan limits because the PlanBanner otherwise falls back to "AI
+        # requires a paid plan" copy for any free tenant without a block
+        # reason, which is wrong for one who is well inside the employee and
+        # location caps and has simply used the month's coverage.
+        #
+        # any_location_available is consulted rather than trusting the
+        # counts alone: a location whose only schedule was rejected still
+        # has a retry, so the aggregate can read "full" while generation is
+        # in fact still possible.
         block_reason = "schedule_limit_reached"
 
     return PlanState(
@@ -242,7 +253,11 @@ _BLOCK_MESSAGES = {
 
 
 async def check_can_generate(
-    db: AsyncSession, company_id: str, *, use_local: bool
+    db: AsyncSession,
+    company_id: str,
+    *,
+    use_local: bool,
+    week_start_date: str | None = None,
 ) -> None:
     """Gate POST /schedules/generate. Replaces require_active_billing.
 
@@ -266,19 +281,28 @@ async def check_can_generate(
             },
         )
 
-    # Free-plan monthly generation cap. Checked after over_limit so a tenant
-    # who is both over-limit and out of generations hears about the limit that
-    # actually requires an upgrade decision. Paid groups never reach here —
-    # they keep INCLUDED_SCHEDULES_PER_MONTH metered overage instead.
+    # Free-plan generation allowance, counted per location per month.
+    # Checked after over_limit so a tenant who is both over-limit and out of
+    # allowance hears about the limit that actually requires an upgrade
+    # decision. Paid groups never reach here — they keep
+    # INCLUDED_SCHEDULES_PER_MONTH metered overage instead.
+    #
+    # This is the coarse gate only: it fires when EVERY location is spent,
+    # so the caller gets one clear 402 instead of a stream of per-location
+    # refusals. The precise per-location and same-week rules are applied
+    # inside the pipeline, which is where the location set is resolved.
     sched = state["schedules"]
-    if sched["limit"] is not None and sched["count"] >= sched["limit"]:
+    if sched["limit"] is not None and not await any_location_available(
+        db, company_id, week_start_date
+    ):
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "code": "schedule_limit_reached",
                 "message": (
-                    f"Free plan allows {sched['limit']} schedule generations "
-                    f"per month. Upgrade for more."
+                    "The free plan covers one week per location per month, "
+                    "and every location has used it. Upgrade to keep "
+                    "generating."
                 ),
                 "used": sched["count"],
                 "max": sched["limit"],

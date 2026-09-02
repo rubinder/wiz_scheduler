@@ -300,7 +300,7 @@ const vi = {
     reasonAiRequiresPaid: "Lên lịch bằng AI yêu cầu gói trả phí. Bạn vẫn có thể tạo lịch mà không cần AI.",
     reasonScheduleLimitReached: "Bạn đã sử dụng hết số lần tạo lịch miễn phí trong tháng này. Giới hạn sẽ được đặt lại vào đầu tháng sau — nâng cấp để gỡ bỏ giới hạn này.",
     usage: "{employeeCount} trên {employeeLimit} nhân viên · {locationCount} trên {locationLimit} địa điểm",
-    usageGenerations: " · {generationCount} trên {generationLimit} lượt tạo trong tháng này",
+    usageGenerations: " · {generationCount} trên {generationLimit} địa điểm đã lên lịch tháng này",
     upgradeButton: "Nâng cấp",
     upgrading: "Đang chuyển hướng…",
     upgradeFailed: "Không thể bắt đầu thanh toán nâng cấp.",

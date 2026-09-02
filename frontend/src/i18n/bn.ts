@@ -300,7 +300,7 @@ const bn = {
     reasonAiRequiresPaid: "AI সময়সূচির জন্য পেইড প্ল্যান প্রয়োজন। আপনি এখনও AI ছাড়া তৈরি করতে পারেন।",
     reasonScheduleLimitReached: "আপনি এই মাসের সব ফ্রি শিডিউল জেনারেশন ব্যবহার করে ফেলেছেন। সীমা পরের মাসের শুরুতে রিসেট হবে — এটি সরাতে আপগ্রেড করুন।",
     usage: "{employeeCount} এর মধ্যে {employeeLimit} জন কর্মী · {locationCount} এর মধ্যে {locationLimit}টি অবস্থান",
-    usageGenerations: " · এই মাসে {generationCount} এর মধ্যে {generationLimit}টি জেনারেশন",
+    usageGenerations: " · এই মাসে {generationLimit}টির মধ্যে {generationCount}টি লোকেশনের সময়সূচি হয়েছে",
     upgradeButton: "আপগ্রেড করুন",
     upgrading: "পুনঃনির্দেশ করা হচ্ছে…",
     upgradeFailed: "আপগ্রেড চেকআউট শুরু করা যায়নি।",

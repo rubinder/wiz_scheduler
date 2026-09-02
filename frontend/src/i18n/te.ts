@@ -300,7 +300,7 @@ const te = {
     reasonAiRequiresPaid: "AI షెడ్యూలింగ్కు పెయిడ్ ప్లాన్ అవసరం. మీరు ఇప్పటికీ AI లేకుండా జనరేట్ చేయవచ్చు.",
     reasonScheduleLimitReached: "మీరు ఈ నెలకు మీ ఉచిత షెడ్యూల్ జనరేషన్‌లన్నింటినీ ఉపయోగించారు. పరిమితి వచ్చే నెల ప్రారంభంలో రీసెట్ అవుతుంది — దీన్ని తొలగించడానికి అప్‌గ్రేడ్ చేయండి.",
     usage: "{employeeCount} లో {employeeLimit} మంది ఉద్యోగులు · {locationCount} లో {locationLimit} స్థానాలు",
-    usageGenerations: " · ఈ నెలలో {generationCount} లో {generationLimit} జనరేషన్‌లు",
+    usageGenerations: " · ఈ నెలలో {generationLimit}లో {generationCount} స్థానాలకు షెడ్యూల్ చేయబడింది",
     upgradeButton: "అప్‌గ్రేడ్ చేయండి",
     upgrading: "దారి మళ్లిస్తోంది…",
     upgradeFailed: "అప్‌గ్రేడ్ చెక్‌అవట్ ప్రారంభించలేకపోయాము.",

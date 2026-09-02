@@ -300,7 +300,7 @@ const pt = {
     reasonAiRequiresPaid: "A programação por IA requer um plano pago. Você ainda pode gerar sem IA.",
     reasonScheduleLimitReached: "Você usou todas as gerações de escala gratuitas deste mês. O limite será redefinido no início do próximo mês — faça upgrade para removê-lo.",
     usage: "{employeeCount} de {employeeLimit} funcionários · {locationCount} de {locationLimit} locais",
-    usageGenerations: " · {generationCount} de {generationLimit} gerações este mês",
+    usageGenerations: " · {generationCount} de {generationLimit} locais agendados este mês",
     upgradeButton: "Fazer upgrade",
     upgrading: "Redirecionando…",
     upgradeFailed: "Não foi possível iniciar o checkout de upgrade.",
