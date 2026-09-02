@@ -431,24 +431,24 @@ export default function Employees() {
         <table className={`min-w-full divide-y ${border.divider}`}>
           <thead className={bg.tableHeader}>
             <tr>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.employeesPage.fullName}
               </th>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.email}
               </th>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.locations}
               </th>
               {hasMultipleCompanies && (
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                   {t.common.companies}
                 </th>
               )}
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.roles}
               </th>
-              <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+              <th className={`px-4 py-3 text-end text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.actions}
               </th>
             </tr>
@@ -515,7 +515,7 @@ export default function Employees() {
                         )
                       : renderRoleBadges(emp.roles)}
                   </td>
-                  <td className="px-4 py-2 text-right space-x-2">
+                  <td className="px-4 py-2 text-end space-x-2">
                     {isEditing ? (
                       <>
                         <button
@@ -601,7 +601,7 @@ export default function Employees() {
                     setAddValues((v) => ({ ...v, roles: r }))
                   )}
                 </td>
-                <td className="px-4 py-2 text-right space-x-2">
+                <td className="px-4 py-2 text-end space-x-2">
                   <button
                     onClick={handleCreate}
                     className={action.save}
@@ -630,7 +630,7 @@ export default function Employees() {
         </table>
 
         {!showAddRow && (
-          <div className="mt-3 mb-3 ml-3">
+          <div className="mt-3 mb-3 ms-3">
             <DemoGuard>
               <button
                 onClick={() => setShowAddRow(true)}

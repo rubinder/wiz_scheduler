@@ -151,7 +151,7 @@ export default function ImportDeputyModal({ onClose, onSuccess }: Props) {
               <div className="glass-alert-success">
                 {t.importDeputy.success}
               </div>
-              <table className="w-full text-left">
+              <table className="w-full text-start">
                 <thead>
                   <tr className={`text-xs ${text.muted} uppercase`}>
                     <th className="px-3 py-1">{t.importDeputy.entity}</th>

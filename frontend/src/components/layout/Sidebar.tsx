@@ -132,7 +132,7 @@ export default function Sidebar() {
     }`;
 
   return (
-    <aside className={`w-64 ${bg.sidebar} border-r ${border.default} ${text.primary} min-h-screen flex flex-col`}>
+    <aside className={`w-64 ${bg.sidebar} border-e ${border.default} ${text.primary} min-h-screen flex flex-col`}>
       <div className={`p-5 border-b ${border.default}`}>
         <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">{t.common.appName} <img src="/favicon.svg" alt="" className="w-7 h-7" /></h1>
       </div>

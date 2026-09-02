@@ -206,7 +206,7 @@ export default function RoleEquivalents() {
           <div className="mb-4">
             <label className="glass-label mb-2">
               {t.roleEquivalents.rolesInGroup}
-              <span className={`${text.muted} font-normal ml-1`}>
+              <span className={`${text.muted} font-normal ms-1`}>
                 {t.roleEquivalents.selectTwoOrMore}
               </span>
             </label>
@@ -227,7 +227,7 @@ export default function RoleEquivalents() {
                     <button
                       key={role.id}
                       onClick={() => toggleRole(role.id)}
-                      className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      className={`text-start px-3 py-2 rounded-lg border text-sm transition-colors ${
                         selected
                           ? "bg-accent/15 border-accent/30 text-accent-dark font-medium"
                           : `bg-white/50 ${border.default} ${text.secondary} hover:border-sage/30`
@@ -268,7 +268,7 @@ export default function RoleEquivalents() {
               <button
                 key={s.name}
                 onClick={() => applySuggestion(s)}
-                className="text-left bg-amber-50 border border-amber-200 rounded-xl p-4 hover:border-amber-300 hover:bg-amber-100 transition-colors"
+                className="text-start bg-amber-50 border border-amber-200 rounded-xl p-4 hover:border-amber-300 hover:bg-amber-100 transition-colors"
               >
                 <div className="font-semibold text-amber-700 mb-2">
                   {s.name}
@@ -305,12 +305,12 @@ export default function RoleEquivalents() {
                     className={`inline-block px-2 py-1 ${bg.tableHeader} ${text.secondary} rounded text-xs font-medium`}
                   >
                     {r.role_name}
-                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className={`ml-1 ${text.muted} font-normal`}>{ext}</span> : null; })()}
+                    {(() => { const ext = roles.find((rl) => rl.id === r.role_id)?.external_id; return ext ? <span className={`ms-1 ${text.muted} font-normal`}>{ext}</span> : null; })()}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 ml-4 shrink-0">
+            <div className="flex gap-2 ms-4 shrink-0">
               <button
                 onClick={() => startEdit(cr)}
                 className={action.edit}

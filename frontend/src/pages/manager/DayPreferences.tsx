@@ -192,7 +192,7 @@ export default function DayPreferences() {
           {loadError}
           <button
             onClick={() => setLoadError("")}
-            className="ml-2 text-red-400 hover:text-red-300"
+            className="ms-2 text-red-400 hover:text-red-300"
           >
             {t.common.dismiss}
           </button>
@@ -209,7 +209,7 @@ export default function DayPreferences() {
             {createError}
             <button
               onClick={() => setCreateError("")}
-              className="ml-2 text-red-400 hover:text-red-300"
+              className="ms-2 text-red-400 hover:text-red-300"
             >
               {t.common.dismiss}
             </button>
@@ -280,16 +280,16 @@ export default function DayPreferences() {
         <table className="w-full">
           <thead className={`${bg.tableHeader} border-b ${border.default}`}>
             <tr>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayPreferences.employee}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayPreferences.dayOfWeek}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayPreferences.weight}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.common.actions ?? "Actions"}
               </th>
             </tr>

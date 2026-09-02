@@ -87,7 +87,7 @@ export default function ScheduleGrid({
       <table className="min-w-full">
         <thead>
           <tr className={bg.tableHeader}>
-            <th className={`px-4 py-3 text-left text-xs font-semibold ${text.muted} uppercase sticky left-0 ${bg.stickyCol} z-10 min-w-[140px]`}>
+            <th className={`px-4 py-3 text-start text-xs font-semibold ${text.muted} uppercase sticky start-0 ${bg.stickyCol} z-10 min-w-[140px]`}>
               {t.common.role}
             </th>
             {dates.map((d) => {
@@ -114,7 +114,7 @@ export default function ScheduleGrid({
         <tbody>
           {roles.map((role) => (
             <tr key={role} className={`border-t ${border.subtle}`}>
-              <td className={`px-4 py-3 text-sm font-medium ${text.secondary} align-top sticky left-0 ${bg.stickyCol} z-10`}>
+              <td className={`px-4 py-3 text-sm font-medium ${text.secondary} align-top sticky start-0 ${bg.stickyCol} z-10`}>
                 <span
                   className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${roleColorMap[role]}`}
                 >
