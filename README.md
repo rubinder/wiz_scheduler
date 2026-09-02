@@ -177,13 +177,13 @@ Tests run against in-memory SQLite — no Postgres instance required.
 | `FROM_EMAIL` | Sender address | `noreply@shiftsync.example.com` |
 | `ENV` | `development` / `production` | `development` |
 | `CHECKIN_QR_SECRET` | HMAC key for the employee check-in rotating QR code | (empty) |
-| `FRONTEND_URL` | Base origin the check-in QR deep link is built from | `http://localhost:5173` |
+| `FRONTEND_URL` | Trusted base origin for the check-in QR deep link and every emailed link (password reset, email verification, invites) | `http://localhost:5173` |
 
 Without `ANTHROPIC_API_KEY`, the deterministic local scheduler still works end to end.
 
 `CHECKIN_QR_SECRET` has no usable default — a predictable key would let anyone derive a valid check-in code off-site, which is the exact attack the HMAC exists to stop. Terraform provisions the Secrets Manager entry with a `CHANGE_ME_AFTER_DEPLOY` placeholder so the ECS task can start, and the service treats **that placeholder as unset** and refuses to issue codes — the string is committed to this repo, so a deployment running on it would be forgeable by anyone who can read the source. Replace it before enabling check-in; see `terraform/README.md`.
 
-`FRONTEND_URL` must be set to the deployed frontend's origin (e.g. `https://wizscheduler.com`) in production. It is the base of the URL encoded into every check-in QR code — `{FRONTEND_URL}/employee/check-in?t=...&l=...`. `ecs.tf` derives it from `var.domain_name`. Its failure used to be silent — the `http://localhost:5173` default produced QR codes that scanned cleanly and led nowhere — so `check_in_deep_link` now refuses any non-absolute value rather than emitting a dead link. Note this means an empty `domain_name` disables check-in rather than breaking it quietly.
+`FRONTEND_URL` must be set to the deployed frontend's origin (e.g. `https://wizscheduler.com`) in production. It is also the trusted base for every emailed link that carries a token — password reset, email verification and both invite flows all build their URL from it via `backend/utils/base_url.py`, never from the request's `Origin`/`Referer`/`Host`, any of which a caller can forge to redirect a victim's token to a host they control. Origins named in `CORS_ORIGINS` are additionally honoured, so a staging frontend keeps working once it is listed. It is the base of the URL encoded into every check-in QR code — `{FRONTEND_URL}/employee/check-in?t=...&l=...`. `ecs.tf` derives it from `var.domain_name`. Its failure used to be silent — the `http://localhost:5173` default produced QR codes that scanned cleanly and led nowhere — so `check_in_deep_link` now refuses any non-absolute value rather than emitting a dead link. Note this means an empty `domain_name` disables check-in rather than breaking it quietly.
 
 ### Pre-deploy checks
 

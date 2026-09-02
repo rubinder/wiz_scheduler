@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -13,6 +13,7 @@ from backend.models import (
     ShiftSchedule,
 )
 from backend.models.consent import UserConsent
+from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,25 @@ async def run_data_retention(db: AsyncSession) -> dict:
         )
     )
     summary["old_check_ins_deleted"] = result.rowcount
+
+    # 8. Signup signals past their window. These are observe-only
+    #    anti-abuse breadcrumbs (services/signup_signals.py), not account
+    #    data — the ownership group stays, the columns are nulled.
+    cutoff_signals = now - timedelta(days=settings.RETENTION_SIGNUP_SIGNALS_DAYS)
+    result = await db.execute(
+        update(OwnershipGroup)
+        .where(
+            OwnershipGroup.created_at < cutoff_signals,
+            OwnershipGroup.signup_email_normalized.isnot(None),
+        )
+        .values(
+            signup_ip_masked=None,
+            signup_email_normalized=None,
+            signup_device_id=None,
+            signup_user_agent_hash=None,
+        )
+    )
+    summary["signup_signals_cleared"] = result.rowcount
 
     await db.commit()
 

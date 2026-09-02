@@ -95,7 +95,11 @@ aws secretsmanager put-secret-value \
 ### `FRONTEND_URL` is not a secret, but it is load-bearing
 
 `ecs.tf` sets it from `var.domain_name` (`https://<domain_name>`). It is the origin encoded into
-every check-in QR code.
+every check-in QR code, and the trusted base for every emailed link that carries a single-use token
+(password reset, email verification, manager and employee invites). Those links deliberately do NOT
+follow the request's `Origin`/`Referer`/`Host` — a forged header would otherwise make us mail a
+victim a genuine link pointing at an attacker's host. `CORS_ORIGINS` doubles as the allowlist of
+additional origins that ARE honoured.
 
 It gets its own note because its failure mode used to be **silent**: the application default is
 `http://localhost:5173`, so a missing value produced QR codes that rendered correctly, scanned

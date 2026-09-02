@@ -210,6 +210,13 @@ class Settings(BaseSettings):
     # Check-in retention. Six months, per issue #63.
     RETENTION_CHECKINS_DAYS: int = 180
 
+    # Signup-signal retention (ownership_groups.signup_*). Long enough to
+    # see a serial-signup pattern across several free-tier cycles, short
+    # enough that we aren't holding a device id and a coarse IP for a
+    # customer indefinitely. The ownership group is NOT deleted — only the
+    # signal columns are nulled.
+    RETENTION_SIGNUP_SIGNALS_DAYS: int = 180
+
     # How long an approved schedule stays editable, measured from created_at
     # (the basis specified in #84 — not week_start_date, which diverges for a
     # schedule approved well ahead of the week it covers).
@@ -264,6 +271,32 @@ class Settings(BaseSettings):
     SCHEDULE_GENERATE_AI_BURST_PER_HOUR: int = 30
     LOGIN_RATE_LIMIT_PER_5MIN: int = 15
     REGISTER_RATE_LIMIT_PER_HOUR: int = 3
+    # RESEND_VERIFICATION_RATE_LIMIT_PER_HOUR — per-source-IP cap on
+    #     /auth/resend-verification. Each call sends a Resend email to an
+    #     address the caller supplied, so an unthrottled endpoint is a
+    #     mail-bomb relay pointed at anyone.
+    RESEND_VERIFICATION_RATE_LIMIT_PER_HOUR: int = 5
+
+    # ---------------------------------------------------------------------
+    # Email verification.
+    #
+    # An unverified address blocks POST /schedules/generate and NOTHING else
+    # — signup, login, roster setup and every other screen stay open. The gate
+    # sits on generation because that is the thing a throwaway account is
+    # created to get, and because a verification prompt lands best when the
+    # user is already invested rather than at the signup click.
+    #
+    # Set EMAIL_VERIFICATION_REQUIRED_FOR_GENERATE=false to disable the gate
+    # entirely (tokens are still minted and mailed). Kept as a switch because
+    # a broken Resend pipeline would otherwise lock every new tenant out of
+    # the core action with no way back short of a deploy.
+    # ---------------------------------------------------------------------
+    EMAIL_VERIFICATION_REQUIRED_FOR_GENERATE: bool = True
+    EMAIL_VERIFICATION_TTL_HOURS: int = 48
+    # Per-user cooldown between verification emails. Mirrors the
+    # forgot-password cooldown: a still-valid unused token suppresses a
+    # resend rather than minting a second one.
+    EMAIL_VERIFICATION_COOLDOWN_MINUTES: int = 5
 
     # Per-OG daily Anthropic spend circuit breaker (Tier 2E).
     #

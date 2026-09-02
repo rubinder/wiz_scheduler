@@ -54,3 +54,27 @@ export function resetPassword(
     body: JSON.stringify({ token, new_password: newPassword }),
   });
 }
+
+/**
+ * Redeem a verification token. Returns a session, so the link doubles as a
+ * login for someone who opened the email on a different device.
+ */
+export function verifyEmail(token: string): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+/**
+ * Request a fresh verification link. Always resolves — the endpoint is
+ * deliberately silent about whether the address exists or is already
+ * verified, so never present the result as confirmation that mail was sent
+ * to a real account.
+ */
+export function resendVerification(email: string): Promise<void> {
+  return apiFetch<void>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}

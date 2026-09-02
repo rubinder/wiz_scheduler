@@ -10,6 +10,9 @@ export interface RegisterRequest {
   privacy_accepted?: boolean;
   terms_accepted?: boolean;
   stripe_session_id?: string;
+  // Opaque per-browser id from getDeviceId(). Recorded as a signup signal
+  // only — the backend never denies anything on it.
+  device_id?: string;
 }
 
 export interface LoginRequest {
@@ -32,6 +35,8 @@ export interface User {
   ownership_group_id: string | null;
   is_demo: boolean;
   has_google: boolean;
+  // False blocks schedule generation and nothing else.
+  email_verified: boolean;
 }
 
 // ── Company ──

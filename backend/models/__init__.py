@@ -23,6 +23,7 @@ from backend.models.storage_snapshot import StorageSnapshot
 from backend.models.billing_charge import BillingCharge
 from backend.models.manager_invite import ManagerInvite
 from backend.models.password_reset_token import PasswordResetToken
+from backend.models.email_verification_token import EmailVerificationToken
 from backend.models.schedule_lock import ScheduleLock
 from backend.models.special_hours_day import SpecialHoursDay
 from backend.models.employee_check_in import EmployeeCheckIn
@@ -62,6 +63,7 @@ __all__ = [
     "BillingCharge",
     "ManagerInvite",
     "PasswordResetToken",
+    "EmailVerificationToken",
     "ScheduleLock",
     "SpecialHoursDay",
     "EmployeeCheckIn",
