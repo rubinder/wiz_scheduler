@@ -1,6 +1,6 @@
 """Free-plan enforcement across employee/location write paths."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -200,7 +200,13 @@ async def test_bulk_upload_counts_existing_rows(
 
 
 def _current_week_monday() -> date:
-    today = date.today()
+    """Mirrors ImportAvailabilitiesRequest.validate_date_range.
+
+    Must stay UTC-derived in step with that validator: the two are coupled,
+    and a local-vs-UTC mismatch makes this fixture build a week the
+    validator rejects for part of every evening west of UTC.
+    """
+    today = datetime.now(timezone.utc).date()
     return today - timedelta(days=today.weekday())
 
 

@@ -120,6 +120,11 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 - Use type hints extensively in all Python code.
 - Prefer functional components and hooks in React.
 - All timestamps must carry timezone offsets (derive from `location.timezone` via `zoneinfo.ZoneInfo`).
+- **"Today" is always UTC** — `datetime.now(timezone.utc).date()`, never `date.today()`,
+  in application code *and* in tests. `date.today()` reads the server's local clock;
+  production runs UTC so the two agree there and the mismatch is invisible, while a
+  developer west of UTC gets a one-day drift for the last hours of every day.
+  `tests/test_utc_today.py` enforces this by AST sweep.
 - Parse LLM output defensively — never raise unhandled exceptions inside the graph.
 - Do not install new dependencies without explicit instruction.
 - Ensure all code changes pass linting and testing before committing.

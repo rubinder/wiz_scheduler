@@ -667,7 +667,9 @@ class ImportAvailabilitiesRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "ImportAvailabilitiesRequest":
-        today = date.today()
+        # UTC, not the server's local clock — see the "today" rule in
+        # CLAUDE.md. Locally these agree only because ECS runs UTC.
+        today = datetime.now(timezone.utc).date()
         # Monday of the current week
         current_week_monday = today - timedelta(days=today.weekday())
         max_end = current_week_monday + timedelta(weeks=9)  # 8 weeks ahead (end of 8th week)
