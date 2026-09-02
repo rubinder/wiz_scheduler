@@ -625,7 +625,20 @@ async def approve_schedule(
                     detail=f"Failed to parse schedule data: {exc}",
                 )
 
-            # Accumulate worked minutes into employee_role_minutes for history tracking
+            # Accumulate worked minutes into employee_role_minutes.
+            #
+            # NO LONGER the source of scheduling's fairness history (#97).
+            # This aggregate is written once, here, and was never adjusted
+            # when an approved schedule was later edited, so it drifted:
+            # a deleted shift stayed booked, a reassigned one stayed with
+            # the previous employee, a retimed one kept its old duration.
+            # _load_role_history_minutes now derives the same figures from
+            # approved Shift rows, which cannot fall out of step.
+            #
+            # The table is retained deliberately rather than dropped — it is
+            # referenced by the GDPR erase path, the employee delete path,
+            # both importers and the storage estimate, and removing it is a
+            # separate change. Treat it as legacy: do not add readers.
             from backend.models.employee_role_minutes import EmployeeRoleMinutes
 
             for s in shifts_data:
