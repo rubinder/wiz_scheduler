@@ -23,11 +23,16 @@ from backend.schemas.auth import (
     GoogleLinkRequest,
     LoginRequest,
     RegisterRequest,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     SwitchCompanyRequest,
     TokenResponse,
     UserResponse,
+    VerifyEmailRequest,
 )
+from backend.services.signup_signals import record_signup_signals
+from backend.utils.base_url import trusted_base_url
+from backend.utils.email_normalize import normalize_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -191,6 +196,11 @@ async def register(
     db.add(ownership_group)
     await db.flush()
 
+    # Observe-only (see services.signup_signals). Nothing reads these yet.
+    record_signup_signals(
+        ownership_group, request, email=body.email, device_id=body.device_id
+    )
+
     slug = secrets.token_hex(3)
 
     company = Company(
@@ -208,6 +218,12 @@ async def register(
         full_name=body.full_name,
         user_role="manager",
         google_id=google_sub,
+        email_normalized=normalize_email(body.email),
+        # Google already proved the address — _verify_google_token rejects an
+        # id_token whose email_verified claim is false, and the email is
+        # checked against body.email above. Mailing a confirmation link to an
+        # address Google just vouched for is friction with nothing behind it.
+        email_verified_at=datetime.now(timezone.utc) if google_sub else None,
     )
     db.add(user)
     await db.flush()
@@ -224,6 +240,22 @@ async def register(
 
     await db.commit()
     await db.refresh(user)
+
+    # Password signups must prove the address before they can generate.
+    # Never fatal: a Resend outage would otherwise fail the signup itself,
+    # and /auth/resend-verification exists precisely for the miss.
+    if google_sub is None:
+        from backend.services.email_verification import send_verification
+
+        sent = await send_verification(
+            db, user, trusted_base_url(request)
+        )
+        await db.commit()
+        logger.info(
+            "register.verification_%s email=%s",
+            "sent" if sent else "not_sent",
+            _mask_email(body.email),
+        )
 
     await _send_welcome_email(
         body.email,
@@ -653,15 +685,7 @@ async def forgot_password(
     ))
     await db.commit()
 
-    # Build reset URL from request origin (mirrors the invite-URL helper).
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin:
-        from urllib.parse import urlparse
-        parsed = urlparse(origin)
-        base = f"{parsed.scheme}://{parsed.netloc}"
-    else:
-        base = str(request.base_url).rstrip("/")
-    reset_url = f"{base}/reset-password?token={token_value}"
+    reset_url = f"{trusted_base_url(request)}/reset-password?token={token_value}"
 
     # Per-OG email cap (#42). Resolve OG from the matched user's company.
     # If the user has no OG (single-Company dev/test state), skip the cap.
@@ -743,6 +767,95 @@ async def reset_password(
     return TokenResponse(access_token=token)
 
 
+@router.post("/verify-email", response_model=TokenResponse)
+async def verify_email(
+    body: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Redeem a verification token and return a fresh session token.
+
+    Returning a session means the link works as a login for someone who
+    opened it on a second device, which is the common case for "signed up on
+    the laptop, read the email on the phone". The token is single-use, so the
+    link is not a reusable credential.
+    """
+    from backend.services.email_verification import redeem
+
+    user = await redeem(db, body.token)
+    if user is None:
+        # One status for unknown / used / expired. The three are
+        # indistinguishable to a legitimate user ("this link doesn't work")
+        # and telling them apart only helps someone probing tokens.
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "verification_link_invalid",
+                "message": (
+                    "This confirmation link is no longer valid. "
+                    "Request a new one and try again."
+                ),
+            },
+        )
+    await db.commit()
+    logger.info("verify_email.ok email=%s", _mask_email(user.email))
+
+    token = _create_access_token(user.id, user.company_id, user.user_role)
+    return TokenResponse(access_token=token)
+
+
+@router.post("/resend-verification", status_code=status.HTTP_204_NO_CONTENT)
+async def resend_verification(
+    body: ResendVerificationRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mail a fresh verification link. Always 204.
+
+    Unauthenticated, and silent about outcomes for the same reason
+    /auth/forgot-password is: the response must not reveal whether an address
+    has an account. Already-verified addresses are also a no-op, so this
+    can't be used to spray mail at a confirmed user.
+    """
+    from backend.services.email_verification import send_verification
+    from backend.services.rate_limit import (
+        resend_verification_limiter,
+        source_ip_from_request,
+    )
+
+    source_ip = source_ip_from_request(request)
+    if not resend_verification_limiter.check_and_record(source_ip):
+        logger.info("resend_verification.rate_limited ip=%s", source_ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "rate_limited",
+                "message": "Too many requests. Try again in a few minutes.",
+            },
+        )
+
+    users = (await db.execute(
+        select(User).where(User.email == body.email)
+    )).scalars().all()
+    unverified = [u for u in users if u.email_verified_at is None]
+    if not unverified:
+        logger.info(
+            "resend_verification.noop email=%s matched=%d",
+            _mask_email(body.email),
+            len(users),
+        )
+        return  # Still 204 — no leak.
+
+    sent = await send_verification(
+        db, unverified[0], trusted_base_url(request)
+    )
+    await db.commit()
+    logger.info(
+        "resend_verification.%s email=%s",
+        "sent" if sent else "not_sent",
+        _mask_email(body.email),
+    )
+
+
 @router.get("/me", response_model=UserResponse)
 async def me(
     current_user: User = Depends(get_current_user),
@@ -765,4 +878,5 @@ async def me(
         str(ownership_group_id)
     )
     response.has_google = current_user.google_id is not None
+    response.email_verified = current_user.email_verified_at is not None
     return response

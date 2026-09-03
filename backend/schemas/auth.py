@@ -15,6 +15,10 @@ class RegisterRequest(BaseModel):
     privacy_accepted: bool = False
     terms_accepted: bool = False
     stripe_session_id: str | None = None
+    # Opaque per-browser id the frontend persists in localStorage. Recorded
+    # as a signup signal only — never trusted, never enforced on. Absent for
+    # API clients and anyone with storage disabled, which is expected.
+    device_id: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -61,6 +65,9 @@ class UserResponse(BaseModel):
     ownership_group_id: str | None = None
     is_demo: bool = False
     has_google: bool = False
+    # Drives the "confirm your email" banner and the resend button. False
+    # blocks schedule generation and nothing else.
+    email_verified: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -86,3 +93,17 @@ class ResetPasswordRequest(BaseModel):
     """Body for POST /auth/reset-password."""
     token: str
     new_password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    """Body for POST /auth/verify-email."""
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    """Body for POST /auth/resend-verification.
+
+    Unauthenticated and always 204, like /auth/forgot-password: the response
+    must not reveal whether the address has an account or is already verified.
+    """
+    email: str

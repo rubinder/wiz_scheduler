@@ -4,7 +4,6 @@ accepting user picks which Company in the OG they want to join.
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
@@ -14,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
+from backend.utils.base_url import trusted_base_url
+from backend.utils.email_normalize import normalize_email
 from backend.models import Company, ManagerInvite, OwnershipGroup, User
 from backend.schemas.manager_invite import (
     AcceptManagerInviteRequest,
@@ -48,13 +49,9 @@ def _create_access_token(user_id: str, company_id: str, user_role: str) -> str:
 
 
 def _invite_url_for(request: Request, token: str) -> str:
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin:
-        parsed = urlparse(origin)
-        base = f"{parsed.scheme}://{parsed.netloc}"
-    else:
-        base = str(request.base_url).rstrip("/")
-    return f"{base}/accept-manager-invite?token={token}"
+    # The token in this URL creates a manager account. See
+    # utils.base_url for why the host is not taken from request headers.
+    return f"{trusted_base_url(request)}/accept-manager-invite?token={token}"
 
 
 @router.post("/", response_model=ManagerInviteResponse)
@@ -185,6 +182,11 @@ async def accept_manager_invite(
         hashed_password=pwd_context.hash(body.password),
         full_name=body.full_name,
         user_role="manager",
+        email_normalized=normalize_email(invite.email),
+        # Accepting the invite required opening a link we mailed to this
+        # address, which is the same proof /auth/verify-email collects.
+        # Asking again would be a second confirmation email for one mailbox.
+        email_verified_at=now,
     )
     db.add(new_user)
     await db.flush()

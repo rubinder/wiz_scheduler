@@ -191,6 +191,28 @@ const trLang = {
   },
 
 
+  // ── Verify Email ──
+  // English in every locale, matching how forgotPassword/resetPassword
+  // above already ship. Translating the auth flows is a separate pass.
+  verifyEmail: {
+    bannerTitle: "Confirm your email",
+    bannerBody:
+      "Confirm your email address to generate schedules. We sent a link to {email} when you signed up.",
+    resend: "Resend link",
+    resending: "Sending\u2026",
+    resent:
+      "If that address still needs confirming, a new link is on its way. Check spam if it doesn't arrive.",
+    verifying: "Confirming your email\u2026",
+    successTitle: "Email confirmed",
+    successBody:
+      "Thanks \u2014 your address is confirmed. You can generate schedules now.",
+    invalidTitle: "Link no longer valid",
+    invalidBody:
+      "This confirmation link has expired or has already been used. Sign in and request a new one.",
+    goToDashboard: "Go to dashboard",
+    backToLogin: "Back to sign in",
+  },
+
   // ── Register ──
   register: {
     title: "Hesap Oluşturun",

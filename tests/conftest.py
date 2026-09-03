@@ -103,12 +103,14 @@ def reset_in_process_rate_limiters():
         forgot_password_limiter,
         login_limiter,
         register_limiter,
+        resend_verification_limiter,
         schedule_generate_ai_limiter,
     )
     for lim in (
         forgot_password_limiter,
         login_limiter,
         register_limiter,
+        resend_verification_limiter,
         schedule_generate_ai_limiter,
     ):
         lim.reset()
@@ -117,6 +119,7 @@ def reset_in_process_rate_limiters():
         forgot_password_limiter,
         login_limiter,
         register_limiter,
+        resend_verification_limiter,
         schedule_generate_ai_limiter,
     ):
         lim.reset()
@@ -231,6 +234,12 @@ async def seed_manager(db_session: AsyncSession, seed_company: Company) -> User:
         hashed_password=pwd,
         full_name="Test Manager",
         user_role="manager",
+        # An established account, like every row the 0032 backfill stamped.
+        # Tests that care about the unverified state build their own user;
+        # leaving this NULL would 403 every generate test for a reason none
+        # of them are about.
+        email_verified_at=datetime.now(timezone.utc),
+        email_normalized="manager@test.com",
     )
     db_session.add(user)
     await db_session.commit()

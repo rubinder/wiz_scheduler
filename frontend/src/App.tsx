@@ -38,6 +38,7 @@ const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
 const AcceptManagerInvite = lazy(() => import("./pages/AcceptManagerInvite"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const DataProcessingAgreement = lazy(() => import("./pages/DataProcessingAgreement"));
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="/accept-manager-invite" element={<AcceptManagerInvite />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/dpa" element={<DataProcessingAgreement />} />

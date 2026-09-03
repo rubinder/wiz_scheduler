@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import * as authApi from "../api/auth";
+import { getDeviceId } from "../utils/deviceId";
 import type { User } from "../types";
 
 interface AuthContextValue {
@@ -24,6 +25,8 @@ interface AuthContextValue {
   }) => Promise<void>;
   logout: () => void;
   switchCompany: (companyId: string) => Promise<void>;
+  /** Re-fetch /auth/me. Used after email verification flips email_verified. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -86,6 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         privacy_accepted: params.privacyAccepted,
         terms_accepted: params.termsAccepted,
         stripe_session_id: params.stripeSessionId,
+        // Observe-only anti-abuse signal; absent when storage is blocked.
+        device_id: getDeviceId(),
       });
       localStorage.setItem("token", res.access_token);
       await fetchMe();
@@ -109,7 +114,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, switchCompany }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        switchCompany,
+        refreshUser: fetchMe,
+      }}
     >
       {children}
     </AuthContext.Provider>

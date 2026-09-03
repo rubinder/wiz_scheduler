@@ -57,7 +57,13 @@ async def generate_schedule(
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     from backend.scheduling.graph import run_scheduling_pipeline
+    from backend.services.email_verification import assert_email_verified
     from backend.services.plan import check_can_generate
+
+    # Identity before plan. An unverified signup is stopped here rather than
+    # in check_can_generate because plan state is a property of the ownership
+    # group, and proving an address is a property of one person.
+    assert_email_verified(current_user)
 
     await check_can_generate(
         db, str(current_user.company_id), use_local=body.use_local

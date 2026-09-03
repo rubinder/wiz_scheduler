@@ -116,6 +116,13 @@ register_limiter = SlidingWindowLimiter(
     window_seconds=3600,
 )
 
+# Per-IP cap on /auth/resend-verification. The endpoint mails an address
+# the caller supplies, so without this it is a mail-bomb relay.
+resend_verification_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESEND_VERIFICATION_RATE_LIMIT_PER_HOUR,
+    window_seconds=3600,
+)
+
 # Per-Company burst cap on AI-mode schedule generation. Keyed on
 # company_id, not IP, so a single OG can't sequentially trigger after
 # each lock release.

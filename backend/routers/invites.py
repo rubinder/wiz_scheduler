@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
+from backend.utils.base_url import trusted_base_url
+from backend.utils.email_normalize import normalize_email
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
@@ -136,18 +138,9 @@ async def create_invite(
     await db.commit()
     await db.refresh(invite)
 
-    # Build invite URL from the request's origin
-    base_url = str(request.base_url).rstrip("/")
-    # In dev, frontend is on a different port — use Origin or Referer header
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin:
-        # Strip path from referer to get just the origin
-        from urllib.parse import urlparse
-        parsed = urlparse(origin)
-        frontend_base = f"{parsed.scheme}://{parsed.netloc}"
-    else:
-        frontend_base = base_url
-    invite_url = f"{frontend_base}/accept-invite?token={token}"
+    # The token in this URL creates an employee account. See utils.base_url
+    # for why the host is not taken from request headers.
+    invite_url = f"{trusted_base_url(request)}/accept-invite?token={token}"
 
     # Fetch ownership group name for the email
     comp_result = await db.execute(
@@ -263,6 +256,9 @@ async def accept_invite(
         hashed_password=pwd_context.hash(body.password),
         full_name=employee.full_name,
         user_role="employee",
+        email_normalized=normalize_email(invite.email),
+        # Proven by opening the emailed invite link (see manager_invites).
+        email_verified_at=datetime.now(timezone.utc),
     )
     db.add(user)
     await db.flush()

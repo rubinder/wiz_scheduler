@@ -12,6 +12,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import ScheduleGrid, { fmtHM, getDayLabel } from "../../components/shared/ScheduleGrid";
 import DemoGuard from "../../components/shared/DemoGuard";
 import PlanBanner from "../../components/shared/PlanBanner";
+import VerifyEmailBanner from "../../components/shared/VerifyEmailBanner";
 import { ScheduleLockedError, useScheduleStream } from "../../hooks/useScheduleStream";
 import { usePlan } from "../../hooks/usePlan";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -892,6 +893,9 @@ export default function Schedule() {
 
       {/* Free-tier status — renders nothing on a paid plan or while plan
           state is unknown (null), per usePlan's fail-open contract. */}
+      {/* Above PlanBanner: an unverified address blocks generation
+          outright, so it is the first thing to fix. */}
+      <VerifyEmailBanner />
       {plan && <PlanBanner plan={plan} />}
 
       <div className="flex items-center gap-4 mb-6 flex-wrap">
