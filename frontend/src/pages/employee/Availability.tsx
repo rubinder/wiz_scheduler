@@ -209,16 +209,16 @@ export default function Availability() {
         <table className="glass-table">
           <thead className={bg.tableHeader}>
             <tr>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.date}
               </th>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.start}
               </th>
-              <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.end}
               </th>
-              <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase`}>
+              <th className={`px-4 py-3 text-end text-xs font-medium ${text.muted} uppercase`}>
                 {t.common.actions}
               </th>
             </tr>
@@ -232,7 +232,7 @@ export default function Availability() {
                 </td>
                 <td className={`px-4 py-2 text-sm ${text.body}`}>{a.start_time}</td>
                 <td className={`px-4 py-2 text-sm ${text.body}`}>{a.end_time}</td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-4 py-2 text-end">
                   <button
                     onClick={() => handleDelete(a.id)}
                     className="text-red-400 hover:text-red-300 text-sm font-medium"

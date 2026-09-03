@@ -218,13 +218,13 @@ export default function ShiftCalendar({ roles, value, onChange, days: daysProp }
           >
             <div
               style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
-              className="border-r border-gray-200"
+              className="border-e border-gray-200"
             />
             {DAYS.map((day) => (
               <div
                 key={day}
                 style={{ width: DAY_WIDTH }}
-                className="border-r border-gray-200 text-center"
+                className="border-e border-gray-200 text-center"
               >
                 <div className="text-xs font-medium text-gray-500 pt-1">
                   {DAY_SHORT_MAP[day] ?? day.slice(0, 3).toUpperCase()}
@@ -270,7 +270,7 @@ export default function ShiftCalendar({ roles, value, onChange, days: daysProp }
               {/* Time gutter */}
               <div
                 style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
-                className="text-xs text-gray-500 pr-2 text-right pt-0 border-r border-gray-200 leading-none"
+                className="text-xs text-gray-500 pe-2 text-end pt-0 border-e border-gray-200 leading-none"
               >
                 {formatHour(hour)}
               </div>
@@ -279,13 +279,13 @@ export default function ShiftCalendar({ roles, value, onChange, days: daysProp }
                 <div
                   key={dayIdx}
                   style={{ width: DAY_WIDTH }}
-                  className="border-r border-gray-100 border-b border-b-gray-100 flex"
+                  className="border-e border-gray-100 border-b border-b-gray-100 flex"
                 >
                   {roles.map((role, roleIdx) => (
                     <div
                       key={role.id}
                       style={{ width: ROLE_COL_WIDTH }}
-                      className="border-r border-gray-50 cursor-crosshair"
+                      className="border-e border-gray-50 cursor-crosshair"
                       onMouseDown={(e) => handleMouseDown(e, dayIdx, roleIdx)}
                     />
                   ))}

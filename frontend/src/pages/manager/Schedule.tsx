@@ -1352,7 +1352,7 @@ export default function Schedule() {
                     </button>
                   )}
                   {!decided && (
-                    <span className={`text-xs ${text.muted} mr-2`}>
+                    <span className={`text-xs ${text.muted} me-2`}>
                       {t.schedule.clickToEdit}
                     </span>
                   )}
@@ -1477,7 +1477,7 @@ export default function Schedule() {
                       step="0.5"
                       value={autoReloadDraft.threshold_usd}
                       onChange={(e) => setAutoReloadDraft({ ...autoReloadDraft, threshold_usd: parseFloat(e.target.value) || 0 })}
-                      className="ml-2 border rounded px-2 py-1 w-24"
+                      className="ms-2 border rounded px-2 py-1 w-24"
                     />
                   </label>
                   <label className="block text-sm">
@@ -1488,7 +1488,7 @@ export default function Schedule() {
                       step="1"
                       value={autoReloadDraft.amount_usd}
                       onChange={(e) => setAutoReloadDraft({ ...autoReloadDraft, amount_usd: parseFloat(e.target.value) || 0 })}
-                      className="ml-2 border rounded px-2 py-1 w-24"
+                      className="ms-2 border rounded px-2 py-1 w-24"
                     />
                   </label>
                 </div>
@@ -1500,7 +1500,7 @@ export default function Schedule() {
                   <button
                     type="button"
                     onClick={handleOpenPortal}
-                    className="glass-btn-secondary text-sm font-medium mr-auto"
+                    className="glass-btn-secondary text-sm font-medium me-auto"
                   >
                     {t.schedule.manageBilling}
                   </button>

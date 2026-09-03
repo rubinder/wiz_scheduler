@@ -248,7 +248,7 @@ export default function ExportSchedules() {
               setViewMonth(d.getMonth());
               setCalendarOpen((prev) => !prev);
             }}
-            className={`glass-input-sm min-w-[160px] text-left ${bg.interactiveHover}`}
+            className={`glass-input-sm min-w-[160px] text-start ${bg.interactiveHover}`}
           >
             {getDayLabel(selectedDate)}
           </button>
@@ -471,19 +471,19 @@ export default function ExportSchedules() {
                   <thead className={bg.tableHeader}>
                     <tr>
                       <th className="px-4 py-2 w-8"></th>
-                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
+                      <th className={`px-4 py-2 text-start text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.employee}
                       </th>
-                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
+                      <th className={`px-4 py-2 text-start text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.role}
                       </th>
-                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
+                      <th className={`px-4 py-2 text-start text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.date}
                       </th>
-                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
+                      <th className={`px-4 py-2 text-start text-xs font-medium ${text.muted} uppercase`}>
                         {t.exportSchedules.time}
                       </th>
-                      <th className={`px-4 py-2 text-left text-xs font-medium ${text.muted} uppercase`}>
+                      <th className={`px-4 py-2 text-start text-xs font-medium ${text.muted} uppercase`}>
                         {t.common.status}
                       </th>
                     </tr>

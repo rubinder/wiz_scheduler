@@ -119,6 +119,11 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   Plan is derived from `ownership_groups`, never stored.
 - Use type hints extensively in all Python code.
 - Prefer functional components and hooks in React.
+- **Use logical, not physical, direction utilities in Tailwind** — `text-start`
+  not `text-left`, `ms-2` not `ml-2`, `border-s` not `border-l`, `start-0` not
+  `left-0`. `ar` and `ur` are RTL and `LanguageContext` sets `document.dir`, so
+  a physical utility looks right in 17 locales and wrong in 2.
+  `frontend/src/utils/logicalDirection.test.ts` enforces this.
 - All timestamps must carry timezone offsets (derive from `location.timezone` via `zoneinfo.ZoneInfo`).
 - **"Today" is always UTC** — `datetime.now(timezone.utc).date()`, never `date.today()`,
   in application code *and* in tests. `date.today()` reads the server's local clock;

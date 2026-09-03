@@ -195,22 +195,22 @@ export default function EmployeeAssociation() {
           <table className="glass-table">
             <thead className={bg.tableHeader}>
               <tr>
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                   {t.common.employee}
                 </th>
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                   {t.association.targetEmployee}
                 </th>
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                   {t.association.affinityLevel}
                 </th>
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                   {t.association.entryDate}
                 </th>
-                <th className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase`}>
                   {t.association.expirationDate}
                 </th>
-                <th className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase`}>
+                <th className={`px-4 py-3 text-end text-xs font-medium ${text.muted} uppercase`}>
                   {t.common.actions}
                 </th>
               </tr>
@@ -287,7 +287,7 @@ export default function EmployeeAssociation() {
                       placeholder="Optional"
                     />
                   </td>
-                  <td className="px-4 py-4 text-right space-x-2">
+                  <td className="px-4 py-4 text-end space-x-2">
                     <button
                       onClick={handleSave}
                       disabled={
@@ -347,7 +347,7 @@ export default function EmployeeAssociation() {
                         <span className="text-gray-500">{t.common.none}</span>
                       )}
                     </td>
-                    <td className="px-4 py-5 text-right space-x-2">
+                    <td className="px-4 py-5 text-end space-x-2">
                       <button
                         onClick={() => startEditing(a)}
                         disabled={editing !== null}

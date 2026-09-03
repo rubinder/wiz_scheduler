@@ -91,7 +91,7 @@ function ShiftList({
           <div key={day} className={`border ${border.default} rounded-lg overflow-hidden`}>
             <div className={`${bg.tableHeader} px-4 py-2 border-b ${border.default}`}>
               <span className="text-sm font-semibold text-gray-600">{day}</span>
-              <span className={`text-xs ${text.muted} ml-2`}>
+              <span className={`text-xs ${text.muted} ms-2`}>
                 {dayShifts.length} {dayShifts.length !== 1 ? t.common.shifts : t.common.shift}
               </span>
             </div>
@@ -113,14 +113,14 @@ function ShiftList({
                     <span className="text-sm text-gray-600 font-medium">
                       {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                       {isOvernight(shift.start_time, shift.end_time) && (
-                        <span className="text-xs text-amber-400 ml-1">(+1 {t.common.day})</span>
+                        <span className="text-xs text-amber-400 ms-1">(+1 {t.common.day})</span>
                       )}
                     </span>
                     <span className={`text-xs ${text.muted}`}>
                       x{shift.headcount}
                     </span>
                     {!readonly && (
-                      <div className="ml-auto flex gap-2">
+                      <div className="ms-auto flex gap-2">
                         <button
                           onClick={() => onEdit?.(shift)}
                           className={action.edit}
@@ -247,7 +247,7 @@ function ShiftForm({
           <label className="glass-label-sm">
             {t.common.endTime}
             {isOvernight(startTime, endTime) && (
-              <span className="text-amber-400 ml-1">{t.shiftTemplates.nextDay}</span>
+              <span className="text-amber-400 ms-1">{t.shiftTemplates.nextDay}</span>
             )}
           </label>
           <input
@@ -328,7 +328,7 @@ function ShiftEditor({
       <div className="flex items-center gap-3">
         <span className={`text-sm font-medium ${text.secondary}`}>
           {t.shiftTemplates.weeklySchedule}
-          <span className="ml-2 text-xs font-normal text-gray-500">
+          <span className="ms-2 text-xs font-normal text-gray-500">
             ({mode === "weekday-weekend" ? t.shiftTemplates.weekdayWeekendMode : t.shiftTemplates.everyDayMode})
           </span>
         </span>
@@ -597,7 +597,7 @@ export default function ShiftTemplates() {
           <DemoGuard>
             <button
               onClick={() => setShowAdd(true)}
-              className="glass-btn-primary ml-6"
+              className="glass-btn-primary ms-6"
             >
               {t.shiftTemplates.addTemplate}
             </button>
@@ -609,7 +609,7 @@ export default function ShiftTemplates() {
           {error}
           <button
             onClick={() => setError("")}
-            className="ml-2 text-red-400 hover:text-red-300"
+            className="ms-2 text-red-400 hover:text-red-300"
           >
             {t.common.dismiss}
           </button>
@@ -628,7 +628,7 @@ export default function ShiftTemplates() {
               <div className="flex gap-4 max-w-[600px]">
                 <button
                   onClick={() => setAddMode("weekday-weekend")}
-                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-left`}
+                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-start`}
                 >
                   <div className="font-semibold text-gray-900 mb-1">{t.shiftTemplates.weekdayWeekend}</div>
                   <p className={`text-xs ${text.muted}`}>
@@ -637,7 +637,7 @@ export default function ShiftTemplates() {
                 </button>
                 <button
                   onClick={() => setAddMode("every-day")}
-                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-left`}
+                  className={`flex-1 p-4 bg-white/50 border-2 ${border.default} rounded-xl hover:border-accent/30 transition-colors text-start`}
                 >
                   <div className="font-semibold text-gray-900 mb-1">{t.shiftTemplates.everyDay}</div>
                   <p className={`text-xs ${text.muted}`}>
@@ -784,7 +784,7 @@ export default function ShiftTemplates() {
                         {t.shiftTemplates.locationLabel} {locMap.get(tmpl.location_id) ?? tmpl.location_id}
                       </p>
                     </div>
-                    <div className="flex gap-2 ml-auto">
+                    <div className="flex gap-2 ms-auto">
                       <DemoGuard>
                         <button
                           onClick={() => startEdit(tmpl)}

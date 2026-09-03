@@ -123,7 +123,7 @@ export default function DayBlackouts() {
           {error}
           <button
             onClick={() => setError("")}
-            className="ml-2 text-red-400 hover:text-red-300"
+            className="ms-2 text-red-400 hover:text-red-300"
           >
             {t.common.dismiss}
           </button>
@@ -200,16 +200,16 @@ export default function DayBlackouts() {
         <table className="w-full">
           <thead className={`${bg.tableHeader} border-b ${border.default}`}>
             <tr>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayBlackouts.employee}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayBlackouts.dayOfWeek}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.dayBlackouts.timeRange}
               </th>
-              <th className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
+              <th className={`text-start px-4 py-3 text-xs font-semibold uppercase tracking-wide ${text.muted}`}>
                 {t.common.actions ?? "Actions"}
               </th>
             </tr>

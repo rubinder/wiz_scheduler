@@ -178,32 +178,32 @@ export default function SpecialHours() {
             <thead className={bg.tableHeader}>
               <tr>
                 <th
-                  className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnDate}
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnLocation}
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnHours}
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnLabel}
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnTemplate}
                 </th>
                 <th
-                  className={`px-4 py-3 text-right text-xs font-medium ${text.muted} uppercase tracking-wider`}
+                  className={`px-4 py-3 text-end text-xs font-medium ${text.muted} uppercase tracking-wider`}
                 >
                   {t.specialHours.columnActions}
                 </th>
@@ -242,7 +242,7 @@ export default function SpecialHours() {
                       <span className={`text-sm ${text.muted}`}>—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right space-x-3">
+                  <td className="px-4 py-2 text-end space-x-3">
                     <button
                       onClick={() => setEditing(row)}
                       className={action.edit}

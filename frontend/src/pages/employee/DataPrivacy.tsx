@@ -73,7 +73,7 @@ export default function DataPrivacy() {
           <p className={text.muted}>{t.common.none}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-start">
               <thead>
                 <tr className={`border-b ${border.default}`}>
                   <th className={`py-2 px-3 ${text.muted} font-medium`}>{t.gdpr.consentType}</th>
