@@ -139,7 +139,8 @@ async def list_approved_dates(
 ) -> list[str]:
     """Return distinct week_start_dates with approved schedules within ±31 days of anchor."""
     if anchor is None:
-        anchor = date.today()
+        # UTC, not the server's local clock — see CLAUDE.md.
+        anchor = datetime.now(timezone.utc).date()
     range_start = anchor - timedelta(days=31)
     range_end = anchor + timedelta(days=31)
 
@@ -164,7 +165,8 @@ async def list_approved_schedules(
 ) -> list[ApprovedScheduleItem]:
     """List approved schedules for the current week (or specified week), grouped by location."""
     if week_start_date is None:
-        today = date.today()
+        # UTC, not the server's local clock — see CLAUDE.md.
+        today = datetime.now(timezone.utc).date()
         # Monday of current week
         week_start_date = today - timedelta(days=today.weekday())
 
