@@ -8,18 +8,10 @@ import {
 } from "../../api/exportSchedules";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday } from "../../theme";
+import { formatTime } from "../../utils/shiftTime";
 
 function toDateStr(d: Date): string {
   return d.toISOString().split("T")[0];
-}
-
-function formatTime(t: string): string {
-  const d = new Date(t);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
 }
 
 function getDayLabel(dateStr: string): string {

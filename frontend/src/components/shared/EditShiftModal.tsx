@@ -9,6 +9,7 @@ import { ApiError } from "../../api/client";
 import { ScheduleLockedError } from "../../hooks/useScheduleStream";
 import EmployeeSearchBox from "./EmployeeSearchBox";
 import { getDayLabel } from "./ScheduleGrid";
+import { extractTime, extractOffset } from "../../utils/shiftTime";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, border } from "../../theme";
 import type { Employee, Role } from "../../types";
@@ -22,21 +23,6 @@ interface Props {
   /** Called once an edit has actually applied (with or without warnings) so
    *  the parent can reload the week and pick up the new state. */
   onApplied: () => void;
-}
-
-/** Extract "HH:MM" from a wall-clock string, wherever the date/offset sit.
- *  Never round-trips through `Date` — that re-projects into the browser's
- *  timezone (issue #92). */
-function extractTime(value: string): string {
-  const afterDate = value.includes("T") ? value.slice(value.indexOf("T") + 1) : value;
-  return afterDate.slice(0, 5);
-}
-
-/** Extract the trailing offset ("Z" or "+HH:MM"/"-HH:MM") from a wall-clock
- *  datetime string, or "" if it carries none (e.g. a naive test-DB value). */
-function extractOffset(value: string): string {
-  const m = value.match(/(Z|[+-]\d{2}:\d{2})$/);
-  return m ? m[0] : "";
 }
 
 export default function EditShiftModal({
