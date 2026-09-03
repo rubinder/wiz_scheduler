@@ -21,6 +21,7 @@ from backend.models import (
     Location,
     Role,
     Shift,
+    ShiftSchedule,
     ShiftTemplate,
 )
 from backend.scheduling.local_scheduler import Strategy, local_schedule
@@ -845,41 +846,75 @@ async def _load_role_history_minutes(
     company_id: str,
     week_start_date: str,
 ) -> Dict[tuple, float]:
-    """Load employee role minutes for the past 3 months.
+    """Load worked minutes per (employee_id, role_name) for the past 3 months.
 
-    Returns a dict of (employee_id, role_name) -> total_minutes.
+    Derived from APPROVED `Shift` rows rather than read from the
+    `employee_role_minutes` aggregate (#97).
+
+    The aggregate is written once, at approval. Editing an approved schedule
+    never adjusted it, so deleting a shift left its minutes booked,
+    reassigning one left them credited to the previous employee, and
+    changing the times left the original duration standing. Nothing
+    reconciled any of it, so every edit nudged this fairness history away
+    from reality — silently, permanently, and with no signal to the manager
+    doing the editing.
+
+    Computing from the rows removes the class of problem rather than
+    patching one instance, the same shape #84 stage 1 gave availability
+    holds in `_committed_shifts_by_employee`: a delete releases its minutes,
+    a reassignment moves them, and a time change re-measures, all with no
+    bookkeeping that can fall out of step.
+
+    `employee_role_minutes` is still written at approval and is deliberately
+    left in place — it is simply no longer what scheduling reads. See the
+    note at its write site in routers/schedules.py.
     """
     from datetime import date as date_type
-    from backend.models.employee_role_minutes import EmployeeRoleMinutes
 
     ref_date = date_type.fromisoformat(week_start_date)
-    # Go back ~3 months
+    # Go back ~3 months, to the first of that month. Matches the window the
+    # aggregate covered, which keyed on month_start.
     three_months_ago = ref_date.replace(day=1)
     for _ in range(3):
         three_months_ago = (three_months_ago - timedelta(days=1)).replace(day=1)
 
-    result = await db.execute(
-        select(EmployeeRoleMinutes).where(
-            EmployeeRoleMinutes.company_id == company_id,
-            EmployeeRoleMinutes.month_start >= three_months_ago,
+    # Only approved schedules count. A draft is a proposal and a rejected one
+    # was explicitly thrown away; neither is time anybody worked.
+    rows = (await db.execute(
+        select(
+            Shift.employee_id,
+            Shift.role_id,
+            Shift.start_time,
+            Shift.end_time,
         )
-    )
-    rows = result.scalars().all()
+        .join(ShiftSchedule, Shift.shift_schedule_id == ShiftSchedule.id)
+        .where(
+            Shift.company_id == company_id,
+            Shift.date >= three_months_ago,
+            ShiftSchedule.status == "approved",
+        )
+    )).all()
 
-    # We need role_id -> role_name mapping to key by role_name (which is what
-    # the local scheduler uses).
+    # Resolve role_id -> role_name. Deliberately via the roles table rather
+    # than Shift.role_name, which is denormalized at write time: a renamed
+    # role should follow its history, not split it in two.
     role_result = await db.execute(
         select(Role).where(Role.company_id == company_id)
     )
     role_map = {str(r.id): r.name for r in role_result.scalars().all()}
 
     history: Dict[tuple, float] = {}
-    for row in rows:
-        role_name = role_map.get(str(row.role_id), "")
+    for employee_id, role_id, start_time, end_time in rows:
+        role_name = role_map.get(str(role_id), "")
         if not role_name:
             continue
-        key = (str(row.employee_id), role_name)
-        history[key] = history.get(key, 0.0) + row.total_minutes
+        if start_time is None or end_time is None:
+            continue
+        minutes = (end_time - start_time).total_seconds() / 60.0
+        if minutes <= 0:
+            continue
+        key = (str(employee_id), role_name)
+        history[key] = history.get(key, 0.0) + minutes
 
     return history
 
