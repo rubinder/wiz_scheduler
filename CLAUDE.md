@@ -122,6 +122,11 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   `email_verified` claim); leave it NULL and mail a token via
   `services/email_verification.send_verification` otherwise. NULL blocks
   `POST /schedules/generate` (403 `email_not_verified`) and nothing else.
+- **The weekly abuse report reports, never acts.**
+  `backend/scripts/run_abuse_report.py` clusters free ownership groups that
+  share signup signals. Nothing downstream may delete or suspend on its
+  output — every signal has innocent explanations, and masked IPs are /16
+  (an ISP region, not an address).
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate
