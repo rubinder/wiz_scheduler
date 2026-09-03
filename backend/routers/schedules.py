@@ -66,7 +66,13 @@ async def generate_schedule(
     assert_email_verified(current_user)
 
     await check_can_generate(
-        db, str(current_user.company_id), use_local=body.use_local
+        db,
+        str(current_user.company_id),
+        use_local=body.use_local,
+        # The free allowance is per location and a retry is pinned to the
+        # week it replaces, so the coarse gate needs to know which week is
+        # being asked for.
+        week_start_date=body.week_start_date.isoformat(),
     )
 
     # Pre-generation schedule quota check (both AI and local modes)

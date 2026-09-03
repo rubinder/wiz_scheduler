@@ -300,7 +300,7 @@ const fr = {
     reasonAiRequiresPaid: "La planification par IA nécessite un forfait payant. Vous pouvez toujours générer sans IA.",
     reasonScheduleLimitReached: "Vous avez utilisé toutes vos générations d'horaires gratuites pour ce mois-ci. La limite est réinitialisée au début du mois prochain — passez à un forfait supérieur pour la supprimer.",
     usage: "{employeeCount} sur {employeeLimit} employés · {locationCount} sur {locationLimit} emplacements",
-    usageGenerations: " · {generationCount} sur {generationLimit} générations ce mois-ci",
+    usageGenerations: " · {generationCount} sur {generationLimit} sites planifiés ce mois-ci",
     upgradeButton: "Passer à un forfait supérieur",
     upgrading: "Redirection…",
     upgradeFailed: "Impossible de démarrer le paiement de mise à niveau.",

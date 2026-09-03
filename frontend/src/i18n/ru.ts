@@ -300,7 +300,7 @@ const ru = {
     reasonAiRequiresPaid: "Планирование с ИИ требует платного плана. Вы всё ещё можете генерировать расписание без ИИ.",
     reasonScheduleLimitReached: "Вы использовали все бесплатные генерации расписаний за этот месяц. Лимит сбрасывается в начале следующего месяца — перейдите на платный план, чтобы снять ограничение.",
     usage: "{employeeCount} из {employeeLimit} сотрудников · {locationCount} из {locationLimit} локаций",
-    usageGenerations: " · {generationCount} из {generationLimit} генераций в этом месяце",
+    usageGenerations: " · запланировано {generationCount} из {generationLimit} точек в этом месяце",
     upgradeButton: "Перейти на платный план",
     upgrading: "Перенаправление…",
     upgradeFailed: "Не удалось начать оформление перехода на платный план.",

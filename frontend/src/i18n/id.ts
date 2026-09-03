@@ -300,7 +300,7 @@ const ind = {
     reasonAiRequiresPaid: "Penjadwalan AI memerlukan paket berbayar. Anda tetap dapat membuat jadwal tanpa AI.",
     reasonScheduleLimitReached: "Anda telah menggunakan semua pembuatan jadwal gratis untuk bulan ini. Batas akan direset pada awal bulan depan — upgrade untuk menghapusnya.",
     usage: "{employeeCount} dari {employeeLimit} karyawan · {locationCount} dari {locationLimit} lokasi",
-    usageGenerations: " · {generationCount} dari {generationLimit} pembuatan bulan ini",
+    usageGenerations: " · {generationCount} dari {generationLimit} lokasi dijadwalkan bulan ini",
     upgradeButton: "Upgrade",
     upgrading: "Mengalihkan…",
     upgradeFailed: "Tidak dapat memulai checkout upgrade.",

@@ -300,7 +300,7 @@ const ur = {
     reasonAiRequiresPaid: "AI شیڈولنگ کے لیے پیڈ پلان درکار ہے۔ آپ اب بھی بغیر AI کے جنریٹ کر سکتے ہیں۔",
     reasonScheduleLimitReached: "آپ اس مہینے کے تمام مفت شیڈول جنریشنز استعمال کر چکے ہیں۔ حد اگلے مہینے کے آغاز پر ری سیٹ ہو جائے گی — اسے ہٹانے کے لیے اپ گریڈ کریں۔",
     usage: "{employeeCount} میں سے {employeeLimit} ملازمین · {locationCount} میں سے {locationLimit} مقامات",
-    usageGenerations: " · اس مہینے {generationCount} میں سے {generationLimit} جنریشنز",
+    usageGenerations: " · اس ماہ {generationLimit} میں سے {generationCount} مقامات کا شیڈول بنا",
     upgradeButton: "اپ گریڈ کریں",
     upgrading: "ری ڈائریکٹ ہو رہا ہے…",
     upgradeFailed: "اپ گریڈ چیک آؤٹ شروع نہیں ہو سکا۔",

@@ -300,7 +300,7 @@ const ta = {
     reasonAiRequiresPaid: "AI அட்டவணையிடலுக்கு பணம் செலுத்தும் திட்டம் தேவை. AI இல்லாமல் இன்னும் உருவாக்கலாம்.",
     reasonScheduleLimitReached: "இந்த மாதத்திற்கான உங்கள் இலவச அட்டவணை உருவாக்கங்கள் அனைத்தையும் பயன்படுத்திவிட்டீர்கள். வரம்பு அடுத்த மாத தொடக்கத்தில் மீட்டமைக்கப்படும் — அதை அகற்ற மேம்படுத்தவும்.",
     usage: "{employeeCount} இல் {employeeLimit} பணியாளர்கள் · {locationCount} இல் {locationLimit} இடங்கள்",
-    usageGenerations: " · இந்த மாதம் {generationCount} இல் {generationLimit} உருவாக்கங்கள்",
+    usageGenerations: " · இந்த மாதம் {generationLimit} இடங்களில் {generationCount} திட்டமிடப்பட்டது",
     upgradeButton: "மேம்படுத்தவும்",
     upgrading: "திசைமாற்றுகிறது…",
     upgradeFailed: "மேம்படுத்தல் செக்அவுட்டைத் தொடங்க முடியவில்லை.",

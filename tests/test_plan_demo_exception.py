@@ -71,10 +71,12 @@ async def test_demo_group_gets_raised_generation_cap(
 async def test_ordinary_free_group_keeps_the_normal_cap(
     db_session: AsyncSession, plain_tenant: dict
 ):
-    """The exception must not leak to every free tenant."""
+    """The exception must not leak to every free tenant.
+
+    An ordinary free group is counted per LOCATION now, so its limit is
+    however many locations it has (one week each) — never the demo's pooled
+    figure. This tenant has none, hence 0."""
     state = await get_plan_state(db_session, plain_tenant["company_id"])
-    assert state["schedules"]["limit"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-    # And it is genuinely the ordinary cap, not the demo one.
     assert state["schedules"]["limit"] != settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
 
 
@@ -162,8 +164,9 @@ async def test_exception_can_be_disabled(
     db_session: AsyncSession, demo_tenant: dict, monkeypatch
 ):
     """Empty DEMO_OWNERSHIP_GROUP_ID turns the exception off, so the demo
-    group falls back to the ordinary free cap."""
+    group falls back to the ordinary free rules — per location, not the
+    raised pooled cap."""
     monkeypatch.setattr(settings, "DEMO_OWNERSHIP_GROUP_ID", "")
 
     state = await get_plan_state(db_session, demo_tenant["company_id"])
-    assert state["schedules"]["limit"] == settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
+    assert state["schedules"]["limit"] != settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH

@@ -232,9 +232,9 @@ def build_scheduling_graph(
 # 8-day window contains two Mondays and the later date's override quietly
 # overwrites the earlier one.
 #
-# It also bounds the free plan. FREE_PLAN_MAX_SCHEDULES_PER_MONTH counts
-# generations, not days, so an unbounded window would let 2 generations cover
-# a year.
+# It also bounds the free plan. FREE_PLAN_SCHEDULES_PER_LOCATION counts
+# schedules, not days, so an unbounded window would let one free schedule per
+# location cover a year.
 MAX_SCHEDULE_DAYS = 7
 
 
@@ -954,6 +954,41 @@ async def run_scheduling_pipeline(
 
     if not initial_state["locations"]:
         return
+
+    # Free-plan allowance, applied per location (services/location_quota.py).
+    # Applied HERE rather than in the route because this is where the
+    # location set is resolved: a request may name locations, name templates
+    # that imply locations, or name nothing at all and mean every location.
+    #
+    # A blocked location is reported and skipped rather than failing the
+    # whole run, matching how PARSE_ERROR and CONFLICT are handled. A free
+    # tenant whose first location is spent and whose second is not should
+    # get the second one scheduled, not a refusal for both.
+    from backend.services.location_quota import resolve_location_quota
+
+    quota = await resolve_location_quota(
+        db,
+        company_id,
+        [loc["id"] for loc in initial_state["locations"]],
+        week_start_date,
+    )
+    allowed_locations = []
+    for loc in initial_state["locations"]:
+        verdict = quota.get(loc["id"])
+        if verdict is None or verdict["allowed"]:
+            allowed_locations.append(loc)
+            continue
+        yield LocationResult(
+            location_id=loc["id"],
+            location_name=loc["name"],
+            shifts=[],
+            errors=[verdict["message"] or "Free plan allowance used."],
+            status="QUOTA_EXCEEDED",
+        )
+
+    if not allowed_locations:
+        return
+    initial_state["locations"] = allowed_locations
 
     # For rotation_history strategy, load 3-month role minutes from DB
     if use_local and strategy == "rotation_history":

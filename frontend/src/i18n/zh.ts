@@ -300,7 +300,7 @@ const zh = {
     reasonAiRequiresPaid: "AI 排班需要付费计划。您仍可以不使用 AI 生成排班。",
     reasonScheduleLimitReached: "您本月的免费排班生成次数已用完。限额将在下月初重置——升级以取消此限制。",
     usage: "{employeeCount} / {employeeLimit} 名员工 · {locationCount} / {locationLimit} 个门店",
-    usageGenerations: " · 本月生成 {generationCount}/{generationLimit} 次",
+    usageGenerations: " · 本月已排班 {generationCount}/{generationLimit} 个地点",
     upgradeButton: "升级",
     upgrading: "跳转中…",
     upgradeFailed: "无法启动升级结账。",

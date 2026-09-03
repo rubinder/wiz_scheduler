@@ -300,7 +300,7 @@ const ar = {
     reasonAiRequiresPaid: "تتطلب الجدولة بالذكاء الاصطناعي خطة مدفوعة. يمكنك الإنشاء بدون الذكاء الاصطناعي.",
     reasonScheduleLimitReached: "لقد استخدمت جميع عمليات إنشاء الجداول المجانية لهذا الشهر. يتم إعادة تعيين الحد في بداية الشهر القادم — قم بالترقية لإزالته.",
     usage: "{employeeCount} من {employeeLimit} موظفين · {locationCount} من {locationLimit} مواقع",
-    usageGenerations: " · {generationCount} من {generationLimit} عمليات إنشاء هذا الشهر",
+    usageGenerations: " · تمت جدولة {generationCount} من {generationLimit} من المواقع هذا الشهر",
     upgradeButton: "ترقية",
     upgrading: "جارٍ إعادة التوجيه…",
     upgradeFailed: "تعذر بدء عملية الترقية.",

@@ -526,23 +526,6 @@ def is_demo_group(og_id: str) -> bool:
     return bool(demo_id) and str(og_id) == demo_id
 
 
-def free_plan_schedule_limit(og_id: str) -> int:
-    """Monthly generation cap for a FREE ownership group.
-
-    The one definition of this number. services.plan gates on it and
-    check_schedule_quota reports it, so the banner and the quota strip cannot
-    disagree.
-
-    The public demo group gets a raised cap: it is shared by every visitor, so
-    the ordinary free allowance is spent almost at once and the demo then
-    refuses to generate anything. Only the generation cap is lifted — the demo
-    stays inside the location and employee caps.
-    """
-    if is_demo_group(og_id):
-        return settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH
-    return settings.FREE_PLAN_MAX_SCHEDULES_PER_MONTH
-
-
 async def check_schedule_quota(
     db: AsyncSession,
     company_id: str,
@@ -592,11 +575,21 @@ async def check_schedule_quota(
     is_paid = og_full is not None and (
         og_full.stripe_subscription_id is not None and og_full.canceled_at is None
     )
-    free_tier = (
-        settings.INCLUDED_SCHEDULES_PER_MONTH if is_paid else free_plan_schedule_limit(og_id)
-    )
+    if is_paid:
+        free_tier = settings.INCLUDED_SCHEDULES_PER_MONTH
+    else:
+        # Free groups are counted per LOCATION per month now, so the strip
+        # and the banner both read from the same pair. Imported locally:
+        # location_quota imports this module, and at module scope the two
+        # would be circular.
+        from backend.services.location_quota import free_plan_usage
 
-    is_over = schedule_count >= free_tier
+        schedule_count, free_tier = await free_plan_usage(db, og_id)
+
+    # A free group with no locations has an allowance of zero, which would
+    # otherwise read as "exhausted" and refuse a generation the tenant has
+    # not made yet. Nothing to schedule is not a payment problem.
+    is_over = free_tier > 0 and schedule_count >= free_tier
 
     purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 

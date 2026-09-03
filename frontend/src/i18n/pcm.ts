@@ -300,7 +300,7 @@ const pcm = {
     reasonAiRequiresPaid: "AI scheduling need paid plan. You fit still generate am without AI.",
     reasonScheduleLimitReached: "You don use all your free schedule generation for dis month. Di cap go reset for start of next month — upgrade make e comot.",
     usage: "{employeeCount} out of {employeeLimit} workers · {locationCount} out of {locationLimit} locations",
-    usageGenerations: " · {generationCount} out of {generationLimit} generations dis month",
+    usageGenerations: " · {generationCount} out of {generationLimit} location don get schedule dis month",
     upgradeButton: "Upgrade",
     upgrading: "E dey redirect…",
     upgradeFailed: "E no fit start upgrade checkout.",

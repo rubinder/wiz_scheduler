@@ -300,7 +300,7 @@ const ja = {
     reasonAiRequiresPaid: "AIスケジューリングには有料プランが必要です。AIを使わずに生成することは引き続き可能です。",
     reasonScheduleLimitReached: "今月の無料スケジュール生成回数をすべて使い切りました。上限は来月初めにリセットされます — アップグレードすると上限が解除されます。",
     usage: "従業員 {employeeCount}/{employeeLimit} 人 · 拠点 {locationCount}/{locationLimit} 件",
-    usageGenerations: " · 今月の生成 {generationCount}/{generationLimit} 回",
+    usageGenerations: " · 今月 {generationLimit} 拠点中 {generationCount} 拠点をスケジュール済み",
     upgradeButton: "アップグレード",
     upgrading: "リダイレクト中…",
     upgradeFailed: "アップグレードの決済を開始できませんでした。",

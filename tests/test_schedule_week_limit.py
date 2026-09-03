@@ -13,7 +13,7 @@ silently corrupts. The per-day template fusion keys the fused weekly_schedule
 by day NAME, so an 8-day window contains two Mondays and the later date's
 override quietly overwrites the earlier one.
 
-It also bounds the free plan: FREE_PLAN_MAX_SCHEDULES_PER_MONTH counts
+It also bounds the free plan: FREE_PLAN_SCHEDULES_PER_LOCATION counts
 generations, not days, so without a day cap two generations could cover a year.
 """
 

@@ -26,7 +26,12 @@ class LocationResult(TypedDict, total=False):
     location_name: str
     shifts: List[ShiftAssignment]
     errors: List[str]
-    status: str        # "ok" | "PARSE_ERROR" | "CONFLICT"
+    # "ok" | "PARSE_ERROR" | "CONFLICT" | "QUOTA_EXCEEDED"
+    # QUOTA_EXCEEDED: the free plan's per-location allowance for this
+    # month is spent. Reported per location and skipped rather than
+    # failing the run, so a tenant with one spent location and one
+    # fresh one still gets the fresh one scheduled.
+    status: str
     schedule_id: str   # UUID of the persisted ShiftSchedule row (set by the router)
 
 

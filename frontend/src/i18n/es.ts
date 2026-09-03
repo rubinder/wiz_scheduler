@@ -300,7 +300,7 @@ const es = {
     reasonAiRequiresPaid: "La programación con IA requiere un plan de pago. Aún puedes generar sin IA.",
     reasonScheduleLimitReached: "Has usado todas tus generaciones de horarios gratuitas de este mes. El límite se restablece al inicio del próximo mes; mejora tu plan para eliminarlo.",
     usage: "{employeeCount} de {employeeLimit} empleados · {locationCount} de {locationLimit} ubicaciones",
-    usageGenerations: " · {generationCount} de {generationLimit} generaciones este mes",
+    usageGenerations: " · {generationCount} de {generationLimit} ubicaciones programadas este mes",
     upgradeButton: "Mejorar plan",
     upgrading: "Redirigiendo…",
     upgradeFailed: "No se pudo iniciar el pago de la mejora.",

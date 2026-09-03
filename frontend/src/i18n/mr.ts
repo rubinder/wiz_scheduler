@@ -300,7 +300,7 @@ const mr = {
     reasonAiRequiresPaid: "AI वेळापत्रकासाठी पेड प्लॅन आवश्यक आहे. तुम्ही अजूनही AI शिवाय तयार करू शकता.",
     reasonScheduleLimitReached: "तुम्ही या महिन्याचे सर्व मोफत वेळापत्रक जनरेशन वापरले आहे. मर्यादा पुढील महिन्याच्या सुरुवातीला रीसेट होईल — ती काढण्यासाठी अपग्रेड करा.",
     usage: "{employeeCount} पैकी {employeeLimit} कर्मचारी · {locationCount} पैकी {locationLimit} स्थाने",
-    usageGenerations: " · या महिन्यात {generationCount} पैकी {generationLimit} जनरेशन",
+    usageGenerations: " · या महिन्यात {generationLimit} पैकी {generationCount} ठिकाणांचे वेळापत्रक झाले",
     upgradeButton: "अपग्रेड करा",
     upgrading: "पुनर्निर्देशित करत आहे…",
     upgradeFailed: "अपग्रेड चेकआउट सुरू करता आले नाही.",
