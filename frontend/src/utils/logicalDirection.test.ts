@@ -11,11 +11,15 @@
  * A test rather than a lint rule because the project has no lint script;
  * this runs in the same `npm test` everything else does.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const SRC = join(__dirname, "..");
+// Vite's glob import rather than node:fs so the file type-checks under the
+// same tsconfig as the app (no @types/node) and `npm run build` stays green.
+const COMPONENTS = import.meta.glob("../**/*.tsx", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
 
 /** [pattern, what to use instead] */
 const BANNED: [RegExp, string][] = [
@@ -31,25 +35,15 @@ const BANNED: [RegExp, string][] = [
   [/\bright-0\b/, "end-0"],
 ];
 
-function tsxFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const full = join(dir, entry);
-    if (entry === "node_modules") return [];
-    if (statSync(full).isDirectory()) return tsxFiles(full);
-    return full.endsWith(".tsx") ? [full] : [];
-  });
-}
-
 describe("logical direction utilities", () => {
   it("no component uses a physical-direction utility", () => {
     const offenders: string[] = [];
 
-    for (const file of tsxFiles(SRC)) {
-      const lines = readFileSync(file, "utf8").split("\n");
-      lines.forEach((line, i) => {
+    for (const [file, source] of Object.entries(COMPONENTS)) {
+      const rel = file.replace(/^\.\.\//, "");
+      source.split("\n").forEach((line, i) => {
         for (const [pattern, fix] of BANNED) {
           if (pattern.test(line)) {
-            const rel = file.slice(SRC.length + 1);
             offenders.push(`${rel}:${i + 1}: use ${fix} — ${line.trim()}`);
           }
         }
