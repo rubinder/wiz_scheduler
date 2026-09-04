@@ -18,6 +18,10 @@ export interface PreferenceStrings {
 
 const hm = (t: string | undefined) => (t ?? "").slice(0, 5);
 
+// All-occurrence placeholder substitution without relying on ES2021's
+// String.prototype.replaceAll (the frontend's TS lib target stays ES2020).
+const fill = (tpl: string, key: string, val: string) => tpl.split(key).join(val);
+
 export function describeViolations(
   violations: PreferenceViolation[] | undefined,
   s: PreferenceStrings,
@@ -28,21 +32,28 @@ export function describeViolations(
     let line: string;
     if (v.kind === "day") {
       const days = (v.days ?? []).map((d) => names[d] ?? String(d)).join(", ");
-      line = s.prefDay.replaceAll("{days}", days);
+      line = fill(s.prefDay, "{days}", days);
     } else if (v.kind === "cap") {
-      line = s.prefCap
-        .replaceAll("{n}", String(v.max_per_week ?? 0))
-        .replaceAll("{start}", hm(v.start_time))
-        .replaceAll("{end}", hm(v.end_time));
+      line = fill(
+        fill(
+          fill(s.prefCap, "{n}", String(v.max_per_week ?? 0)),
+          "{start}",
+          hm(v.start_time),
+        ),
+        "{end}",
+        hm(v.end_time),
+      );
     } else {
-      line = s.prefHourRange.replaceAll("{start}", hm(v.start_time)).replaceAll("{end}", hm(v.end_time));
+      line = fill(fill(s.prefHourRange, "{start}", hm(v.start_time)), "{end}", hm(v.end_time));
     }
     return v.unavoidable ? `${line} — ${s.prefUnavoidable}` : line;
   });
 }
 
 export function rosterThinMessage(summary: PreferenceSummary, template: string): string {
-  return template
-    .replaceAll("{unavoidable}", String(summary.unavoidable))
-    .replaceAll("{total}", String(summary.shifts_against_preference));
+  return fill(
+    fill(template, "{unavoidable}", String(summary.unavoidable)),
+    "{total}",
+    String(summary.shifts_against_preference),
+  );
 }
