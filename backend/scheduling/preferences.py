@@ -119,6 +119,28 @@ def _caps_exceeded(
     return hit
 
 
+def violations_for_slot(
+    emp: Dict[str, Any],
+    day_index: int,
+    start: str,
+    end: str,
+    range_counts: Dict[Any, int],
+) -> List[Dict[str, Any]]:
+    """Every preference row this (day, start, end) slot violates.
+
+    THE single composition of the three checks. blocked_by_hard_preference
+    keeps only the weight-1.0 rows; preference_score keeps only the rest;
+    annotate_preference_violations reports the rest. All three see the same
+    list, which is what keeps the asterisk's explanation from ever
+    disagreeing with the scheduler's own reasoning.
+    """
+    return (
+        _day_violated(emp, day_index)
+        + _range_violated(emp, start, end)
+        + _caps_exceeded(emp, start, end, range_counts)
+    )
+
+
 def blocked_by_hard_preference(
     emp: Dict[str, Any],
     day_index: int,
@@ -133,11 +155,7 @@ def blocked_by_hard_preference(
     candidate is emitted VACANT — that is the intended meaning of a hard
     preference, not a failure.
     """
-    violations = (
-        _day_violated(emp, day_index)
-        + _range_violated(emp, start, end)
-        + _caps_exceeded(emp, start, end, range_counts)
-    )
+    violations = violations_for_slot(emp, day_index, start, end, range_counts)
     return any(float(v["weight"]) >= _HARD for v in violations)
 
 
@@ -154,11 +172,7 @@ def preference_score(
     with no preferences configured — the state of every employee until a
     manager opts them in, and what makes this feature additive.
     """
-    violations = (
-        _day_violated(emp, day_index)
-        + _range_violated(emp, start, end)
-        + _caps_exceeded(emp, start, end, range_counts)
-    )
+    violations = violations_for_slot(emp, day_index, start, end, range_counts)
     return sum(
         float(v["weight"]) * PREFERENCE_PENALTY
         for v in violations
