@@ -18,8 +18,12 @@ from backend.schemas.schedule import (
     EditWarning,
     GenerateRequest,
     ShiftScheduleResponse,
+    ShiftUpdate,
     UpdateShiftsRequest,
+    UpdateShiftsResponse,
 )
+from backend.scheduling.preferences import annotate_preference_violations
+from backend.services.preference_loader import load_employee_preferences
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -268,7 +272,7 @@ async def update_shifts(
     body: UpdateShiftsRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> UpdateShiftsResponse:
     result = await db.execute(
         select(ShiftSchedule).where(
             ShiftSchedule.id == schedule_id,
@@ -282,9 +286,14 @@ async def update_shifts(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
 
-    schedule.raw_llm_output = json.dumps([s.model_dump() for s in body.shifts])
+    shifts = [s.model_dump() for s in body.shifts]
+    # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
+    # or off a preference, and the evaluator lives here, not in the client.
+    prefs = await load_employee_preferences(db, str(current_user.company_id))
+    annotate_preference_violations(shifts, prefs)
+    schedule.raw_llm_output = json.dumps(shifts)
     await db.commit()
-    return {"ok": True}
+    return UpdateShiftsResponse(shifts=[ShiftUpdate(**s) for s in shifts])
 
 
 @router.put("/{schedule_id}/approved-shifts", response_model=EditApprovedResponse)

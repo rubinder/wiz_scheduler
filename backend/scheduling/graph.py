@@ -14,9 +14,6 @@ from backend.models import (
     EmployeeAffinity,
     EmployeeAvailability,
     EmployeeDayBlackout,
-    EmployeeDayPreference,
-    EmployeeHourRangeCap,
-    EmployeeHourRangePreference,
     EmployeeRole,
     Location,
     Role,
@@ -41,6 +38,7 @@ from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
 )
+from backend.services.preference_loader import load_employee_preferences
 
 logger = logging.getLogger(__name__)
 
@@ -724,47 +722,8 @@ async def _load_initial_state(
         })
 
     # Load per-employee scheduling preferences (day, hour-range, hour-range
-    # weekly caps). Weights are cast to float since the column is Numeric
-    # and SQLAlchemy returns Decimal, which would break arithmetic against
-    # the plain floats used elsewhere in the scoring code.
-    day_pref_result = await db.execute(
-        select(EmployeeDayPreference).where(
-            EmployeeDayPreference.company_id == company_id
-        )
-    )
-    emp_day_prefs_map: Dict[str, List[Dict[str, Any]]] = {}
-    for dp in day_pref_result.scalars().all():
-        emp_day_prefs_map.setdefault(str(dp.employee_id), []).append({
-            "day_of_week": dp.day_of_week,
-            "weight": float(dp.weight),
-        })
-
-    range_pref_result = await db.execute(
-        select(EmployeeHourRangePreference).where(
-            EmployeeHourRangePreference.company_id == company_id
-        )
-    )
-    emp_range_prefs_map: Dict[str, List[Dict[str, Any]]] = {}
-    for rp in range_pref_result.scalars().all():
-        emp_range_prefs_map.setdefault(str(rp.employee_id), []).append({
-            "start_time": rp.start_time,
-            "end_time": rp.end_time,
-            "weight": float(rp.weight),
-        })
-
-    range_cap_result = await db.execute(
-        select(EmployeeHourRangeCap).where(
-            EmployeeHourRangeCap.company_id == company_id
-        )
-    )
-    emp_range_caps_map: Dict[str, List[Dict[str, Any]]] = {}
-    for rc in range_cap_result.scalars().all():
-        emp_range_caps_map.setdefault(str(rc.employee_id), []).append({
-            "start_time": rc.start_time,
-            "end_time": rc.end_time,
-            "max_per_week": rc.max_per_week,
-            "weight": float(rc.weight),
-        })
+    # weekly caps) via the loader shared with the hand-edit routes (#99).
+    loaded_prefs = await load_employee_preferences(db, company_id)
 
     # Build employee dicts, expanding roles to include condensed roles
     employees: List[Dict[str, Any]] = []
@@ -796,9 +755,9 @@ async def _load_initial_state(
             "available_windows": emp_avail_map.get(eid, []),
             "max_hours_per_week": emp.max_hours_per_week,
             "day_blackouts": emp_blackout_map.get(eid, []),
-            "day_preferences": emp_day_prefs_map.get(eid, []),
-            "hour_range_preferences": emp_range_prefs_map.get(eid, []),
-            "hour_range_caps": emp_range_caps_map.get(eid, []),
+            "day_preferences": loaded_prefs.get(eid, {}).get("day_preferences", []),
+            "hour_range_preferences": loaded_prefs.get(eid, {}).get("hour_range_preferences", []),
+            "hour_range_caps": loaded_prefs.get(eid, {}).get("hour_range_caps", []),
         })
 
     # Per-employee preferences, duplicated out of `employees` in the shape

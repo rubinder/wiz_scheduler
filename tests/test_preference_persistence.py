@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Employee, Shift, ShiftSchedule
+from backend.models.employee import EmployeeDayPreference
 from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, LOCATION_ID, ROLE_FLOOR_ID, _id
 
 pytestmark = pytest.mark.asyncio
@@ -82,3 +83,50 @@ async def test_approve_copies_violations_from_the_draft(
     assert resp.json()["shifts"][0]["preference_violations"] == DAY_V
     row = (await db_session.execute(select(Shift).where(Shift.shift_schedule_id == sid))).scalar_one()
     assert row.preference_violations == DAY_V
+
+
+async def _mon_tue_wed(db, employee_id):
+    for d in (0, 1, 2):
+        db.add(EmployeeDayPreference(
+            id=_id(), company_id=COMPANY_ID, employee_id=employee_id, day_of_week=d, weight=0.7,
+        ))
+    await db.commit()
+
+
+async def test_draft_edit_reannotates_and_returns_the_shifts(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession, seed_employees,
+):
+    await _mon_tue_wed(db_session, EMPLOYEE1_ID)
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid, company_id=COMPANY_ID, location_id=LOCATION_ID, week_start_date=WEEK,
+        status="draft", raw_llm_output="[]", created_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    body = {"shifts": [{
+        "employee_id": EMPLOYEE1_ID, "employee_name": "Alice Johnson",
+        "role_id": ROLE_FLOOR_ID, "role_name": "Floor Associate",
+        "location_id": LOCATION_ID, "date": "2026-09-03",  # Thursday
+        "start_time": "2026-09-03T09:00:00-04:00", "end_time": "2026-09-03T17:00:00-04:00",
+        "status": "ok", "preference_violations": [],
+    }]}
+    resp = await client.put(f"{BASE}/{sid}/shifts", headers={"Authorization": f"Bearer {manager_token}"}, json=body)
+    assert resp.status_code == 200, resp.text
+    returned = resp.json()["shifts"][0]["preference_violations"]
+    assert returned == DAY_V
+
+    sched = (await db_session.execute(select(ShiftSchedule).where(ShiftSchedule.id == sid))).scalar_one()
+    assert json.loads(sched.raw_llm_output)[0]["preference_violations"] == DAY_V
+
+
+async def test_load_employee_preferences_shape(db_session: AsyncSession, seed_employees):
+    from backend.services.preference_loader import load_employee_preferences
+    await _mon_tue_wed(db_session, EMPLOYEE1_ID)
+    prefs = await load_employee_preferences(db_session, COMPANY_ID)
+    assert prefs[EMPLOYEE1_ID]["day_preferences"] == [
+        {"day_of_week": 0, "weight": 0.7}, {"day_of_week": 1, "weight": 0.7}, {"day_of_week": 2, "weight": 0.7},
+    ]
+    assert prefs[EMPLOYEE1_ID]["hour_range_preferences"] == []
+    assert prefs[EMPLOYEE1_ID]["hour_range_caps"] == []
+    assert EMPLOYEE1_ID in prefs and len(prefs) == 1

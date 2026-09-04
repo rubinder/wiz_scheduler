@@ -33,9 +33,17 @@ class ShiftUpdate(BaseModel):
     start_time: str
     end_time: str
     status: str = "ok"
+    # Round-trips the asterisk data (#99). The server re-annotates on save,
+    # so a stale client value is overwritten, never trusted.
+    preference_violations: list[dict] = []
 
 
 class UpdateShiftsRequest(BaseModel):
+    shifts: list[ShiftUpdate]
+
+
+class UpdateShiftsResponse(BaseModel):
+    ok: bool = True
     shifts: list[ShiftUpdate]
 
 
