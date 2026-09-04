@@ -361,6 +361,9 @@ export default function Schedule() {
     shiftIndex: number;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  // Per-location sequence counter (#99 review): guards against an
+  // in-flight draft save resolving after a newer one and clobbering it.
+  const saveSeq = useRef<Record<string, number>>({});
 
   // Employees for the edit modal
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -671,11 +674,20 @@ export default function Schedule() {
     // Save now rather than at approve (#99): the server re-annotates the
     // list, so the asterisk on a hand-edited shift is right immediately.
     if (result?.schedule_id) {
+      // Two edits to the same location can be in flight at once; only the
+      // response for the latest save may update state, else a slower
+      // earlier request could resolve last and clobber a newer edit.
+      const seq = (saveSeq.current[locationId] ?? 0) + 1;
+      saveSeq.current[locationId] = seq;
       try {
         const saved = await schedulesApi.updateShifts(result.schedule_id, next);
-        setEditedShifts((prev) => ({ ...prev, [locationId]: saved.shifts }));
+        if (saveSeq.current[locationId] === seq) {
+          setEditedShifts((prev) => ({ ...prev, [locationId]: saved.shifts }));
+        }
       } catch (err: unknown) {
-        setActionError(err instanceof Error ? err.message : "Save failed");
+        if (saveSeq.current[locationId] === seq) {
+          setActionError(err instanceof Error ? err.message : "Save failed");
+        }
       }
     }
   };
