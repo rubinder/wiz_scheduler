@@ -40,6 +40,9 @@ class LocationResult(TypedDict, total=False):
     # fresh one still gets the fresh one scheduled.
     status: str
     schedule_id: str   # UUID of the persisted ShiftSchedule row (set by the router)
+    # Per-location roster-thin summary (#99). Set by annotate_preferences,
+    # copied here by emit_result. None when annotate_preferences degraded.
+    preference_summary: Dict[str, Any] | None
 
 
 class SchedulingState(TypedDict):
@@ -98,3 +101,6 @@ class SchedulingState(TypedDict):
     # violations after AI generation without threading the whole employees
     # list through. Populated by _load_initial_state.
     employee_preferences: Dict[str, Dict[str, list]]
+    # Set by annotate_preferences, copied onto LocationResult by emit_result
+    # (#99). None when annotate_preferences degraded rather than raised.
+    current_preference_summary: Dict[str, Any] | None

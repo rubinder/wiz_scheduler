@@ -27,6 +27,7 @@ from backend.models import (
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.nodes import (
     _subtract_consumed,
+    annotate_preferences,
     build_prompt,
     call_llm,
     emit_result,
@@ -170,6 +171,7 @@ def build_scheduling_graph(
     graph.add_node("load_location_context", load_location_context)
     graph.add_node("validate_schedule", validate_schedule)
     graph.add_node("validate_and_update_availability", validate_and_update_availability)
+    graph.add_node("annotate_preferences", annotate_preferences)
     graph.add_node("emit_result", emit_result)
 
     # Set entry point
@@ -197,17 +199,19 @@ def build_scheduling_graph(
 
     # Conditional edge after validation: retry or emit
     if use_local:
-        # Local scheduler doesn't retry — go straight to emit
-        graph.add_edge("validate_and_update_availability", "emit_result")
+        # Local scheduler doesn't retry — go straight through the annotator to emit
+        graph.add_edge("validate_and_update_availability", "annotate_preferences")
+        graph.add_edge("annotate_preferences", "emit_result")
     else:
         graph.add_conditional_edges(
             "validate_and_update_availability",
             _should_retry_or_emit,
             {
                 "build_prompt": "build_prompt",
-                "emit_result": "emit_result",
+                "emit_result": "annotate_preferences",
             },
         )
+        graph.add_edge("annotate_preferences", "emit_result")
 
     # Conditional edge after emit: next location or END
     graph.add_conditional_edges(
