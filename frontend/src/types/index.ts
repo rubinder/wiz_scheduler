@@ -254,6 +254,22 @@ export interface Shift {
 
 // ── Scheduling streaming results ──
 
+export interface PreferenceViolation {
+  kind: "day" | "hour_range" | "cap";
+  weight: number;
+  unavoidable: boolean;
+  days?: number[];
+  start_time?: string;
+  end_time?: string;
+  max_per_week?: number;
+}
+
+export interface PreferenceSummary {
+  shifts_against_preference: number;
+  unavoidable: number;
+  roster_thin: boolean;
+}
+
 export interface ShiftAssignment {
   employee_id: string;
   employee_name: string;
@@ -264,6 +280,7 @@ export interface ShiftAssignment {
   start_time: string;
   end_time: string;
   status: string;
+  preference_violations?: PreferenceViolation[];
 }
 
 export interface LocationResult {
@@ -273,6 +290,7 @@ export interface LocationResult {
   errors: string[];
   status: string;
   schedule_id?: string;
+  preference_summary?: PreferenceSummary | null;
 }
 
 // ── Invites ──
