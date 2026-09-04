@@ -130,7 +130,11 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 - **Preference asterisks report, never act.** `preferences.annotate_preference_violations`
   is the only evaluator behind `shifts.preference_violations`; the frontend renders the
   column and never evaluates preferences itself. `shift_schedules.preference_summary`
-  is a generation-time observation and is not recomputed on edit.
+  is a generation-time observation and is not recomputed on edit. Draft
+  re-annotation (`PUT /schedules/{id}/shifts`) restarts cap counts from zero
+  for the posted location only, so it can drop a cap asterisk that was only
+  over-cap because of another location; the approved-schedule edit path
+  re-annotates the whole week instead.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate

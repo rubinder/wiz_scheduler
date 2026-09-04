@@ -15,6 +15,7 @@ from backend.scheduling.preferences import (
     violations_for_slot,
 )
 from backend.scheduling.prompts import (
+    DAY_NAMES,
     _build_date_map,
     _parse_avail_by_day,
     build_schedule_prompt,
@@ -1237,9 +1238,6 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
         }
 
 
-_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-
 def _clean_alternative_exists(
     shift: Dict[str, Any],
     prepared: List[Dict[str, Any]],
@@ -1256,9 +1254,13 @@ def _clean_alternative_exists(
     "free" here might have been refused by generation for those reasons:
     this under-reports unavoidable, which is the safe direction for a
     signal that reads "you may need to hire".
+
+    Each violating shift is also evaluated independently against the same
+    draft, so one free candidate can excuse several overlapping violating
+    shifts; this too under-reports unavoidable.
     """
     day_index = date.fromisoformat(shift["date"]).weekday()
-    day_name = _DAY_NAMES[day_index]
+    day_name = DAY_NAMES[day_index]
     start_hm = shift["start_time"][11:16]
     end_hm = shift["end_time"][11:16]
     candidates = eligible_for_slot(

@@ -28,14 +28,14 @@ export function describeViolations(
     let line: string;
     if (v.kind === "day") {
       const days = (v.days ?? []).map((d) => names[d] ?? String(d)).join(", ");
-      line = s.prefDay.replace("{days}", days);
+      line = s.prefDay.replaceAll("{days}", days);
     } else if (v.kind === "cap") {
       line = s.prefCap
-        .replace("{n}", String(v.max_per_week ?? 0))
-        .replace("{start}", hm(v.start_time))
-        .replace("{end}", hm(v.end_time));
+        .replaceAll("{n}", String(v.max_per_week ?? 0))
+        .replaceAll("{start}", hm(v.start_time))
+        .replaceAll("{end}", hm(v.end_time));
     } else {
-      line = s.prefHourRange.replace("{start}", hm(v.start_time)).replace("{end}", hm(v.end_time));
+      line = s.prefHourRange.replaceAll("{start}", hm(v.start_time)).replaceAll("{end}", hm(v.end_time));
     }
     return v.unavoidable ? `${line} — ${s.prefUnavoidable}` : line;
   });
@@ -43,6 +43,6 @@ export function describeViolations(
 
 export function rosterThinMessage(summary: PreferenceSummary, template: string): string {
   return template
-    .replace("{unavoidable}", String(summary.unavoidable))
-    .replace("{total}", String(summary.shifts_against_preference));
+    .replaceAll("{unavoidable}", String(summary.unavoidable))
+    .replaceAll("{total}", String(summary.shifts_against_preference));
 }

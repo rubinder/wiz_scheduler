@@ -273,6 +273,15 @@ async def update_shifts(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> UpdateShiftsResponse:
+    """Save a hand-edited draft schedule and re-annotate it.
+
+    Draft re-annotation restarts cap counts from zero for the posted list
+    only, scoped to this one location's schedule. For a multi-location
+    tenant with hour-range caps, a draft edit here can therefore drop a cap
+    asterisk that was only over-cap because of a shift at another location
+    in the same week -- unlike the approved path (_reannotate_approved_week
+    below), which spans the whole week.
+    """
     result = await db.execute(
         select(ShiftSchedule).where(
             ShiftSchedule.id == schedule_id,
@@ -531,9 +540,16 @@ async def edit_approved_shifts(
                 touched.add(str(edit.employee_id))
                 applied += 1
 
-        await _reannotate_approved_week(
-            db, str(current_user.company_id), schedule.week_start_date, touched
-        )
+        try:
+            await _reannotate_approved_week(
+                db, str(current_user.company_id), schedule.week_start_date, touched
+            )
+        except Exception as exc:
+            # Re-annotation only reports asterisks; it must never cost the
+            # manager's edit, which is already applied and ready to commit.
+            logger.warning(
+                "preference re-annotation failed after approved edit: %s", exc
+            )
         await db.commit()
         result = EditApprovedResponse(
             applied=applied,
@@ -819,9 +835,10 @@ async def _reannotate_approved_week(
     The whole week, not just the edited schedule: a frequency cap counts
     across locations, so moving one shift can change which of an employee's
     OTHER shifts is the one past the cap. Uses the same annotator generation
-    used. Wall-clock faces are recovered per location with _shift_local_face
-    -- Shift timestamps are true instants, and the evaluator wants the
-    location's HH:MM.
+    used, so the asterisk means the same thing on both paths. Wall-clock
+    faces are recovered per location with _shift_local_face -- Shift
+    timestamps are true instants, and the evaluator wants the location's
+    HH:MM.
     """
     if not employee_ids:
         return

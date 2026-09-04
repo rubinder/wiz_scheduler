@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Employee, Location, Shift, ShiftSchedule
+from backend.models import Location, Shift, ShiftSchedule
 from backend.models.employee import EmployeeDayPreference
 from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, EMPLOYEE2_ID, LOCATION_ID, REGION_ID, ROLE_FLOOR_ID, _id
 
