@@ -13,6 +13,7 @@ import ScheduleGrid, { fmtHM, getDayLabel } from "../../components/shared/Schedu
 import DemoGuard from "../../components/shared/DemoGuard";
 import PlanBanner from "../../components/shared/PlanBanner";
 import VerifyEmailBanner from "../../components/shared/VerifyEmailBanner";
+import RosterThinBanner from "../../components/shared/RosterThinBanner";
 import { ScheduleLockedError, useScheduleStream } from "../../hooks/useScheduleStream";
 import { usePlan } from "../../hooks/usePlan";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -658,14 +659,25 @@ export default function Schedule() {
     setEditingShift({ locationId, shiftIndex });
   };
 
-  const handleSaveShift = (updated: ShiftAssignment) => {
+  const handleSaveShift = async (updated: ShiftAssignment) => {
     if (!editingShift) return;
-    setEditedShifts((prev) => {
-      const shifts = [...(prev[editingShift.locationId] ?? [])];
-      shifts[editingShift.shiftIndex] = updated;
-      return { ...prev, [editingShift.locationId]: shifts };
-    });
+    const { locationId, shiftIndex } = editingShift;
+    const result = results.find((r) => r.location_id === locationId);
+    const current = editedShifts[locationId] ?? result?.shifts ?? [];
+    const next = [...current];
+    next[shiftIndex] = updated;
+    setEditedShifts((prev) => ({ ...prev, [locationId]: next }));
     setEditingShift(null);
+    // Save now rather than at approve (#99): the server re-annotates the
+    // list, so the asterisk on a hand-edited shift is right immediately.
+    if (result?.schedule_id) {
+      try {
+        const saved = await schedulesApi.updateShifts(result.schedule_id, next);
+        setEditedShifts((prev) => ({ ...prev, [locationId]: saved.shifts }));
+      } catch (err: unknown) {
+        setActionError(err instanceof Error ? err.message : "Save failed");
+      }
+    }
   };
 
   const handleDeleteShift = () => {
@@ -1405,6 +1417,8 @@ export default function Schedule() {
                   ))}
                 </div>
               )}
+
+              <RosterThinBanner summary={locationResult.preference_summary} />
 
               {currentShifts.length > 0 && (
                 <ScheduleGrid
