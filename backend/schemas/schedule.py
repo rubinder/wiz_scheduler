@@ -1,7 +1,7 @@
 import datetime as _datetime_module
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 from typing import Literal
@@ -53,6 +53,13 @@ class ShiftResponse(BaseModel):
     # viewer renders names, and export_schedules.py already builds the same
     # employee_id -> full_name map for the same reason.
     employee_name: str = ""
+    # NULL on rows older than #99 -> [] so the client has one shape to read.
+    preference_violations: list[dict] = []
+
+    @field_validator("preference_violations", mode="before")
+    @classmethod
+    def _none_to_empty(cls, v):
+        return v or []
 
     model_config = {"from_attributes": True}
 
@@ -104,6 +111,7 @@ class ShiftScheduleResponse(BaseModel):
     strategy_param: float | None = None
     strategy_param2: float | None = None
     created_at: datetime
+    preference_summary: dict | None = None
     shifts: list[ShiftResponse] = []
 
     model_config = {"from_attributes": True}
