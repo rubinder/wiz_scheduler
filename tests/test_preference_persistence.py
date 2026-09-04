@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Employee, Shift, ShiftSchedule
 from backend.models.employee import EmployeeDayPreference
-from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, LOCATION_ID, ROLE_FLOOR_ID, _id
+from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, EMPLOYEE2_ID, LOCATION_ID, ROLE_FLOOR_ID, _id
 
 pytestmark = pytest.mark.asyncio
 
@@ -130,3 +130,54 @@ async def test_load_employee_preferences_shape(db_session: AsyncSession, seed_em
     assert prefs[EMPLOYEE1_ID]["hour_range_preferences"] == []
     assert prefs[EMPLOYEE1_ID]["hour_range_caps"] == []
     assert EMPLOYEE1_ID in prefs and len(prefs) == 1
+
+
+async def test_approved_reassignment_rewrites_both_employees(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession, seed_employees,
+):
+    """Alice prefers Mon-Wed and holds a Thursday shift (annotated). Reassigning
+    it to Bob, who has no preferences, must clear the asterisk. Bob's other
+    shift that week is re-evaluated too and stays clean."""
+    await _mon_tue_wed(db_session, EMPLOYEE1_ID)
+    sid, shid = await _approved_with_shift(db_session, DAY_V)
+    other = _id()
+    db_session.add(Shift(
+        id=other, company_id=COMPANY_ID, shift_schedule_id=sid, location_id=LOCATION_ID,
+        employee_id=EMPLOYEE2_ID, role_id=ROLE_FLOOR_ID, role_name="Floor Associate",
+        date=date(2026, 9, 1),
+        start_time=datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 9, 1, 17, 0, tzinfo=timezone.utc),
+        preference_violations=DAY_V,  # stale on purpose: must be recomputed to []
+    ))
+    await db_session.commit()
+
+    resp = await client.put(
+        f"{BASE}/{sid}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shid, "employee_id": EMPLOYEE2_ID}]},
+    )
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    moved = (await db_session.execute(select(Shift).where(Shift.id == shid))).scalar_one()
+    stale = (await db_session.execute(select(Shift).where(Shift.id == other))).scalar_one()
+    assert moved.preference_violations == []
+    assert stale.preference_violations == []
+
+
+async def test_approved_reassignment_onto_a_preference_adds_the_asterisk(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession, seed_employees,
+):
+    await _mon_tue_wed(db_session, EMPLOYEE1_ID)
+    sid, shid = await _approved_with_shift(db_session, [])
+    # Move Alice's Thursday shift... to Alice. Same employee, but a time edit
+    # still re-evaluates: keep it Thursday, change the hours.
+    resp = await client.put(
+        f"{BASE}/{sid}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shid, "start_time": "2026-09-03T10:00:00+00:00",
+                          "end_time": "2026-09-03T18:00:00+00:00"}]},
+    )
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    row = (await db_session.execute(select(Shift).where(Shift.id == shid))).scalar_one()
+    assert row.preference_violations == DAY_V
