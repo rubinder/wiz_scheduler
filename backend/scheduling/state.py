@@ -9,7 +9,7 @@ class FailureEntry(TypedDict):
     detail: Dict[str, Any]
 
 
-class ShiftAssignment(TypedDict):
+class _ShiftAssignmentRequired(TypedDict):
     employee_id: str
     employee_name: str
     role_id: str
@@ -19,6 +19,13 @@ class ShiftAssignment(TypedDict):
     start_time: str    # ISO 8601 with tz offset
     end_time: str      # ISO 8601 with tz offset
     status: str        # "ok" | "CONFLICT" | "VACANT"
+
+
+class ShiftAssignment(_ShiftAssignmentRequired, total=False):
+    # Soft preferences this assignment was scheduled against (#99). Set by
+    # preferences.annotate_preference_violations; absent on shifts that
+    # predate the annotate_preferences node. Reported, never acted on.
+    preference_violations: List[Dict[str, Any]]
 
 
 class LocationResult(TypedDict, total=False):
