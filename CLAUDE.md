@@ -90,13 +90,13 @@ SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. UUID primary keys wit
 
 A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as a first-pass lookup before reading files directly — it's 27x more token-efficient than scanning the full codebase.
 
-- **`graphify-out/graph.json`** — 1,160 nodes, 1,831 edges across 155 communities. Contains entities (functions, classes, models, concepts), relationships (calls, imports, references, inferred connections), and community assignments.
+- **`graphify-out/graph.json`** — 3,535 nodes, 5,789 edges across 330 communities. Contains entities (functions, classes, models, concepts), relationships (calls, imports, references, inferred connections), and community assignments.
 - **`graphify-out/GRAPH_REPORT.md`** — audit report with god nodes, surprising connections, community summaries, and suggested questions.
 - **`graphify-out/graph.html`** — interactive browser visualization.
 
 **How to use:** When investigating how parts of the codebase connect, query the graph first via `/graphify query "<question>"`. For architecture questions, check the report's community summaries. For tracing dependencies between two concepts, use `/graphify path "ConceptA" "ConceptB"`.
 
-**Key god nodes** (most connected abstractions): `SchedulingState` (83 edges), `ShiftAssignment` (42), `LocationResult` (39), `Base` (34), `OwnershipGroup` (22), `CondensedRole` (21).
+**Key god nodes** (most connected abstractions): `OwnershipGroup`, `BillingCharge`, `SchedulingState`, `ShiftSchedule`, `LocationResult`, and the `AutoReload*` billing errors.
 
 **Keeping it current:** After significant code changes, run `/graphify . --update` to incrementally re-extract only changed files. Code-only changes don't need LLM calls (AST-only rebuild).
 
@@ -127,6 +127,14 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   share signup signals. Nothing downstream may delete or suspend on its
   output — every signal has innocent explanations, and masked IPs are /16
   (an ISP region, not an address).
+- **Preference asterisks report, never act.** `preferences.annotate_preference_violations`
+  is the only evaluator behind `shifts.preference_violations`; the frontend renders the
+  column and never evaluates preferences itself. `shift_schedules.preference_summary`
+  is a generation-time observation and is not recomputed on edit. Draft
+  re-annotation (`PUT /schedules/{id}/shifts`) restarts cap counts from zero
+  for the posted location only, so it can drop a cap asterisk that was only
+  over-cap because of another location; the approved-schedule edit path
+  re-annotates the whole week instead.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate

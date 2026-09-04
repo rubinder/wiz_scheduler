@@ -18,8 +18,12 @@ from backend.schemas.schedule import (
     EditWarning,
     GenerateRequest,
     ShiftScheduleResponse,
+    ShiftUpdate,
     UpdateShiftsRequest,
+    UpdateShiftsResponse,
 )
+from backend.scheduling.preferences import annotate_preference_violations
+from backend.services.preference_loader import load_employee_preferences
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -214,6 +218,7 @@ async def generate_schedule(
                             strategy=body.strategy if body.use_local else "ai",
                             strategy_param=body.strategy_param,
                             strategy_param2=body.strategy_param2,
+                            preference_summary=chunk.get("preference_summary"),
                         )
                         db.add(sched)
                         await db.flush()
@@ -267,7 +272,16 @@ async def update_shifts(
     body: UpdateShiftsRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> UpdateShiftsResponse:
+    """Save a hand-edited draft schedule and re-annotate it.
+
+    Draft re-annotation restarts cap counts from zero for the posted list
+    only, scoped to this one location's schedule. For a multi-location
+    tenant with hour-range caps, a draft edit here can therefore drop a cap
+    asterisk that was only over-cap because of a shift at another location
+    in the same week -- unlike the approved path (_reannotate_approved_week
+    below), which spans the whole week.
+    """
     result = await db.execute(
         select(ShiftSchedule).where(
             ShiftSchedule.id == schedule_id,
@@ -281,9 +295,14 @@ async def update_shifts(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
 
-    schedule.raw_llm_output = json.dumps([s.model_dump() for s in body.shifts])
+    shifts = [s.model_dump() for s in body.shifts]
+    # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
+    # or off a preference, and the evaluator lives here, not in the client.
+    prefs = await load_employee_preferences(db, str(current_user.company_id))
+    annotate_preference_violations(shifts, prefs)
+    schedule.raw_llm_output = json.dumps(shifts)
     await db.commit()
-    return {"ok": True}
+    return UpdateShiftsResponse(shifts=[ShiftUpdate(**s) for s in shifts])
 
 
 @router.put("/{schedule_id}/approved-shifts", response_model=EditApprovedResponse)
@@ -381,6 +400,7 @@ async def edit_approved_shifts(
         )
 
         applied = 0
+        touched: set[str] = set()
         for idx, edit in enumerate(body.edits):
             if edit.employee_id is not None:
                 # Every employee referenced must belong to the caller's
@@ -427,6 +447,7 @@ async def edit_approved_shifts(
                             "reason": "shift not found",
                         },
                     )
+                touched.add(str(shift.employee_id))
                 if edit.deleted:
                     await db.delete(shift)
                     applied += 1
@@ -434,6 +455,7 @@ async def edit_approved_shifts(
                 changed = False
                 if edit.employee_id is not None:
                     shift.employee_id = edit.employee_id
+                    touched.add(str(edit.employee_id))
                     changed = True
                 if edit.role_id is not None:
                     # Same company check as the employee check above — a
@@ -515,8 +537,19 @@ async def edit_approved_shifts(
                     start_time=edit.start_time,
                     end_time=edit.end_time,
                 ))
+                touched.add(str(edit.employee_id))
                 applied += 1
 
+        try:
+            await _reannotate_approved_week(
+                db, str(current_user.company_id), schedule.week_start_date, touched
+            )
+        except Exception as exc:
+            # Re-annotation only reports asterisks; it must never cost the
+            # manager's edit, which is already applied and ready to commit.
+            logger.warning(
+                "preference re-annotation failed after approved edit: %s", exc
+            )
         await db.commit()
         result = EditApprovedResponse(
             applied=applied,
@@ -629,6 +662,7 @@ async def approve_schedule(
                         date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
                         start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
                         end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],
+                        preference_violations=list(s.get("preference_violations") or []),
                     )
                     db.add(shift)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -790,6 +824,61 @@ async def get_week_schedules(
         responses.append(resp)
 
     return responses
+
+
+async def _reannotate_approved_week(
+    db: AsyncSession, company_id: str, week_start_date: date, employee_ids: set[str]
+) -> None:
+    """Recompute preference_violations for these employees across every
+    approved schedule in the week (#99).
+
+    The whole week, not just the edited schedule: a frequency cap counts
+    across locations, so moving one shift can change which of an employee's
+    OTHER shifts is the one past the cap. Uses the same annotator generation
+    used, so the asterisk means the same thing on both paths. Wall-clock
+    faces are recovered per location with _shift_local_face -- Shift
+    timestamps are true instants, and the evaluator wants the location's
+    HH:MM.
+    """
+    if not employee_ids:
+        return
+    from backend.scheduling.graph import _shift_local_face
+    from backend.scheduling.preferences import annotate_preference_violations
+    from backend.services.preference_loader import load_employee_preferences
+
+    prefs = await load_employee_preferences(db, company_id)
+    locations = {
+        loc.id: loc for loc in (await db.execute(
+            select(Location).where(Location.company_id == company_id)
+        )).scalars().all()
+    }
+    rows = (await db.execute(
+        select(Shift)
+        .join(ShiftSchedule, Shift.shift_schedule_id == ShiftSchedule.id)
+        .where(
+            ShiftSchedule.company_id == company_id,
+            ShiftSchedule.week_start_date == week_start_date,
+            ShiftSchedule.status == "approved",
+            Shift.employee_id.in_(employee_ids),
+        )
+    )).scalars().all()
+
+    dicts: list[dict] = []
+    for row in rows:
+        loc = locations.get(row.location_id)
+        face = _shift_local_face(row, loc, keep_tzinfo=True) if loc is not None else None
+        start, end = face if face is not None else (row.start_time, row.end_time)
+        dicts.append({
+            "_row": row,
+            "employee_id": row.employee_id,
+            "status": "ok",
+            "date": row.date.isoformat(),
+            "start_time": start.isoformat(),
+            "end_time": end.isoformat(),
+        })
+    annotate_preference_violations(dicts, prefs)
+    for d in dicts:
+        d["_row"].preference_violations = d["preference_violations"]
 
 
 def _shift_to_response(

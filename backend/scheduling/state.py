@@ -9,7 +9,7 @@ class FailureEntry(TypedDict):
     detail: Dict[str, Any]
 
 
-class ShiftAssignment(TypedDict):
+class _ShiftAssignmentRequired(TypedDict):
     employee_id: str
     employee_name: str
     role_id: str
@@ -19,6 +19,13 @@ class ShiftAssignment(TypedDict):
     start_time: str    # ISO 8601 with tz offset
     end_time: str      # ISO 8601 with tz offset
     status: str        # "ok" | "CONFLICT" | "VACANT"
+
+
+class ShiftAssignment(_ShiftAssignmentRequired, total=False):
+    # Soft preferences this assignment was scheduled against (#99). Set by
+    # preferences.annotate_preference_violations; absent on shifts that
+    # predate the annotate_preferences node. Reported, never acted on.
+    preference_violations: List[Dict[str, Any]]
 
 
 class LocationResult(TypedDict, total=False):
@@ -33,6 +40,9 @@ class LocationResult(TypedDict, total=False):
     # fresh one still gets the fresh one scheduled.
     status: str
     schedule_id: str   # UUID of the persisted ShiftSchedule row (set by the router)
+    # Per-location roster-thin summary (#99). Set by annotate_preferences,
+    # copied here by emit_result. None when annotate_preferences degraded.
+    preference_summary: Dict[str, Any] | None
 
 
 class SchedulingState(TypedDict):
@@ -79,6 +89,10 @@ class SchedulingState(TypedDict):
     # enforces max_hours_per_week. Grown in validate_and_update_availability
     # from committed shifts, and seeded into local_schedule's range_counts.
     range_counts_draft: Dict[Any, int]
+    # Copy of range_counts_draft taken on entry to
+    # validate_and_update_availability, before this location's shifts were
+    # folded in. Read by annotate_preferences (#99).
+    range_counts_before: Dict[Any, int]
     # Per-employee scheduling preferences, keyed by employee_id:
     # {"day_preferences": [...], "hour_range_preferences": [...],
     # "hour_range_caps": [...]}. Same shape as the per-employee fields
@@ -87,3 +101,6 @@ class SchedulingState(TypedDict):
     # violations after AI generation without threading the whole employees
     # list through. Populated by _load_initial_state.
     employee_preferences: Dict[str, Dict[str, list]]
+    # Set by annotate_preferences, copied onto LocationResult by emit_result
+    # (#99). None when annotate_preferences degraded rather than raised.
+    current_preference_summary: Dict[str, Any] | None

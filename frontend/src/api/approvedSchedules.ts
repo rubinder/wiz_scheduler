@@ -1,4 +1,4 @@
-import type { ShiftAssignment } from "../types";
+import type { PreferenceSummary, PreferenceViolation, ShiftAssignment } from "../types";
 import { apiFetch, ApiError } from "./client";
 import { ScheduleLockedError } from "../hooks/useScheduleStream";
 
@@ -14,6 +14,7 @@ export interface WeekSchedule {
   strategy_param2: number | null;
   created_at: string;
   shifts: WeekShift[];
+  preference_summary: PreferenceSummary | null;
 }
 
 /** A materialised shift row. Distinct from ShiftAssignment: these are real
@@ -29,6 +30,7 @@ export interface WeekShift {
   date: string;
   start_time: string;
   end_time: string;
+  preference_violations: PreferenceViolation[];
 }
 
 /** Approved schedules for the week beginning `weekStartDate`.
@@ -43,7 +45,8 @@ export function getApprovedWeek(weekStartDate: string): Promise<WeekSchedule[]> 
  *
  *  The grid is shared with the post-generation review, which works in
  *  ShiftAssignment. Approved shifts are always "ok" — a CONFLICT or VACANT
- *  shift never becomes a Shift row at approval time. */
+ *  shift never becomes a Shift row at approval time. Approved shifts carry
+ *  their persisted preference_violations (#99). */
 export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
   return shifts.map((s) => ({
     employee_id: s.employee_id,
@@ -55,6 +58,7 @@ export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
     start_time: s.start_time,
     end_time: s.end_time,
     status: "ok",
+    preference_violations: s.preference_violations ?? [],
   }));
 }
 

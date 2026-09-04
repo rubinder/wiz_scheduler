@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, String, Text, text
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -28,6 +28,10 @@ class ShiftSchedule(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
+    # Per-location roster-thin read from generation (#99):
+    # {"shifts_against_preference", "unavoidable", "roster_thin"}. A
+    # generation-time observation; NOT recomputed when shifts are edited.
+    preference_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class Shift(Base):
@@ -55,4 +59,8 @@ class Shift(Base):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Soft preferences this shift was scheduled against (#99). Written at
+    # approval from the draft, rewritten on approved-shift edits. NULL on
+    # rows that predate the column; the API serialises NULL as [].
+    preference_violations: Mapped[list | None] = mapped_column(JSON, nullable=True)
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
