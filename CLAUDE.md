@@ -127,6 +127,10 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   share signup signals. Nothing downstream may delete or suspend on its
   output — every signal has innocent explanations, and masked IPs are /16
   (an ISP region, not an address).
+- **Preference asterisks report, never act.** `preferences.annotate_preference_violations`
+  is the only evaluator behind `shifts.preference_violations`; the frontend renders the
+  column and never evaluates preferences itself. `shift_schedules.preference_summary`
+  is a generation-time observation and is not recomputed on edit.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate

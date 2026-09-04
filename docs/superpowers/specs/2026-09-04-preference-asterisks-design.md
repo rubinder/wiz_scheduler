@@ -1,7 +1,7 @@
 # Preference Asterisks — Design Spec
 
 Issue: [#99](https://github.com/rubinder/wiz_scheduler/issues/99)
-Status: approved, not yet implemented
+Status: implemented
 
 Builds on [#83](https://github.com/rubinder/wiz_scheduler/issues/83)
 (the preference model and evaluator this reads) and
