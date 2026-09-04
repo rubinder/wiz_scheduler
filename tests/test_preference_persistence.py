@@ -8,9 +8,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Employee, Shift, ShiftSchedule
+from backend.models import Employee, Location, Shift, ShiftSchedule
 from backend.models.employee import EmployeeDayPreference
-from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, EMPLOYEE2_ID, LOCATION_ID, ROLE_FLOOR_ID, _id
+from tests.conftest import COMPANY_ID, EMPLOYEE1_ID, EMPLOYEE2_ID, LOCATION_ID, REGION_ID, ROLE_FLOOR_ID, _id
 
 pytestmark = pytest.mark.asyncio
 
@@ -181,3 +181,47 @@ async def test_approved_reassignment_onto_a_preference_adds_the_asterisk(
     db_session.expire_all()
     row = (await db_session.execute(select(Shift).where(Shift.id == shid))).scalar_one()
     assert row.preference_violations == DAY_V
+
+
+async def test_approved_reassignment_recomputes_a_different_schedule_in_the_week(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession, seed_employees,
+):
+    """The recompute spans every approved schedule in the week, not just the
+    one being edited. A second location's schedule holds a stale-annotated
+    shift for the employee the edit reassigns onto; that shift must be
+    recomputed too, even though its schedule and location were never touched
+    by the PUT."""
+    sid, shid = await _approved_with_shift(db_session, DAY_V)
+
+    other_location_id = _id()
+    db_session.add(Location(
+        id=other_location_id, company_id=COMPANY_ID, region_id=REGION_ID,
+        name="Uptown Store", timezone="America/New_York",
+    ))
+    other_sid = _id()
+    other_shid = _id()
+    db_session.add(ShiftSchedule(
+        id=other_sid, company_id=COMPANY_ID, location_id=other_location_id,
+        week_start_date=WEEK, status="approved",
+        created_at=datetime.now(timezone.utc),
+        preference_summary={"shifts_against_preference": 1, "unavoidable": 0, "roster_thin": False},
+    ))
+    db_session.add(Shift(
+        id=other_shid, company_id=COMPANY_ID, shift_schedule_id=other_sid, location_id=other_location_id,
+        employee_id=EMPLOYEE2_ID, role_id=ROLE_FLOOR_ID, role_name="Floor Associate",
+        date=date(2026, 9, 1),
+        start_time=datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 9, 1, 17, 0, tzinfo=timezone.utc),
+        preference_violations=DAY_V,  # stale on purpose: must be recomputed to []
+    ))
+    await db_session.commit()
+
+    resp = await client.put(
+        f"{BASE}/{sid}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shid, "employee_id": EMPLOYEE2_ID}]},
+    )
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    other_row = (await db_session.execute(select(Shift).where(Shift.id == other_shid))).scalar_one()
+    assert other_row.preference_violations == []
