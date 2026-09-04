@@ -447,3 +447,23 @@ def test_conflict_shifts_do_not_consume_cap_allowance_or_get_overwritten():
     out = validate_and_update_availability(state)
     statuses = [s["status"] for s in out["current_parsed_shifts"]]
     assert statuses == ["ok", "ok", "CONFLICT"]
+
+
+def test_validation_reports_the_cap_counts_it_started_from():
+    """annotate_preferences (#99) must count caps the way generation counted
+    them: seeded from earlier locations, before this location's shifts are
+    folded in. The node exposes that pre-fold snapshot."""
+    caps = [{"start_time": "16:00", "end_time": "22:00", "max_per_week": 3, "weight": 0.5}]
+    state = {
+        "current_parsed_shifts": [_shift("e1", "2026-08-31", "16:00", "22:00")],
+        "availability_draft": {},
+        "retry_count": 0,
+        "conflict_notes": "",
+        "employee_weekly_hours_draft": {},
+        "range_counts_draft": {("e1", "16:00", "22:00"): 2},
+        "employees": [{"id": "e1", "hour_range_caps": caps}],
+        "employee_preferences": {"e1": {"day_preferences": [], "hour_range_preferences": [], "hour_range_caps": caps}},
+    }
+    out = validate_and_update_availability(state)
+    assert out["range_counts_before"] == {("e1", "16:00", "22:00"): 2}
+    assert out["range_counts_draft"] == {("e1", "16:00", "22:00"): 3}

@@ -1094,6 +1094,10 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     range_counts_draft: Dict[Any, int] = dict(
         state.get("range_counts_draft", {}) or {}
     )
+    # Snapshot for annotate_preferences (#99): the cap counts as they stood
+    # before this location's shifts were folded in, so the annotator judges
+    # each shift against the same count generation judged it by.
+    range_counts_before: Dict[Any, int] = dict(range_counts_draft)
     emp_by_id: Dict[str, Dict[str, Any]] = {
         str(e.get("id", "")): e for e in state.get("employees", [])
     }
@@ -1179,6 +1183,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                 "availability_draft": availability_draft,
                 "employee_weekly_hours_draft": weekly_hours_draft,
                 "range_counts_draft": range_counts_draft,
+                "range_counts_before": range_counts_before,
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
@@ -1218,6 +1223,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
             "availability_draft": availability_draft,
             "employee_weekly_hours_draft": weekly_hours_draft,
             "range_counts_draft": range_counts_draft,
+            "range_counts_before": range_counts_before,
         }
 
 

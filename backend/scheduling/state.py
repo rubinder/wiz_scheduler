@@ -86,6 +86,10 @@ class SchedulingState(TypedDict):
     # enforces max_hours_per_week. Grown in validate_and_update_availability
     # from committed shifts, and seeded into local_schedule's range_counts.
     range_counts_draft: Dict[Any, int]
+    # Copy of range_counts_draft taken on entry to
+    # validate_and_update_availability, before this location's shifts were
+    # folded in. Read by annotate_preferences (#99).
+    range_counts_before: Dict[Any, int]
     # Per-employee scheduling preferences, keyed by employee_id:
     # {"day_preferences": [...], "hour_range_preferences": [...],
     # "hour_range_caps": [...]}. Same shape as the per-employee fields
