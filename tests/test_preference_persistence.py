@@ -57,3 +57,28 @@ async def test_a_pre_existing_null_column_reads_as_an_empty_list(
     resp = await client.get(f"{BASE}/week/{WEEK.isoformat()}?status=approved",
                             headers={"Authorization": f"Bearer {manager_token}"})
     assert resp.json()[0]["shifts"][0]["preference_violations"] == []
+
+
+async def test_approve_copies_violations_from_the_draft(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession, seed_employees,
+):
+    shifts = [{
+        "employee_id": EMPLOYEE1_ID, "employee_name": "Alice Johnson",
+        "role_id": ROLE_FLOOR_ID, "role_name": "Floor Associate",
+        "location_id": LOCATION_ID, "date": "2026-09-03",
+        "start_time": "2026-09-03T09:00:00-04:00", "end_time": "2026-09-03T17:00:00-04:00",
+        "status": "ok", "preference_violations": DAY_V,
+    }]
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid, company_id=COMPANY_ID, location_id=LOCATION_ID, week_start_date=WEEK,
+        status="draft", raw_llm_output=json.dumps(shifts), strategy="random",
+        created_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(f"{BASE}/{sid}/approve", headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["shifts"][0]["preference_violations"] == DAY_V
+    row = (await db_session.execute(select(Shift).where(Shift.shift_schedule_id == sid))).scalar_one()
+    assert row.preference_violations == DAY_V

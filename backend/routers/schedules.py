@@ -214,6 +214,7 @@ async def generate_schedule(
                             strategy=body.strategy if body.use_local else "ai",
                             strategy_param=body.strategy_param,
                             strategy_param2=body.strategy_param2,
+                            preference_summary=chunk.get("preference_summary"),
                         )
                         db.add(sched)
                         await db.flush()
@@ -629,6 +630,7 @@ async def approve_schedule(
                         date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
                         start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
                         end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],
+                        preference_violations=list(s.get("preference_violations") or []),
                     )
                     db.add(shift)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
