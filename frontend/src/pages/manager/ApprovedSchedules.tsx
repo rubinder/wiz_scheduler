@@ -7,6 +7,7 @@ import { listEmployees } from "../../api/employees";
 import * as rolesApi from "../../api/roles";
 import ScheduleGrid from "../../components/shared/ScheduleGrid";
 import EditShiftModal from "../../components/shared/EditShiftModal";
+import RosterThinBanner from "../../components/shared/RosterThinBanner";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday, spinner as spinnerClass } from "../../theme";
 
@@ -248,6 +249,7 @@ export default function ApprovedSchedules() {
                       </span>
                     </div>
                   </div>
+                  <RosterThinBanner summary={sched.preference_summary} atGeneration />
                   <ScheduleGrid
                     shifts={approvedApi.toAssignments(sched.shifts)}
                     editable={editable}

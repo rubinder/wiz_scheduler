@@ -8,8 +8,19 @@ import anthropic
 
 from backend.config import settings
 from backend.scheduling.local_scheduler import _min_rest_violation
-from backend.scheduling.preferences import blocked_by_hard_preference, matches_range
-from backend.scheduling.prompts import build_schedule_prompt
+from backend.scheduling.preferences import (
+    annotate_preference_violations,
+    blocked_by_hard_preference,
+    matches_range,
+    violations_for_slot,
+)
+from backend.scheduling.prompts import (
+    DAY_NAMES,
+    _build_date_map,
+    _parse_avail_by_day,
+    build_schedule_prompt,
+    eligible_for_slot,
+)
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -1094,6 +1105,10 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
     range_counts_draft: Dict[Any, int] = dict(
         state.get("range_counts_draft", {}) or {}
     )
+    # Snapshot for annotate_preferences (#99): the cap counts as they stood
+    # before this location's shifts were folded in, so the annotator judges
+    # each shift against the same count generation judged it by.
+    range_counts_before: Dict[Any, int] = dict(range_counts_draft)
     emp_by_id: Dict[str, Dict[str, Any]] = {
         str(e.get("id", "")): e for e in state.get("employees", [])
     }
@@ -1179,6 +1194,7 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
                 "availability_draft": availability_draft,
                 "employee_weekly_hours_draft": weekly_hours_draft,
                 "range_counts_draft": range_counts_draft,
+                "range_counts_before": range_counts_before,
             }
     else:
         # No conflicts: consume all windows (skip VACANT placeholders)
@@ -1218,7 +1234,109 @@ def validate_and_update_availability(state: SchedulingState) -> Dict[str, Any]:
             "availability_draft": availability_draft,
             "employee_weekly_hours_draft": weekly_hours_draft,
             "range_counts_draft": range_counts_draft,
+            "range_counts_before": range_counts_before,
         }
+
+
+def _clean_alternative_exists(
+    shift: Dict[str, Any],
+    prepared: List[Dict[str, Any]],
+    availability_draft: Dict[str, List[Dict[str, str]]],
+    counts: Dict[Any, int],
+) -> bool:
+    """Whether someone other than the assignee could have taken this slot
+    without violating any preference of their own.
+
+    Candidates come from eligible_for_slot -- role, availability, blackouts
+    and hard preferences -- then must have no soft violation for the slot
+    and no overlapping committed window in availability_draft. Weekly-hour
+    caps and minimum rest are NOT re-checked, so a candidate counted as
+    "free" here might have been refused by generation for those reasons:
+    this under-reports unavoidable, which is the safe direction for a
+    signal that reads "you may need to hire".
+
+    Each violating shift is also evaluated independently against the same
+    draft, so one free candidate can excuse several overlapping violating
+    shifts; this too under-reports unavoidable.
+    """
+    day_index = date.fromisoformat(shift["date"]).weekday()
+    day_name = DAY_NAMES[day_index]
+    start_hm = shift["start_time"][11:16]
+    end_hm = shift["end_time"][11:16]
+    candidates = eligible_for_slot(
+        prepared, day_name, shift["role_name"], start_hm, end_hm,
+        day_index=day_index, range_counts=counts,
+    )
+    for c in candidates:
+        cid = str(c.get("id", ""))
+        if cid == str(shift.get("employee_id", "")):
+            continue
+        if violations_for_slot(c, day_index, start_hm, end_hm, counts):
+            continue
+        booked = any(
+            _windows_overlap(shift["start_time"], shift["end_time"], w["start"], w["end"])
+            for w in availability_draft.get(cid, [])
+        )
+        if booked:
+            continue
+        return True
+    return False
+
+
+def annotate_preferences(state: SchedulingState) -> Dict[str, Any]:
+    """Post-pass (#99): mark shifts scheduled against a soft preference and
+    say whether the roster left any alternative.
+
+    Runs once per emitted location, after validate_and_update_availability
+    on both the local and AI paths. Reports, never acts: no status changes,
+    no shifts added or removed. Reuses the evaluator generation used, so the
+    explanation cannot disagree with the decision.
+
+    Never raises. On any failure the shifts are returned as they were and
+    the summary is None.
+    """
+    shifts: List[ShiftAssignment] = list(state.get("current_parsed_shifts", []) or [])
+    try:
+        prefs = state.get("employee_preferences", {}) or {}
+        seed = state.get("range_counts_before", {}) or {}
+        snapshots = annotate_preference_violations(shifts, prefs, seed)
+
+        date_map = _build_date_map(state["week_start_date"], int(state.get("num_days", 7)))
+        date_to_day = {d: day for day, d in date_map.items()}
+        prepared: List[Dict[str, Any]] = []
+        for emp in state.get("current_employees", []) or []:
+            prepared.append({
+                **emp,
+                "_role_names": {r.get("role_name", "") for r in emp.get("roles", [])},
+                "_day_windows": _parse_avail_by_day(emp.get("available_windows", []), date_to_day),
+            })
+        availability_draft = state.get("availability_draft", {}) or {}
+
+        against = 0
+        unavoidable = 0
+        for i, shift in enumerate(shifts):
+            violations = shift.get("preference_violations") or []
+            if not violations:
+                continue
+            against += 1
+            try:
+                clean = _clean_alternative_exists(shift, prepared, availability_draft, snapshots[i])
+            except (KeyError, ValueError, TypeError, IndexError):
+                clean = True  # unknown -> do not claim the roster is thin
+            if not clean:
+                unavoidable += 1
+                for v in violations:
+                    v["unavoidable"] = True
+
+        summary = {
+            "shifts_against_preference": against,
+            "unavoidable": unavoidable,
+            "roster_thin": unavoidable >= 1,
+        }
+        return {"current_parsed_shifts": shifts, "current_preference_summary": summary}
+    except Exception as exc:  # degrade, never raise inside the graph
+        logger.warning("[SCHED-TRACE] annotate_preferences failed: %s", exc)
+        return {"current_parsed_shifts": shifts, "current_preference_summary": None}
 
 
 def emit_result(state: SchedulingState) -> Dict[str, Any]:
@@ -1275,6 +1393,7 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         "shifts": list(shifts),
         "errors": location_errors,
         "status": status,
+        "preference_summary": state.get("current_preference_summary"),
     }
 
     draft_schedules = list(state["draft_schedules"])

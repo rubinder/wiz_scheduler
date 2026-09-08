@@ -14,8 +14,8 @@ export function getSchedule(id: string): Promise<ShiftSchedule> {
 export function updateShifts(
   scheduleId: string,
   shifts: ShiftAssignment[]
-): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/schedules/${scheduleId}/shifts`, {
+): Promise<{ ok: boolean; shifts: ShiftAssignment[] }> {
+  return apiFetch<{ ok: boolean; shifts: ShiftAssignment[] }>(`/schedules/${scheduleId}/shifts`, {
     method: "PUT",
     body: JSON.stringify({ shifts }),
   });

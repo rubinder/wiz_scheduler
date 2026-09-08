@@ -632,6 +632,14 @@ const hi = {
 
   // ── Schedule ──
   schedule: {
+    prefAsteriskLabel: "Scheduled against a preference",
+    prefDay: "prefers {days}",
+    prefHourRange: "prefers {start}–{end}",
+    prefCap: "already at {n}× this week for {start}–{end}",
+    prefUnavoidable: "no one else was free",
+    weekdaysShort: "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+    rosterThinBanner: "{unavoidable} of {total} shifts scheduled against a preference had no one else free. You may need more staff to honor preferences and stay covered.",
+    rosterThinAtGeneration: "(at generation)",
     title: "शेड्यूल जनरेशन",
     startLabel: "शुरू:",
     endLabel: "समाप्त:",

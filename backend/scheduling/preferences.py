@@ -4,6 +4,7 @@ Kept separate from local_scheduler.py so both scheduling paths can import it
 without pulling in the deterministic strategies.
 """
 
+from datetime import date
 from typing import Any, Dict, List
 
 from backend.config import settings
@@ -119,6 +120,28 @@ def _caps_exceeded(
     return hit
 
 
+def violations_for_slot(
+    emp: Dict[str, Any],
+    day_index: int,
+    start: str,
+    end: str,
+    range_counts: Dict[Any, int],
+) -> List[Dict[str, Any]]:
+    """Every preference row this (day, start, end) slot violates.
+
+    THE single composition of the three checks. blocked_by_hard_preference
+    keeps only the weight-1.0 rows; preference_score keeps only the rest;
+    annotate_preference_violations reports the rest. All three see the same
+    list, which is what keeps the asterisk's explanation from ever
+    disagreeing with the scheduler's own reasoning.
+    """
+    return (
+        _day_violated(emp, day_index)
+        + _range_violated(emp, start, end)
+        + _caps_exceeded(emp, start, end, range_counts)
+    )
+
+
 def blocked_by_hard_preference(
     emp: Dict[str, Any],
     day_index: int,
@@ -133,11 +156,7 @@ def blocked_by_hard_preference(
     candidate is emitted VACANT — that is the intended meaning of a hard
     preference, not a failure.
     """
-    violations = (
-        _day_violated(emp, day_index)
-        + _range_violated(emp, start, end)
-        + _caps_exceeded(emp, start, end, range_counts)
-    )
+    violations = violations_for_slot(emp, day_index, start, end, range_counts)
     return any(float(v["weight"]) >= _HARD for v in violations)
 
 
@@ -154,13 +173,101 @@ def preference_score(
     with no preferences configured — the state of every employee until a
     manager opts them in, and what makes this feature additive.
     """
-    violations = (
-        _day_violated(emp, day_index)
-        + _range_violated(emp, start, end)
-        + _caps_exceeded(emp, start, end, range_counts)
-    )
+    violations = violations_for_slot(emp, day_index, start, end, range_counts)
     return sum(
         float(v["weight"]) * PREFERENCE_PENALTY
         for v in violations
         if float(v["weight"]) < _HARD
     )
+
+
+def _violation_dict(row: Dict[str, Any], emp_prefs: Dict[str, Any]) -> Dict[str, Any] | None:
+    """Shape one violated preference row for the API.
+
+    A day row carries the WHOLE preferred set: "prefers Mon, Tue, Wed" is
+    the sentence a manager needs, and _day_violated's collapsed row only
+    knows the strongest single day.
+    """
+    weight = float(row["weight"])
+    if "day_of_week" in row:
+        days = sorted(int(p["day_of_week"]) for p in emp_prefs.get("day_preferences") or [])
+        return {"kind": "day", "weight": weight, "days": days, "unavoidable": False}
+    if "max_per_week" in row:
+        return {
+            "kind": "cap", "weight": weight,
+            "start_time": row["start_time"], "end_time": row["end_time"],
+            "max_per_week": int(row["max_per_week"]), "unavoidable": False,
+        }
+    if "start_time" in row:
+        return {
+            "kind": "hour_range", "weight": weight,
+            "start_time": row["start_time"], "end_time": row["end_time"],
+            "unavoidable": False,
+        }
+    return None
+
+
+def annotate_preference_violations(
+    shifts: List[Dict[str, Any]],
+    employee_preferences: Dict[str, Dict[str, Any]],
+    seed_counts: Dict[Any, int] | None = None,
+) -> List[Dict[Any, int]]:
+    """Attach `preference_violations` to every shift; report, never act.
+
+    Walks "ok" shifts in (date, start_time) order -- the same order
+    nodes._trim_cap_violations uses -- with a running per-(employee, cap)
+    count seeded from `seed_counts` (the cross-location count from earlier
+    locations in the same graph run). A cap is counted only after the shift
+    is evaluated, so the fourth shift against a cap of 3 is the one marked.
+
+    Only weights below 1.0 are reported: hard violations have already been
+    vacated by the trim passes, and a defensive filter keeps them out here
+    regardless. VACANT, CONFLICT and no-preference shifts get [].
+
+    Returns the count snapshot BEFORE each shift, index-aligned with
+    `shifts`, so a caller re-deriving eligibility for a slot can evaluate
+    candidates against the same counts this shift was judged by.
+
+    Never raises: a malformed shift or preference row is skipped and its
+    shift gets [].
+    """
+    counts: Dict[Any, int] = dict(seed_counts or {})
+    snapshots: List[Dict[Any, int]] = [{} for _ in shifts]
+    for s in shifts:
+        s["preference_violations"] = []
+
+    order = sorted(
+        range(len(shifts)),
+        key=lambda i: (str(shifts[i].get("date", "")), str(shifts[i].get("start_time", ""))),
+    )
+    for i in order:
+        shift = shifts[i]
+        snapshots[i] = dict(counts)
+        if shift.get("status") != "ok":
+            continue
+        emp_id = str(shift.get("employee_id", ""))
+        emp_prefs = employee_preferences.get(emp_id)
+        if not emp_prefs:
+            continue
+        try:
+            day_index = date.fromisoformat(str(shift["date"])).weekday()
+            start_hm = str(shift["start_time"])[11:16]
+            end_hm = str(shift["end_time"])[11:16]
+            emp = {"id": emp_id, **emp_prefs}
+            rows = violations_for_slot(emp, day_index, start_hm, end_hm, counts)
+            reported: List[Dict[str, Any]] = []
+            for row in rows:
+                if float(row.get("weight", 0)) >= _HARD:
+                    continue
+                shaped = _violation_dict(row, emp_prefs)
+                if shaped is not None:
+                    reported.append(shaped)
+            shift["preference_violations"] = reported
+            for cap in emp_prefs.get("hour_range_caps") or []:
+                if matches_range(start_hm, end_hm, cap["start_time"], cap["end_time"]):
+                    key = (emp_id, cap["start_time"], cap["end_time"])
+                    counts[key] = counts.get(key, 0) + 1
+        except (KeyError, ValueError, TypeError, IndexError):
+            shift["preference_violations"] = []
+            continue
+    return snapshots

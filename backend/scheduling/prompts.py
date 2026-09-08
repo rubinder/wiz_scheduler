@@ -11,14 +11,15 @@ _DAY_INDEX_FOR_PROMPT = {
     "Friday": 4, "Saturday": 5, "Sunday": 6,
 }
 
+DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
 
 def _build_date_map(week_start_date: str, num_days: int = 7) -> Dict[str, str]:
     """Build a mapping of day names to YYYY-MM-DD dates for the schedule range."""
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     start = datetime.strptime(week_start_date, "%Y-%m-%d")
     start_weekday = start.weekday()  # 0=Mon, 1=Tue, ...
     return {
-        day_names[(start_weekday + i) % 7]: (start + timedelta(days=i)).strftime("%Y-%m-%d")
+        DAY_NAMES[(start_weekday + i) % 7]: (start + timedelta(days=i)).strftime("%Y-%m-%d")
         for i in range(num_days)
     }
 

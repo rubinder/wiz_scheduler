@@ -13,6 +13,7 @@ import ScheduleGrid, { fmtHM, getDayLabel } from "../../components/shared/Schedu
 import DemoGuard from "../../components/shared/DemoGuard";
 import PlanBanner from "../../components/shared/PlanBanner";
 import VerifyEmailBanner from "../../components/shared/VerifyEmailBanner";
+import RosterThinBanner from "../../components/shared/RosterThinBanner";
 import { ScheduleLockedError, useScheduleStream } from "../../hooks/useScheduleStream";
 import { usePlan } from "../../hooks/usePlan";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -360,6 +361,9 @@ export default function Schedule() {
     shiftIndex: number;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  // Per-location sequence counter (#99 review): guards against an
+  // in-flight draft save resolving after a newer one and clobbering it.
+  const saveSeq = useRef<Record<string, number>>({});
 
   // Employees for the edit modal
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -658,24 +662,63 @@ export default function Schedule() {
     setEditingShift({ locationId, shiftIndex });
   };
 
-  const handleSaveShift = (updated: ShiftAssignment) => {
-    if (!editingShift) return;
-    setEditedShifts((prev) => {
-      const shifts = [...(prev[editingShift.locationId] ?? [])];
-      shifts[editingShift.shiftIndex] = updated;
-      return { ...prev, [editingShift.locationId]: shifts };
-    });
-    setEditingShift(null);
+  // Save a draft's shift list and, if it's still the latest save for this
+  // location, apply the server's re-annotated response (or its error).
+  // Two edits to the same location can be in flight at once; only the
+  // response for the latest save may update state, else a slower earlier
+  // request could resolve last and clobber a newer edit — or, for a
+  // delete, resurrect a shift that was just removed.
+  const persistDraft = async (
+    locationId: string,
+    scheduleId: string,
+    next: ShiftAssignment[]
+  ) => {
+    const seq = (saveSeq.current[locationId] ?? 0) + 1;
+    saveSeq.current[locationId] = seq;
+    try {
+      const saved = await schedulesApi.updateShifts(scheduleId, next);
+      if (saveSeq.current[locationId] === seq) {
+        setEditedShifts((prev) => ({ ...prev, [locationId]: saved.shifts }));
+      }
+    } catch (err: unknown) {
+      if (saveSeq.current[locationId] === seq) {
+        setActionError(err instanceof Error ? err.message : "Save failed");
+      }
+    }
   };
 
-  const handleDeleteShift = () => {
+  const handleSaveShift = async (updated: ShiftAssignment) => {
     if (!editingShift) return;
-    setEditedShifts((prev) => {
-      const shifts = [...(prev[editingShift.locationId] ?? [])];
-      shifts.splice(editingShift.shiftIndex, 1);
-      return { ...prev, [editingShift.locationId]: shifts };
-    });
+    const { locationId, shiftIndex } = editingShift;
+    const result = results.find((r) => r.location_id === locationId);
+    const current = editedShifts[locationId] ?? result?.shifts ?? [];
+    const next = [...current];
+    next[shiftIndex] = updated;
+    setEditedShifts((prev) => ({ ...prev, [locationId]: next }));
     setEditingShift(null);
+    // Save now rather than at approve (#99): the server re-annotates the
+    // list, so the asterisk on a hand-edited shift is right immediately.
+    if (result?.schedule_id) {
+      await persistDraft(locationId, result.schedule_id, next);
+    }
+  };
+
+  const handleDeleteShift = async () => {
+    if (!editingShift) return;
+    const { locationId, shiftIndex } = editingShift;
+    const result = results.find((r) => r.location_id === locationId);
+    const current = editedShifts[locationId] ?? result?.shifts ?? [];
+    const next = [...current];
+    next.splice(shiftIndex, 1);
+    setEditedShifts((prev) => ({ ...prev, [locationId]: next }));
+    setEditingShift(null);
+    // Save now, same as an edit (#99): a delete changes cap counts, so the
+    // remaining shifts' asterisks must be recomputed, and routing through
+    // the same guarded save prevents a stale in-flight response from
+    // resurrecting the deleted shift.
+    if (result?.schedule_id) {
+      await persistDraft(locationId, result.schedule_id, next);
+    }
   };
 
   // Collect all role names across all results for the edit modal
@@ -1405,6 +1448,8 @@ export default function Schedule() {
                   ))}
                 </div>
               )}
+
+              <RosterThinBanner summary={locationResult.preference_summary} />
 
               {currentShifts.length > 0 && (
                 <ScheduleGrid

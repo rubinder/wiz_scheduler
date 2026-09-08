@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useId } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, roleColorsLight } from "../../theme";
 import type { Employee, ShiftAssignment, SpecialHoursDay } from "../../types";
 import { formatTime } from "../../utils/shiftTime";
+import { describeViolations } from "../../utils/preferenceText";
 
 const ROLE_COLORS = roleColorsLight;
 
@@ -146,6 +147,12 @@ export default function ScheduleGrid({
                           >
                             <div className="text-sm font-medium text-inherit">
                               {s.employee_name}
+                              {(s.preference_violations?.length ?? 0) > 0 && (
+                                <PreferenceMark
+                                  label={t.schedule.prefAsteriskLabel}
+                                  lines={describeViolations(s.preference_violations, t.schedule)}
+                                />
+                              )}
                             </div>
                             <div className="text-xs opacity-75">
                               {formatTime(s.start_time)} &ndash;{" "}
@@ -163,6 +170,36 @@ export default function ScheduleGrid({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** The asterisk (#99). A real button so keyboard and touch reach the
+ *  explanation; the tooltip shows on hover and on focus-within. Logical
+ *  direction utilities only — ar and ur are RTL. */
+function PreferenceMark({ lines, label }: { lines: string[]; label: string }) {
+  const id = useId();
+  return (
+    <span className="group relative inline-block ms-1 align-baseline">
+      <button
+        type="button"
+        aria-label={label}
+        aria-describedby={id}
+        onClick={(e) => e.stopPropagation()}
+        className="text-amber-700 font-bold leading-none px-0.5 rounded focus:outline-none focus:ring-2 focus:ring-amber-400"
+      >
+        *
+      </button>
+      <span
+        id={id}
+        role="tooltip"
+        className="hidden group-hover:block group-focus-within:block absolute start-0 top-full mt-1 z-30 bg-gray-900 text-white text-xs rounded px-2 py-1.5 whitespace-nowrap shadow-lg pointer-events-none"
+      >
+        <span className="block font-semibold mb-0.5">{label}</span>
+        {lines.map((l, i) => (
+          <span key={i} className="block">{l}</span>
+        ))}
+      </span>
+    </span>
   );
 }
 
