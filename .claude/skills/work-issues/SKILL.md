@@ -31,7 +31,10 @@ this tick; do not second-guess it or look for more work.
 4. **If the arguments contain `--dry-run`**, print `would run <action.workflow>
    with <action.args> — <action.reason>` and stop. Do not run anything.
 5. **Otherwise run exactly one workflow** with the Workflow tool:
-   - `name`: `action.workflow` (`issue-pipeline` or `pr-tend`)
+   - `scriptPath`: `<repo_root>/.claude/workflows/<action.workflow>.js`
+     (`issue-pipeline` or `pr-tend`). Use the path, not `name`: workflows
+     resolved by name are cached at session load, so the path is what
+     picks up edits.
    - `args`: `action.args` plus three more keys:
      - `now`: the snapshot's `generated_at`
      - `repo_root`: the absolute path of this repository's main checkout
