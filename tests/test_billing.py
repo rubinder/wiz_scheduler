@@ -2537,3 +2537,106 @@ async def test_billing_usage_includes_daily_cost_block(
     assert daily["cap_usd"] == settings.OG_ANTHROPIC_DAILY_CAP_USD
     assert daily["spend_24h_usd"] >= settings.OG_ANTHROPIC_DAILY_CAP_USD
     assert daily["capped"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /billing/credits/purchase (#64)
+# ---------------------------------------------------------------------------
+
+PURCHASE_URL = "/api/v1/billing/credits/purchase"
+
+
+async def test_purchase_pack_adds_balance_and_records_charge(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["current_balance_usd"] == 10.0
+    assert body["enabled"] is False
+
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status, float(c.amount_usd)) for c in charges] == [("purchase", "succeeded", 10.0)]
+
+
+async def test_purchase_pack_can_opt_into_autoreload(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 25.0, "enable_autoreload": True},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["enabled"] is True
+    assert body["amount_usd"] == 25.0
+    assert body["current_balance_usd"] == 25.0
+
+
+async def test_purchase_rejects_amount_outside_packs(
+    client: AsyncClient, manager_token, og_with_card
+):
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 12.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_pack"
+
+
+async def test_purchase_requires_paid_plan(
+    client: AsyncClient, manager_token, seed_og
+):
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "ai_credits_requires_paid_plan"
+
+
+async def test_purchase_requires_saved_card(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    og_with_card.default_payment_method_id = None
+    await db_session.commit()
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "no_payment_method"
+
+
+async def test_purchase_refused_while_billing_on_hold(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "billing_on_hold"
+
+
+async def test_purchase_declined_records_failed_row_and_no_hold(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    def boom(**kw):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "card_declined"
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
+    assert og_with_card.autoreload_failed_at is None
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("purchase", "failed")]
