@@ -100,6 +100,37 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 
 **Keeping it current:** After significant code changes, run `/graphify . --update` to incrementally re-extract only changed files. Code-only changes don't need LLM calls (AST-only rebuild).
 
+## Agent system
+
+An in-repo multi-agent pipeline works GitHub issues into reviewed pull
+requests. Design: `docs/superpowers/specs/2026-09-14-github-issue-agent-system-design.md`.
+
+- **Start it** in a session with `/loop /work-issues` (self-paced) or
+  `/loop 30m /work-issues`. One tick does one thing: fix red CI on an agent
+  PR, answer human review threads on an agent PR, or start the next
+  `agent-ready` issue. `/work-issues --dry-run` shows the choice without
+  acting. The loop is session-scoped; a new session picks up from GitHub
+  state.
+- **Opt an issue in** by adding the `agent-ready` label. The system moves it
+  through `agent-working` to `agent-pr-open`, or parks it with
+  `agent-blocked` plus a comment (questions, a proposed split, or a failure).
+  To retry a blocked issue, answer in the thread, remove `agent-blocked`,
+  and re-add `agent-ready`.
+- **Only a human merges.** Agents push to `agent/issue-<n>-<slug>` branches
+  and open PRs. Nothing in `.claude/agents/`, `.claude/workflows/`, or
+  `.claude/skills/work-issues/` may push to `main`, force-push, merge, or
+  edit `terraform/**` or `.github/**`. Every comment or PR body the system
+  posts ends with `<!-- wizbot -->`; that marker is how the snapshot tells
+  agent comments from the owner's, since both use the same `gh` login.
+- **Pieces:** `state.py` (snapshot + pure `choose_action`, tested in
+  `tests/test_agent_state.py`), workflows `issue-pipeline` and `pr-tend`,
+  and agents `issue-triager`, `spec-writer`, `planner`, `implementer`,
+  `code-reviewer`, `pr-fixer`. Custom agents load at session start, so
+  restart the session after editing them.
+- **Worktrees** live at `.claude/worktrees/issue-<n>` and reuse the main
+  checkout's `backend/.venv` and a symlinked `frontend/node_modules`. The
+  driver removes a worktree once its PR is merged or closed.
+
 ## Pre-PR refresh hook
 
 `.claude/settings.json` registers a `PreToolUse` hook on `Bash` that fires whenever a command contains `git push` or `gh pr create`. The hook:
