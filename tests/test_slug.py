@@ -77,6 +77,40 @@ def test_fallback_ignores_max_len():
     assert slugify("", max_len=2) == "item"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    ["", "   ", "---", "!!!", "日本語"],
+)
+def test_custom_fallback_replaces_item(raw: str):
+    """Callers pick their own placeholder; it fires on every nothing-survives
+    input, exactly where "item" would."""
+    assert slugify(raw, fallback="untitled") == "untitled"
+
+
+def test_custom_fallback_not_used_when_text_survives():
+    assert slugify("Hello World", fallback="untitled") == "hello-world"
+
+
+@pytest.mark.parametrize("max_len", [0, -1])
+def test_custom_fallback_on_non_positive_max_len(max_len: int):
+    assert slugify("hello", max_len=max_len, fallback="untitled") == "untitled"
+
+
+def test_custom_fallback_is_returned_verbatim():
+    """The fallback is the caller's escape hatch, not more input: it is
+    neither slugified nor cut to max_len, matching how "item" survives a
+    budget of two."""
+    assert slugify("", fallback="Not A Slug") == "Not A Slug"
+    assert slugify("", max_len=2, fallback="untitled") == "untitled"
+
+
+def test_fallback_is_keyword_only():
+    """A third positional argument would read as a mystery string at the call
+    site, so the signature forbids it."""
+    with pytest.raises(TypeError):
+        slugify("", 30, "untitled")  # type: ignore[misc]
+
+
 # Every input from the tables above, so the property is checked against the
 # same corpus that pins the individual rules.
 _CORPUS = [

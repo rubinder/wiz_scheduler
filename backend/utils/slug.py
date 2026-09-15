@@ -16,11 +16,12 @@ import re
 # lowercased first, so the class does not need A-Z.
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
-# Returned when nothing survives the transform. Not subject to max_len.
+# Default for ``fallback``: returned when nothing survives the transform.
+# Not subject to max_len.
 _FALLBACK = "item"
 
 
-def slugify(text: str, max_len: int = 30) -> str:
+def slugify(text: str, max_len: int = 30, *, fallback: str = _FALLBACK) -> str:
     """Return *text* as lowercase ``[a-z0-9]`` and single dashes, with no
     dash at either end, at most *max_len* characters long, and never empty.
 
@@ -31,11 +32,15 @@ def slugify(text: str, max_len: int = 30) -> str:
 
     If nothing survives (empty, whitespace-only, punctuation-only,
     all-non-ASCII input, or a *max_len* of zero or less) the result is
-    ``"item"``. That fallback is returned verbatim even when *max_len* is
-    shorter than four, because a fallback that could shrink to ``""`` would
-    defeat its purpose. Consequently ``slugify(slugify(x, n), n) ==
-    slugify(x, n)`` holds for every ``n >= 4`` but not below it:
-    ``slugify("", 2)`` is ``"item"`` while ``slugify("item", 2)`` is ``"it"``.
+    *fallback*, ``"item"`` by default. The fallback is returned verbatim: it
+    is neither slugified nor cut to *max_len*, because a fallback that could
+    shrink to ``""`` would defeat its purpose. Consequently
+    ``slugify(slugify(x, n), n) == slugify(x, n)`` holds for every
+    ``n >= len(fallback)`` when *fallback* is itself a valid slug, but not
+    below it: ``slugify("", 2)`` is ``"item"`` while ``slugify("item", 2)``
+    is ``"it"``. Callers who need a slug-shaped result in every case must
+    pass a *fallback* that already is one; passing ``""`` opts out of the
+    never-empty guarantee.
 
     Never raises for any ``str`` *text* and any ``int`` *max_len*. Non-``str``
     input is not handled; ``None`` raises ``AttributeError`` at ``.lower()``.
@@ -46,4 +51,4 @@ def slugify(text: str, max_len: int = 30) -> str:
     # Only a trailing dash can be exposed by the cut — the leading edge was
     # already cleaned above — so rstrip, not strip.
     slug = slug[: max(max_len, 0)].rstrip("-")
-    return slug or _FALLBACK
+    return slug or fallback
