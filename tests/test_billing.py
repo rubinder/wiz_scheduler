@@ -605,6 +605,84 @@ async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
     assert any(c.kind == "autoreload" and c.status == "succeeded" for c in charges)
 
 
+async def test_check_and_record_usage_autoreload_off_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Auto-reload off and a short balance: usage is still recorded and the
+    later debit floors at zero. The gate, not this path, is where consent lives."""
+    import stripe
+    def boom(**kwargs):
+        raise AssertionError("Stripe must not be called when auto-reload is off")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    og_with_card.autoreload_enabled = False
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    assert result["charged_usd"] > 0.01
+    await deduct_credits_for_overage(db_session, str(COMPANY_ID), result["charged_usd"])
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
+    assert og_with_card.autoreload_failed_at is None
+    usage = (await db_session.execute(select(TokenUsage))).scalar_one()
+    assert usage.charged_usd == result["charged_usd"]
+
+
+async def test_check_and_record_usage_declined_reload_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A declined auto-reload after a generation is recorded (failed row +
+    on-hold flag) but does not turn the finished generation into an error."""
+    import stripe
+    def fake_create(**kwargs):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.autoreload_enabled = True
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    assert result["charged_usd"] > 0
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("autoreload", "failed")]
+
+
+async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    from backend.models import ShiftSchedule
+    from backend.services.billing import deduct_credits_for_schedule_overage
+
+    og_with_card.autoreload_enabled = False
+    og_with_card.ai_credits_usd = 0.001
+    await db_session.commit()
+
+    now = datetime.now(timezone.utc)
+    for _ in range(settings.INCLUDED_SCHEDULES_PER_MONTH + 1):
+        db_session.add(ShiftSchedule(
+            company_id=COMPANY_ID,
+            location_id=_id(),
+            week_start_date=now.date(),
+            status="DRAFT",
+            created_at=now,
+        ))
+    await db_session.commit()
+
+    await deduct_credits_for_schedule_overage(db_session, str(COMPANY_ID))
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
+
+
 async def test_deduct_credits_for_schedule_triggers_reload(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):

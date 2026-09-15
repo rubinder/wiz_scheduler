@@ -140,6 +140,23 @@ async def cache_default_payment_method(
 # LLM billing
 # ---------------------------------------------------------------------------
 
+async def _reload_after_debit(db: AsyncSession, og: OwnershipGroup, cost_usd: float) -> None:
+    """Top up after a generation has already spent tokens, if the customer opted in.
+
+    A short balance is not an error here. The pre-generation gates
+    (check_ai_credits, check_schedule_quota) are where consent is checked;
+    once the tokens are spent the only job is to record what happened. A
+    declined card is recorded by auto_reload_if_needed (failed row + on-hold
+    flag) and blocks the *next* run at the gate.
+    """
+    if not og.autoreload_enabled or og.autoreload_failed_at is not None:
+        return
+    try:
+        await auto_reload_if_needed(db, og, cost_usd=cost_usd)
+    except AutoReloadError as exc:
+        logger.warning("[BILLING] auto-reload declined after debit og=%s: %s", og.id, exc)
+
+
 async def check_and_record_usage(
     db: AsyncSession,
     company_id: str,
@@ -236,7 +253,7 @@ async def check_and_record_usage(
             select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
         )
         og = og_result.scalar_one()
-        await auto_reload_if_needed(db, og, cost_usd=this_charge)
+        await _reload_after_debit(db, og, this_charge)
 
     await db.flush()
 
@@ -639,8 +656,8 @@ async def deduct_credits_for_schedule_overage(
     if not og:
         return
 
-    await auto_reload_if_needed(db, og, cost_usd=per_schedule_cost)
-    og.ai_credits_usd = round(float(og.ai_credits_usd) - per_schedule_cost, 4)
+    await _reload_after_debit(db, og, per_schedule_cost)
+    og.ai_credits_usd = max(0.0, round(float(og.ai_credits_usd) - per_schedule_cost, 4))
     await db.flush()
 
 
