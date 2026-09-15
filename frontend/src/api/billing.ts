@@ -128,11 +128,16 @@ export function retryAutoReload(): Promise<AutoReloadStatus> {
 
 export function purchaseCredits(
   amountUsd: number,
-  enableAutoreload: boolean
+  enableAutoreload: boolean,
+  idempotencyKey: string
 ): Promise<AutoReloadStatus> {
   return apiFetch<AutoReloadStatus>("/billing/credits/purchase", {
     method: "POST",
-    body: JSON.stringify({ amount_usd: amountUsd, enable_autoreload: enableAutoreload }),
+    body: JSON.stringify({
+      amount_usd: amountUsd,
+      enable_autoreload: enableAutoreload,
+      idempotency_key: idempotencyKey,
+    }),
   });
 }
 

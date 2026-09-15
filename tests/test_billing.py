@@ -2700,3 +2700,56 @@ async def test_auto_reload_sends_operator_alert(
     await db_session.commit()
     await auto_reload_if_needed(db_session, og_with_card, cost_usd=1.0)
     assert calls == [(OG_ID, 10.0, "autoreload")]
+
+
+# ---------------------------------------------------------------------------
+# Stripe idempotency key on the purchase (#64)
+# ---------------------------------------------------------------------------
+
+async def test_charge_saved_card_passes_idempotency_key_to_stripe(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_idem_1")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    await charge_saved_card(db_session, og_with_card, 10.0, kind="purchase", idempotency_key="key-abc-12345")
+    assert captured["idempotency_key"] == "key-abc-12345"
+
+
+async def test_charge_saved_card_omits_idempotency_key_when_none(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_idem_2")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    await charge_saved_card(db_session, og_with_card, 10.0, kind="autoreload")
+    assert "idempotency_key" not in captured
+
+
+async def test_purchase_replayed_intent_credits_once(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """Stripe returns the same PaymentIntent for a repeated idempotency key;
+    the balance must grow once and one row must exist."""
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_same"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    body = {"amount_usd": 10.0, "idempotency_key": "replay-key-0001"}
+    first = await client.post(PURCHASE_URL, json=body, headers={"Authorization": f"Bearer {manager_token}"})
+    second = await client.post(PURCHASE_URL, json=body, headers={"Authorization": f"Bearer {manager_token}"})
+    assert first.status_code == 200 and second.status_code == 200
+    assert second.json()["current_balance_usd"] == 10.0
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert len(charges) == 1

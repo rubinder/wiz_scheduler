@@ -172,6 +172,7 @@ class AutoReloadUpdate(BaseModel):
 class CreditPurchaseRequest(BaseModel):
     amount_usd: float
     enable_autoreload: bool = False
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class BillingChargeRow(BaseModel):
@@ -314,7 +315,9 @@ async def purchase_credits(
         )
 
     try:
-        await charge_saved_card(db, og, float(body.amount_usd), kind="purchase")
+        await charge_saved_card(
+            db, og, float(body.amount_usd), kind="purchase", idempotency_key=body.idempotency_key
+        )
     except AutoReloadError as e:
         await db.commit()  # keep the failed BillingCharge row
         raise HTTPException(

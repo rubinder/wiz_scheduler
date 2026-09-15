@@ -331,6 +331,7 @@ export default function Schedule() {
   const [autoReloadSaving, setAutoReloadSaving] = useState(false);
   const [purchasingPack, setPurchasingPack] = useState<number | null>(null);
   const [purchaseError, setPurchaseError] = useState("");
+  const [purchaseKey, setPurchaseKey] = useState<string>(() => crypto.randomUUID());
   const [optInAutoReload, setOptInAutoReload] = useState(false);
   const [reactivating, setReactivating] = useState(false);
   const [billingUsage, setBillingUsage] = useState<BillingUsage | null>(null);
@@ -472,7 +473,7 @@ export default function Schedule() {
     setPurchasingPack(amount);
     setPurchaseError("");
     try {
-      const updated = await billingApi.purchaseCredits(amount, optInAutoReload);
+      const updated = await billingApi.purchaseCredits(amount, optInAutoReload, purchaseKey);
       setAutoReload(updated);
       setAutoReloadDraft({
         enabled: updated.enabled,
@@ -481,6 +482,7 @@ export default function Schedule() {
       });
       await fetchCredits();
       setShowBillingModal(false);
+      setPurchaseKey(crypto.randomUUID());
     } catch (err: unknown) {
       const code =
         err instanceof ApiError && err.data && typeof err.data === "object"
@@ -561,12 +563,14 @@ export default function Schedule() {
     // Check schedule quota first (applies to both modes)
     if (scheduleQuota && !scheduleQuota.can_generate) {
       setPurchaseReason("schedules");
+      setPurchaseError("");
       setShowBillingModal(true);
       return;
     }
     // For AI mode, also check AI credits
     if (mode === "ai" && creditStatus && !creditStatus.can_generate) {
       setPurchaseReason("ai");
+      setPurchaseError("");
       setShowBillingModal(true);
       return;
     }

@@ -855,6 +855,7 @@ async def charge_saved_card(
     og: OwnershipGroup,
     amount_usd: float,
     kind: str,
+    idempotency_key: str | None = None,
 ) -> BillingCharge:
     """Charge the subscription's saved card off-session and credit the balance.
 
@@ -864,6 +865,12 @@ async def charge_saved_card(
     'failed' row is written and AutoReloadError is raised; whether that
     puts billing on hold is the caller's decision, so this function never
     touches og.autoreload_failed_at.
+
+    `idempotency_key`, when given, is passed through to Stripe so a resent
+    purchase request charges the card once. Stripe then replays the
+    original PaymentIntent for a repeated key; see the dedupe check below
+    for why that must not credit the balance twice. Auto-reload never
+    passes one — each auto-reload call is its own new charge.
     """
     import stripe
 
@@ -878,6 +885,7 @@ async def charge_saved_card(
             off_session=True,
             confirm=True,
             metadata={"og_id": og.id, "kind": kind},
+            **({"idempotency_key": idempotency_key} if idempotency_key else {}),
         )
     except stripe.StripeError as e:
         db.add(BillingCharge(
@@ -902,6 +910,18 @@ async def charge_saved_card(
         ))
         await db.flush()
         raise AutoReloadError(f"PaymentIntent status: {intent.status}")
+
+    existing = (await db.execute(
+        select(BillingCharge).where(
+            BillingCharge.ownership_group_id == og.id,
+            BillingCharge.stripe_object_id == intent.id,
+            BillingCharge.status == "succeeded",
+        )
+    )).scalar_one_or_none()
+    if existing is not None:
+        # Stripe replayed an idempotent request: the money moved once and
+        # was already credited. Do not credit it twice.
+        return existing
 
     og.ai_credits_usd = round(float(og.ai_credits_usd) + amount_usd, 4)
     row = BillingCharge(
