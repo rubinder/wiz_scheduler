@@ -243,16 +243,15 @@ def _issues(run: Runner, owner: str, name: str) -> list[dict[str, Any]]:
 
 def _prs(run: Runner, owner: str, name: str) -> list[dict[str, Any]]:
     rows = json.loads(run(["pr", "list", "--state", "open", "--search", f"head:{BRANCH_PREFIX}",
-                           "--json", "number,headRefName,labels,reviewDecision,statusCheckRollup,commits,body",
-                           "--limit", "50"]))
+                           "--json", "number,headRefName,labels,reviewDecision,statusCheckRollup,body",
+                           "--limit", "20"]))
     prs = []
     for r in rows:
         branch = r.get("headRefName") or ""
         if not branch.startswith(BRANCH_PREFIX):
             continue
         rollup = r.get("statusCheckRollup") or []
-        commits = r.get("commits") or []
-        last_commit = commits[-1].get("committedDate") if commits else None
+        last_commit = _branch_last_commit(run, owner, name, branch)
         detail = json.loads(run(["api", "graphql", "-f", f"query={_PR_GRAPHQL}",
                                  "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={r['number']}"]))
         node = ((detail.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
