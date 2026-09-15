@@ -100,6 +100,7 @@ class Settings(BaseSettings):
     # different products, so a rename-by-name would silently break schedule
     # billing. The word "free" is deliberately absent from this family now —
     # a better adjective would have preserved the ambiguity.
+    # AI spend left this family on 2026-09-15 (#64); see INCLUDED_LLM_USD below.
     # ---------------------------------------------------------------------
 
     # The model the scheduling pipeline calls. A knob rather than a literal
@@ -117,11 +118,24 @@ class Settings(BaseSettings):
     # one sentence to explain in the UI.
     SCHEDULING_RANGE_MATCH_THRESHOLD: float = 0.5
 
-    # LLM billing
-    INCLUDED_LLM_USD: float = 2.00           # LLM spend included in the subscription
-    LLM_OVERAGE_MARKUP: float = 1.30         # 130% of cost once the included spend is used
+    # LLM billing. AI Generate is NOT included in the subscription (#64):
+    # every dollar of token cost is charged at LLM_OVERAGE_MARKUP and
+    # debited from purchased credits (OwnershipGroup.ai_credits_usd).
+    # INCLUDED_LLM_USD survives as a knob so a demo environment can grant
+    # some spend; production leaves it at zero.
+    INCLUDED_LLM_USD: float = 0.00
+    LLM_OVERAGE_MARKUP: float = 1.30         # 130% of token cost
     LLM_INPUT_COST_PER_M: float = 2.00       # $ per 1M input tokens (Claude Sonnet 5)
     LLM_OUTPUT_COST_PER_M: float = 10.00     # $ per 1M output tokens (Claude Sonnet 5)
+
+    # Fixed credit packs a paid group may buy (POST /billing/credits/purchase).
+    # Charged off-session to the subscription's saved card.
+    AI_CREDIT_PACKS_USD: tuple[float, ...] = (10.0, 25.0, 50.0)
+
+    # Where operator alerts go. Every successful credit charge emails this
+    # address the Anthropic-side amount to top up (amount / markup). Empty
+    # disables the email; the log line is always written.
+    OPERATOR_ALERT_EMAIL: str = ""
 
     # Storage billing
     INCLUDED_STORAGE_GB: float = 0.5         # storage included in the subscription

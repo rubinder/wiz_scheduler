@@ -717,8 +717,8 @@ async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
     # a free-plan OG's AI-mode request with 402 ai_requires_paid_plan
     # before ever reaching the daily cost cap).
     og = OwnershipGroup(
-        name="CapTestOG", ai_credits_usd=0.0, stripe_subscription_id="sub_captest"
-    )
+        name="CapTestOG", ai_credits_usd=5.0, stripe_subscription_id="sub_captest"
+    )  # funded: the credit gate runs before the daily cap (#64)
     db_session.add(og)
     await db_session.flush()
 

@@ -147,12 +147,52 @@ async def test_check_and_record_usage_no_og(db_session: AsyncSession):
     assert result["charged_usd"] == 0
 
 
-async def test_check_and_record_usage_within_free_tier(db_session: AsyncSession, seed_og):
+async def test_check_and_record_usage_within_included_grant(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
     result = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     assert result["cost_usd"] > 0
     assert result["charged_usd"] == 0.0
     assert result["is_over_included"] is False
     assert result["included_remaining_usd"] > 0
+
+
+async def test_check_and_record_usage_full_markup_at_zero_grant(db_session: AsyncSession, seed_og):
+    """With no bundled grant, the very first generation of a month is charged
+    at LLM_OVERAGE_MARKUP; nothing is absorbed."""
+    assert settings.INCLUDED_LLM_USD == 0.0
+    seed_og.ai_credits_usd = 100.0  # keeps auto-reload out of this test
+    await db_session.commit()
+
+    first = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert first["cost_usd"] > 0
+    assert first["charged_usd"] == round(first["cost_usd"] * settings.LLM_OVERAGE_MARKUP, 6)
+    assert first["is_over_included"] is True
+    assert first["included_remaining_usd"] == 0
+
+    second = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert second["charged_usd"] == round(second["cost_usd"] * settings.LLM_OVERAGE_MARKUP, 6)
+    assert second["monthly_charged_usd"] == pytest.approx(first["charged_usd"] + second["charged_usd"])
+
+
+async def test_check_and_record_usage_splits_when_grant_configured(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    """A demo environment may set INCLUDED_LLM_USD > 0; the split still works."""
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
+    seed_og.ai_credits_usd = 100.0
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert result["charged_usd"] == 0.0
+    assert result["is_over_included"] is False
+    assert result["included_remaining_usd"] == pytest.approx(2.0 - result["cost_usd"])
+
+
+def test_credit_pack_config():
+    assert settings.AI_CREDIT_PACKS_USD == (10.0, 25.0, 50.0)
+    assert settings.OPERATOR_ALERT_EMAIL == ""
 
 
 async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, seed_og):
@@ -180,11 +220,14 @@ async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, s
     assert result["included_remaining_usd"] == 0
 
 
-async def test_check_ai_credits_within_free_tier(db_session: AsyncSession, seed_og):
+async def test_check_ai_credits_within_included_grant(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
     result = await check_ai_credits(db_session, COMPANY_ID)
     assert result["can_generate"] is True
     assert result["is_over_included"] is False
-    assert result["included_remaining_usd"] == settings.INCLUDED_LLM_USD
+    assert result["included_remaining_usd"] == 2.0
 
 
 async def test_check_ai_credits_over_free_tier_no_purchased(db_session: AsyncSession, seed_og):
@@ -2202,6 +2245,9 @@ async def test_check_and_record_usage_writes_daily_row(
     """The dual-write keeps token_usage_daily in sync with each call."""
     from datetime import date as _date
 
+    seed_og.ai_credits_usd = 100.0  # funded: with no grant every call charges, and auto-reload must stay out of this test (#64)
+    await db_session.commit()
+
     await check_and_record_usage(
         db_session, COMPANY_ID, input_tokens=1000, output_tokens=500,
     )
@@ -2224,6 +2270,9 @@ async def test_check_and_record_usage_accumulates_into_daily_row(
     db_session: AsyncSession, seed_og,
 ):
     """Two calls on the same day land in one row, summed."""
+    seed_og.ai_credits_usd = 100.0  # funded: with no grant every call charges, and auto-reload must stay out of this test (#64)
+    await db_session.commit()
+
     await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     await check_and_record_usage(db_session, COMPANY_ID, 2000, 1000)
     await db_session.flush()
