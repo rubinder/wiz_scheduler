@@ -243,8 +243,8 @@ export default function Landing() {
             <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.aiScheduling}</h3>
             <div className="space-y-2 text-sm">
               <div className={`flex justify-between ${m.text.muted}`}>
-                <span>{t.landing.included}</span>
-                <span className={m.text.data}>$2.00 / mo</span>
+                <span>{t.landing.aiCredits}</span>
+                <span className={m.text.data}>$10 · $25 · $50</span>
               </div>
               <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
                 <span>{t.landing.overage}</span>
