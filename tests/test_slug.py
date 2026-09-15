@@ -75,3 +75,45 @@ def test_fallback_ignores_max_len():
     """"item" is four characters and is returned verbatim even under a
     shorter budget; a fallback that could shrink to "" defeats its purpose."""
     assert slugify("", max_len=2) == "item"
+
+
+# Every input from the tables above, so the property is checked against the
+# same corpus that pins the individual rules.
+_CORPUS = [
+    "Hello World",
+    "Hello   World!!",
+    "foo_bar.baz",
+    "a---b",
+    "café au lait",
+    "日本語",
+    "  -hello-  ",
+    "!!!hello!!!",
+    "hello world",
+    "   hello",
+    "",
+    "   ",
+    "---",
+    "!!!",
+    "a" * 40,
+]
+
+
+@pytest.mark.parametrize("max_len", [4, 6, 30])
+@pytest.mark.parametrize("raw", _CORPUS)
+def test_idempotent_at_max_len_of_four_or_more(raw: str, max_len: int):
+    """A valid slug passes through every step unchanged, so re-slugging a
+    stored value is a no-op. This is the property a future caller leans on."""
+    once = slugify(raw, max_len)
+    assert slugify(once, max_len) == once
+
+
+def test_fallback_does_not_round_trip_under_a_short_budget():
+    """The one documented exception to idempotence: "item" is longer than a
+    budget below four, so it is the only output that does not round-trip."""
+    assert slugify("", 2) == "item"
+    assert slugify("item", 2) == "it"
+
+
+def test_distinct_inputs_stay_distinct():
+    """Guard against a regex that over-collapses."""
+    assert slugify("a") != slugify("b")
