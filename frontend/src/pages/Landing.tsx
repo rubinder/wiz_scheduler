@@ -160,8 +160,62 @@ export default function Landing() {
           ))}
         </div>
 
+        {/* Inputs — what the scheduler considers */}
+        <SectionRule eyebrow="04 — Inputs" title={t.landing.inputsTitle} />
+        <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.inputsDesc}</p>
+        <div className="grid gap-10 md:grid-cols-2 mb-8">
+          <div>
+            <p className={`${m.text.meta} mb-4`}>{t.landing.inputsHardHeading}</p>
+            <dl className="space-y-4">
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputAvailabilityTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputAvailabilityDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputRolesTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputRolesDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputHourRestrictionsTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputHourRestrictionsDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputDayRulesTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputDayRulesDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputMinRestTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputMinRestDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputAssociationTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputAssociationDesc}</dd>
+              </div>
+            </dl>
+          </div>
+          <div>
+            <p className={`${m.text.meta} mb-4`}>{t.landing.inputsSoftHeading}</p>
+            <dl className="space-y-4">
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputDayPrefsTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputDayPrefsDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputHourRangeTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputHourRangeDesc}</dd>
+              </div>
+              <div>
+                <dt className={`${m.text.body} font-medium`}>{t.landing.inputFreqCapsTitle}</dt>
+                <dd className={`${m.text.muted} text-sm leading-relaxed`}>{t.landing.inputFreqCapsDesc}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+        <p className={`${m.text.muted} text-sm max-w-[60ch] mb-2`}>{t.landing.inputsTemplatesNote}</p>
+        <p className={`${m.text.meta} mb-24`}>{t.landing.inputsNotYet}</p>
+
         {/* Pricing — receipt first */}
-        <SectionRule id="pricing" eyebrow="04 — Cost" title={t.landing.pricingTitle} />
+        <SectionRule id="pricing" eyebrow="05 — Cost" title={t.landing.pricingTitle} />
         <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.pricingDesc}</p>
         <div className={`${m.surface} border ${m.rule.heavy} p-6 md:p-10 max-w-3xl mb-10`}>
           <p className={`${m.text.meta} mb-6`}>{t.landing.exampleTitle}</p>
@@ -304,7 +358,7 @@ export default function Landing() {
         </div>
 
         {/* GDPR — quiet, reassurance not pitch */}
-        <SectionRule eyebrow="05 — Assurance" title={t.landing.complianceTitle} />
+        <SectionRule eyebrow="06 — Assurance" title={t.landing.complianceTitle} />
         <p className={`${m.text.muted} max-w-[60ch] mb-10`}>{t.landing.complianceDesc}</p>
         <dl className={`grid gap-px sm:grid-cols-2 lg:grid-cols-4 bg-rule border ${m.rule.line} mb-10`}>
           {compliance.map((c) => (
