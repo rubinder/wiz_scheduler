@@ -96,10 +96,17 @@ async def generate_schedule(
 
         credit_status = await check_ai_credits(db, str(current_user.company_id))
         if not credit_status["can_generate"]:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="AI credits exhausted. Please purchase additional credits to continue.",
-            )
+            if credit_status.get("purchase_required"):
+                detail = {
+                    "code": "ai_credits_required",
+                    "message": "AI credits are needed for AI Generate. Buy a credit pack to continue.",
+                }
+            else:
+                detail = {
+                    "code": "billing_on_hold",
+                    "message": "Billing is on hold after a failed payment. Retry payment or update your card in Billing.",
+                }
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=detail)
 
         # Per-OG daily Anthropic cost circuit breaker (Tier 2E). Independent
         # of the credit system — covers the runaway-loop / pricing-config-bug

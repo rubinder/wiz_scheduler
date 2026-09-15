@@ -272,6 +272,32 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
     assert result["purchased_credits_usd"] == 10.0
 
 
+async def test_check_ai_credits_zero_balance_requires_purchase(db_session: AsyncSession, seed_og):
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is False
+    assert result["purchase_required"] is True
+    assert result["packs_usd"] == [10.0, 25.0, 50.0]
+    assert result["purchased_credits_usd"] == 0.0
+
+
+async def test_check_ai_credits_positive_balance_allows(db_session: AsyncSession, seed_og):
+    seed_og.ai_credits_usd = 0.05
+    await db_session.commit()
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is True
+    assert result["purchase_required"] is False
+
+
+async def test_check_ai_credits_on_hold_is_not_a_purchase_prompt(db_session: AsyncSession, seed_og):
+    seed_og.ai_credits_usd = 20.0
+    seed_og.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is False
+    assert result["autoreload_failed"] is True
+    assert result["purchase_required"] is False
+
+
 async def test_deduct_credits_for_overage(db_session: AsyncSession, seed_og):
     seed_og.ai_credits_usd = 10.0
     await db_session.commit()

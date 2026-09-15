@@ -670,14 +670,23 @@ async def check_ai_credits(
     db: AsyncSession,
     company_id: str,
 ) -> dict:
-    """Check whether the ownership group can run AI generation.
+    """Decide whether the ownership group may run AI generation.
+
+    AI spend debits purchased credits (#64). The group may generate when its
+    purchased balance is positive, or when INCLUDED_LLM_USD grants spend
+    that is not yet used (a demo-environment knob; 0 in production).
 
     Returns:
-        - can_generate: True if within free tier or has purchased credits
-        - included_remaining_usd: remaining free tier credits
-        - purchased_credits_usd: purchased credit balance
-        - is_over_included: whether the free tier is exhausted
+        - can_generate: the gate result
+        - included_remaining_usd: unused part of INCLUDED_LLM_USD this month
+        - purchased_credits_usd: OwnershipGroup.ai_credits_usd
+        - is_over_included: monthly cost has reached INCLUDED_LLM_USD
+        - monthly_cost_usd: raw token cost this month
+        - autoreload_failed: present and true only when billing is on hold
+        - purchase_required: true when the only thing missing is a credit pack
+        - packs_usd: the packs the Schedule page may offer
     """
+    packs = list(settings.AI_CREDIT_PACKS_USD)
     og_id = await get_ownership_group_id(db, company_id)
     if not og_id:
         return {
@@ -686,11 +695,14 @@ async def check_ai_credits(
             "purchased_credits_usd": 0.0,
             "is_over_included": False,
             "monthly_cost_usd": 0.0,
+            "purchase_required": False,
+            "packs_usd": packs,
         }
 
-    # Load OG to check autoreload state — blocks generation when a prior charge failed.
     og_full = (await db.execute(select(OwnershipGroup).where(OwnershipGroup.id == og_id))).scalar_one_or_none()
     if og_full and og_full.autoreload_failed_at is not None:
+        # On hold after a failed automatic charge: the fix is Retry payment
+        # or a new card, not another purchase, so purchase_required is False.
         return {
             "can_generate": False,
             "included_remaining_usd": 0.0,
@@ -698,6 +710,8 @@ async def check_ai_credits(
             "is_over_included": True,
             "monthly_cost_usd": 0.0,
             "autoreload_failed": True,
+            "purchase_required": False,
+            "packs_usd": packs,
         }
 
     usage = await get_monthly_usage(db, og_id)
@@ -707,7 +721,7 @@ async def check_ai_credits(
 
     purchased_credits = float(og_full.ai_credits_usd) if og_full else 0.0
 
-    can_generate = not is_over or purchased_credits > 0
+    can_generate = included_remaining > 0 or purchased_credits > 0
 
     return {
         "can_generate": can_generate,
@@ -715,6 +729,8 @@ async def check_ai_credits(
         "purchased_credits_usd": round(purchased_credits, 4),
         "is_over_included": is_over,
         "monthly_cost_usd": round(monthly_cost, 4),
+        "purchase_required": not can_generate,
+        "packs_usd": packs,
     }
 
 
