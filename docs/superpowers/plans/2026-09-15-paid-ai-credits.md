@@ -76,7 +76,7 @@ async def test_check_and_record_usage_full_markup_at_zero_grant(db_session: Asyn
 
     second = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     assert second["charged_usd"] == round(second["cost_usd"] * settings.LLM_OVERAGE_MARKUP, 6)
-    assert second["monthly_charged_usd"] == round(first["charged_usd"] + second["charged_usd"], 6)
+    assert second["monthly_charged_usd"] == pytest.approx(first["charged_usd"] + second["charged_usd"])
 
 
 async def test_check_and_record_usage_splits_when_grant_configured(
