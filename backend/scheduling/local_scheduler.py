@@ -8,8 +8,8 @@ a scoring system.  Supports pluggable strategies:
                  week so coverage rotates across the team
 
 Both strategies respect employee affinities:
-  - level  1.0  → hard constraint: MUST schedule together
-  - level -1.0  → hard constraint: MUST NOT share a shift
+  - level  1.0  → strong preference: heavily favors scheduling together
+  - level -1.0  → hard constraint: MUST NOT share an overlapping shift
   - |level| < 1 → soft preference that adjusts the candidate score
 """
 
@@ -255,8 +255,17 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                         break
 
                 # Apply hard affinity constraints: remove candidates with
-                # -1.0 affinity against anyone already in this shift window
-                current_coworkers = shift_coworkers.get(coworker_key, set())
+                # -1.0 affinity against anyone already assigned to a shift
+                # window that overlaps this one today (not just an exact
+                # time match — e.g. an opener 06:00-14:00 and a mid slot
+                # 10:00-18:00 overlap 10:00-14:00 and must be treated as
+                # coworkers).
+                current_coworkers = {
+                    eid
+                    for (d, s, e), ids in shift_coworkers.items()
+                    if d == slot_date and _hm_windows_overlap(s, e, start_hm, end_hm)
+                    for eid in ids
+                }
                 available = _filter_hard_negatives(
                     available, current_coworkers, affinity_lookup
                 )
@@ -392,6 +401,29 @@ def _shift_duration_hours(start_hm: str, end_hm: str) -> float:
     if end_min <= start_min:
         end_min += 24 * 60  # overnight shift
     return (end_min - start_min) / 60.0
+
+
+def _hm_windows_overlap(start1: str, end1: str, start2: str, end2: str) -> bool:
+    """Check whether two "HH:MM" same-day windows overlap.
+
+    Mirrors `_windows_overlap` in nodes.py but operates on bare "HH:MM"
+    strings rather than ISO timestamps. Converts to minutes-since-midnight
+    and treats an end <= start as crossing midnight (same convention as
+    `_shift_duration_hours` above), so overnight windows compare correctly
+    instead of via lexical string comparison.
+    """
+    def _to_range(start: str, end: str) -> Tuple[int, int]:
+        sh, sm = map(int, start.split(":"))
+        eh, em = map(int, end.split(":"))
+        start_min = sh * 60 + sm
+        end_min = eh * 60 + em
+        if end_min <= start_min:
+            end_min += 24 * 60
+        return start_min, end_min
+
+    s1, e1 = _to_range(start1, end1)
+    s2, e2 = _to_range(start2, end2)
+    return s1 < e2 and s2 < e1
 
 
 def _filter_hard_negatives(
