@@ -277,8 +277,10 @@ cd W/frontend && npm run build && npm test                (node_modules symlinke
 - Fix-round caps: 3 per task, 1 for the branch review, 1 per `pr-tend`
   run. Same CI failure twice across ticks blocks the PR.
 - Resume: a stale `agent-working` issue re-enters the pipeline; setup
-  reuses the branch, spec and plan are skipped if their files exist, and
-  the progress call skips tasks already committed.
+  reuses the branch, discards any uncommitted changes an interrupted run
+  left behind (an agent worktree holds only agent output), spec and plan
+  are skipped if their committed files exist, and the progress call skips
+  tasks already committed.
 - The driver runs exactly one workflow per tick, so two ticks can never
   race on the same issue as long as the owner runs one loop. If a fixed
   interval fires while a workflow is still running, the driver sees the

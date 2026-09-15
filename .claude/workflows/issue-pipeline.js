@@ -129,7 +129,7 @@ const setup = await agent(`Step: set up the worktree for issue #${ISSUE}.
 3. Look for an existing branch: \`git -C ${R} branch --list 'agent/issue-${ISSUE}-*'\` and \`gh api repos/{owner}/{repo}/git/matching-refs/heads/agent/issue-${ISSUE}-\`. If one exists, use its name; otherwise the branch is agent/issue-${ISSUE}-<slug>.
 4. \`git -C ${R} fetch origin --prune\`.
 5. Worktree at ${W}:
-   - if it already exists: \`git -C ${W} status --short\` must be clean (if dirty, commit nothing — stop with BLOCKED and say what is dirty); if the branch exists on origin, \`git -C ${W} pull --rebase origin <branch>\`.
+   - if it already exists: it must be on the agent branch (else BLOCKED). If \`git -C ${W} status --short\` shows changes, discard them with \`git -C ${W} reset --hard && git -C ${W} clean -fd\` and note it in message: everything in an agent worktree is agent output from an interrupted run, and the pipeline resumes from the last commit. Then, if the branch exists on origin, \`git -C ${W} pull --rebase origin <branch>\`.
    - else if the branch exists locally: \`git -C ${R} worktree add ${W} <branch>\`.
    - else if it exists only on origin: \`git -C ${R} worktree add --track -b <branch> ${W} origin/<branch>\`.
    - else: \`git -C ${R} worktree add -b <branch> ${W} origin/main\`.
