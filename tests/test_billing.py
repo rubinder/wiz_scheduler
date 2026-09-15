@@ -858,6 +858,31 @@ async def test_post_autoreload_retry_declined_keeps_failed_state(
     assert og_with_card.autoreload_failed_at is not None
 
 
+async def test_post_autoreload_retry_with_autoreload_off_clears_hold_without_charging(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """On hold + auto-reload off must not 500: the hold clears, no card is charged,
+    and the manager can go on to buy a pack."""
+    import stripe
+    def boom(**kw):
+        raise AssertionError("Stripe must not be called when auto-reload is off")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/billing/autoreload/retry",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["failed_at"] is None
+    assert resp.json()["enabled"] is False
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is None
+
+
 async def test_get_billing_charges_returns_recent_rows(
     client: AsyncClient, manager_token, db_session, og_with_card
 ):

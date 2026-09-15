@@ -252,6 +252,13 @@ async def retry_autoreload(
     og.autoreload_failed_at = None
     await db.flush()
 
+    if not og.autoreload_enabled:
+        # Nothing to retry: with auto-reload off there is no automatic
+        # charge to prove. Clearing the hold is the whole action; the
+        # manager can now buy a pack.
+        await db.commit()
+        return _autoreload_status(og)
+
     try:
         await auto_reload_if_needed(db, og, cost_usd=float(og.autoreload_threshold_usd))
     except AutoReloadError as e:
