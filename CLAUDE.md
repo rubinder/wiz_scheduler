@@ -110,7 +110,10 @@ requests. Design: `docs/superpowers/specs/2026-09-14-github-issue-agent-system-d
   PR, answer human review threads on an agent PR, or start the next
   `agent-ready` issue. `/work-issues --dry-run` shows the choice without
   acting. The loop is session-scoped; a new session picks up from GitHub
-  state.
+  state. A headless tick is
+  `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude -p /work-issues --dangerously-skip-permissions`;
+  without that variable print mode kills the background workflow after
+  ten minutes.
 - **Opt an issue in** by adding the `agent-ready` label. The system moves it
   through `agent-working` to `agent-pr-open`, or parks it with
   `agent-blocked` plus a comment (questions, a proposed split, or a failure).
