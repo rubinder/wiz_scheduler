@@ -27,7 +27,7 @@ class BillingCharge(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('autoreload', 'invoice_item_storage', 'invoice_item_employees')",
+            "kind IN ('autoreload', 'purchase', 'invoice_item_storage', 'invoice_item_employees')",
             name="billing_charges_kind_check",
         ),
         CheckConstraint(

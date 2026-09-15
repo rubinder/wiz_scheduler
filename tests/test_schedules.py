@@ -717,8 +717,8 @@ async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
     # a free-plan OG's AI-mode request with 402 ai_requires_paid_plan
     # before ever reaching the daily cost cap).
     og = OwnershipGroup(
-        name="CapTestOG", ai_credits_usd=0.0, stripe_subscription_id="sub_captest"
-    )
+        name="CapTestOG", ai_credits_usd=5.0, stripe_subscription_id="sub_captest"
+    )  # funded: the credit gate runs before the daily cap (#64)
     db_session.add(og)
     await db_session.flush()
 
@@ -747,6 +747,41 @@ async def test_generate_ai_returns_402_when_daily_cost_cap_exceeded(
     assert body["detail"]["code"] == "daily_cost_cap_exceeded"
     assert "resets_at" in body["detail"]
     assert body["detail"]["cap_usd"] == settings.OG_ANTHROPIC_DAILY_CAP_USD
+
+
+async def test_generate_ai_returns_402_ai_credits_required_when_unfunded(
+    client: AsyncClient, manager_token: str, db_session: AsyncSession,
+    seeded_company, monkeypatch
+):
+    """A paid group with a zero balance is told to buy a pack, before any LLM call."""
+    from backend.models import OwnershipGroup
+    from backend.services.rate_limit import schedule_generate_ai_limiter
+    from sqlalchemy import select
+    from backend.models import Company
+
+    schedule_generate_ai_limiter.reset()
+
+    og = OwnershipGroup(name="UnfundedOG", ai_credits_usd=0.0, stripe_subscription_id="sub_unfunded")
+    db_session.add(og)
+    await db_session.flush()
+    company = (await db_session.execute(
+        select(Company).where(Company.id == seeded_company.company_id)
+    )).scalar_one()
+    company.ownership_group_id = og.id
+    await db_session.commit()
+
+    async def must_not_run(**kwargs):
+        raise AssertionError("pipeline must not run without credits")
+        yield {}  # pragma: no cover
+    monkeypatch.setattr("backend.scheduling.graph.run_scheduling_pipeline", must_not_run)
+
+    resp = await client.post(
+        "/api/v1/schedules/generate",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"week_start_date": "2026-05-18", "use_local": False},
+    )
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "ai_credits_required"
 
 
 async def test_generate_local_mode_bypasses_daily_cost_cap(

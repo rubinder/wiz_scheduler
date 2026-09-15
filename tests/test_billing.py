@@ -147,12 +147,52 @@ async def test_check_and_record_usage_no_og(db_session: AsyncSession):
     assert result["charged_usd"] == 0
 
 
-async def test_check_and_record_usage_within_free_tier(db_session: AsyncSession, seed_og):
+async def test_check_and_record_usage_within_included_grant(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
     result = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     assert result["cost_usd"] > 0
     assert result["charged_usd"] == 0.0
     assert result["is_over_included"] is False
     assert result["included_remaining_usd"] > 0
+
+
+async def test_check_and_record_usage_full_markup_at_zero_grant(db_session: AsyncSession, seed_og):
+    """With no bundled grant, the very first generation of a month is charged
+    at LLM_OVERAGE_MARKUP; nothing is absorbed."""
+    assert settings.INCLUDED_LLM_USD == 0.0
+    seed_og.ai_credits_usd = 100.0  # keeps auto-reload out of this test
+    await db_session.commit()
+
+    first = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert first["cost_usd"] > 0
+    assert first["charged_usd"] == round(first["cost_usd"] * settings.LLM_OVERAGE_MARKUP, 6)
+    assert first["is_over_included"] is True
+    assert first["included_remaining_usd"] == 0
+
+    second = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert second["charged_usd"] == round(second["cost_usd"] * settings.LLM_OVERAGE_MARKUP, 6)
+    assert second["monthly_charged_usd"] == pytest.approx(first["charged_usd"] + second["charged_usd"])
+
+
+async def test_check_and_record_usage_splits_when_grant_configured(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    """A demo environment may set INCLUDED_LLM_USD > 0; the split still works."""
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
+    seed_og.ai_credits_usd = 100.0
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
+    assert result["charged_usd"] == 0.0
+    assert result["is_over_included"] is False
+    assert result["included_remaining_usd"] == pytest.approx(2.0 - result["cost_usd"])
+
+
+def test_credit_pack_config():
+    assert settings.AI_CREDIT_PACKS_USD == (10.0, 25.0, 50.0)
+    assert settings.OPERATOR_ALERT_EMAIL == ""
 
 
 async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, seed_og):
@@ -180,11 +220,14 @@ async def test_check_and_record_usage_over_free_tier(db_session: AsyncSession, s
     assert result["included_remaining_usd"] == 0
 
 
-async def test_check_ai_credits_within_free_tier(db_session: AsyncSession, seed_og):
+async def test_check_ai_credits_within_included_grant(
+    db_session: AsyncSession, seed_og, monkeypatch
+):
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 2.0)
     result = await check_ai_credits(db_session, COMPANY_ID)
     assert result["can_generate"] is True
     assert result["is_over_included"] is False
-    assert result["included_remaining_usd"] == settings.INCLUDED_LLM_USD
+    assert result["included_remaining_usd"] == 2.0
 
 
 async def test_check_ai_credits_over_free_tier_no_purchased(db_session: AsyncSession, seed_og):
@@ -227,6 +270,32 @@ async def test_check_ai_credits_over_free_tier_with_purchased(db_session: AsyncS
     assert result["is_over_included"] is True
     assert result["can_generate"] is True
     assert result["purchased_credits_usd"] == 10.0
+
+
+async def test_check_ai_credits_zero_balance_requires_purchase(db_session: AsyncSession, seed_og):
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is False
+    assert result["purchase_required"] is True
+    assert result["packs_usd"] == [10.0, 25.0, 50.0]
+    assert result["purchased_credits_usd"] == 0.0
+
+
+async def test_check_ai_credits_positive_balance_allows(db_session: AsyncSession, seed_og):
+    seed_og.ai_credits_usd = 0.05
+    await db_session.commit()
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is True
+    assert result["purchase_required"] is False
+
+
+async def test_check_ai_credits_on_hold_is_not_a_purchase_prompt(db_session: AsyncSession, seed_og):
+    seed_og.ai_credits_usd = 20.0
+    seed_og.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    result = await check_ai_credits(db_session, COMPANY_ID)
+    assert result["can_generate"] is False
+    assert result["autoreload_failed"] is True
+    assert result["purchase_required"] is False
 
 
 async def test_deduct_credits_for_overage(db_session: AsyncSession, seed_og):
@@ -290,6 +359,25 @@ async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_o
     assert rows[0].status == "succeeded"
 
 
+async def test_new_ownership_group_starts_with_autoreload_off(db_session: AsyncSession):
+    """Opt-in, not opt-out (#64): a fresh group must not be charged automatically."""
+    og = OwnershipGroup(id=_id(), name="Fresh")
+    db_session.add(og)
+    await db_session.commit()
+    await db_session.refresh(og)
+    assert og.autoreload_enabled is False
+
+
+async def test_billing_charge_accepts_purchase_kind(db_session: AsyncSession, seed_og):
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID, kind="purchase", amount_usd=10.0,
+        stripe_object_id="pi_x", status="succeeded",
+    ))
+    await db_session.commit()
+    row = (await db_session.execute(select(BillingCharge))).scalar_one()
+    assert row.kind == "purchase"
+
+
 async def test_cache_default_payment_method_writes_pm_id(
     db_session: AsyncSession, seed_og, monkeypatch
 ):
@@ -326,10 +414,15 @@ from unittest.mock import MagicMock
 
 @pytest_asyncio.fixture
 async def og_with_card(db_session: AsyncSession, seed_og):
-    """OG with stripe_customer_id and a cached payment method."""
+    """Paid OG with a cached payment method that has opted into auto-reload.
+
+    Auto-reload is opt-in since #64, so the fixture says so explicitly
+    rather than leaning on the column default.
+    """
     seed_og.stripe_customer_id = "cus_test_abc"
     seed_og.stripe_subscription_id = "sub_test_123"
     seed_og.default_payment_method_id = "pm_test_card_456"
+    seed_og.autoreload_enabled = True
     await db_session.commit()
     return seed_og
 
@@ -451,6 +544,55 @@ async def test_auto_reload_failed_state_raises_blocked_error(
         await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
 
 
+async def test_charge_saved_card_adds_balance_and_records_kind(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_pack_1")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.ai_credits_usd = 1.5
+    await db_session.commit()
+
+    row = await charge_saved_card(db_session, og_with_card, 25.0, kind="purchase")
+    await db_session.commit()
+
+    assert row.kind == "purchase"
+    assert row.status == "succeeded"
+    assert row.stripe_object_id == "pi_pack_1"
+    assert float(row.amount_usd) == 25.0
+    assert captured["amount"] == 2500
+    assert captured["metadata"] == {"og_id": OG_ID, "kind": "purchase"}
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 26.5
+
+
+async def test_charge_saved_card_decline_records_failed_row_without_hold(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card, AutoReloadError
+
+    def fake_create(**kwargs):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    with pytest.raises(AutoReloadError):
+        await charge_saved_card(db_session, og_with_card, 10.0, kind="purchase")
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is None   # the helper never sets the hold
+    assert og_with_card.ai_credits_usd == 0.0
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("purchase", "failed")]
+
+
 async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):
@@ -487,6 +629,103 @@ async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
     assert og_with_card.ai_credits_usd > 0  # reload happened, then debit applied
     charges = list((await db_session.execute(select(BillingCharge))).scalars())
     assert any(c.kind == "autoreload" and c.status == "succeeded" for c in charges)
+
+
+async def test_check_and_record_usage_autoreload_off_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """Auto-reload off and a short balance: usage is still recorded and the
+    later debit floors at zero. The gate, not this path, is where consent lives."""
+    import stripe
+    def boom(**kwargs):
+        raise AssertionError("Stripe must not be called when auto-reload is off")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    og_with_card.autoreload_enabled = False
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    assert result["charged_usd"] > 0.01
+    await deduct_credits_for_overage(db_session, str(COMPANY_ID), result["charged_usd"])
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
+    assert og_with_card.autoreload_failed_at is None
+    usage = (await db_session.execute(select(TokenUsage))).scalar_one()
+    assert usage.charged_usd == result["charged_usd"]
+
+
+async def test_check_and_record_usage_declined_reload_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A declined auto-reload after a generation is recorded (failed row +
+    on-hold flag) but does not turn the finished generation into an error."""
+    import stripe
+    def fake_create(**kwargs):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.autoreload_enabled = True
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    assert result["charged_usd"] > 0
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is not None
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("autoreload", "failed")]
+
+
+async def test_check_and_record_usage_survives_unexpected_reload_error(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    def broken(**kwargs):
+        raise TypeError("sdk parameter mismatch")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", broken)
+
+    og_with_card.autoreload_enabled = True
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    await db_session.commit()
+    assert result["charged_usd"] > 0
+    usage = (await db_session.execute(select(TokenUsage))).scalar_one()
+    assert usage.charged_usd == result["charged_usd"]
+
+
+async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    from backend.models import ShiftSchedule
+    from backend.services.billing import deduct_credits_for_schedule_overage
+
+    og_with_card.autoreload_enabled = False
+    og_with_card.ai_credits_usd = 0.001
+    await db_session.commit()
+
+    now = datetime.now(timezone.utc)
+    for _ in range(settings.INCLUDED_SCHEDULES_PER_MONTH + 1):
+        db_session.add(ShiftSchedule(
+            company_id=COMPANY_ID,
+            location_id=_id(),
+            week_start_date=now.date(),
+            status="DRAFT",
+            created_at=now,
+        ))
+    await db_session.commit()
+
+    await deduct_credits_for_schedule_overage(db_session, str(COMPANY_ID))
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
 
 
 async def test_deduct_credits_for_schedule_triggers_reload(
@@ -636,6 +875,31 @@ async def test_post_autoreload_retry_declined_keeps_failed_state(
     assert response.status_code == 402
     await db_session.refresh(og_with_card)
     assert og_with_card.autoreload_failed_at is not None
+
+
+async def test_post_autoreload_retry_with_autoreload_off_clears_hold_without_charging(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """On hold + auto-reload off must not 500: the hold clears, no card is charged,
+    and the manager can go on to buy a pack."""
+    import stripe
+    def boom(**kw):
+        raise AssertionError("Stripe must not be called when auto-reload is off")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/billing/autoreload/retry",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["failed_at"] is None
+    assert resp.json()["enabled"] is False
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is None
 
 
 async def test_get_billing_charges_returns_recent_rows(
@@ -2202,6 +2466,9 @@ async def test_check_and_record_usage_writes_daily_row(
     """The dual-write keeps token_usage_daily in sync with each call."""
     from datetime import date as _date
 
+    seed_og.ai_credits_usd = 100.0  # funded: with no grant every call charges, and auto-reload must stay out of this test (#64)
+    await db_session.commit()
+
     await check_and_record_usage(
         db_session, COMPANY_ID, input_tokens=1000, output_tokens=500,
     )
@@ -2224,6 +2491,9 @@ async def test_check_and_record_usage_accumulates_into_daily_row(
     db_session: AsyncSession, seed_og,
 ):
     """Two calls on the same day land in one row, summed."""
+    seed_og.ai_credits_usd = 100.0  # funded: with no grant every call charges, and auto-reload must stay out of this test (#64)
+    await db_session.commit()
+
     await check_and_record_usage(db_session, COMPANY_ID, 1000, 500)
     await check_and_record_usage(db_session, COMPANY_ID, 2000, 1000)
     await db_session.flush()
@@ -2311,3 +2581,194 @@ async def test_billing_usage_includes_daily_cost_block(
     assert daily["cap_usd"] == settings.OG_ANTHROPIC_DAILY_CAP_USD
     assert daily["spend_24h_usd"] >= settings.OG_ANTHROPIC_DAILY_CAP_USD
     assert daily["capped"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /billing/credits/purchase (#64)
+# ---------------------------------------------------------------------------
+
+PURCHASE_URL = "/api/v1/billing/credits/purchase"
+
+
+async def test_purchase_pack_adds_balance_and_records_charge(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["current_balance_usd"] == 10.0
+    assert body["enabled"] is False
+
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status, float(c.amount_usd)) for c in charges] == [("purchase", "succeeded", 10.0)]
+
+
+async def test_purchase_pack_can_opt_into_autoreload(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 25.0, "enable_autoreload": True},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["enabled"] is True
+    assert body["amount_usd"] == 25.0
+    assert body["current_balance_usd"] == 25.0
+
+
+async def test_purchase_rejects_amount_outside_packs(
+    client: AsyncClient, manager_token, og_with_card
+):
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 12.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_pack"
+
+
+async def test_purchase_requires_paid_plan(
+    client: AsyncClient, manager_token, seed_og
+):
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "ai_credits_requires_paid_plan"
+
+
+async def test_purchase_requires_saved_card(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    og_with_card.default_payment_method_id = None
+    await db_session.commit()
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "no_payment_method"
+
+
+async def test_purchase_refused_while_billing_on_hold(
+    client: AsyncClient, manager_token, db_session, og_with_card
+):
+    og_with_card.autoreload_failed_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "billing_on_hold"
+
+
+async def test_purchase_declined_records_failed_row_and_no_hold(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    def boom(**kw):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", boom)
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 10.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["code"] == "card_declined"
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 0.0
+    assert og_with_card.autoreload_failed_at is None
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("purchase", "failed")]
+
+
+async def test_purchase_sends_operator_alert(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    calls = []
+    async def fake_alert(db, og, amount_usd, kind):
+        calls.append((og.id, amount_usd, kind))
+        return True
+    monkeypatch.setattr("backend.routers.billing.send_credit_purchase_alert", fake_alert)
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 50.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    assert calls == [(OG_ID, 50.0, "purchase")]
+
+
+async def test_auto_reload_sends_operator_alert(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import auto_reload_if_needed
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_reload_ok"))
+    calls = []
+    async def fake_alert(db, og, amount_usd, kind):
+        calls.append((og.id, amount_usd, kind))
+        return True
+    monkeypatch.setattr("backend.services.billing.send_credit_purchase_alert", fake_alert)
+
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+    await auto_reload_if_needed(db_session, og_with_card, cost_usd=1.0)
+    assert calls == [(OG_ID, 10.0, "autoreload")]
+
+
+# ---------------------------------------------------------------------------
+# Stripe idempotency key on the purchase (#64)
+# ---------------------------------------------------------------------------
+
+async def test_charge_saved_card_passes_idempotency_key_to_stripe(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_idem_1")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    await charge_saved_card(db_session, og_with_card, 10.0, kind="purchase", idempotency_key="key-abc-12345")
+    assert captured["idempotency_key"] == "key-abc-12345"
+
+
+async def test_charge_saved_card_omits_idempotency_key_when_none(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_idem_2")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    await charge_saved_card(db_session, og_with_card, 10.0, kind="autoreload")
+    assert "idempotency_key" not in captured
+
+
+async def test_purchase_replayed_intent_credits_once(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """Stripe returns the same PaymentIntent for a repeated idempotency key;
+    the balance must grow once and one row must exist."""
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_same"))
+    og_with_card.autoreload_enabled = False
+    await db_session.commit()
+
+    body = {"amount_usd": 10.0, "idempotency_key": "replay-key-0001"}
+    first = await client.post(PURCHASE_URL, json=body, headers={"Authorization": f"Bearer {manager_token}"})
+    second = await client.post(PURCHASE_URL, json=body, headers={"Authorization": f"Bearer {manager_token}"})
+    assert first.status_code == 200 and second.status_code == 200
+    assert second.json()["current_balance_usd"] == 10.0
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert len(charges) == 1

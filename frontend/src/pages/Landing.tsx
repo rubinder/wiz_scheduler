@@ -203,7 +203,7 @@ export default function Landing() {
                 <tr className={`border-t-2 border-ink pt-4 font-semibold`}>
                   <td className="py-4">{t.landing.exampleTotal}</td>
                   <td></td>
-                  <td className="py-4 text-end text-lg">$20.30</td>
+                  <td className="py-4 text-end text-lg">$22.25</td>
                 </tr>
               </tbody>
             </table>
@@ -215,10 +215,11 @@ export default function Landing() {
           <div className={`${m.text.display} font-display text-5xl font-semibold mb-2`}>
             $18<span className={`${m.text.muted} text-xl font-normal`}> {t.landing.pricePerMonth}</span>
           </div>
+          <p className={`${m.text.clear} mb-3 max-w-[60ch]`}>{t.landing.normalStrategiesNote}</p>
           <p className={`${m.text.muted} mb-8 max-w-[60ch]`}>{t.landing.basePlanDesc}</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl">
             <div>
-              <div className={`${m.text.data} text-2xl font-semibold`}>$2.00</div>
+              <div className={`${m.text.data} text-2xl font-semibold`}>{t.landing.aiPackFrom}</div>
               <div className={`${m.text.meta} mt-1`}>{t.landing.aiCredits}</div>
             </div>
             <div>
@@ -234,7 +235,6 @@ export default function Landing() {
               <div className={`${m.text.meta} mt-1`}>{t.landing.employeesIncluded}</div>
             </div>
           </div>
-          <p className={`${m.text.muted} text-sm mt-6`}>{t.landing.normalStrategiesNote}</p>
         </div>
 
         <div className={`grid gap-px md:grid-cols-4 bg-rule border ${m.rule.line} mb-24`}>
@@ -243,8 +243,8 @@ export default function Landing() {
             <h3 className={`${m.text.body} font-medium mb-3`}>{t.landing.aiScheduling}</h3>
             <div className="space-y-2 text-sm">
               <div className={`flex justify-between ${m.text.muted}`}>
-                <span>{t.landing.included}</span>
-                <span className={m.text.data}>$2.00 / mo</span>
+                <span>{t.landing.aiCredits}</span>
+                <span className={m.text.data}>$10 · $25 · $50</span>
               </div>
               <div className={`border-t ${m.rule.grid} pt-2 flex justify-between ${m.text.muted}`}>
                 <span>{t.landing.overage}</span>

@@ -14,10 +14,13 @@ from backend.services.billing import (
     AutoReloadBlocked,
     AutoReloadError,
     auto_reload_if_needed,
+    charge_saved_card,
     get_full_billing_summary,
     get_ownership_group_id,
     record_storage_snapshots,
 )
+from backend.services.operator_alerts import send_credit_purchase_alert
+from backend.services.plan import assert_paid_plan
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -166,6 +169,12 @@ class AutoReloadUpdate(BaseModel):
     amount_usd: float | None = Field(default=None, ge=0.5)
 
 
+class CreditPurchaseRequest(BaseModel):
+    amount_usd: float
+    enable_autoreload: bool = False
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=64)
+
+
 class BillingChargeRow(BaseModel):
     id: str
     kind: str
@@ -244,6 +253,13 @@ async def retry_autoreload(
     og.autoreload_failed_at = None
     await db.flush()
 
+    if not og.autoreload_enabled:
+        # Nothing to retry: with auto-reload off there is no automatic
+        # charge to prove. Clearing the hold is the whole action; the
+        # manager can now buy a pack.
+        await db.commit()
+        return _autoreload_status(og)
+
     try:
         await auto_reload_if_needed(db, og, cost_usd=float(og.autoreload_threshold_usd))
     except AutoReloadError as e:
@@ -253,6 +269,70 @@ async def retry_autoreload(
         raise HTTPException(status_code=409, detail="Billing on hold")
 
     await db.commit()
+    return _autoreload_status(og)
+
+
+@router.post("/credits/purchase", response_model=AutoReloadStatus)
+async def purchase_credits(
+    body: CreditPurchaseRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> AutoReloadStatus:
+    """Buy a fixed AI credit pack, charged now to the saved card (#64).
+
+    The hard paywall for AI Generate: a paid group with a zero balance is
+    sent here by the Schedule page. Auto-reload stays off unless the body
+    asks for it, in which case the pack becomes the refill amount.
+    """
+    await assert_paid_plan(db, str(current_user.company_id), "ai_credits")
+
+    if body.amount_usd not in settings.AI_CREDIT_PACKS_USD:
+        packs = ", ".join(f"${p:.0f}" for p in settings.AI_CREDIT_PACKS_USD)
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_pack", "message": f"Choose one of the credit packs: {packs}."},
+        )
+
+    og_id = await get_ownership_group_id(db, str(current_user.company_id))
+    if not og_id:
+        raise HTTPException(status_code=404, detail="No ownership group found")
+    og = (await db.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
+    )).scalar_one()
+
+    if og.autoreload_failed_at is not None:
+        # A failed automatic charge is cleared by Retry payment, which also
+        # proves the card works. A fresh purchase must not skip that.
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "billing_on_hold", "message": "Billing is on hold after a failed payment. Retry payment first."},
+        )
+
+    if not og.stripe_customer_id or not og.default_payment_method_id:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "no_payment_method", "message": "No card on file. Add one in Manage billing, then try again."},
+        )
+
+    try:
+        await charge_saved_card(
+            db, og, float(body.amount_usd), kind="purchase", idempotency_key=body.idempotency_key
+        )
+    except AutoReloadError as e:
+        await db.commit()  # keep the failed BillingCharge row
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "card_declined", "message": f"Your card was declined: {e}"},
+        )
+
+    if body.enable_autoreload:
+        og.autoreload_enabled = True
+        og.autoreload_amount_usd = body.amount_usd
+
+    await db.commit()
+
+    # After the commit: the charge is durable whatever the mail does.
+    await send_credit_purchase_alert(db, og, float(body.amount_usd), "purchase")
     return _autoreload_status(og)
 
 

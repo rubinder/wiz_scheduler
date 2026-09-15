@@ -8,6 +8,10 @@ export interface AiCreditStatus {
   is_over_included: boolean;
   monthly_cost_usd: number;
   autoreload_failed?: boolean;
+  /** True when the only thing missing is a credit pack (not on hold). */
+  purchase_required: boolean;
+  /** Pack sizes the server accepts on purchaseCredits, in USD. */
+  packs_usd: number[];
 }
 
 export interface ScheduleQuota {
@@ -86,7 +90,7 @@ export interface BillingUsage {
 
 export interface BillingChargeRow {
   id: string;
-  kind: "autoreload" | "invoice_item_storage" | "invoice_item_employees";
+  kind: "autoreload" | "purchase" | "invoice_item_storage" | "invoice_item_employees";
   amount_usd: number;
   stripe_object_id: string | null;
   period: string | null;
@@ -119,6 +123,21 @@ export function updateAutoReload(
 export function retryAutoReload(): Promise<AutoReloadStatus> {
   return apiFetch<AutoReloadStatus>("/billing/autoreload/retry", {
     method: "POST",
+  });
+}
+
+export function purchaseCredits(
+  amountUsd: number,
+  enableAutoreload: boolean,
+  idempotencyKey: string
+): Promise<AutoReloadStatus> {
+  return apiFetch<AutoReloadStatus>("/billing/credits/purchase", {
+    method: "POST",
+    body: JSON.stringify({
+      amount_usd: amountUsd,
+      enable_autoreload: enableAutoreload,
+      idempotency_key: idempotencyKey,
+    }),
   });
 }
 

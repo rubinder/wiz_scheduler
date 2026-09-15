@@ -117,6 +117,13 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 - **Free-plan limits live in `backend/services/plan.py`.** Any new endpoint that
   creates an `Employee` or `Location` must call `assert_can_add` before writing.
   Plan is derived from `ownership_groups`, never stored.
+- **AI spend always debits purchased credits.** `INCLUDED_LLM_USD` is `0.00`
+  in production and exists only so a demo environment can grant spend. Every
+  successful credit charge (pack purchase or auto-reload) goes through
+  `services/billing.charge_saved_card`, which is what fires the operator
+  alert with the Anthropic-side top-up amount; do not add a second charge
+  path. Post-generation billing never raises on a payment outcome — the
+  pre-generation gate is the consent point.
 - **Any new path that creates a `User` must set `email_verified_at`.** Set it
   when the flow already proves the address (an emailed invite link, a Google
   `email_verified` claim); leave it NULL and mail a token via
