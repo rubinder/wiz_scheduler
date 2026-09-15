@@ -165,11 +165,11 @@ def choose_action(snapshot: dict[str, Any], now: datetime) -> dict[str, Any]:
 
 
 def list_stale_worktrees(snapshot: dict[str, Any], worktrees_dir: Path) -> list[Path]:
-    """issue-N worktrees whose issue has neither an open agent PR nor a
-    working label. Safe to remove; the driver does it before choosing."""
+    """issue-N worktrees whose issue has no open agent PR and no longer
+    carries any agent label (the snapshot lists every open issue that does).
+    Safe to remove; the driver does it before choosing."""
     keep = {p.get("issue") for p in snapshot.get("prs") or []}
-    keep |= {i["number"] for i in snapshot.get("issues") or []
-             if LABEL_WORKING in (i.get("labels") or [])}
+    keep |= {i["number"] for i in snapshot.get("issues") or []}
     stale = []
     if not worktrees_dir.is_dir():
         return stale

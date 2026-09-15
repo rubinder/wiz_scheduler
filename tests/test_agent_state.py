@@ -234,10 +234,13 @@ def test_main_never_raises(capsys):
     assert "gh exploded" in out["error"]
 
 
-def test_stale_worktrees_are_those_without_an_open_pr_or_working_issue(tmp_path):
-    (tmp_path / "issue-7").mkdir()
-    (tmp_path / "issue-8").mkdir()
-    (tmp_path / "issue-9").mkdir()
-    (tmp_path / "marketing-restyle").mkdir()
-    s = snap(issues=[issue(number=9, labels=["agent-working"])], prs=[pr(issue=7)])
+def test_stale_worktrees_are_those_without_an_open_pr_or_agent_labelled_issue(tmp_path):
+    for name in ("issue-7", "issue-8", "issue-9", "issue-10", "issue-11", "marketing-restyle"):
+        (tmp_path / name).mkdir()
+    s = snap(
+        issues=[issue(number=9, labels=["agent-working"]),
+                issue(number=10, labels=["agent-ready"]),      # relabelled for retry: keep
+                issue(number=11, labels=["agent-blocked"])],   # parked with commits: keep
+        prs=[pr(issue=7)],
+    )
     assert state.list_stale_worktrees(s, tmp_path) == [tmp_path / "issue-8"]
