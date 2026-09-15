@@ -884,7 +884,7 @@ const de = {
     aiScheduling: "AI-Planung",
     included: "Inklusive",
     overage: "Mehrverbrauch",
-    aiOverageNote: "Claude-Sonnet-5-Token-Kosten ($2/M Eingabe, $10/M Ausgabe) mit 130% Aufschlag, abgebucht von vorausbezahlten Paketen zu $10, $25 oder $50.",
+    aiOverageNote: "Token-Kosten von Claude Sonnet 5 ($2/M Eingabe, $10/M Ausgabe) zu 130 %, abgebucht von vorausbezahlten Paketen zu $10, $25 oder $50.",
     schedules: "Dienstpläne",
     schedulesOverageNote: "Alle Generierungstypen zählen. Nach den kostenlosen 50 in 50er-Blöcken abgerechnet.",
     storage: "Speicher",
