@@ -681,6 +681,25 @@ async def test_check_and_record_usage_declined_reload_does_not_raise(
     assert [(c.kind, c.status) for c in charges] == [("autoreload", "failed")]
 
 
+async def test_check_and_record_usage_survives_unexpected_reload_error(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    def broken(**kwargs):
+        raise TypeError("sdk parameter mismatch")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", broken)
+
+    og_with_card.autoreload_enabled = True
+    og_with_card.ai_credits_usd = 0.01
+    await db_session.commit()
+
+    result = await check_and_record_usage(db_session, str(COMPANY_ID), 1_000_000, 100_000)
+    await db_session.commit()
+    assert result["charged_usd"] > 0
+    usage = (await db_session.execute(select(TokenUsage))).scalar_one()
+    assert usage.charged_usd == result["charged_usd"]
+
+
 async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):

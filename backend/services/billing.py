@@ -155,7 +155,11 @@ async def _reload_after_debit(db: AsyncSession, og: OwnershipGroup, cost_usd: fl
     try:
         await auto_reload_if_needed(db, og, cost_usd=cost_usd)
     except AutoReloadError as exc:
-        logger.warning("[BILLING] auto-reload declined after debit og=%s: %s", og.id, exc)
+        logger.warning("[BILLING] auto-reload not completed after debit og=%s: %s", og.id, exc)
+    except Exception:
+        # The tokens are already spent; recording the usage matters more
+        # than any reload outcome. Log with the traceback and carry on.
+        logger.exception("[BILLING] auto-reload crashed after debit og=%s", og.id)
 
 
 async def check_and_record_usage(
@@ -752,7 +756,7 @@ async def deduct_credits_for_overage(
         return
 
     og_result = await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.id == og_id)
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
     )
     og = og_result.scalar_one_or_none()
     if not og:
