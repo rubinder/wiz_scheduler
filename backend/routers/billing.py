@@ -19,6 +19,7 @@ from backend.services.billing import (
     get_ownership_group_id,
     record_storage_snapshots,
 )
+from backend.services.operator_alerts import send_credit_purchase_alert
 from backend.services.plan import assert_paid_plan
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -319,6 +320,9 @@ async def purchase_credits(
         og.autoreload_amount_usd = body.amount_usd
 
     await db.commit()
+
+    # After the commit: the charge is durable whatever the mail does.
+    await send_credit_purchase_alert(db, og, float(body.amount_usd), "purchase")
     return _autoreload_status(og)
 
 

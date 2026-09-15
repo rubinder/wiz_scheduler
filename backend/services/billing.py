@@ -17,6 +17,7 @@ from backend.config import settings
 from backend.models import Company, Employee, Location, StorageSnapshot, TokenUsage, TokenUsageDaily
 from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
+from backend.services.operator_alerts import send_credit_purchase_alert
 
 logger = logging.getLogger(__name__)
 
@@ -960,6 +961,8 @@ async def auto_reload_if_needed(
         og.autoreload_failed_at = datetime.now(timezone.utc)
         await db.flush()
         raise
+
+    await send_credit_purchase_alert(db, og, float(og.autoreload_amount_usd), "autoreload")
 
 
 # ---------------------------------------------------------------------------

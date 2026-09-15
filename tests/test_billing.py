@@ -2640,3 +2640,38 @@ async def test_purchase_declined_records_failed_row_and_no_hold(
     assert og_with_card.autoreload_failed_at is None
     charges = list((await db_session.execute(select(BillingCharge))).scalars())
     assert [(c.kind, c.status) for c in charges] == [("purchase", "failed")]
+
+
+async def test_purchase_sends_operator_alert(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_pack_ok"))
+    calls = []
+    async def fake_alert(db, og, amount_usd, kind):
+        calls.append((og.id, amount_usd, kind))
+        return True
+    monkeypatch.setattr("backend.routers.billing.send_credit_purchase_alert", fake_alert)
+
+    resp = await client.post(PURCHASE_URL, json={"amount_usd": 50.0},
+                             headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code == 200, resp.text
+    assert calls == [(OG_ID, 50.0, "purchase")]
+
+
+async def test_auto_reload_sends_operator_alert(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import auto_reload_if_needed
+    monkeypatch.setattr(stripe.PaymentIntent, "create", lambda **kw: MagicMock(status="succeeded", id="pi_reload_ok"))
+    calls = []
+    async def fake_alert(db, og, amount_usd, kind):
+        calls.append((og.id, amount_usd, kind))
+        return True
+    monkeypatch.setattr("backend.services.billing.send_credit_purchase_alert", fake_alert)
+
+    og_with_card.ai_credits_usd = 0.0
+    await db_session.commit()
+    await auto_reload_if_needed(db_session, og_with_card, cost_usd=1.0)
+    assert calls == [(OG_ID, 10.0, "autoreload")]
