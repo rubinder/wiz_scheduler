@@ -86,8 +86,10 @@ for `check_and_record_usage`:
   pre-gate requires a positive balance, so the worst case is one
   generation's shortfall, a few cents, on the last run before the paywall.
 
-`deduct_credits_for_schedule_overage` is unchanged. Schedule overage
-keeps its existing gate in `check_schedule_quota`.
+`deduct_credits_for_schedule_overage` gets the same treatment through a
+shared `_reload_after_debit` helper, because auto-reload defaulting to off
+makes the raise reachable there too; its gate in `check_schedule_quota` is
+unchanged.
 
 ## 2. Pre-generation gate
 
@@ -241,6 +243,9 @@ Purchase modal (replaces the current billing modal, same state variables):
 - Example bill: the AI row reads `~$1.50 in tokens` → `$1.95 from credits`;
   the hard-coded total `$20.30` becomes `$22.25`. The four other rows are
   unchanged.
+- The AI-scheduling detail card lower on the page, which read `Included` /
+  `$2.00 / mo`, becomes `AI credit packs` / `$10 · $25 · $50`; its overage
+  row is unchanged.
 
 ### i18n (all 19 files under `frontend/src/i18n/`)
 
@@ -267,8 +272,9 @@ markup (`logicalDirection.test.ts` enforces this).
 
 ## 6. Tests
 
-Backend, `tests/test_billing.py` (edited) and `tests/test_credit_purchase.py`
-(new), all against the Postgres test database like the rest of the suite:
+Backend, `tests/test_billing.py` (edited) and `tests/test_billing.py` (which
+owns the `seed_og`/`og_with_card` fixtures), on the SQLite test database
+like the rest of the suite:
 
 - `check_and_record_usage` at the default knob: first generation of a
   month is charged at full markup; a later one too; `included_remaining_usd`
@@ -301,7 +307,9 @@ Backend, `tests/test_billing.py` (edited) and `tests/test_credit_purchase.py`
 
 Frontend: `npm run build` (type-checks every locale against `en`) and
 `npm test` (vitest, including the logical-direction sweep). No new
-component tests; the repo has none for this page.
+component tests; the repo has none for this page. No component tests
+exist for the Schedule page; the purchase modal is verified by the
+type-checked build and the logical-direction sweep only.
 
 ## 7. Documentation
 
@@ -317,7 +325,7 @@ component tests; the repo has none for this page.
 `backend/services/operator_alerts.py`:
 
 ```python
-async def send_credit_purchase_alert(og, amount_usd, kind, total_prepaid_usd) -> bool
+async def send_credit_purchase_alert(db, og, amount_usd, kind) -> bool
 ```
 
 - Always logs one line:
@@ -346,8 +354,8 @@ completes an auto-reload: `check_and_record_usage`,
 `deduct_credits_for_schedule_overage`, and `retry_autoreload`. The
 simplest placement is inside `auto_reload_if_needed` after the helper
 succeeds and the flush completes, plus one call in the purchase endpoint.
-The alert reads `SUM(ai_credits_usd)` in its own short session so it does
-not hold the caller's row lock.
+The alert reads `SUM(ai_credits_usd)` through the caller's session; a
+SELECT takes no row locks.
 
 ## Data flow, end to end
 
