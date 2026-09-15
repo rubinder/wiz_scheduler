@@ -11,6 +11,9 @@ from backend.scheduling.state import SchedulingState
 
 TZ = "-04:00"  # America/New_York in late March
 ROLE_ID = "role0001"
+ROLE_NAME = "Floor Associate"
+ROLE_ID_B = "role0002"
+ROLE_NAME_B = "Lead"
 LOC_ID = "loc00001"
 
 
@@ -18,12 +21,12 @@ def _win(date: str, start_h: int, end_h: int):
     return {"start": f"{date}T{start_h:02d}:00:00{TZ}", "end": f"{date}T{end_h:02d}:00:00{TZ}"}
 
 
-def _shift(eid: str, date: str, start_h: int, end_h: int):
+def _shift(eid: str, date: str, start_h: int, end_h: int, role_id: str = ROLE_ID, role_name: str = ROLE_NAME):
     return {
         "employee_id": eid,
         "employee_name": "Emp",
-        "role_id": ROLE_ID,
-        "role_name": "Floor Associate",
+        "role_id": role_id,
+        "role_name": role_name,
         "location_id": LOC_ID,
         "date": date,
         "start_time": f"{date}T{start_h:02d}:00:00{TZ}",
@@ -32,17 +35,17 @@ def _shift(eid: str, date: str, start_h: int, end_h: int):
     }
 
 
-def _emp(eid: str, windows: list[dict], affinities: list[dict] | None = None):
+def _emp(eid: str, windows: list[dict], affinities: list[dict] | None = None, role_id: str = ROLE_ID, role_name: str = ROLE_NAME):
     return {
         "id": eid,
         "full_name": "Emp",
-        "roles": [{"role_name": "Floor Associate", "role_id": ROLE_ID, "skill_level": 3}],
+        "roles": [{"role_name": role_name, "role_id": role_id, "skill_level": 3}],
         "affinities": affinities or [],
         "available_windows": windows,
     }
 
 
-def _validate_state(shifts, employees):
+def _validate_state(shifts, employees, weekly_schedule=None):
     return SchedulingState(
         company_id="comp0001",
         week_start_date="2026-03-30",
@@ -62,7 +65,7 @@ def _validate_state(shifts, employees):
         total_input_tokens=0,
         total_output_tokens=0,
         current_location={"id": LOC_ID, "name": "L", "timezone": "America/New_York"},
-        current_shift_template={LOC_ID: {"weekly_schedule": []}},
+        current_shift_template={"id": "t", "location_id": LOC_ID, "weekly_schedule": weekly_schedule or {}},
         current_employees=employees,
         failure_entries=[],
         role_equivalents={},
@@ -152,4 +155,50 @@ class TestAffinityHardNegative:
         ok = _valid_ids(result["current_parsed_shifts"])
         assert ("e1", "2026-03-30") in ok
         assert ("e2", "2026-03-30") not in ok
+        assert "cannot work together" not in _warning_text(result)
+
+    def test_partial_overlap_drops_second_shift(self):
+        """Windows need not match exactly — e1 09:00-13:00 and e2 12:00-17:00
+        overlap 12:00-13:00, so the -1.0 pair still triggers a drop, and the
+        dropped slot surfaces as a VACANT placeholder."""
+        avail_e1 = [_win("2026-03-30", 9, 13)]
+        avail_e2 = [_win("2026-03-30", 12, 17)]
+        e1 = _emp("e1", avail_e1, affinities=[{"target_id": "e2", "level": -1.0}])
+        e2 = _emp("e2", avail_e2, affinities=[], role_id=ROLE_ID_B, role_name=ROLE_NAME_B)
+        shifts = [
+            _shift("e1", "2026-03-30", 9, 13),
+            _shift("e2", "2026-03-30", 12, 17, role_id=ROLE_ID_B, role_name=ROLE_NAME_B),
+        ]
+        weekly_schedule = {
+            "Monday": [
+                {"role_name": ROLE_NAME, "role_id": ROLE_ID, "headcount": 1,
+                 "start_time": "09:00", "end_time": "13:00"},
+                {"role_name": ROLE_NAME_B, "role_id": ROLE_ID_B, "headcount": 1,
+                 "start_time": "12:00", "end_time": "17:00"},
+            ]
+        }
+        result = validate_schedule(_validate_state(shifts, [e1, e2], weekly_schedule))
+        ok = _valid_ids(result["current_parsed_shifts"])
+        assert ("e1", "2026-03-30") in ok
+        assert ("e2", "2026-03-30") not in ok
+        assert "cannot work together" in _warning_text(result)
+
+        vacant = [
+            s for s in result["current_parsed_shifts"]
+            if s["status"] == "VACANT" and s["role_name"] == ROLE_NAME_B
+        ]
+        assert len(vacant) == 1, result["current_parsed_shifts"]
+
+    def test_back_to_back_non_overlap_keeps_both(self):
+        """Back-to-back windows (e1 ends exactly when e2 starts) do not
+        overlap — _windows_overlap is strict — so both shifts survive."""
+        avail_e1 = [_win("2026-03-30", 9, 12)]
+        avail_e2 = [_win("2026-03-30", 12, 17)]
+        e1 = _emp("e1", avail_e1, affinities=[{"target_id": "e2", "level": -1.0}])
+        e2 = _emp("e2", avail_e2, affinities=[])
+        shifts = [_shift("e1", "2026-03-30", 9, 12), _shift("e2", "2026-03-30", 12, 17)]
+        result = validate_schedule(_validate_state(shifts, [e1, e2]))
+        ok = _valid_ids(result["current_parsed_shifts"])
+        assert ("e1", "2026-03-30") in ok
+        assert ("e2", "2026-03-30") in ok
         assert "cannot work together" not in _warning_text(result)

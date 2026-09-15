@@ -481,10 +481,16 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
     Checks:
     1. Each shift references a known employee for this location
     2. Each employee is qualified for their assigned role
-    3. Shift start_time < end_time and date falls within the schedule week
-    4. All required template slots are covered
+    3. Shift falls within an available window for the employee
+    4. Shift start_time < end_time
+    5. Shift date falls within the schedule week
+    5b. Shift does not land inside a per-day-of-week blackout
+    6. Per-employee weekly hour cap (max_hours_per_week)
+    7. Minimum-rest ("clopening") constraint
     8. Employees with a -1.0 hard-negative affinity (in either direction)
        never share an overlapping shift window on the same date/location
+    Then injects VACANT placeholders for any required template slots that
+    remain unfilled after the above checks drop invalid shifts.
     Marks invalid shifts with status="VALIDATION_ERROR" and logs warnings.
     """
     from datetime import timedelta
@@ -751,7 +757,7 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
         #    shift window on the same date at this location. Only shifts
         #    already accepted in this pass (valid_shifts) count as coworkers —
         #    a shift dropped by an earlier check is not a coworker.
-        if emp_id in emp_by_id and not issues:
+        if affinity_lookup and emp_id in emp_by_id and not issues:
             for coworker in valid_shifts:
                 if coworker["date"] != shift["date"]:
                     continue
