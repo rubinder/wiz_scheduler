@@ -518,6 +518,55 @@ async def test_auto_reload_failed_state_raises_blocked_error(
         await auto_reload_if_needed(db_session, og_with_card, cost_usd=5.0)
 
 
+async def test_charge_saved_card_adds_balance_and_records_kind(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card
+
+    captured = {}
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(status="succeeded", id="pi_pack_1")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    og_with_card.ai_credits_usd = 1.5
+    await db_session.commit()
+
+    row = await charge_saved_card(db_session, og_with_card, 25.0, kind="purchase")
+    await db_session.commit()
+
+    assert row.kind == "purchase"
+    assert row.status == "succeeded"
+    assert row.stripe_object_id == "pi_pack_1"
+    assert float(row.amount_usd) == 25.0
+    assert captured["amount"] == 2500
+    assert captured["metadata"] == {"og_id": OG_ID, "kind": "purchase"}
+    await db_session.refresh(og_with_card)
+    assert og_with_card.ai_credits_usd == 26.5
+
+
+async def test_charge_saved_card_decline_records_failed_row_without_hold(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    import stripe
+    from backend.services.billing import charge_saved_card, AutoReloadError
+
+    def fake_create(**kwargs):
+        raise stripe.CardError("card declined", "card_declined", "card_declined")
+    monkeypatch.setattr(stripe.PaymentIntent, "create", fake_create)
+
+    with pytest.raises(AutoReloadError):
+        await charge_saved_card(db_session, og_with_card, 10.0, kind="purchase")
+    await db_session.commit()
+
+    await db_session.refresh(og_with_card)
+    assert og_with_card.autoreload_failed_at is None   # the helper never sets the hold
+    assert og_with_card.ai_credits_usd == 0.0
+    charges = list((await db_session.execute(select(BillingCharge))).scalars())
+    assert [(c.kind, c.status) for c in charges] == [("purchase", "failed")]
+
+
 async def test_check_and_record_usage_triggers_reload_when_over_free_tier(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):

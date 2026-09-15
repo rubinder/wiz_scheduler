@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import Company, Employee, Location, StorageSnapshot, TokenUsage, TokenUsageDaily
+from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 
 logger = logging.getLogger(__name__)
@@ -815,6 +816,72 @@ class AutoReloadBlocked(Exception):
     """OG has a sticky autoreload_failed_at and must be manually retried."""
 
 
+async def charge_saved_card(
+    db: AsyncSession,
+    og: OwnershipGroup,
+    amount_usd: float,
+    kind: str,
+) -> BillingCharge:
+    """Charge the subscription's saved card off-session and credit the balance.
+
+    The one place money moves for credits. `kind` is 'autoreload' or
+    'purchase' and lands on the BillingCharge row and the PaymentIntent
+    metadata. On a decline (StripeError or a non-succeeded intent) a
+    'failed' row is written and AutoReloadError is raised; whether that
+    puts billing on hold is the caller's decision, so this function never
+    touches og.autoreload_failed_at.
+    """
+    import stripe
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        intent = stripe.PaymentIntent.create(
+            customer=og.stripe_customer_id,
+            amount=int(round(amount_usd * 100)),
+            currency="usd",
+            payment_method=og.default_payment_method_id,
+            off_session=True,
+            confirm=True,
+            metadata={"og_id": og.id, "kind": kind},
+        )
+    except stripe.StripeError as e:
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind=kind,
+            amount_usd=amount_usd,
+            stripe_object_id=None,
+            status="failed",
+            error_message=str(e),
+        ))
+        await db.flush()
+        raise AutoReloadError(str(e))
+
+    if intent.status != "succeeded":
+        db.add(BillingCharge(
+            ownership_group_id=og.id,
+            kind=kind,
+            amount_usd=amount_usd,
+            stripe_object_id=intent.id,
+            status="failed",
+            error_message=f"PaymentIntent status={intent.status}",
+        ))
+        await db.flush()
+        raise AutoReloadError(f"PaymentIntent status: {intent.status}")
+
+    og.ai_credits_usd = round(float(og.ai_credits_usd) + amount_usd, 4)
+    row = BillingCharge(
+        ownership_group_id=og.id,
+        kind=kind,
+        amount_usd=amount_usd,
+        stripe_object_id=intent.id,
+        status="succeeded",
+    )
+    db.add(row)
+    await db.flush()
+    return row
+
+
 async def auto_reload_if_needed(
     db: AsyncSession,
     og: OwnershipGroup,
@@ -832,11 +899,6 @@ async def auto_reload_if_needed(
         - On Stripe failure: sets og.autoreload_failed_at = now(),
           writes a 'failed' BillingCharge row, then raises AutoReloadError.
     """
-    from datetime import datetime, timezone
-    import stripe
-    from backend.config import settings
-    from backend.models.billing_charge import BillingCharge
-
     if og.autoreload_failed_at is not None:
         raise AutoReloadBlocked(
             f"Billing on hold since {og.autoreload_failed_at.isoformat()}; "
@@ -857,54 +919,14 @@ async def auto_reload_if_needed(
             "Customer has no payment method on file. Add a card to enable auto-reload."
         )
 
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-    reload_amount_usd = float(og.autoreload_amount_usd)
-
     try:
-        intent = stripe.PaymentIntent.create(
-            customer=og.stripe_customer_id,
-            amount=int(reload_amount_usd * 100),
-            currency="usd",
-            payment_method=og.default_payment_method_id,
-            off_session=True,
-            confirm=True,
-            metadata={"og_id": og.id, "kind": "autoreload"},
-        )
-    except stripe.StripeError as e:
+        await charge_saved_card(db, og, float(og.autoreload_amount_usd), kind="autoreload")
+    except AutoReloadError:
+        # Automatic charging failed: put billing on hold so nothing else is
+        # attempted until the customer retries from the Billing UI.
         og.autoreload_failed_at = datetime.now(timezone.utc)
-        db.add(BillingCharge(
-            ownership_group_id=og.id,
-            kind="autoreload",
-            amount_usd=reload_amount_usd,
-            stripe_object_id=None,
-            status="failed",
-            error_message=str(e),
-        ))
         await db.flush()
-        raise AutoReloadError(str(e))
-
-    if intent.status != "succeeded":
-        og.autoreload_failed_at = datetime.now(timezone.utc)
-        db.add(BillingCharge(
-            ownership_group_id=og.id,
-            kind="autoreload",
-            amount_usd=reload_amount_usd,
-            stripe_object_id=intent.id,
-            status="failed",
-            error_message=f"PaymentIntent status={intent.status}",
-        ))
-        await db.flush()
-        raise AutoReloadError(f"PaymentIntent status: {intent.status}")
-
-    og.ai_credits_usd = round(float(og.ai_credits_usd) + reload_amount_usd, 4)
-    db.add(BillingCharge(
-        ownership_group_id=og.id,
-        kind="autoreload",
-        amount_usd=reload_amount_usd,
-        stripe_object_id=intent.id,
-        status="succeeded",
-    ))
-    await db.flush()
+        raise
 
 
 # ---------------------------------------------------------------------------
