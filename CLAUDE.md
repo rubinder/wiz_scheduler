@@ -125,8 +125,9 @@ requests. Design: `docs/superpowers/specs/2026-09-14-github-issue-agent-system-d
 - **Pieces:** `state.py` (snapshot + pure `choose_action`, tested in
   `tests/test_agent_state.py`), workflows `issue-pipeline` and `pr-tend`,
   and agents `issue-triager`, `spec-writer`, `planner`, `implementer`,
-  `code-reviewer`, `pr-fixer`. Custom agents load at session start, so
-  restart the session after editing them.
+  `code-reviewer`, `pr-fixer`. Newly added agents and skills can take a
+  while to appear in a running session; if the Agent tool reports the type
+  unknown, restart the session.
 - **Worktrees** live at `.claude/worktrees/issue-<n>` and reuse the main
   checkout's `backend/.venv` and a symlinked `frontend/node_modules`. The
   driver removes a worktree once its PR is merged or closed.
