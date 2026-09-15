@@ -948,7 +948,7 @@ const pcm = {
     stratMaxHoursTag: "FREE",
     stratMaxHoursDesc: "E dey cap any single worker at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). E dey respect worker affinities: hard constraints dey enforced, soft preferences dey influence scoring.",
     stratAI: "AI Generate",
-    stratAITag: "$2 FREE / MONTH",
+    stratAITag: "PREPAID CREDITS",
     stratAIDesc: "Claude AI dey read di full context (availability, skills, affinities, shift requirements) and produce optimized schedule. E dey honor all affinity constraints. Best for complex scenarios.",
     compDataExportTitle: "Data Export",
     compDataExportDesc: "Download all your data as JSON anytime.",

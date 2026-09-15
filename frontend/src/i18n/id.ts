@@ -948,7 +948,7 @@ const ind = {
     stratMaxHoursTag: "GRATIS",
     stratMaxHoursDesc: "Membatasi karyawan mana pun hingga X jam per jadwal. Batas jam yang dapat disesuaikan (4-60 jam) dan tingkat keketatan (dari preferensi lunak hingga batas keras). Menghormati afinitas karyawan: batasan keras ditegakkan, preferensi lunak memengaruhi penilaian.",
     stratAI: "AI Generate",
-    stratAITag: "$2 GRATIS / BULAN",
+    stratAITag: "KREDIT PRABAYAR",
     stratAIDesc: "Claude AI membaca konteks lengkap (ketersediaan, keterampilan, afinitas, persyaratan shift) dan menghasilkan jadwal yang dioptimalkan. Menghormati semua batasan afinitas. Terbaik untuk skenario kompleks.",
     compDataExportTitle: "Ekspor Data",
     compDataExportDesc: "Unduh semua data Anda sebagai JSON kapan saja.",

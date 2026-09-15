@@ -948,7 +948,7 @@ const vi = {
     stratMaxHoursTag: "MIỄN PHÍ",
     stratMaxHoursDesc: "Giới hạn bất kỳ nhân viên nào ở X giờ mỗi lịch. Giới hạn giờ có thể điều chỉnh (4-60 giờ) và mức độ nghiêm ngặt (từ sở thích mềm đến giới hạn cứng). Tôn trọng mối quan hệ nhân viên: ràng buộc cứng được thực thi, sở thích mềm ảnh hưởng đến điểm số.",
     stratAI: "Tạo bằng AI",
-    stratAITag: "$2 MIỄN PHÍ / THÁNG",
+    stratAITag: "TÍN DỤNG TRẢ TRƯỚC",
     stratAIDesc: "Claude AI đọc toàn bộ ngữ cảnh (khả dụng, kỹ năng, mối quan hệ, yêu cầu ca) và tạo lịch tối ưu. Tôn trọng mọi ràng buộc quan hệ. Tốt nhất cho các tình huống phức tạp.",
     compDataExportTitle: "Xuất dữ liệu",
     compDataExportDesc: "Tải xuống tất cả dữ liệu của bạn dưới dạng JSON bất cứ lúc nào.",

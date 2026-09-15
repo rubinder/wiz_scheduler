@@ -951,7 +951,7 @@ const en = {
     stratMaxHoursTag: "FREE",
     stratMaxHoursDesc: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
     stratAI: "AI Generate",
-    stratAITag: "$2 FREE / MONTH",
+    stratAITag: "PREPAID CREDITS",
     stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios.",
     // Compliance
     compDataExportTitle: "Data Export",

@@ -263,7 +263,8 @@ Reworded in `schedule`: `creditsExhaustedMsg`,
 `scheduleQuotaExhaustedMsg`, `autoReloadDescription`.
 
 Reworded in `landing`: `basePlanDesc`, `aiCredits` (→ "AI credit packs"),
-`normalStrategiesNote`, `aiOverageNote`, `exampleAICost`.
+`normalStrategiesNote`, `aiOverageNote`, `exampleAICost`, `stratAITag`
+(→ "PREPAID CREDITS").
 
 `TranslationKeys` is `typeof en`, so every locale must change in the same
 commit or the build fails. Translations are written by the implementer;

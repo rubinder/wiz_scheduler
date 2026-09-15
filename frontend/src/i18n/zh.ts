@@ -948,7 +948,7 @@ const zh = {
     stratMaxHoursTag: "免费",
     stratMaxHoursDesc: "将任何员工限制为每个排班 X 小时。可调节的小时限制（4-60 小时）和严格程度（从软性偏好到硬性上限）。尊重员工亲和力：硬性约束被执行，软性偏好影响评分。",
     stratAI: "AI 生成",
-    stratAITag: "$2 免费 / 月",
+    stratAITag: "预付额度",
     stratAIDesc: "Claude AI 读取完整上下文（可用性、技能、亲和力、班次需求）并生成优化的排班。遵守所有亲和力约束。最适合复杂场景。",
     compDataExportTitle: "数据导出",
     compDataExportDesc: "随时将所有数据下载为 JSON。",

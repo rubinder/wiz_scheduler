@@ -948,7 +948,7 @@ const es = {
     stratMaxHoursTag: "GRATIS",
     stratMaxHoursDesc: "Limita a cualquier empleado a X horas por horario. Límite de horas ajustable (4-60h) y rigurosidad (de preferencia blanda a límite estricto). Respeta las afinidades de empleados: las restricciones duras se aplican, las preferencias blandas influyen en la puntuación.",
     stratAI: "Generación con AI",
-    stratAITag: "$2 GRATIS / MES",
+    stratAITag: "CRÉDITOS PREPAGO",
     stratAIDesc: "Claude AI lee el contexto completo (disponibilidad, habilidades, afinidades, requisitos de turnos) y produce un horario optimizado. Respeta todas las restricciones de afinidad. Ideal para escenarios complejos.",
     compDataExportTitle: "Exportación de datos",
     compDataExportDesc: "Descarga todos tus datos como JSON en cualquier momento.",

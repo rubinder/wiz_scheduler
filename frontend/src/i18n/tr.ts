@@ -948,7 +948,7 @@ const trLang = {
     stratMaxHoursTag: "ÜCRETSİZ",
     stratMaxHoursDesc: "Herhangi bir çalışanı program başına X saatle sınırlar. Ayarlanabilir saat limiti (4-60 saat) ve katılık (esnek tercihten katı sınıra). Çalışan uyumlarını dikkate alır: katı kısıtlamalar uygulanır, esnek tercihler puanlamayı etkiler.",
     stratAI: "AI Oluşturma",
-    stratAITag: "$2 ÜCRETSİZ / AY",
+    stratAITag: "ÖN ÖDEMELİ KREDİ",
     stratAIDesc: "Claude AI tüm bağlamı (müsaitlik, beceriler, uyumlar, vardiya gereksinimleri) okur ve optimize edilmiş bir program üretir. Tüm uyum kısıtlamalarını dikkate alır. Karmaşık senaryolar için idealdir.",
     compDataExportTitle: "Veri Dışa Aktarımı",
     compDataExportDesc: "Tüm verilerinizi istediğiniz zaman JSON olarak indirin.",

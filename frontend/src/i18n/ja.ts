@@ -948,7 +948,7 @@ const ja = {
     stratMaxHoursTag: "無料",
     stratMaxHoursDesc: "各スケジュールで従業員をX時間に制限。調整可能な時間制限（4〜60時間）と厳格さ（ソフトな好みからハードキャップまで）。従業員のアフィニティを尊重：ハード制約は強制、ソフトな好みはスコアリングに影響。",
     stratAI: "AI生成",
-    stratAITag: "$2 無料 / 月",
+    stratAITag: "プリペイドクレジット",
     stratAIDesc: "Claude AIがフルコンテキスト（空き状況、スキル、アフィニティ、シフト要件）を読み取り、最適化されたスケジュールを生成。すべてのアフィニティ制約を尊重。複雑なシナリオに最適。",
     compDataExportTitle: "データエクスポート",
     compDataExportDesc: "いつでもすべてのデータをJSONでダウンロード。",

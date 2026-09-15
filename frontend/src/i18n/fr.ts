@@ -948,7 +948,7 @@ const fr = {
     stratMaxHoursTag: "GRATUIT",
     stratMaxHoursDesc: "Plafonne chaque employé à X heures par planning. Limite d'heures ajustable (4-60h) et rigueur (de préférence souple à plafond strict). Respecte les affinités : les contraintes strictes sont appliquées, les préférences souples influencent le score.",
     stratAI: "Génération AI",
-    stratAITag: "$2 GRATUIT / MOIS",
+    stratAITag: "CRÉDITS PRÉPAYÉS",
     stratAIDesc: "Claude AI lit le contexte complet (disponibilités, compétences, affinités, exigences de postes) et produit un planning optimisé. Respecte toutes les contraintes d'affinité. Idéal pour les scénarios complexes.",
     compDataExportTitle: "Export de données",
     compDataExportDesc: "Téléchargez toutes vos données au format JSON à tout moment.",

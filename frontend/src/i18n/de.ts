@@ -948,7 +948,7 @@ const de = {
     stratMaxHoursTag: "KOSTENLOS",
     stratMaxHoursDesc: "Begrenzt jeden Mitarbeiter auf X Stunden pro Dienstplan. Einstellbares Stundenlimit (4–60 Std.) und Strenge (weiche Präferenz bis harte Grenze). Berücksichtigt Mitarbeiter-Affinitäten: harte Einschränkungen werden durchgesetzt, weiche Präferenzen beeinflussen die Bewertung.",
     stratAI: "AI-Generierung",
-    stratAITag: "$2 KOSTENLOS / MONAT",
+    stratAITag: "PREPAID-GUTHABEN",
     stratAIDesc: "Claude AI liest den vollständigen Kontext (Verfügbarkeit, Fähigkeiten, Affinitäten, Schichtanforderungen) und erstellt einen optimierten Dienstplan. Respektiert alle Affinitäts-Einschränkungen. Ideal für komplexe Szenarien.",
     compDataExportTitle: "Datenexport",
     compDataExportDesc: "Laden Sie jederzeit alle Ihre Daten als JSON herunter.",
