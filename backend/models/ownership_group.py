@@ -21,8 +21,10 @@ class OwnershipGroup(Base):
     ai_credits_usd: Mapped[float] = mapped_column(
         Float, nullable=False, server_default=text("0")
     )
+    # Opt-in since #64: a customer buys a pack first, and may tick
+    # "auto-reload" in the purchase modal. Existing rows kept their value.
     autoreload_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("true")
+        Boolean, nullable=False, server_default=text("false")
     )
     autoreload_threshold_usd: Mapped[float] = mapped_column(
         Numeric(10, 4), nullable=False, server_default=text("2.0")

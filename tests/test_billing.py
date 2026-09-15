@@ -333,6 +333,25 @@ async def test_billing_charge_model_round_trips(db_session: AsyncSession, seed_o
     assert rows[0].status == "succeeded"
 
 
+async def test_new_ownership_group_starts_with_autoreload_off(db_session: AsyncSession):
+    """Opt-in, not opt-out (#64): a fresh group must not be charged automatically."""
+    og = OwnershipGroup(id=_id(), name="Fresh")
+    db_session.add(og)
+    await db_session.commit()
+    await db_session.refresh(og)
+    assert og.autoreload_enabled is False
+
+
+async def test_billing_charge_accepts_purchase_kind(db_session: AsyncSession, seed_og):
+    db_session.add(BillingCharge(
+        ownership_group_id=OG_ID, kind="purchase", amount_usd=10.0,
+        stripe_object_id="pi_x", status="succeeded",
+    ))
+    await db_session.commit()
+    row = (await db_session.execute(select(BillingCharge))).scalar_one()
+    assert row.kind == "purchase"
+
+
 async def test_cache_default_payment_method_writes_pm_id(
     db_session: AsyncSession, seed_og, monkeypatch
 ):
@@ -369,10 +388,15 @@ from unittest.mock import MagicMock
 
 @pytest_asyncio.fixture
 async def og_with_card(db_session: AsyncSession, seed_og):
-    """OG with stripe_customer_id and a cached payment method."""
+    """Paid OG with a cached payment method that has opted into auto-reload.
+
+    Auto-reload is opt-in since #64, so the fixture says so explicitly
+    rather than leaning on the column default.
+    """
     seed_og.stripe_customer_id = "cus_test_abc"
     seed_og.stripe_subscription_id = "sub_test_123"
     seed_og.default_payment_method_id = "pm_test_card_456"
+    seed_og.autoreload_enabled = True
     await db_session.commit()
     return seed_og
 
