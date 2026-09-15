@@ -272,9 +272,9 @@ markup (`logicalDirection.test.ts` enforces this).
 
 ## 6. Tests
 
-Backend, `tests/test_billing.py` (edited) and `tests/test_billing.py` (which
-owns the `seed_og`/`og_with_card` fixtures), on the SQLite test database
-like the rest of the suite:
+Backend, all in `tests/test_billing.py` (edited; it also owns the `seed_og`
+and `og_with_card` fixtures) plus the new `tests/test_operator_alerts.py`,
+on the SQLite test database like the rest of the suite:
 
 - `check_and_record_usage` at the default knob: first generation of a
   month is charged at full markup; a later one too; `included_remaining_usd`
@@ -306,10 +306,9 @@ like the rest of the suite:
   committed and the response 200.
 
 Frontend: `npm run build` (type-checks every locale against `en`) and
-`npm test` (vitest, including the logical-direction sweep). No new
-component tests; the repo has none for this page. No component tests
-exist for the Schedule page; the purchase modal is verified by the
-type-checked build and the logical-direction sweep only.
+`npm test` (vitest, including the logical-direction sweep). No component
+tests exist for the Schedule page, so the purchase modal is verified by
+the type-checked build and the logical-direction sweep only.
 
 ## 7. Documentation
 
