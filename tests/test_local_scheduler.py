@@ -87,6 +87,8 @@ MON_9_17 = {"start": "2026-03-30T09:00:00+00:00", "end": "2026-03-30T17:00:00+00
 TUE_9_17 = {"start": "2026-03-31T09:00:00+00:00", "end": "2026-03-31T17:00:00+00:00"}
 # Monday 2026-03-30  09:00-12:00 (partial day — only morning)
 MON_9_12 = {"start": "2026-03-30T09:00:00+00:00", "end": "2026-03-30T12:00:00+00:00"}
+# Monday 2026-03-30  06:00-18:00 (covers both an opener and a mid slot)
+MON_6_18 = {"start": "2026-03-30T06:00:00+00:00", "end": "2026-03-30T18:00:00+00:00"}
 
 
 ROLE_FLOOR = {"role_id": "role0001", "role_name": "Floor", "skill_level": 3}
@@ -499,3 +501,33 @@ class TestAffinityConstraints:
 
         result = local_schedule(state, strategy="random")
         assert len(result["current_parsed_shifts"]) == 2
+
+    def test_hard_negative_across_overlapping_but_distinct_windows(self):
+        """A -1.0 pair must not share an overlapping window even when the
+        two slots aren't an exact time match — e.g. an opener 06:00-14:00
+        and a mid slot 10:00-18:00 on the same day overlap 10:00-14:00."""
+        for seed in range(30):
+            _random.seed(seed)
+            e1 = _make_employee("e001", "Opener", [ROLE_FLOOR], "loc00001", [MON_6_18])
+            e1["affinities"] = [{"target_id": "e002", "level": -1.0}]
+            e2 = _make_employee("e002", "Mid", [ROLE_LEAD], "loc00001", [MON_6_18])
+            e2["affinities"] = [{"target_id": "e001", "level": -1.0}]
+            e3 = _make_employee("e003", "Mid2", [ROLE_LEAD], "loc00001", [MON_6_18])
+
+            schedule = {"Monday": [
+                {"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "06:00", "end_time": "14:00"},
+                {"role_name": "Lead", "role_id": "role0002", "headcount": 1, "start_time": "10:00", "end_time": "18:00"},
+            ]}
+            state = _make_state([e1, e2, e3], schedule)
+
+            result = local_schedule(state, strategy="random")
+            shifts = result["current_parsed_shifts"]
+
+            opener = next((s for s in shifts if s["role_name"] == "Floor"), None)
+            mid = next((s for s in shifts if s["role_name"] == "Lead"), None)
+            assert opener is not None and opener["employee_id"] == "e001"
+            if mid is not None:
+                assert mid["employee_id"] != "e002", (
+                    f"seed={seed}: hard-negative pair shared overlapping windows: "
+                    f"opener={opener}, mid={mid}"
+                )
