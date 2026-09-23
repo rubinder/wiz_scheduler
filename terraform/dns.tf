@@ -67,8 +67,8 @@ resource "aws_route53_record" "app" {
   type    = "A"
 
   alias {
-    name                   = aws_cloudfront_distribution.frontend.domain_name
-    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
+    name                   = var.marketing_live ? aws_cloudfront_distribution.marketing.domain_name : aws_cloudfront_distribution.frontend.domain_name
+    zone_id                = var.marketing_live ? aws_cloudfront_distribution.marketing.hosted_zone_id : aws_cloudfront_distribution.frontend.hosted_zone_id
     evaluate_target_health = false
   }
 }
@@ -77,6 +77,20 @@ resource "aws_route53_record" "www" {
   count   = var.domain_name != "" ? 1 : 0
   zone_id = aws_route53_zone.main[0].zone_id
   name    = "www.${var.domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = var.marketing_live ? aws_cloudfront_distribution.marketing.domain_name : aws_cloudfront_distribution.frontend.domain_name
+    zone_id                = var.marketing_live ? aws_cloudfront_distribution.marketing.hosted_zone_id : aws_cloudfront_distribution.frontend.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+# app.<apex> → the app's CloudFront distribution, only after cutover.
+resource "aws_route53_record" "app_subdomain" {
+  count   = var.domain_name != "" && var.marketing_live ? 1 : 0
+  zone_id = aws_route53_zone.main[0].zone_id
+  name    = "app.${var.domain_name}"
   type    = "A"
 
   alias {

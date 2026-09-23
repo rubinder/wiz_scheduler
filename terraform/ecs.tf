@@ -191,7 +191,7 @@ resource "aws_ecs_task_definition" "app" {
         },
         {
           name  = "CORS_ORIGINS"
-          value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
+          value = var.domain_name == "" ? "*" : (var.marketing_live ? "https://${local.app_host},https://${var.domain_name}" : "https://${var.domain_name}")
         },
         {
           name  = "STRIPE_PRICE_ID"
@@ -204,15 +204,15 @@ resource "aws_ecs_task_definition" "app" {
           # nothing. check_in_deep_link refuses a non-absolute value rather
           # than emitting a dead link.
           name  = "FRONTEND_URL"
-          value = var.domain_name != "" ? "https://${var.domain_name}" : ""
+          value = var.domain_name != "" ? "https://${local.app_host}" : ""
         },
         {
           name  = "STRIPE_SUCCESS_URL"
-          value = var.domain_name != "" ? "https://${var.domain_name}/register?session_id={CHECKOUT_SESSION_ID}" : ""
+          value = var.domain_name != "" ? "https://${local.app_host}/register?session_id={CHECKOUT_SESSION_ID}" : ""
         },
         {
           name  = "STRIPE_CANCEL_URL"
-          value = var.domain_name != "" ? "https://${var.domain_name}/register" : ""
+          value = var.domain_name != "" ? "https://${local.app_host}/register" : ""
         },
         {
           name  = "GOOGLE_CLIENT_ID"

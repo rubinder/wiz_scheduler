@@ -114,7 +114,9 @@ resource "aws_cloudfront_distribution" "frontend" {
   default_root_object = "index.html"
   price_class         = "PriceClass_100" # US, Canada, Europe — cheapest tier
 
-  aliases = var.domain_name != "" ? [var.domain_name, "www.${var.domain_name}"] : []
+  # Until cutover the app owns apex + www; after it (var.marketing_live) the
+  # marketing distribution takes those and the app lives at app.<domain>.
+  aliases = var.domain_name == "" ? [] : (var.marketing_live ? ["app.${var.domain_name}"] : [var.domain_name, "www.${var.domain_name}"])
 
   # ---- S3 origin (static assets) ----
   origin {
