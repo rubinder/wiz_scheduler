@@ -6,10 +6,33 @@ therefore test the rule rather than the driver.
 """
 
 import logging
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
+
+from backend.models import (
+    Employee,
+    EmployeeCheckIn,
+    Location,
+    Shift,
+    ShiftSchedule,
+    TimeEntry,
+    User,
+)
+from backend.models.employee_check_in import CHECK_IN_DUPLICATE, CHECK_IN_MATCHED
+from backend.models.time_entry import TIME_ENTRY_CHECKED_IN
+
 logger = logging.getLogger(__name__)
+
+# Locations sit at most +/-14h from UTC, so a range widened by a day either
+# side is guaranteed to contain every shift whose LOCAL pay_date falls inside
+# it. The exact membership test is done in Python, where the timezone is known.
+_RANGE_SLACK = timedelta(days=1)
 
 
 def paid_minutes(start: datetime, end: datetime) -> int:
@@ -56,3 +79,345 @@ def pay_date_for(timezone_name: str, start: datetime) -> date:
     if you asked them when that shift was.
     """
     return start.astimezone(ZoneInfo(timezone_name)).date()
+
+
+@dataclass(frozen=True)
+class DeriveResult:
+    created: int
+    existing: int
+    exception_count: int
+
+
+@dataclass(frozen=True)
+class TimeEntryRow:
+    id: str
+    shift_id: str
+    employee_id: str
+    employee_name: str
+    location_id: str
+    location_name: str
+    role_id: str
+    role_name: str
+    pay_date: date
+    start_time: datetime
+    end_time: datetime
+    paid_minutes: int
+    source: str
+    checked_in_at: datetime | None
+    lateness_minutes: int | None
+    attested_by_name: str | None
+    attested_at: datetime | None
+    attestation_reason: str | None
+    approved_at: datetime | None
+    exported_at: datetime | None
+
+
+@dataclass(frozen=True)
+class ExceptionRow:
+    shift_id: str
+    employee_id: str
+    employee_name: str
+    location_id: str
+    location_name: str
+    role_id: str
+    role_name: str
+    pay_date: date
+    start_time: datetime
+    end_time: datetime
+    paid_minutes: int
+
+
+@dataclass(frozen=True)
+class _Candidate:
+    shift: Shift
+    location: Location
+    employee_name: str
+    pay_date: date
+    paid_minutes: int
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Normalize a (possibly naive) datetime from SQLite to UTC-aware.
+
+    DateTime(timezone=True) is honored by Postgres but ignored by SQLite,
+    which strips tzinfo on round-trip. We always store UTC, so re-attaching it
+    when missing is correct. Same pattern as _as_utc in
+    backend/services/check_in.py — and the same warning applies: never build a
+    shift fixture from an offset-bearing ISO string under SQLite.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+async def _candidate_shifts(
+    db: AsyncSession,
+    company_id: str,
+    range_start: date,
+    range_end: date,
+    location_id: str | None,
+) -> list[_Candidate]:
+    """Approved, already-started shifts whose derived pay_date is in range.
+
+    Filtered on start_time rather than Shift.date: Shift.date is LLM-supplied
+    and can drift, while start_time is what both the check-in matcher and the
+    pay date are derived from.
+
+    A shift whose wall-clock faces are equal is skipped with a warning rather
+    than raising: it is malformed, and the paid_minutes > 0 check constraint
+    must never be the thing a manager discovers.
+    """
+    now = datetime.now(timezone.utc)
+    window_start = datetime.combine(
+        range_start, time.min, tzinfo=timezone.utc
+    ) - _RANGE_SLACK
+    window_end = datetime.combine(
+        range_end, time.max, tzinfo=timezone.utc
+    ) + _RANGE_SLACK
+
+    query = (
+        select(Shift, Location, Employee.full_name)
+        .join(ShiftSchedule, ShiftSchedule.id == Shift.shift_schedule_id)
+        .join(Location, Location.id == Shift.location_id)
+        .join(Employee, Employee.id == Shift.employee_id)
+        .where(
+            Shift.company_id == company_id,
+            ShiftSchedule.status == "approved",
+            Shift.start_time >= window_start,
+            Shift.start_time <= window_end,
+        )
+    )
+    if location_id:
+        query = query.where(Shift.location_id == location_id)
+
+    candidates: list[_Candidate] = []
+    for shift, location, employee_name in (await db.execute(query)).all():
+        start = _as_utc(shift.start_time)
+        if start >= now:
+            # Not worked yet: neither an entry nor an exception.
+            continue
+        pay_date = pay_date_for(location.timezone, start)
+        if not (range_start <= pay_date <= range_end):
+            continue
+        try:
+            minutes = paid_minutes(shift.start_time, shift.end_time)
+        except ValueError:
+            logger.warning(
+                "payroll.malformed_shift shift_id=%s company_id=%s start=%s end=%s",
+                shift.id, company_id, shift.start_time, shift.end_time,
+            )
+            continue
+        candidates.append(_Candidate(
+            shift=shift, location=location, employee_name=employee_name,
+            pay_date=pay_date, paid_minutes=minutes,
+        ))
+    return candidates
+
+
+async def _earliest_check_ins(
+    db: AsyncSession, shift_ids: list[str]
+) -> dict[str, EmployeeCheckIn]:
+    """The gating scan per shift: the EARLIEST matched-or-duplicate arrival.
+
+    We do not re-derive the match. _match_shift already ran at scan time and
+    persisted its answer on EmployeeCheckIn.shift_id; re-deriving would be a
+    second implementation that can disagree with the first, and would silently
+    produce a different answer for any shift edited after the scan.
+    """
+    rows = (await db.execute(
+        select(EmployeeCheckIn)
+        .where(
+            EmployeeCheckIn.shift_id.in_(shift_ids),
+            EmployeeCheckIn.status.in_([CHECK_IN_MATCHED, CHECK_IN_DUPLICATE]),
+        )
+        .order_by(EmployeeCheckIn.checked_in_at.asc())
+    )).scalars().all()
+    earliest: dict[str, EmployeeCheckIn] = {}
+    for row in rows:
+        if row.shift_id is not None:
+            earliest.setdefault(row.shift_id, row)
+    return earliest
+
+
+async def derive_time_entries(
+    db: AsyncSession,
+    company_id: str,
+    range_start: date,
+    range_end: date,
+    location_id: str | None = None,
+    _retry: bool = True,
+) -> DeriveResult:
+    """Create the TimeEntry rows for a range. Idempotent.
+
+    Loads the candidate shifts and their locations once, maps each to its
+    check-in, and inserts in one commit. An IntegrityError on
+    uq_time_entries_shift means a concurrent derive got there first, so the
+    call is retried once — which re-reads the now-present shift ids and
+    therefore excludes them. A second failure returns what it managed, because
+    a duplicate-key collision here means the row exists, which is the outcome
+    the caller wanted.
+    """
+    candidates = await _candidate_shifts(
+        db, company_id, range_start, range_end, location_id
+    )
+    if not candidates:
+        return DeriveResult(created=0, existing=0, exception_count=0)
+
+    shift_ids = [c.shift.id for c in candidates]
+    existing_ids = set((await db.execute(
+        select(TimeEntry.shift_id).where(TimeEntry.shift_id.in_(shift_ids))
+    )).scalars().all())
+    check_ins = await _earliest_check_ins(db, shift_ids)
+
+    created = 0
+    existing = 0
+    exception_count = 0
+    for c in candidates:
+        if c.shift.id in existing_ids:
+            existing += 1
+            continue
+        check_in = check_ins.get(c.shift.id)
+        if check_in is None:
+            exception_count += 1
+            continue
+        db.add(TimeEntry(
+            company_id=company_id,
+            location_id=c.shift.location_id,
+            employee_id=c.shift.employee_id,
+            shift_id=c.shift.id,
+            role_id=c.shift.role_id,
+            role_name=c.shift.role_name,
+            pay_date=c.pay_date,
+            start_time=c.shift.start_time,
+            end_time=c.shift.end_time,
+            paid_minutes=c.paid_minutes,
+            source=TIME_ENTRY_CHECKED_IN,
+            check_in_id=check_in.id,
+            checked_in_at=check_in.checked_in_at,
+            lateness_minutes=check_in.minutes_from_start,
+        ))
+        created += 1
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        if _retry:
+            return await derive_time_entries(
+                db, company_id, range_start, range_end, location_id,
+                _retry=False,
+            )
+        logger.warning(
+            "payroll.derive_conflict company_id=%s range=%s..%s",
+            company_id, range_start, range_end,
+        )
+        return DeriveResult(
+            created=0, existing=existing + created,
+            exception_count=exception_count,
+        )
+
+    return DeriveResult(
+        created=created, existing=existing, exception_count=exception_count
+    )
+
+
+async def list_time_entries(
+    db: AsyncSession,
+    company_id: str,
+    range_start: date,
+    range_end: date,
+    location_id: str | None = None,
+    approved: bool | None = None,
+) -> list[TimeEntryRow]:
+    """Read-only. Writes nothing, derives nothing."""
+    attester = aliased(User)
+    query = (
+        select(TimeEntry, Employee.full_name, Location.name, attester.full_name)
+        .join(Employee, Employee.id == TimeEntry.employee_id)
+        .join(Location, Location.id == TimeEntry.location_id)
+        .outerjoin(attester, attester.id == TimeEntry.attested_by_user_id)
+        .where(
+            TimeEntry.company_id == company_id,
+            TimeEntry.pay_date >= range_start,
+            TimeEntry.pay_date <= range_end,
+        )
+        .order_by(TimeEntry.pay_date, Employee.full_name)
+    )
+    if location_id:
+        query = query.where(TimeEntry.location_id == location_id)
+    if approved is True:
+        query = query.where(TimeEntry.approved_at.isnot(None))
+    elif approved is False:
+        query = query.where(TimeEntry.approved_at.is_(None))
+
+    return [
+        TimeEntryRow(
+            id=entry.id,
+            shift_id=entry.shift_id,
+            employee_id=entry.employee_id,
+            employee_name=employee_name,
+            location_id=entry.location_id,
+            location_name=location_name,
+            role_id=entry.role_id,
+            role_name=entry.role_name,
+            pay_date=entry.pay_date,
+            start_time=entry.start_time,
+            end_time=entry.end_time,
+            paid_minutes=entry.paid_minutes,
+            source=entry.source,
+            checked_in_at=entry.checked_in_at,
+            lateness_minutes=entry.lateness_minutes,
+            attested_by_name=attested_by_name,
+            attested_at=entry.attested_at,
+            attestation_reason=entry.attestation_reason,
+            approved_at=entry.approved_at,
+            exported_at=entry.exported_at,
+        )
+        for entry, employee_name, location_name, attested_by_name
+        in (await db.execute(query)).all()
+    ]
+
+
+async def list_exceptions(
+    db: AsyncSession,
+    company_id: str,
+    range_start: date,
+    range_end: date,
+    location_id: str | None = None,
+) -> list[ExceptionRow]:
+    """Approved, started, in-range shifts with no check-in and no entry.
+
+    Attesting a shift removes it from this list on the next load, because it
+    then has an entry.
+    """
+    candidates = await _candidate_shifts(
+        db, company_id, range_start, range_end, location_id
+    )
+    if not candidates:
+        return []
+
+    shift_ids = [c.shift.id for c in candidates]
+    entried = set((await db.execute(
+        select(TimeEntry.shift_id).where(TimeEntry.shift_id.in_(shift_ids))
+    )).scalars().all())
+    check_ins = await _earliest_check_ins(db, shift_ids)
+
+    rows = [
+        ExceptionRow(
+            shift_id=c.shift.id,
+            employee_id=c.shift.employee_id,
+            employee_name=c.employee_name,
+            location_id=c.shift.location_id,
+            location_name=c.location.name,
+            role_id=c.shift.role_id,
+            role_name=c.shift.role_name,
+            pay_date=c.pay_date,
+            start_time=c.shift.start_time,
+            end_time=c.shift.end_time,
+            paid_minutes=c.paid_minutes,
+        )
+        for c in candidates
+        if c.shift.id not in entried and c.shift.id not in check_ins
+    ]
+    rows.sort(key=lambda r: (r.pay_date, r.employee_name))
+    return rows
