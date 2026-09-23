@@ -9,7 +9,11 @@ import { marketing as m } from "../theme";
  * *and* how they'd sign in, so people who already registered land here by
  * mistake. Doubling the link's size (text-sm's 0.875rem -> 1.75rem) is a
  * subtle nudge toward /login without adding any copy.
+ *
+ * The link is always set in the site's highlighter orange (`text-marker`) so
+ * it reads as the one action on the page besides the form itself.
  */
 export function signInLinkClass(googleSignedIn: boolean): string {
-  return googleSignedIn ? `${m.btn.link} text-[1.75rem] font-semibold` : m.btn.link;
+  const base = `${m.btn.link} text-marker`;
+  return googleSignedIn ? `${base} text-[1.75rem] font-semibold` : base;
 }

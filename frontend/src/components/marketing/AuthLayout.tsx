@@ -40,7 +40,7 @@ export default function AuthLayout({ title, children, footer }: Props) {
     <div className={`min-h-screen ${m.page} font-body lg:grid lg:grid-cols-2`}>
       {/* form side */}
       <div className="flex flex-col min-h-screen px-6 py-8 lg:px-14">
-        <div className="flex items-center justify-between mb-14">
+        <div className="flex items-center justify-between mb-6">
           <Link to="/" className="flex items-center gap-2.5">
             {brandMark}
           </Link>
@@ -49,7 +49,7 @@ export default function AuthLayout({ title, children, footer }: Props) {
 
         <div className="flex-1 flex flex-col justify-center max-w-[26rem] w-full">
           <h1
-            className={`${m.text.display} font-display text-4xl font-semibold leading-tight mb-8`}
+            className={`${m.text.display} font-display text-4xl font-semibold leading-tight mb-6`}
           >
             {title}
           </h1>
@@ -63,7 +63,7 @@ export default function AuthLayout({ title, children, footer }: Props) {
         aria-hidden="true"
         className={`hidden lg:flex lg:flex-col min-h-screen border-s ${m.rule.heavy} ${m.surface} px-14 py-8`}
       >
-        <div className="invisible mb-14">{brandMark}</div>
+        <div className="invisible mb-6">{brandMark}</div>
         <div className="flex-1 flex items-center justify-center">
           <div
             className={`w-full max-w-lg border ${m.rule.heavy} grid`}

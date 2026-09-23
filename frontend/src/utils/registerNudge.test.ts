@@ -14,4 +14,9 @@ describe("signInLinkClass", () => {
     expect(cls).toContain("text-[1.75rem]");
     expect(cls).toContain(m.btn.link);
   });
+
+  it("is always set in the site's orange so it reads as the page's other action", () => {
+    expect(signInLinkClass(false)).toContain("text-marker");
+    expect(signInLinkClass(true)).toContain("text-marker");
+  });
 });
