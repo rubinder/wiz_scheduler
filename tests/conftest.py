@@ -100,6 +100,7 @@ def reset_in_process_rate_limiters():
     """Reset in-memory rate-limit counters between tests so state from one
     test doesn't bleed into another and trip 429s on unrelated requests."""
     from backend.services.rate_limit import (
+        compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
         register_limiter,
@@ -107,6 +108,7 @@ def reset_in_process_rate_limiters():
         schedule_generate_ai_limiter,
     )
     for lim in (
+        compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
         register_limiter,
@@ -116,6 +118,7 @@ def reset_in_process_rate_limiters():
         lim.reset()
     yield
     for lim in (
+        compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
         register_limiter,

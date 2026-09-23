@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 import anthropic
 
 from backend.config import settings
-from backend.scheduling.local_scheduler import _build_affinity_lookup, _min_rest_violation
+from backend.scheduling.local_scheduler import _build_affinity_lookup
 from backend.scheduling.preferences import (
     annotate_preference_violations,
     blocked_by_hard_preference,
@@ -21,6 +21,7 @@ from backend.scheduling.prompts import (
     build_schedule_prompt,
     eligible_for_slot,
 )
+from backend.scheduling.rest_rules import _min_rest_violation
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)

@@ -130,3 +130,11 @@ schedule_generate_ai_limiter = SlidingWindowLimiter(
     max_requests=settings.SCHEDULE_GENERATE_AI_BURST_PER_HOUR,
     window_seconds=3600,
 )
+
+# Per-IP cap on the unauthenticated public compliance-check endpoint. No
+# company, no plan, no auth — this limiter is the only guard against
+# scripted abuse of the free "check your schedule" checker.
+compliance_check_limiter = SlidingWindowLimiter(
+    max_requests=settings.PUBLIC_COMPLIANCE_CHECK_RATE_LIMIT_PER_10MIN,
+    window_seconds=600,
+)
