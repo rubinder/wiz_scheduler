@@ -301,6 +301,20 @@ class Settings(BaseSettings):
     #     mail-bomb relay pointed at anyone.
     RESEND_VERIFICATION_RATE_LIMIT_PER_HOUR: int = 5
 
+    # PUBLIC_COMPLIANCE_CHECK_RATE_LIMIT_PER_10MIN — per-source-IP cap on
+    #     POST /public/compliance-check. Unauthenticated and unmetered by
+    #     any other guard (no company, no plan), so the sliding-window
+    #     limiter is the only thing standing between this route and being
+    #     used as a free compute sink. 30/10min is in the same spirit as
+    #     the other per-IP caps above: generous for the "check your
+    #     schedule" lead-magnet flow, tight against scripted abuse.
+    PUBLIC_COMPLIANCE_CHECK_RATE_LIMIT_PER_10MIN: int = 30
+
+    # PUBLIC_COMPLIANCE_CHECK_MAX_SHIFTS — hard cap on shifts per request to
+    #     the public compliance checker. Above this the request is rejected
+    #     with 413 before any parsing work; nothing is persisted either way.
+    PUBLIC_COMPLIANCE_CHECK_MAX_SHIFTS: int = 2000
+
     # ---------------------------------------------------------------------
     # Email verification.
     #
