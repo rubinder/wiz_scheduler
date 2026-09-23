@@ -241,6 +241,16 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
+    # Activation funnel (#115). Fired now that the registration transaction
+    # has durably committed. record_milestone runs on its own private
+    # session (see services/activation.py) so a milestone-insert failure
+    # can never fail the signup or disturb `db`/`user`/`ownership_group`.
+    from backend.services.activation import record_milestone
+
+    await record_milestone(
+        db, str(ownership_group.id), "signup", user_id=str(user.id)
+    )
+
     # Password signups must prove the address before they can generate.
     # Never fatal: a Resend outage would otherwise fail the signup itself,
     # and /auth/resend-verification exists precisely for the miss.

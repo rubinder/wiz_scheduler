@@ -10,37 +10,30 @@ run_activation_report.py for the read side. Nothing in this repo may read
 activation_events to gate or change product behavior — it is report-only,
 the same posture the other two modules commit to.
 
-record_milestone must never fail the request that calls it: every failure
-is caught, logged, and swallowed. Idempotency comes from the unique
-(ownership_group_id, event) constraint on activation_events — a repeat call
-for a milestone already recorded is a no-op. The insert is wrapped in a
-SAVEPOINT (the same pattern services/schedule_lock.py uses for its
-UNIQUE(company_id) race), and an IntegrityError on conflict is caught; it
-works identically against the Postgres runtime and the SQLite test
-database, unlike a dialect-specific ON CONFLICT clause.
+record_milestone must never fail the request that calls it, and must never
+touch the caller's own session: it opens its OWN short-lived AsyncSession
+bound to the same engine, does one dialect-aware `INSERT ... ON CONFLICT DO
+NOTHING` keyed on the unique (ownership_group_id, event) pair, commits, and
+closes. Every failure — including "already recorded" — is caught inside
+that private session and logged; nothing propagates out. This is
+deliberate: an earlier version reused the caller's session and relied on
+catching IntegrityError from a SAVEPOINT, but a flush failure (even one
+contained by a SAVEPOINT) leaves the *Session* itself needing an explicit
+rollback() before its next statement, and rollback() on an AsyncSession
+expires every attribute of every object already loaded in it — including
+the caller's. Every one of the five call sites keeps using its own session
+and its own ORM objects immediately after calling this, so a private
+session is the only way to guarantee they are never disturbed.
 
-A flush failure — even one caught and contained by a SAVEPOINT — leaves the
-SQLAlchemy Session itself in a "deactivated" state that raises
-PendingRollbackError on the next operation until Session.rollback() is
-called; that rollback is not optional; the SAVEPOINT only bounds what it
-undoes at the database level. On an AsyncSession, rollback() also expires
-every attribute of every object already loaded in the session, caller's
-objects included. That's why every one of the five call sites (register,
-create_location, create_employee, the generate stream, confirm-upgrade) is
-written to call record_milestone LAST — after everything it needs from its
-own ORM objects has already been read into plain values — so a rollback in
-here can never break the response being built around it. Call sites must
-also invoke this AFTER their own primary write has committed successfully:
-record_milestone commits its own insert as an independent unit of work, so
-calling it mid-transaction would prematurely commit whatever else is
-pending on the same session.
+Call sites should invoke this AFTER their own primary write has committed
+successfully, so a milestone is only ever recorded for a row that durably
+exists.
 """
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.activation_event import ACTIVATION_EVENTS, ActivationEvent
@@ -59,7 +52,8 @@ async def record_milestone(
 
     Safe to call every time the triggering action happens: the first call
     for a (group, event) pair inserts a row, every later one is a no-op.
-    Never raises.
+    Runs on its own private session — never flushes, commits, rolls back,
+    or expires anything on *db*. Never raises.
     """
     if not ownership_group_id:
         # No ownership group (seed/dev data, or a demo tenant) — nothing to
@@ -69,34 +63,35 @@ async def record_milestone(
         logger.error("activation.unknown_event event=%s", event)
         return
 
-    row = ActivationEvent(
-        ownership_group_id=ownership_group_id,
-        event=event,
-        user_id=user_id,
-        occurred_at=datetime.now(timezone.utc),
-    )
     try:
-        db.add(row)
-        async with db.begin_nested():
-            await db.flush()
-        await db.commit()
-    except IntegrityError:
-        # Already recorded — the unique constraint is the arbiter. The
-        # SAVEPOINT already rolled back the failed insert at the database
-        # level, but the Session itself still needs an explicit rollback()
-        # to clear the flush-failure state it now carries (see module
-        # docstring) — every call site is written to tolerate the resulting
-        # attribute expiration.
-        try:
-            await db.rollback()
-        except Exception:
-            pass
+        engine = db.bind
+        dialect_name = getattr(getattr(engine, "dialect", None), "name", "")
+        if dialect_name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as _insert
+        else:
+            # Covers the sqlite test database, and anything else that isn't
+            # postgres, the same way: on_conflict_do_nothing() is supported
+            # identically by both dialects' Insert constructs.
+            from sqlalchemy.dialects.sqlite import insert as _insert
+
+        stmt = (
+            _insert(ActivationEvent)
+            .values(
+                ownership_group_id=ownership_group_id,
+                event=event,
+                user_id=user_id,
+                occurred_at=datetime.now(timezone.utc),
+            )
+            .on_conflict_do_nothing(
+                index_elements=["ownership_group_id", "event"],
+            )
+        )
+
+        async with AsyncSession(bind=engine, expire_on_commit=False) as session:
+            await session.execute(stmt)
+            await session.commit()
     except Exception:
         logger.exception(
             "activation.record_failed group=%s event=%s",
             ownership_group_id, event,
         )
-        try:
-            await db.rollback()
-        except Exception:
-            pass

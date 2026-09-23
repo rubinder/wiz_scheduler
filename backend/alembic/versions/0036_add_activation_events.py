@@ -83,9 +83,15 @@ def upgrade() -> None:
     # Best-effort backfill — see module docstring for exactly what each
     # branch does and does not cover. The 8-char id can't come from a
     # column default (generate_short_id is Python-side only), so it's
-    # generated in SQL; a one-time backfill colliding on 8 hex chars is
-    # astronomically unlikely, and ON CONFLICT DO NOTHING makes a collision
-    # merely skip a row rather than fail the migration.
+    # generated in SQL. ON CONFLICT targets the uq_activation_events_
+    # group_event UNIQUE(ownership_group_id, event) pair, not the id
+    # primary key — it's what makes re-running this migration (or this
+    # backfill overlapping a row a live request already wrote) a no-op
+    # rather than an error. It does nothing for an id collision, but two
+    # rows landing on the same random 8 hex chars in a one-time backfill is
+    # astronomically unlikely; if it ever happened the PK violation would
+    # fail the migration outright, which is an acceptable failure mode for
+    # something this improbable.
     conn.execute(sa.text("""
         INSERT INTO activation_events (id, ownership_group_id, event, occurred_at, user_id)
         SELECT substr(md5(random()::text || clock_timestamp()::text || og.id || 's'), 1, 8),
