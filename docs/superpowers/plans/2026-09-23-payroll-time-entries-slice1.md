@@ -4,7 +4,7 @@
 
 **Goal:** Ship the provider-agnostic payroll core for issue #78 — attendance-verified `TimeEntry` rows, a manager exception queue with attestation, approval, a CSV export with an audit row and one-way `exported_at` idempotency, a retention sweep, and an attestation-rate block on the existing check-in report.
 
-**Architecture:** Two new tables (`time_entries`, `payroll_exports`) in Alembic migration `0036`. Pure functions (`paid_minutes`, `pay_date_for`) carry the wall-clock and midnight-crossing rules and are unit-tested with no DB. Session-bound services in `backend/services/time_entries.py` and `backend/services/payroll_export.py` do all derivation, attestation, approval and rendering; a thin router `backend/routers/payroll.py` translates HTTP to them. The frontend gets one manager page, one API wrapper, one pure formatter module, and new i18n keys in all 19 locales.
+**Architecture:** Two new tables (`time_entries`, `payroll_exports`) in Alembic migration `0037`. Pure functions (`paid_minutes`, `pay_date_for`) carry the wall-clock and midnight-crossing rules and are unit-tested with no DB. Session-bound services in `backend/services/time_entries.py` and `backend/services/payroll_export.py` do all derivation, attestation, approval and rendering; a thin router `backend/routers/payroll.py` translates HTTP to them. The frontend gets one manager page, one API wrapper, one pure formatter module, and new i18n keys in all 19 locales.
 
 **Tech Stack:** Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.x (Async), Alembic, PostgreSQL (SQLite+aiosqlite in tests), pytest + pytest-asyncio + httpx; React 18 + TypeScript + Vite + Tailwind, vitest. No new dependencies.
 
@@ -50,7 +50,7 @@ Copied verbatim from the spec and `CLAUDE.md`. Every task's requirements implici
 | `backend/models/time_entry.py` (create) | `TimeEntry` ORM model, source constants, constraints, indexes |
 | `backend/models/payroll_export.py` (create) | `PayrollExport` audit-row ORM model |
 | `backend/models/__init__.py` (modify) | Register both models and add to `__all__` |
-| `backend/alembic/versions/0036_add_time_entries_and_payroll_exports.py` (create) | Migration `0036`, `down_revision = "0035"` |
+| `backend/alembic/versions/0037_add_time_entries_and_payroll_exports.py` (create) | Migration `0037`, `down_revision = "0036"` |
 | `backend/services/time_entries.py` (create) | Pure `paid_minutes` / `pay_date_for`; derivation, listing, exceptions, attestation, approval, attestation rates |
 | `backend/services/payroll_export.py` (create) | `CSV_HEADER`, `PayrollCsvRow`, pure `render_csv`, `export_approved` |
 | `backend/schemas/payroll.py` (create) | Request/response Pydantic models for the payroll router |
@@ -72,12 +72,12 @@ Copied verbatim from the spec and `CLAUDE.md`. Every task's requirements implici
 
 ---
 
-### Task 1: Models and migration 0036
+### Task 1: Models and migration 0037
 
 **Files:**
 - Create: `backend/models/time_entry.py`
 - Create: `backend/models/payroll_export.py`
-- Create: `backend/alembic/versions/0036_add_time_entries_and_payroll_exports.py`
+- Create: `backend/alembic/versions/0037_add_time_entries_and_payroll_exports.py`
 - Modify: `backend/models/__init__.py`
 - Test: `tests/test_time_entry_model.py`
 
@@ -459,13 +459,13 @@ Expected: PASS — 5 passed
 
 - [ ] **Step 7: Write the migration**
 
-Create `backend/alembic/versions/0036_add_time_entries_and_payroll_exports.py`:
+Create `backend/alembic/versions/0037_add_time_entries_and_payroll_exports.py`:
 
 ```python
 """add time_entries and payroll_exports
 
-Revision ID: 0036
-Revises: 0035
+Revision ID: 0037
+Revises: 0036
 Create Date: 2026-09-23 00:00:00.000000
 
 Payroll slice 1 (#78). payroll_exports is created first because
@@ -480,8 +480,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0036"
-down_revision: Union[str, None] = "0035"
+revision: str = "0037"
+down_revision: Union[str, None] = "0036"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -587,7 +587,7 @@ def downgrade() -> None:
 - [ ] **Step 8: Verify the migration chain is linear**
 
 Run: `../../../backend/.venv/bin/python -c "import re,pathlib;d={};[d.setdefault(re.search(chr(39)+'?revision: str = \"(\d+)\"',p.read_text()).group(1), re.search('down_revision: Union\[str, None\] = \"(\d+)\"', p.read_text()).group(1)) for p in pathlib.Path('backend/alembic/versions').glob('0*.py')];print(sorted(d.items())[-3:])"`
-Expected: prints `[('0034', '0033'), ('0035', '0034'), ('0036', '0035')]`
+Expected: prints `[('0035', '0034'), ('0036', '0035'), ('0037', '0036')]`
 
 - [ ] **Step 9: Run the whole backend suite to confirm nothing regressed**
 
@@ -599,9 +599,9 @@ Expected: PASS — the pre-existing count plus 5
 ```bash
 git add backend/models/time_entry.py backend/models/payroll_export.py \
         backend/models/__init__.py \
-        backend/alembic/versions/0036_add_time_entries_and_payroll_exports.py \
+        backend/alembic/versions/0037_add_time_entries_and_payroll_exports.py \
         tests/test_time_entry_model.py
-git commit -m "feat(payroll): time_entries and payroll_exports models + migration 0036 (#78)"
+git commit -m "feat(payroll): time_entries and payroll_exports models + migration 0037 (#78)"
 ```
 
 ---
