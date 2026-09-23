@@ -200,7 +200,21 @@ async def _candidate_shifts(
         if not (range_start <= pay_date <= range_end):
             continue
         try:
-            minutes = paid_minutes(shift.start_time, shift.end_time)
+            # paid_minutes is contracted on LOCAL wall-clock faces (see its
+            # docstring), but Shift.start_time/end_time are UTC instants —
+            # the same true-instant-vs-wall-clock distinction _shift_local_face
+            # (backend/scheduling/graph.py) exists to handle. Reading the
+            # faces straight off the UTC-stored values would compute the UTC
+            # face, which drifts from the scheduled local length by the
+            # zone's offset and, worse, by one hour across a DST transition
+            # night (e.g. 22:00->06:00 America/New_York reads as 420 or 540
+            # minutes instead of 480). Converting into the location's own
+            # zone first recovers the intended wall-clock faces.
+            zone = ZoneInfo(location.timezone)
+            minutes = paid_minutes(
+                _as_utc(shift.start_time).astimezone(zone),
+                _as_utc(shift.end_time).astimezone(zone),
+            )
         except ValueError:
             logger.warning(
                 "payroll.malformed_shift shift_id=%s company_id=%s start=%s end=%s",
@@ -232,10 +246,11 @@ async def _earliest_check_ins(
         )
         .order_by(EmployeeCheckIn.checked_in_at.asc())
     )).scalars().all()
+    # shift_id.in_(shift_ids) already guarantees a non-None shift_id on every
+    # row, so setdefault alone (ordered earliest-first) picks the winner.
     earliest: dict[str, EmployeeCheckIn] = {}
     for row in rows:
-        if row.shift_id is not None:
-            earliest.setdefault(row.shift_id, row)
+        earliest.setdefault(row.shift_id, row)
     return earliest
 
 
@@ -253,9 +268,10 @@ async def derive_time_entries(
     check-in, and inserts in one commit. An IntegrityError on
     uq_time_entries_shift means a concurrent derive got there first, so the
     call is retried once — which re-reads the now-present shift ids and
-    therefore excludes them. A second failure returns what it managed, because
-    a duplicate-key collision here means the row exists, which is the outcome
-    the caller wanted.
+    therefore excludes them. A second failure re-queries which shift ids
+    actually persisted rather than assuming the rolled-back "created" rows
+    landed, so a DeriveResult never reports a row as existing that isn't
+    actually in the database.
     """
     candidates = await _candidate_shifts(
         db, company_id, range_start, range_end, location_id
@@ -307,12 +323,19 @@ async def derive_time_entries(
                 db, company_id, range_start, range_end, location_id,
                 _retry=False,
             )
+        # Persistent conflict: the whole commit rolled back, so none of this
+        # call's attempted inserts persisted. Re-query rather than assume
+        # `created` landed, so a row that failed twice is never reported as
+        # existing.
+        existing_ids = set((await db.execute(
+            select(TimeEntry.shift_id).where(TimeEntry.shift_id.in_(shift_ids))
+        )).scalars().all())
         logger.warning(
             "payroll.derive_conflict company_id=%s range=%s..%s",
             company_id, range_start, range_end,
         )
         return DeriveResult(
-            created=0, existing=existing + created,
+            created=0, existing=len(existing_ids),
             exception_count=exception_count,
         )
 

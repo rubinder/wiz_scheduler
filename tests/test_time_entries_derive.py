@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
@@ -269,12 +269,12 @@ async def test_a_midnight_crossing_shift_pays_on_its_start_date(
 ):
     """22:00 local Sunday -> 06:00 Monday is paid ENTIRELY on Sunday: included
     in full by a range ending Sunday, excluded entirely by one starting
-    Monday. The location is America/New_York, so 22:00 local is 02:00 UTC the
+    Monday. The location is America/New_York, so 22:00 local is 03:00 UTC the
     NEXT day — which is exactly the case a naive .date() gets wrong."""
     t = await _tenant(db_session)
-    # 02:00 UTC on `local_start_date + 1` == 22:00 the previous evening in NY
-    # during EST. Pick a fixed winter date in the past so the offset is -05:00
-    # regardless of when the suite runs.
+    # 03:00 UTC on `local_start_date + 1` == 22:00 the previous evening in NY
+    # during EST (UTC-5). Pick a fixed winter date in the past so the offset
+    # is -05:00 regardless of when the suite runs.
     local_start = date(2026, 1, 4)          # a Sunday
     start = datetime(2026, 1, 5, 3, 0, tzinfo=timezone.utc)   # 22:00 EST Jan 4
     shift_id = await _shift(db_session, t, start, hours=8)
@@ -307,3 +307,109 @@ async def test_listing_filters_by_approval_state(db_session: AsyncSession):
         db_session, t.company_id, *window, approved=False)) == 1
     assert await list_time_entries(
         db_session, t.company_id, *window, approved=True) == []
+
+
+async def test_a_dst_spring_forward_shift_still_pays_480_minutes(
+    db_session: AsyncSession
+):
+    """22:00 Sat -> 06:00 Sun local New York, spanning the 2026-03-08 spring
+    forward (clocks skip 02:00 -> 03:00, so the UTC gap is 7h not 8h). Reading
+    paid_minutes off the raw UTC instants would compute 420; reading it off
+    the LOCAL wall-clock faces (the fix here) must still get 480, because the
+    scheduled length is a wall-clock contract, not an elapsed-instant one."""
+    t = await _tenant(db_session)
+    # 22:00 EST Mar 7 == 03:00 UTC Mar 8 (UTC-5, before the 2am local
+    # transition). 06:00 EDT Mar 8 == 10:00 UTC Mar 8 (UTC-4, after it).
+    start = datetime(2026, 3, 8, 3, 0, tzinfo=timezone.utc)
+    shift_id = await _shift(db_session, t, start, hours=7)
+
+    await _check_in(db_session, t, shift_id, start)
+    result = await derive_time_entries(
+        db_session, t.company_id, date(2026, 3, 7), date(2026, 3, 7)
+    )
+
+    assert result.created == 1
+    entry = (await db_session.execute(select(TimeEntry))).scalar_one()
+    assert entry.paid_minutes == 480
+    assert entry.pay_date == date(2026, 3, 7)
+
+
+async def test_a_dst_fall_back_shift_still_pays_480_minutes(
+    db_session: AsyncSession
+):
+    """22:00 Sat -> 06:00 Sun local New York, spanning the 2025-11-02 fall
+    back (clocks repeat 01:00-02:00, so the UTC gap is 9h not 8h). Same rule
+    as the spring-forward case in reverse: the wall-clock face is 480 minutes
+    regardless of the extra hour the UTC instants actually spanned. 2025, not
+    2026, so the shift is safely in the past relative to any date this suite
+    runs on."""
+    t = await _tenant(db_session)
+    # 22:00 EDT Nov 1 == 02:00 UTC Nov 2 (UTC-4, before the 2am local
+    # transition). 06:00 EST Nov 2 == 11:00 UTC Nov 2 (UTC-5, after it).
+    start = datetime(2025, 11, 2, 2, 0, tzinfo=timezone.utc)
+    shift_id = await _shift(db_session, t, start, hours=9)
+
+    await _check_in(db_session, t, shift_id, start)
+    result = await derive_time_entries(
+        db_session, t.company_id, date(2025, 11, 1), date(2025, 11, 1)
+    )
+
+    assert result.created == 1
+    entry = (await db_session.execute(select(TimeEntry))).scalar_one()
+    assert entry.paid_minutes == 480
+    assert entry.pay_date == date(2025, 11, 1)
+
+
+async def test_a_check_in_removed_after_derivation_leaves_the_entry_alone(
+    db_session: AsyncSession
+):
+    """The check-in retention sweep (RETENTION_CHECKINS_DAYS) may delete the
+    EmployeeCheckIn row long after payroll ran. A TimeEntry that already
+    exists must not un-derive, and the shift must not resurface as an
+    exception just because its gating evidence is gone."""
+    t = await _tenant(db_session)
+    start = _yesterday_at(9)
+    shift_id = await _shift(db_session, t, start)
+    await _check_in(db_session, t, shift_id, start)
+    window = (TODAY - timedelta(days=7), TODAY)
+
+    first = await derive_time_entries(db_session, t.company_id, *window)
+    assert first.created == 1
+
+    await db_session.execute(
+        delete(EmployeeCheckIn).where(EmployeeCheckIn.shift_id == shift_id)
+    )
+    await db_session.commit()
+
+    second = await derive_time_entries(db_session, t.company_id, *window)
+    assert second.created == 0
+    assert second.existing == 1
+    assert second.exception_count == 0
+    assert await list_exceptions(db_session, t.company_id, *window) == []
+    assert len((await db_session.execute(select(TimeEntry))).scalars().all()) == 1
+
+
+async def test_an_earlier_duplicate_still_beats_a_later_matched_scan(
+    db_session: AsyncSession
+):
+    """The gating rule is chronological, not status-based: whichever
+    matched-or-duplicate scan happened first owns check_in_id and
+    lateness_minutes, even when it is the 'duplicate' one."""
+    t = await _tenant(db_session)
+    start = _yesterday_at(9)
+    shift_id = await _shift(db_session, t, start)
+    duplicate_id = await _check_in(
+        db_session, t, shift_id, start - timedelta(minutes=10),
+        status=CHECK_IN_DUPLICATE, minutes=-10, counter=0,
+    )
+    await _check_in(
+        db_session, t, shift_id, start - timedelta(minutes=4),
+        status=CHECK_IN_MATCHED, minutes=-4, counter=1,
+    )
+
+    await derive_time_entries(db_session, t.company_id,
+                              TODAY - timedelta(days=7), TODAY)
+
+    entry = (await db_session.execute(select(TimeEntry))).scalar_one()
+    assert entry.check_in_id == duplicate_id
+    assert entry.lateness_minutes == -10
