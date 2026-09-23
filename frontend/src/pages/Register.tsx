@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useLanguage } from "../i18n/LanguageContext";
 import { marketing as m } from "../theme";
+import { signInLinkClass } from "../utils/registerNudge";
 
 // `window.google` is already declared in Login.tsx with a permissive shape.
 // No re-declaration here — we cast the GIS callback inline below.
@@ -223,7 +224,7 @@ export default function Register() {
         </p>
         <p className={`mt-4 text-center text-sm ${m.text.muted}`}>
           {t.register.haveAccount}{" "}
-          <Link to="/login" className={m.btn.link}>
+          <Link to="/login" className={signInLinkClass(!!googleIdToken)}>
             {t.register.signIn}
           </Link>
         </p>
