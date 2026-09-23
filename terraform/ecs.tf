@@ -253,6 +253,22 @@ resource "aws_ecs_service" "app" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  # A fresh task runs `alembic upgrade head` and then boots four uvicorn
+  # workers, which on this task size takes 60-90 s before the first request is
+  # answered. Without a grace period the ALB's three 30 s checks start counting
+  # at registration, so a slightly slow boot is killed exactly as it becomes
+  # healthy (seen 2026-09-23: task defs 81/82 looped on "failed ELB health
+  # checks" while the old task kept serving). Five minutes covers migrations
+  # plus worker boot with room to spare; a genuinely broken image still fails
+  # after that and the circuit breaker rolls the service back instead of
+  # retrying forever.
+  health_check_grace_period_seconds = 300
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs.id]
