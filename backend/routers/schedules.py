@@ -237,6 +237,28 @@ async def generate_schedule(
 
                         await db.commit()
 
+                        # Activation funnel (#115): fires once, on the first
+                        # location result that actually produced a schedule
+                        # ("ok"). PARSE_ERROR, CONFLICT, and QUOTA_EXCEEDED
+                        # all mean nothing was generated for that location —
+                        # QUOTA_EXCEEDED in particular is exactly the stalled
+                        # cohort this funnel exists to measure, so it must
+                        # not count as reaching this milestone. Fired per
+                        # chunk rather than once per request — the unique
+                        # (group, event) constraint in record_milestone
+                        # makes every call after the first a no-op.
+                        if chunk.get("status") == "ok":
+                            from backend.services.activation import record_milestone
+                            from backend.services.billing import get_ownership_group_id
+
+                            og_id = await get_ownership_group_id(
+                                db, str(current_user.company_id)
+                            )
+                            await record_milestone(
+                                db, og_id, "first_generation",
+                                user_id=str(current_user.id),
+                            )
+
                     yield json.dumps(chunk) + "\n"
             except Exception as exc:
                 from backend.services.failure_logger import log_failure

@@ -196,6 +196,18 @@ async def create_employee(
 
     await db.commit()
     await db.refresh(employee)
+
+    # Activation funnel (#115), fired after the employee durably commits.
+    # record_milestone runs on its own private session, so a milestone
+    # failure can never fail the create or disturb `employee`.
+    from backend.services.activation import record_milestone
+    from backend.services.billing import get_ownership_group_id
+
+    og_id = await get_ownership_group_id(db, str(current_user.company_id))
+    await record_milestone(
+        db, og_id, "first_employee", user_id=str(current_user.id)
+    )
+
     return await _to_response(db, employee)
 
 
@@ -488,6 +500,18 @@ async def bulk_upload(
         created += 1
 
     await db.commit()
+
+    # Activation funnel (#115): a bulk import creates employees exactly as
+    # much as the single-create endpoint does, so it must count too.
+    if created > 0:
+        from backend.services.activation import record_milestone
+        from backend.services.billing import get_ownership_group_id
+
+        og_id = await get_ownership_group_id(db, str(current_user.company_id))
+        await record_milestone(
+            db, og_id, "first_employee", user_id=str(current_user.id)
+        )
+
     return BulkUploadResponse(created=created, skipped=skipped, errors=errors)
 
 

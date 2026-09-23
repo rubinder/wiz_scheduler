@@ -30,6 +30,7 @@ from backend.models.employee_check_in import EmployeeCheckIn
 from backend.models.og_email_send_log import OgEmailSendLog
 from backend.models.integration_import import IntegrationImport
 from backend.models.gdpr_export_log import GdprExportLog
+from backend.models.activation_event import ActivationEvent
 
 __all__ = [
     "OwnershipGroup",
@@ -70,4 +71,5 @@ __all__ = [
     "OgEmailSendLog",
     "IntegrationImport",
     "GdprExportLog",
+    "ActivationEvent",
 ]

@@ -477,6 +477,17 @@ async def confirm_reactivation(
     og.notified_data_deleted_at = None
     await db.commit()
 
+    # Activation funnel (#115): a group reactivating is paid again, same as
+    # a fresh upgrade. The unique (group, event) constraint makes this a
+    # no-op for a group that already has an `upgraded` row (the common
+    # case); it only adds one for a group that reached paid some other way
+    # (e.g. paid at signup via stripe_session_id) and never had it recorded.
+    from backend.services.activation import record_milestone
+
+    await record_milestone(
+        db, str(og.id), "upgraded", user_id=str(current_user.id)
+    )
+
     return {"reactivated": True, "subscription_id": og.stripe_subscription_id}
 
 
@@ -608,5 +619,18 @@ async def confirm_upgrade(
     og.notified_deletion_reminder_at = None
     og.notified_data_deleted_at = None
     await db.commit()
+
+    # Activation funnel (#115). This is the transition services/plan.py
+    # actually keys "paid" off (stripe_subscription_id set, canceled_at
+    # cleared) for the app's own free->paid flow; the `customer.subscription
+    # .updated` Stripe webhook never writes stripe_subscription_id in this
+    # codebase, so it is not a usable "upgraded" signal. record_milestone
+    # runs on its own private session, so a milestone-insert failure can
+    # never undo the upgrade above or disturb `og`.
+    from backend.services.activation import record_milestone
+
+    await record_milestone(
+        db, str(og.id), "upgraded", user_id=str(current_user.id)
+    )
 
     return {"upgraded": True, "subscription_id": og.stripe_subscription_id}
