@@ -81,6 +81,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "marketing_live" {
+  description = "Cutover step B. When true the marketing distribution takes apex + www, the app distribution moves to app.<domain_name>, Route53 and backend URLs follow. Flip only after the marketing site is verified on its CloudFront hostname (see terraform/marketing.tf)."
+  type        = bool
+  default     = false
+}
+
 variable "from_email" {
   # Supplied in CI via TF_VAR_from_email (see .github/workflows/deploy.yml).
   # The local terraform.tfvars is gitignored and NOT read by CI, so set it
