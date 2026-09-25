@@ -17,6 +17,7 @@ from backend.dependencies import get_db, require_manager
 from backend.models import User
 from backend.schemas.payroll import (
     MAX_RANGE_DAYS,
+    PayrollAttestRequest,
     PayrollDeriveResponse,
     PayrollEntriesResponse,
     PayrollExceptionRowSchema,
@@ -26,6 +27,7 @@ from backend.schemas.payroll import (
 )
 from backend.services.plan import assert_paid_plan
 from backend.services.time_entries import (
+    attest_shift,
     derive_time_entries,
     list_exceptions,
     list_time_entries,
@@ -121,3 +123,25 @@ async def get_exceptions(
         rows=[PayrollExceptionRowSchema(**asdict(r)) for r in rows],
         total=len(rows),
     )
+
+
+@router.post("/attest", response_model=TimeEntryRowSchema,
+             status_code=status.HTTP_201_CREATED)
+async def attest(
+    body: PayrollAttestRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> TimeEntryRowSchema:
+    """Confirm an unscanned shift was worked. Phones die; nobody misses a
+    paycheque over a QR scan."""
+    company_id = str(current_user.company_id)
+    await assert_paid_plan(db, company_id, "payroll")
+
+    entry = await attest_shift(
+        db, company_id, body.shift_id, current_user, body.reason
+    )
+    rows = await list_time_entries(
+        db, company_id, entry.pay_date, entry.pay_date
+    )
+    row = next(r for r in rows if r.id == entry.id)
+    return TimeEntryRowSchema(**asdict(row))

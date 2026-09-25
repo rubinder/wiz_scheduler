@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +26,10 @@ from backend.models import (
     User,
 )
 from backend.models.employee_check_in import CHECK_IN_DUPLICATE, CHECK_IN_MATCHED
-from backend.models.time_entry import TIME_ENTRY_CHECKED_IN
+from backend.models.time_entry import (
+    TIME_ENTRY_CHECKED_IN,
+    TIME_ENTRY_MANAGER_ATTESTED,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -444,3 +448,115 @@ async def list_exceptions(
     ]
     rows.sort(key=lambda r: (r.pay_date, r.employee_name))
     return rows
+
+
+def _reject(code: str, message: str, http_status: int) -> HTTPException:
+    """The detail shape CheckInRejected is translated into by
+    backend/routers/check_ins.py, so every refusal in this feature reads the
+    same way to the frontend."""
+    return HTTPException(
+        status_code=http_status, detail={"code": code, "message": message}
+    )
+
+
+async def attest_shift(
+    db: AsyncSession,
+    company_id: str,
+    shift_id: str,
+    user: User,
+    reason: str | None,
+) -> TimeEntry:
+    """Record that a manager confirmed an unscanned shift was worked.
+
+    entry_exists is raised both by the check below and by catching the
+    IntegrityError on uq_time_entries_shift, so a check-then-insert race
+    resolves the same way whichever side loses — the pattern record_check_in
+    uses for the counter constraint.
+    """
+    row = (await db.execute(
+        select(Shift, Location, ShiftSchedule.status)
+        .join(ShiftSchedule, ShiftSchedule.id == Shift.shift_schedule_id)
+        .join(Location, Location.id == Shift.location_id)
+        .where(Shift.id == shift_id, Shift.company_id == company_id)
+    )).first()
+    if row is None:
+        raise _reject("shift_not_found", "That shift no longer exists.", 404)
+    shift, location, schedule_status = row
+
+    if schedule_status != "approved":
+        raise _reject(
+            "shift_not_approved",
+            "Only shifts on an approved schedule can be confirmed.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    start = _as_utc(shift.start_time)
+    if start >= datetime.now(timezone.utc):
+        raise _reject(
+            "shift_not_started",
+            "That shift has not started yet.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    already = (await db.execute(
+        select(TimeEntry.id).where(TimeEntry.shift_id == shift.id).limit(1)
+    )).scalar_one_or_none()
+    if already is not None:
+        raise _reject(
+            "entry_exists",
+            "That shift already has payable hours recorded.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    try:
+        # paid_minutes is contracted on LOCAL wall-clock faces (see its
+        # docstring); converting into the location's own zone first is the
+        # same fix _candidate_shifts applies above.
+        zone = ZoneInfo(location.timezone)
+        minutes = paid_minutes(
+            _as_utc(shift.start_time).astimezone(zone),
+            _as_utc(shift.end_time).astimezone(zone),
+        )
+    except ValueError:
+        logger.warning(
+            "payroll.malformed_shift shift_id=%s company_id=%s", shift.id,
+            company_id,
+        )
+        raise _reject(
+            "malformed_shift",
+            "That shift's start and end times are the same; fix the shift "
+            "before confirming it.",
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+
+    entry = TimeEntry(
+        company_id=company_id,
+        location_id=shift.location_id,
+        employee_id=shift.employee_id,
+        shift_id=shift.id,
+        role_id=shift.role_id,
+        role_name=shift.role_name,
+        pay_date=pay_date_for(location.timezone, start),
+        start_time=shift.start_time,
+        end_time=shift.end_time,
+        paid_minutes=minutes,
+        source=TIME_ENTRY_MANAGER_ATTESTED,
+        check_in_id=None,
+        checked_in_at=None,
+        lateness_minutes=None,
+        attested_by_user_id=user.id,
+        attested_at=datetime.now(timezone.utc),
+        attestation_reason=reason,
+    )
+    db.add(entry)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise _reject(
+            "entry_exists",
+            "That shift already has payable hours recorded.",
+            status.HTTP_409_CONFLICT,
+        )
+    await db.refresh(entry)
+    return entry
