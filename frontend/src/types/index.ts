@@ -426,4 +426,83 @@ export interface CheckInReportRow {
 export interface CheckInReport {
   rows: CheckInReportRow[];
   retention_days: number;
+  /** Reporting only — nothing on the backend reads `rate` to block anything. */
+  attestation: AttestationRateRow[];
+}
+
+// ── Payroll (#78) ──
+
+export interface AttestationRateRow {
+  location_id: string;
+  location_name: string;
+  entries: number;
+  attested: number;
+  /** attested / entries, 0.0 when entries == 0. */
+  rate: number;
+}
+
+export type TimeEntrySource = "checked_in" | "manager_attested";
+
+export interface TimeEntryRow {
+  id: string;
+  shift_id: string;
+  employee_id: string;
+  employee_name: string;
+  location_id: string;
+  location_name: string;
+  role_id: string;
+  role_name: string;
+  /** "YYYY-MM-DD", the location-local date the shift STARTED. */
+  pay_date: string;
+  /** Carries the location's offset. Read it with utils/shiftTime.ts — never
+   *  `new Date(...)`, which re-projects into the viewer's timezone (#92). */
+  start_time: string;
+  end_time: string;
+  paid_minutes: number;
+  source: TimeEntrySource;
+  checked_in_at: string | null;
+  /** Signed: negative early, positive late. Null for an attested entry. */
+  lateness_minutes: number | null;
+  attested_by_name: string | null;
+  attested_at: string | null;
+  attestation_reason: string | null;
+  approved_at: string | null;
+  exported_at: string | null;
+}
+
+export interface PayrollExceptionRow {
+  shift_id: string;
+  employee_id: string;
+  employee_name: string;
+  location_id: string;
+  location_name: string;
+  role_id: string;
+  role_name: string;
+  pay_date: string;
+  start_time: string;
+  end_time: string;
+  paid_minutes: number;
+}
+
+export interface PayrollEntriesResponse {
+  rows: TimeEntryRow[];
+  total_entries: number;
+  total_paid_minutes: number;
+  approved_entries: number;
+}
+
+export interface PayrollExceptionsResponse {
+  rows: PayrollExceptionRow[];
+  total: number;
+}
+
+export interface PayrollDeriveResult {
+  created: number;
+  existing: number;
+  exception_count: number;
+}
+
+export interface PayrollApproveResult {
+  approved: number;
+  already_approved: number;
 }
