@@ -2324,10 +2324,11 @@ async def test_delete_og_and_dependents_removes_full_subtree(
 async def test_delete_og_and_dependents_removes_payroll_rows(
     db_session: AsyncSession, og_with_card
 ):
-    """time_entries reference shifts, so an OG that ever ran payroll cannot
-    be deleted unless the payroll tables go first (#78). Before the fix the
-    shift DELETE tripped the time_entries FK and the whole day-90 deletion
-    failed for exactly the customers who had used the feature most."""
+    """time_entries and employee_check_ins both reference shifts, so an OG
+    that ever ran payroll (#78) or check-in (#63) cannot be deleted unless
+    those tables go first. Before the fix the shift DELETE tripped their FKs
+    and the whole day-90 deletion failed for exactly the customers who had
+    used the features most."""
     from datetime import date, datetime, timezone
     from sqlalchemy import select, func
     from backend.services.billing import delete_og_and_dependents
@@ -2337,6 +2338,9 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
     from backend.models.schedule import ShiftSchedule
     from backend.models.payroll_export import PayrollExport
     from backend.models.time_entry import TimeEntry, TIME_ENTRY_CHECKED_IN
+    from backend.models.employee_check_in import (
+        EmployeeCheckIn, CHECK_IN_MATCHED,
+    )
     from backend.models.ownership_group import OwnershipGroup
 
     user = User(
@@ -2368,6 +2372,14 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
     )
     db_session.add(shift)
     await db_session.flush()
+    check_in = EmployeeCheckIn(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        employee_id=employee.id, shift_id=shift.id,
+        checked_in_at=start, local_date=start.date(), counter=0,
+        status=CHECK_IN_MATCHED, minutes_from_start=0,
+    )
+    db_session.add(check_in)
+    await db_session.flush()
     export = PayrollExport(
         id=_id(), company_id=COMPANY_ID, ownership_group_id=OG_ID,
         exported_by_user_id=user.id, format="csv", location_id=location.id,
@@ -2381,7 +2393,8 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
         employee_id=employee.id, shift_id=shift.id, role_id=role.id,
         role_name=role.name, pay_date=date(2026, 5, 4), start_time=start,
         end_time=start + timedelta(hours=8), paid_minutes=480,
-        source=TIME_ENTRY_CHECKED_IN, checked_in_at=start,
+        source=TIME_ENTRY_CHECKED_IN, check_in_id=check_in.id,
+        checked_in_at=start, lateness_minutes=0,
         exported_at=datetime.now(timezone.utc), payroll_export_id=export.id,
     )
     db_session.add(entry)
@@ -2401,6 +2414,9 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
         select(func.count()).select_from(PayrollExport)
         .where(PayrollExport.company_id == COMPANY_ID)
     )).scalar() == 0
+    assert (await db_session.execute(
+        select(EmployeeCheckIn).where(EmployeeCheckIn.id == check_in.id)
+    )).scalar_one_or_none() is None
     assert (await db_session.execute(
         select(Shift).where(Shift.id == shift.id)
     )).scalar_one_or_none() is None
