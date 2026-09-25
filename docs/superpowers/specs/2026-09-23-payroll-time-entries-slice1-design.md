@@ -306,9 +306,17 @@ Response `200` `PayrollEntriesResponse`:
 }
 ```
 
-Timestamps are serialised exactly as stored, offset intact. Nothing on this
-path calls `.astimezone()` on a shift timestamp — the frontend reads the
-wall-clock face off the string (`utils/shiftTime.ts`), per #92.
+`start_time`, `end_time` and `checked_in_at` are true instants, which
+Postgres returns normalised to UTC. The API serialises them in the
+**location's** zone, offset intact — the same instant wearing its local
+wall-clock face — exactly as `_shift_to_response`
+(`backend/routers/schedules.py`) does for the schedule endpoints. The
+frontend reads the face off the string (`utils/shiftTime.ts`) rather than
+converting it, per #92, so it must be handed the local face: serialising the
+raw UTC instant would show a 09:00 shift as 13:00. This is not the
+`.astimezone()`-on-availability mistake #61/#85 forbid — availability is a
+wall-clock value falsely tagged UTC, where converting moves the face; these
+columns are genuine instants, where converting recovers it.
 
 ### `GET /api/v1/payroll/exceptions`
 

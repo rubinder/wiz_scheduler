@@ -1151,6 +1151,7 @@ const en = {
     downloadDesc: "Approved hours only. Each entry exports once.",
     nothingToExport: "Nothing new to export. Approve some hours first.",
     alreadyExported: "Exported {date}",
+    includeExported: "Include hours already exported",
     totalHours: "{hours} hours across {count} shifts",
     paidPlanOnly: "Payroll export is a paid-plan feature. Upgrade to enable it.",
     loadFailed: "Could not load payroll hours. Try again.",

@@ -1142,6 +1142,7 @@ const es = {
     downloadDesc: "Solo horas aprobadas. Cada registro se exporta una vez.",
     nothingToExport: "No hay nada nuevo que exportar. Aprueba algunas horas primero.",
     alreadyExported: "Exportado el {date}",
+    includeExported: "Incluir las horas ya exportadas",
     totalHours: "{hours} horas en {count} turnos",
     paidPlanOnly: "La exportación de nómina es una función de pago. Mejora tu plan para activarla.",
     loadFailed: "No se pudieron cargar las horas de nómina. Inténtalo de nuevo.",

@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Employee, Location, PayrollExport, TimeEntry, User
 from backend.services.billing import get_ownership_group_id
+from backend.services.time_entries import _as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,13 @@ class PayrollCsvRow:
 
 
 def _local_iso(dt: datetime, tz_name: str) -> str:
-    """Same instant, rendered in the location's zone with the offset intact."""
-    return dt.astimezone(ZoneInfo(tz_name)).isoformat()
+    """Same instant, rendered in the location's zone with the offset intact.
+
+    _as_utc first: SQLite drops tzinfo on read, and .astimezone() on a naive
+    value would interpret it in the HOST's zone — a CSV whose times depend on
+    where the developer lives. Same guard list_time_entries applies.
+    """
+    return _as_utc(dt).astimezone(ZoneInfo(tz_name)).isoformat()
 
 
 def render_csv(rows: list[PayrollCsvRow]) -> str:
@@ -147,7 +153,11 @@ async def export_approved(
         # Locks the selected rows (PostgreSQL; SQLite ignores it) so a double
         # click can't have two concurrent exports both see exported_at IS NULL
         # for the same entry and both believe they are the one that stamped it.
-        .with_for_update()
+        #
+        # of=TimeEntry: without it FOR UPDATE locks every table in the join,
+        # so exporting payroll would block unrelated writes to the employees
+        # and locations rows it merely read names from.
+        .with_for_update(of=TimeEntry)
     )
     if location_id:
         query = query.where(TimeEntry.location_id == location_id)

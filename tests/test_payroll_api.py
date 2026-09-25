@@ -228,15 +228,13 @@ async def test_derive_then_list(
     assert row["attested_by_name"] is None
 
 
-async def test_checked_in_at_is_localized_to_the_locations_offset(
+async def test_row_timestamps_are_localized_to_the_locations_offset(
     client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
 ):
-    """checked_in_at is a true UTC instant (services/check_in.py:
-    `datetime.now(timezone.utc)`), unlike start_time/end_time, which the
-    payroll schema deliberately serializes exactly as stored (offset intact
-    at write time). Rendering checked_in_at without converting it would show
-    the manager the UTC clock instead of the location's — the same class of
-    bug #92 fixed for shift times.
+    """checked_in_at, start_time and end_time are all true instants that
+    Postgres returns normalised to UTC. Serializing any of them raw would
+    show the manager the UTC clock instead of the location's — the same class
+    of bug #92 fixed for shift times.
 
     2024-07-15 is a fixed date inside America/New_York's DST window (EDT,
     UTC-4), so this does not depend on when the suite runs.
@@ -282,8 +280,50 @@ async def test_checked_in_at_is_localized_to_the_locations_offset(
     assert row["checked_in_at"].startswith("2024-07-15T09:02:00")
     assert row["checked_in_at"].endswith(("-04:00", "-05:00"))
 
-    # start_time/end_time are untouched: still exactly as stored.
-    assert row["start_time"].startswith("2024-07-15T13:00:00")
+    # The shift is STORED as 13:00Z but is scheduled 09:00-17:00 local, and
+    # that local face — with the location's own offset — is what must reach
+    # utils/shiftTime.ts, which reads the face straight off the string.
+    assert row["start_time"].startswith("2024-07-15T09:00:00")
+    assert row["start_time"].endswith(("-04:00", "-05:00"))
+    assert row["end_time"].startswith("2024-07-15T17:00:00")
+    assert row["end_time"].endswith(("-04:00", "-05:00"))
+
+
+async def test_exception_rows_are_localized_to_the_locations_offset(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    """The exception queue serializes the same true instants and therefore
+    needs the same conversion — an unscanned shift shown at 13:00 instead of
+    09:00 is the same bug on the other tab."""
+    scan_day = date(2024, 7, 15)
+    start = datetime.combine(
+        scan_day, datetime.min.time(), tzinfo=timezone.utc
+    ).replace(hour=13)  # 13:00 UTC = 09:00 EDT
+    schedule_id, shift_id = _id(), _id()
+    db_session.add(ShiftSchedule(id=schedule_id, company_id=paid.company_id,
+                                 location_id=paid.location_id,
+                                 week_start_date=start.date(), status="approved"))
+    await db_session.flush()
+    db_session.add(Shift(id=shift_id, company_id=paid.company_id,
+                         shift_schedule_id=schedule_id,
+                         location_id=paid.location_id,
+                         employee_id=paid.employee_id, role_id=paid.role_id,
+                         role_name=paid.role_name, date=start.date(),
+                         start_time=start, end_time=start + timedelta(hours=8)))
+    await db_session.commit()  # no check-in: it lands in the exception queue
+
+    resp = await client.get(
+        f"/api/v1/payroll/exceptions?range_start={scan_day}&range_end={scan_day}",
+        headers=paid.manager_headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    row = resp.json()["rows"][0]
+    assert row["shift_id"] == shift_id
+    assert row["start_time"].startswith("2024-07-15T09:00:00")
+    assert row["start_time"].endswith(("-04:00", "-05:00"))
+    assert row["end_time"].startswith("2024-07-15T17:00:00")
+    assert row["end_time"].endswith(("-04:00", "-05:00"))
 
 
 async def test_the_exception_queue_lists_a_shift_with_no_scan(

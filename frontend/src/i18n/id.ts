@@ -1142,6 +1142,7 @@ const ind = {
     downloadDesc: "Hanya jam yang disetujui. Setiap entri diekspor sekali.",
     nothingToExport: "Tidak ada yang baru untuk diekspor. Setujui dulu sebagian jam.",
     alreadyExported: "Diekspor {date}",
+    includeExported: "Sertakan jam yang sudah diekspor",
     totalHours: "{hours} jam dari {count} shift",
     paidPlanOnly: "Ekspor penggajian adalah fitur paket berbayar. Tingkatkan untuk mengaktifkannya.",
     loadFailed: "Tidak bisa memuat jam penggajian. Coba lagi.",

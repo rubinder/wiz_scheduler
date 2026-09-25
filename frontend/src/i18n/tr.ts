@@ -1142,6 +1142,7 @@ const trLang = {
     downloadDesc: "Yalnızca onaylı saatler. Her kayıt bir kez dışa aktarılır.",
     nothingToExport: "Dışa aktarılacak yeni bir şey yok. Önce birkaç saat onaylayın.",
     alreadyExported: "{date} tarihinde dışa aktarıldı",
+    includeExported: "Daha önce dışa aktarılan saatleri de dahil et",
     totalHours: "{count} vardiyada toplam {hours} saat",
     paidPlanOnly: "Bordro dışa aktarma ücretli plan özelliğidir. Etkinleştirmek için yükseltin.",
     loadFailed: "Bordro saatleri yüklenemedi. Tekrar deneyin.",

@@ -1142,6 +1142,7 @@ const ja = {
     downloadDesc: "承認済みの時間のみ。各レコードの書き出しは一度だけです。",
     nothingToExport: "書き出す新しいデータがありません。先に時間を承認してください。",
     alreadyExported: "{date}に書き出し済み",
+    includeExported: "書き出し済みの時間も含める",
     totalHours: "{count}件のシフトで合計{hours}時間",
     paidPlanOnly: "給与の書き出しは有料プランの機能です。アップグレードすると使えます。",
     loadFailed: "給与対象時間を読み込めませんでした。やり直してください。",

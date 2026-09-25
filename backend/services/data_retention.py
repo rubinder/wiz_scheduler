@@ -111,20 +111,25 @@ async def run_data_retention(db: AsyncSession) -> dict:
     #    months of history; without this the table grows without bound and
     #    the figure is decoration.
     cutoff_check_ins = now - timedelta(days=settings.RETENTION_CHECKINS_DAYS)
-    expiring_check_in_ids = list((await db.execute(
-        select(EmployeeCheckIn.id).where(
-            EmployeeCheckIn.checked_in_at < cutoff_check_ins
-        )
-    )).scalars().all())
-    if expiring_check_in_ids:
-        # A pay record must still be able to say what it was based on after
-        # the scan is gone (#78). Only the LINK is cleared: checked_in_at and
-        # lateness_minutes are denormalised precisely so they outlive it.
-        await db.execute(
-            update(TimeEntry)
-            .where(TimeEntry.check_in_id.in_(expiring_check_in_ids))
-            .values(check_in_id=None)
-        )
+    # A pay record must still be able to say what it was based on after the
+    # scan is gone (#78). Only the LINK is cleared: checked_in_at and
+    # lateness_minutes are denormalised precisely so they outlive it.
+    #
+    # A correlated subquery, not a materialised id list: the first sweep of a
+    # busy tenant expires months of scans at once, and pulling every id into
+    # Python to rebuild them as a literal IN-list is unbounded in both memory
+    # and statement size (Postgres and SQLite both cap bind parameters). The
+    # count below comes from the DELETE's rowcount, so nothing depends on
+    # having the ids in hand.
+    await db.execute(
+        update(TimeEntry)
+        .where(TimeEntry.check_in_id.in_(
+            select(EmployeeCheckIn.id).where(
+                EmployeeCheckIn.checked_in_at < cutoff_check_ins
+            )
+        ))
+        .values(check_in_id=None)
+    )
     result = await db.execute(
         delete(EmployeeCheckIn).where(
             EmployeeCheckIn.checked_in_at < cutoff_check_ins
@@ -161,17 +166,16 @@ async def run_data_retention(db: AsyncSession) -> dict:
     cutoff_payroll_logs = now - timedelta(
         days=settings.RETENTION_PAYROLL_EXPORT_LOGS_DAYS
     )
-    expiring_export_ids = list((await db.execute(
-        select(PayrollExport.id).where(
-            PayrollExport.created_at < cutoff_payroll_logs
-        )
-    )).scalars().all())
-    if expiring_export_ids:
-        await db.execute(
-            update(TimeEntry)
-            .where(TimeEntry.payroll_export_id.in_(expiring_export_ids))
-            .values(payroll_export_id=None)
-        )
+    # Correlated subquery for the same reason as the check-in step above.
+    await db.execute(
+        update(TimeEntry)
+        .where(TimeEntry.payroll_export_id.in_(
+            select(PayrollExport.id).where(
+                PayrollExport.created_at < cutoff_payroll_logs
+            )
+        ))
+        .values(payroll_export_id=None)
+    )
     result = await db.execute(
         delete(PayrollExport).where(
             PayrollExport.created_at < cutoff_payroll_logs

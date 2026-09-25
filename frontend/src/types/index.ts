@@ -454,8 +454,11 @@ export interface TimeEntryRow {
   role_name: string;
   /** "YYYY-MM-DD", the location-local date the shift STARTED. */
   pay_date: string;
-  /** Carries the location's offset. Read it with utils/shiftTime.ts — never
-   *  `new Date(...)`, which re-projects into the viewer's timezone (#92). */
+  /** The shift's LOCATION-local wall-clock face, with that location's
+   *  offset attached (e.g. "2024-07-15T09:00:00-04:00") — the backend
+   *  converts the stored UTC instant before serialising. Read it with
+   *  utils/shiftTime.ts, never `new Date(...)`, which would re-project it
+   *  into the viewer's timezone (#92). */
   start_time: string;
   end_time: string;
   paid_minutes: number;
@@ -479,6 +482,7 @@ export interface PayrollExceptionRow {
   role_id: string;
   role_name: string;
   pay_date: string;
+  /** Location-local face with offset, as on TimeEntryRow above. */
   start_time: string;
   end_time: string;
   paid_minutes: number;

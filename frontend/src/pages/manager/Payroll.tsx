@@ -25,6 +25,21 @@ function isoDate(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+/** An audit timestamp (attested_at, approved_at, exported_at) as a date in
+ *  the VIEWER's locale and zone.
+ *
+ *  Deliberately a `Date`, unlike the shift faces above it: these record when
+ *  a person in this office clicked a button, so "when did I approve this"
+ *  is the viewer's own question. `.slice(0, 10)` answered it with the raw
+ *  UTC date, which is a day off for anyone west of UTC for the last hours of
+ *  every day, and in an unreadable order for most of the 19 locales we ship.
+ *  Shift times must NEVER go through here — see utils/shiftTime.ts. */
+function formatAuditDate(value: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+}
+
 /** The Monday-Sunday week that ended most recently.
  *
  *  The browser's local date is the right default HERE precisely because a
@@ -58,6 +73,23 @@ export default function Payroll() {
   const [error, setError] = useState<string | null>(null);
   const [paidPlanOnly, setPaidPlanOnly] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [includeExported, setIncludeExported] = useState(false);
+
+  /** "Confirmed by Dana on 12/09/2026 — Phone battery died".
+   *
+   *  The reason is the whole justification for paying a shift nobody scanned
+   *  into, so it travels with the attester and the date rather than being
+   *  dropped on the floor as it was. Undefined (no tooltip at all) when we
+   *  know neither who nor why. */
+  const attestedTitle = (row: TimeEntryRow): string | undefined => {
+    const who = row.attested_by_name
+      ? t.payroll.attestedBy
+          .replace("{name}", row.attested_by_name)
+          .replace("{date}", formatAuditDate(row.attested_at))
+      : "";
+    const parts = [who, row.attestation_reason ?? ""].filter(Boolean);
+    return parts.length ? parts.join(" \u2014 ") : undefined;
+  };
 
   const latenessLabels = useMemo(
     () => ({
@@ -173,14 +205,19 @@ export default function Payroll() {
     try {
       const { blob, filename } = await downloadPayrollCsv(
         range,
-        locationId || undefined
+        locationId || undefined,
+        includeExported
       );
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = filename;
       anchor.click();
-      URL.revokeObjectURL(url);
+      // Revoking synchronously after click() races the browser: Safari and
+      // Firefox have not started reading the blob yet when the call returns,
+      // and the download silently fails. A short delay is the standard
+      // work-around; the URL is still released, so nothing leaks.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       await reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -380,6 +417,7 @@ export default function Payroll() {
                   {t.payroll.columnCheckedInAt}
                 </th>
                 <th className="text-start py-2">{t.payroll.columnLateness}</th>
+                <th className="text-start py-2">{t.payroll.approved}</th>
               </tr>
             </thead>
             <tbody>
@@ -407,20 +445,19 @@ export default function Payroll() {
                   </td>
                   <td className="py-1">
                     {row.source === "manager_attested" ? (
-                      <span
-                        title={
-                          row.attested_by_name
-                            ? t.payroll.attestedBy
-                                .replace("{name}", row.attested_by_name)
-                                .replace(
-                                  "{date}",
-                                  (row.attested_at ?? "").slice(0, 10)
-                                )
-                            : undefined
-                        }
-                      >
-                        {t.payroll.sourceAttested}
-                      </span>
+                      <>
+                        <span title={attestedTitle(row)}>
+                          {t.payroll.sourceAttested}
+                        </span>
+                        {/* The reason is why this row is payable at all, so
+                            it belongs on the page and not only in a tooltip
+                            a touch device can never open. */}
+                        {row.attestation_reason && (
+                          <span className={`block text-xs ${text.muted}`}>
+                            {row.attestation_reason}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       t.payroll.sourceCheckedIn
                     )}
@@ -434,9 +471,26 @@ export default function Payroll() {
                       <span className={`ms-2 ${text.muted}`}>
                         {t.payroll.alreadyExported.replace(
                           "{date}",
-                          row.exported_at.slice(0, 10)
+                          formatAuditDate(row.exported_at)
                         )}
                       </span>
+                    )}
+                  </td>
+                  {/* Without this the Approve buttons changed nothing a
+                      manager could see, so there was no way to tell approved
+                      hours from unapproved ones on the page. */}
+                  <td className="py-1">
+                    {row.approved_at ? (
+                      <span
+                        aria-label={t.payroll.approved}
+                        title={`${t.payroll.approved} ${formatAuditDate(
+                          row.approved_at
+                        )}`}
+                      >
+                        {"\u2713"}
+                      </span>
+                    ) : (
+                      "\u2014"
                     )}
                   </td>
                 </tr>
@@ -467,13 +521,24 @@ export default function Payroll() {
         <button
           type="button"
           className="glass-btn-primary"
-          disabled={unexportedApproved === 0 || loading}
+          disabled={(unexportedApproved === 0 && !includeExported) || loading}
           onClick={() => void download()}
         >
           {t.payroll.download}
         </button>
+        {/* The backend has always supported this (it is how a manager
+            re-downloads a file they lost, and it never re-stamps
+            exported_at); there was simply no way to ask for it. */}
+        <label className={`flex items-center gap-2 text-sm ${text.muted}`}>
+          <input
+            type="checkbox"
+            checked={includeExported}
+            onChange={(e) => setIncludeExported(e.target.checked)}
+          />
+          {t.payroll.includeExported}
+        </label>
         <span className={`text-sm ${text.muted}`}>
-          {unexportedApproved === 0
+          {unexportedApproved === 0 && !includeExported
             ? t.payroll.nothingToExport
             : t.payroll.downloadDesc}
         </span>

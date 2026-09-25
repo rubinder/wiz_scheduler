@@ -130,6 +130,29 @@ async def test_a_shift_that_already_has_an_entry_is_refused(
     assert resp.json()["detail"]["code"] == "entry_exists"
 
 
+async def test_a_shift_with_a_check_in_cannot_be_attested(
+    client: AsyncClient, db_session: AsyncSession, paid
+):
+    """The employee DID scan, and derivation has simply not run yet.
+    Attesting over a real arrival would record source=manager_attested with a
+    NULL lateness — throwing away an observed fact and replacing it with a
+    manager's word. Derive is the right path, and it is on the same page."""
+    shift_id = await _worked_shift(db_session, paid, checked_in=True)
+
+    resp = await client.post(
+        "/api/v1/payroll/attest",
+        json={"shift_id": shift_id, "reason": "Phone battery died"},
+        headers=paid.manager_headers,
+    )
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "shift_has_check_in"
+    # And no entry was written.
+    assert (await db_session.execute(
+        select(TimeEntry).where(TimeEntry.shift_id == shift_id)
+    )).scalar_one_or_none() is None
+
+
 async def test_attesting_twice_is_refused_the_second_time(
     client: AsyncClient, db_session: AsyncSession, paid
 ):

@@ -1142,6 +1142,7 @@ const de = {
     downloadDesc: "Nur genehmigte Stunden. Jeder Eintrag wird einmal exportiert.",
     nothingToExport: "Nichts Neues zu exportieren. Genehmigen Sie zuerst Stunden.",
     alreadyExported: "Exportiert am {date}",
+    includeExported: "Bereits exportierte Stunden einbeziehen",
     totalHours: "{hours} Stunden in {count} Schichten",
     paidPlanOnly: "Der Lohnexport ist eine Funktion kostenpflichtiger Tarife. Upgraden, um ihn zu aktivieren.",
     loadFailed: "Abrechnungsstunden konnten nicht geladen werden. Erneut versuchen.",

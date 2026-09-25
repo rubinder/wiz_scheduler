@@ -1142,6 +1142,7 @@ const pt = {
     downloadDesc: "Apenas horas aprovadas. Cada registro é exportado uma única vez.",
     nothingToExport: "Nada novo para exportar. Aprove algumas horas primeiro.",
     alreadyExported: "Exportado em {date}",
+    includeExported: "Incluir as horas já exportadas",
     totalHours: "{hours} horas em {count} turnos",
     paidPlanOnly: "A exportação da folha é um recurso de plano pago. Faça upgrade para ativar.",
     loadFailed: "Não foi possível carregar as horas da folha. Tente novamente.",

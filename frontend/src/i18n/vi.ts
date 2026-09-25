@@ -1142,6 +1142,7 @@ const vi = {
     downloadDesc: "Chỉ giờ đã duyệt. Mỗi bản ghi chỉ xuất một lần.",
     nothingToExport: "Không có gì mới để xuất. Hãy duyệt một số giờ trước.",
     alreadyExported: "Đã xuất ngày {date}",
+    includeExported: "Bao gồm cả số giờ đã xuất",
     totalHours: "{hours} giờ trong {count} ca",
     paidPlanOnly: "Xuất bảng lương là tính năng của gói trả phí. Nâng cấp để bật.",
     loadFailed: "Không tải được giờ công tính lương. Vui lòng thử lại.",

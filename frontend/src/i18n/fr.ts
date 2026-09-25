@@ -1142,6 +1142,7 @@ const fr = {
     downloadDesc: "Heures approuvées uniquement. Chaque entrée n'est exportée qu'une fois.",
     nothingToExport: "Rien de nouveau à exporter. Approuvez d'abord des heures.",
     alreadyExported: "Exporté le {date}",
+    includeExported: "Inclure les heures déjà exportées",
     totalHours: "{hours} heures sur {count} services",
     paidPlanOnly: "L'export de paie est réservé aux forfaits payants. Passez à un forfait supérieur pour l'activer.",
     loadFailed: "Impossible de charger les heures de paie. Réessayez.",

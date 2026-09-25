@@ -1142,6 +1142,7 @@ const pcm = {
     downloadDesc: "Na only approved hours. Each entry dey export one time.",
     nothingToExport: "Nothing new to export. Approve some hours first.",
     alreadyExported: "Dem export am {date}",
+    includeExported: "Add di hours wey dem don export",
     totalHours: "{hours} hours across {count} shifts",
     paidPlanOnly: "Pay export na feature for paid plan. Upgrade make e work.",
     loadFailed: "We no fit load de pay hours. Try again.",

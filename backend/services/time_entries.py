@@ -160,6 +160,29 @@ def _as_utc(dt: datetime) -> datetime:
     return dt
 
 
+def _local_face(dt: datetime, tz_name: str | None) -> datetime:
+    """The same instant, worn as *tz_name*'s wall-clock face, offset intact.
+
+    The row-level counterpart of _shift_local_face(..., keep_tzinfo=True)
+    (backend/scheduling/graph.py), which cannot be reused here because
+    list_time_entries holds a TimeEntry and a timezone NAME rather than a
+    Shift and a Location. Same contract: these columns are true instants, so
+    .astimezone() recovers the intended face instead of moving it (unlike
+    availability, per #61/#85).
+
+    A missing or unrecognised zone falls back to the value as stored rather
+    than raising — payroll degrades to a UTC face, it never 500s a manager's
+    page.
+    """
+    if not tz_name:
+        return dt
+    try:
+        return _as_utc(dt).astimezone(ZoneInfo(tz_name))
+    except Exception:  # unknown zone name
+        logger.warning("payroll.unknown_timezone tz=%r", tz_name)
+        return dt
+
+
 async def _candidate_shifts(
     db: AsyncSession,
     company_id: str,
@@ -397,18 +420,23 @@ async def list_time_entries(
             role_id=entry.role_id,
             role_name=entry.role_name,
             pay_date=entry.pay_date,
-            start_time=entry.start_time,
-            end_time=entry.end_time,
+            # start_time/end_time are copied verbatim off the Shift, which is
+            # a true instant: Postgres normalises "09:00-04:00" to
+            # "13:00+00:00" on storage. Serializing that raw would hand the
+            # page (utils/shiftTime.ts reads the wall-clock face off the
+            # string) a 13:00 shift that is scheduled for 09:00. Converting
+            # into the location's own zone — keeping the offset — recovers
+            # the intended face, exactly as _shift_to_response
+            # (backend/routers/schedules.py) does via _shift_local_face.
+            start_time=_local_face(entry.start_time, location_tz),
+            end_time=_local_face(entry.end_time, location_tz),
             paid_minutes=entry.paid_minutes,
             source=entry.source,
-            # checked_in_at is a true instant (backend/services/check_in.py:
-            # `datetime.now(timezone.utc)`), unlike start_time/end_time, which
-            # the payroll schema serializes exactly as stored. Converting
-            # into the location's own zone recovers the wall-clock face the
-            # page renders with utils/shiftTime.ts — the same fix
-            # _candidate_shifts applies to paid_minutes above.
+            # checked_in_at is a true instant too
+            # (backend/services/check_in.py: `datetime.now(timezone.utc)`),
+            # and gets the same treatment.
             checked_in_at=(
-                _as_utc(entry.checked_in_at).astimezone(ZoneInfo(location_tz))
+                _local_face(entry.checked_in_at, location_tz)
                 if entry.checked_in_at is not None else None
             ),
             lateness_minutes=entry.lateness_minutes,
@@ -447,8 +475,17 @@ async def list_exceptions(
     )).scalars().all())
     check_ins = await _earliest_check_ins(db, shift_ids)
 
-    rows = [
-        ExceptionRow(
+    # Same true-instant conversion list_time_entries applies. _local_face
+    # rather than _shift_local_face (backend/scheduling/graph.py): that helper
+    # trusts a NAIVE value as already being the local face, which is right for
+    # the scheduling graph but wrong here, where this module's whole contract
+    # (_as_utc, and _candidate_shifts just above) is that a naive value off
+    # SQLite is UTC that lost its tag.
+    rows = []
+    for c in candidates:
+        if c.shift.id in entried or c.shift.id in check_ins:
+            continue
+        rows.append(ExceptionRow(
             shift_id=c.shift.id,
             employee_id=c.shift.employee_id,
             employee_name=c.employee_name,
@@ -457,13 +494,10 @@ async def list_exceptions(
             role_id=c.shift.role_id,
             role_name=c.shift.role_name,
             pay_date=c.pay_date,
-            start_time=c.shift.start_time,
-            end_time=c.shift.end_time,
+            start_time=_local_face(c.shift.start_time, c.location.timezone),
+            end_time=_local_face(c.shift.end_time, c.location.timezone),
             paid_minutes=c.paid_minutes,
-        )
-        for c in candidates
-        if c.shift.id not in entried and c.shift.id not in check_ins
-    ]
+        ))
     rows.sort(key=lambda r: (r.pay_date, r.employee_name))
     return rows
 
@@ -523,6 +557,25 @@ async def attest_shift(
         raise _reject(
             "entry_exists",
             "That shift already has payable hours recorded.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    # The employee DID scan. Attestation is the fallback for when they
+    # couldn't — attesting over a real arrival would write a row that says
+    # nobody observed the arrival (source=manager_attested, lateness NULL)
+    # and throw away the recorded lateness. Derivation is the right path, and
+    # it is one button away on the same page.
+    scanned = (await db.execute(
+        select(EmployeeCheckIn.id).where(
+            EmployeeCheckIn.shift_id == shift.id,
+            EmployeeCheckIn.status.in_([CHECK_IN_MATCHED, CHECK_IN_DUPLICATE]),
+        ).limit(1)
+    )).scalar_one_or_none()
+    if scanned is not None:
+        raise _reject(
+            "shift_has_check_in",
+            "That shift already has a check-in. Derive its hours instead of "
+            "confirming it by hand.",
             status.HTTP_409_CONFLICT,
         )
 

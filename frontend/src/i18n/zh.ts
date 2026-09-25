@@ -1142,6 +1142,7 @@ const zh = {
     downloadDesc: "仅包含已批准的工时。每条记录只导出一次。",
     nothingToExport: "没有新内容可导出。请先批准工时。",
     alreadyExported: "已于 {date} 导出",
+    includeExported: "包含已导出的工时",
     totalHours: "{count} 个班次共 {hours} 小时",
     paidPlanOnly: "薪资导出是付费套餐功能。升级后即可使用。",
     loadFailed: "无法加载薪资工时。请重试。",
