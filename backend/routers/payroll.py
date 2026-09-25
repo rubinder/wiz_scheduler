@@ -11,10 +11,12 @@ from dataclasses import asdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
-from backend.models import User
+from backend.models import Company, User
 from backend.schemas.payroll import (
     MAX_RANGE_DAYS,
     PayrollApproveRequest,
@@ -24,9 +26,11 @@ from backend.schemas.payroll import (
     PayrollEntriesResponse,
     PayrollExceptionRowSchema,
     PayrollExceptionsResponse,
+    PayrollExportRequest,
     PayrollRangeRequest,
     TimeEntryRowSchema,
 )
+from backend.services.payroll_export import export_approved
 from backend.services.plan import assert_paid_plan
 from backend.services.time_entries import (
     approve_entries,
@@ -165,3 +169,40 @@ async def approve(
         body.location_id, body.entry_ids,
     )
     return PayrollApproveResponse(**asdict(result))
+
+
+@router.post("/export")
+async def export_csv(
+    body: PayrollExportRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Download approved hours as CSV.
+
+    A POST rather than a GET despite being a download: it mutates exported_at
+    and writes an audit row, and a browser prefetch of a GET must not silently
+    consume a pay period. It also keeps the download on the authenticated
+    fetch path — get_current_user reads the Authorization header only, so a
+    plain <a href> download would arrive unauthenticated.
+    """
+    company_id = str(current_user.company_id)
+    await assert_paid_plan(db, company_id, "payroll")
+    _validate_range(body.range_start, body.range_end)
+
+    content, _export = await export_approved(
+        db, company_id, current_user, body.range_start, body.range_end,
+        body.location_id, body.include_exported,
+    )
+
+    slug = (await db.execute(
+        select(Company.slug).where(Company.id == company_id)
+    )).scalar_one()
+    filename = (
+        f"payroll_{slug}_{body.range_start.isoformat()}_"
+        f"{body.range_end.isoformat()}.csv"
+    )
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

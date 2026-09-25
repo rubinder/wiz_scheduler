@@ -121,8 +121,7 @@ _GATED_ENDPOINTS = [
     ("GET", "/payroll/exceptions", "exceptions"),
     ("POST", "/payroll/attest", "attest"),
     ("POST", "/payroll/approve", "approve"),
-    pytest.param("POST", "/payroll/export", "export",
-                 marks=pytest.mark.xfail(strict=True, reason="built in Task 7")),
+    ("POST", "/payroll/export", "export"),
 ]
 
 
@@ -382,3 +381,111 @@ async def test_entry_ids_outside_the_range_are_refused(
 
     assert resp.status_code == 400
     assert resp.json()["detail"]["code"] == "invalid_entry_ids"
+
+
+# --- export -----------------------------------------------------------------
+
+async def _approve_all(client: AsyncClient, t: SimpleNamespace) -> None:
+    resp = await client.post("/api/v1/payroll/approve", json=_range_body(t),
+                             headers=t.manager_headers)
+    assert resp.status_code == 200, resp.text
+
+
+async def test_export_with_nothing_approved_is_refused(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=False),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "nothing_to_export"
+
+
+async def test_approve_then_export_returns_csv_and_writes_one_audit_row(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    from sqlalchemy import select as _select
+
+    from backend.models import PayrollExport, TimeEntry
+
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+    await _approve_all(client, paid)
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=False),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "attachment; filename=" in resp.headers["content-disposition"]
+    assert "employee_name" in resp.text
+
+    exports = (await db_session.execute(_select(PayrollExport))).scalars().all()
+    assert len(exports) == 1
+    assert exports[0].entry_count == 1
+    assert exports[0].paid_minutes_total == 480
+    assert exports[0].format == "csv"
+    assert exports[0].exported_by_user_id == paid.manager_id
+
+    entry = (await db_session.execute(_select(TimeEntry))).scalar_one()
+    await db_session.refresh(entry)
+    assert entry.exported_at is not None
+    assert entry.payroll_export_id == exports[0].id
+
+
+async def test_a_second_export_of_the_same_range_is_refused(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+    await _approve_all(client, paid)
+    await client.post("/api/v1/payroll/export",
+                      json=_range_body(paid, include_exported=False),
+                      headers=paid.manager_headers)
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=False),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "nothing_to_export"
+    assert resp.json()["detail"]["already_exported"] == 1
+
+
+async def test_include_exported_redownloads_without_restamping(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    """A re-download is a thing that happened and the log should say so — but
+    it must not move exported_at, which is what stops a pay period being
+    exported twice."""
+    from sqlalchemy import select as _select
+
+    from backend.models import PayrollExport, TimeEntry
+
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+    await _approve_all(client, paid)
+    await client.post("/api/v1/payroll/export",
+                      json=_range_body(paid, include_exported=False),
+                      headers=paid.manager_headers)
+    entry = (await db_session.execute(_select(TimeEntry))).scalar_one()
+    await db_session.refresh(entry)
+    first_stamp = entry.exported_at
+    first_export_id = entry.payroll_export_id
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=True),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+    assert "Dana Okafor" in resp.text
+    await db_session.refresh(entry)
+    assert entry.exported_at == first_stamp
+    assert entry.payroll_export_id == first_export_id
+    exports = (await db_session.execute(_select(PayrollExport))).scalars().all()
+    assert len(exports) == 2
