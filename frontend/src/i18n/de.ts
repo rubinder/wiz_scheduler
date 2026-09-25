@@ -1096,6 +1096,8 @@ const de = {
     statusDuplicate: "Duplikat",
     attestationTitle: "Von Führungskraft bestätigte Schichten",
     attestationDesc: "Anteil der abrechenbaren Stunden, die statt durch ein Einchecken von einer Führungskraft bestätigt wurden, je Standort über die letzten {days} Tage. Ein hoher Wert lohnt einen Blick, keine Sanktion.",
+    attestationEntries: "Einträge",
+    attestationRate: "Bestätigt %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const de = {
     totalHours: "{hours} Stunden in {count} Schichten",
     paidPlanOnly: "Der Lohnexport ist eine Funktion kostenpflichtiger Tarife. Upgraden, um ihn zu aktivieren.",
     loadFailed: "Abrechnungsstunden konnten nicht geladen werden. Erneut versuchen.",
+    approveFailed: "Diese Stunden konnten nicht genehmigt werden. Versuchen Sie es erneut.",
   },
 } as const;
 

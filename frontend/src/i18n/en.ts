@@ -1105,6 +1105,8 @@ const en = {
     statusDuplicate: "Duplicate",
     attestationTitle: "Manager-confirmed shifts",
     attestationDesc: "Share of payable hours confirmed by a manager instead of a check-in, per location, over the last {days} days. High is worth a look, not a penalty.",
+    attestationEntries: "Entries",
+    attestationRate: "Attested %",
   },
 
   // ── Payroll (#78) ──
@@ -1152,6 +1154,7 @@ const en = {
     totalHours: "{hours} hours across {count} shifts",
     paidPlanOnly: "Payroll export is a paid-plan feature. Upgrade to enable it.",
     loadFailed: "Could not load payroll hours. Try again.",
+    approveFailed: "Could not approve those hours. Try again.",
   },
 } as const;
 

@@ -73,8 +73,19 @@ export default function Payroll() {
   }, []);
 
   const reload = useCallback(async () => {
+    // A partially typed date (e.g. mid-edit of the day field) must not fire
+    // a request or show the error banner — just wait for a complete,
+    // forwards range and leave whatever is already on screen alone.
+    if (
+      !range.rangeStart ||
+      !range.rangeEnd ||
+      range.rangeStart > range.rangeEnd
+    ) {
+      return;
+    }
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       // Derive first, then read. Derivation is idempotent, so calling it on
       // every load is free after the first.
@@ -138,6 +149,7 @@ export default function Payroll() {
       await reload();
     } catch {
       setError(t.payroll.attestFailed);
+      setAttesting(null);
     }
   };
 
@@ -153,7 +165,7 @@ export default function Payroll() {
       );
       await reload();
     } catch {
-      setError(t.payroll.loadFailed);
+      setError(t.payroll.approveFailed);
     }
   };
 
@@ -289,16 +301,19 @@ export default function Payroll() {
                         value={reason}
                         maxLength={500}
                         placeholder={t.payroll.attestReason}
+                        aria-label={t.payroll.attestReason}
                         onChange={(e) => setReason(e.target.value)}
                         className="glass-input"
                       />
                       <button
+                        type="button"
                         className="glass-btn-primary"
                         onClick={() => void confirmAttest(row.shift_id)}
                       >
                         {t.payroll.attestConfirm}
                       </button>
                       <button
+                        type="button"
                         className="glass-btn-secondary"
                         onClick={() => {
                           setAttesting(null);
@@ -310,6 +325,7 @@ export default function Payroll() {
                     </span>
                   ) : (
                     <button
+                      type="button"
                       className="glass-btn-primary"
                       onClick={() => {
                         setAttesting(row.shift_id);
@@ -345,6 +361,7 @@ export default function Payroll() {
                 <th className="text-start py-2">
                   <input
                     type="checkbox"
+                    aria-label={t.payroll.approveAll}
                     checked={
                       entries.length > 0 && selected.size === entries.length
                     }
@@ -374,6 +391,7 @@ export default function Payroll() {
                   <td className="py-1">
                     <input
                       type="checkbox"
+                      aria-label={row.employee_name}
                       checked={selected.has(row.id)}
                       onChange={() => toggle(row.id)}
                     />
@@ -431,6 +449,7 @@ export default function Payroll() {
       {/* Actions */}
       <div className="flex flex-wrap gap-3 items-center mt-8">
         <button
+          type="button"
           className="glass-btn-primary"
           disabled={selected.size === 0 || loading}
           onClick={() => void approve(Array.from(selected))}
@@ -438,6 +457,7 @@ export default function Payroll() {
           {t.payroll.approveSelected}
         </button>
         <button
+          type="button"
           className="glass-btn-primary"
           disabled={entries.length === 0 || loading}
           onClick={() => void approve()}
@@ -445,6 +465,7 @@ export default function Payroll() {
           {t.payroll.approveAll}
         </button>
         <button
+          type="button"
           className="glass-btn-primary"
           disabled={unexportedApproved === 0 || loading}
           onClick={() => void download()}

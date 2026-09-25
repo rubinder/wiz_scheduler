@@ -1096,6 +1096,8 @@ const es = {
     statusDuplicate: "Duplicado",
     attestationTitle: "Turnos confirmados por un responsable",
     attestationDesc: "Proporción de horas pagables confirmadas por un responsable en lugar de por un fichaje, por local, en los últimos {days} días. Un valor alto merece una mirada, no una sanción.",
+    attestationEntries: "Entradas",
+    attestationRate: "Confirmado %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const es = {
     totalHours: "{hours} horas en {count} turnos",
     paidPlanOnly: "La exportación de nómina es una función de pago. Mejora tu plan para activarla.",
     loadFailed: "No se pudieron cargar las horas de nómina. Inténtalo de nuevo.",
+    approveFailed: "No se pudieron aprobar esas horas. Inténtalo de nuevo.",
   },
 } as const;
 

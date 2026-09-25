@@ -1096,6 +1096,8 @@ const fr = {
     statusDuplicate: "Doublon",
     attestationTitle: "Services confirmés par un responsable",
     attestationDesc: "Part des heures payables confirmées par un responsable plutôt que par un pointage, par établissement, sur les {days} derniers jours. Un taux élevé mérite un coup d'œil, pas une sanction.",
+    attestationEntries: "Entrées",
+    attestationRate: "Confirmé %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const fr = {
     totalHours: "{hours} heures sur {count} services",
     paidPlanOnly: "L'export de paie est réservé aux forfaits payants. Passez à un forfait supérieur pour l'activer.",
     loadFailed: "Impossible de charger les heures de paie. Réessayez.",
+    approveFailed: "Impossible d'approuver ces heures. Réessayez.",
   },
 } as const;
 

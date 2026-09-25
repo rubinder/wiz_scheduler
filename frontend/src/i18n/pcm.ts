@@ -1096,6 +1096,8 @@ const pcm = {
     statusDuplicate: "E don duplicate",
     attestationTitle: "Shift wey manager confirm",
     attestationDesc: "How plenty of de hours wey dem go pay na manager confirm am instead of check-in, for each location, for de last {days} days. If e high, e worth look, no be punishment.",
+    attestationEntries: "Entries",
+    attestationRate: "Confirm %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const pcm = {
     totalHours: "{hours} hours across {count} shifts",
     paidPlanOnly: "Pay export na feature for paid plan. Upgrade make e work.",
     loadFailed: "We no fit load de pay hours. Try again.",
+    approveFailed: "E no fit approve dat hours. Try again.",
   },
 } as const;
 

@@ -183,9 +183,9 @@ export default function CheckInReport() {
             <thead>
               <tr>
                 <th className="text-start py-2">{t.checkIn.selectLocation}</th>
-                <th className="text-end py-2">{t.payroll.entriesTitle}</th>
+                <th className="text-end py-2">{t.checkIn.attestationEntries}</th>
                 <th className="text-end py-2">{t.payroll.sourceAttested}</th>
-                <th className="text-end py-2">{t.checkIn.attestationTitle}</th>
+                <th className="text-end py-2">{t.checkIn.attestationRate}</th>
               </tr>
             </thead>
             <tbody>

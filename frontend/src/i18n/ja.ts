@@ -1096,6 +1096,8 @@ const ja = {
     statusDuplicate: "重複",
     attestationTitle: "管理者が確認したシフト",
     attestationDesc: "過去{days}日間に、チェックインではなく管理者の確認で支払対象となった時間の割合を店舗別に表示します。高い場合は確認に値しますが、罰則ではありません。",
+    attestationEntries: "件数",
+    attestationRate: "確認済み %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const ja = {
     totalHours: "{count}件のシフトで合計{hours}時間",
     paidPlanOnly: "給与の書き出しは有料プランの機能です。アップグレードすると使えます。",
     loadFailed: "給与対象時間を読み込めませんでした。やり直してください。",
+    approveFailed: "その時間を承認できませんでした。もう一度お試しください。",
   },
 } as const;
 

@@ -1096,6 +1096,8 @@ const vi = {
     statusDuplicate: "Trùng lặp",
     attestationTitle: "Ca được quản lý xác nhận",
     attestationDesc: "Tỷ lệ giờ được trả công do quản lý xác nhận thay vì check-in, theo từng địa điểm, trong {days} ngày qua. Tỷ lệ cao đáng để xem lại, không phải để phạt.",
+    attestationEntries: "Mục",
+    attestationRate: "Đã xác nhận %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const vi = {
     totalHours: "{hours} giờ trong {count} ca",
     paidPlanOnly: "Xuất bảng lương là tính năng của gói trả phí. Nâng cấp để bật.",
     loadFailed: "Không tải được giờ công tính lương. Vui lòng thử lại.",
+    approveFailed: "Không thể phê duyệt số giờ đó. Vui lòng thử lại.",
   },
 } as const;
 

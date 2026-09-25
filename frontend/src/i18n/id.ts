@@ -1096,6 +1096,8 @@ const ind = {
     statusDuplicate: "Duplikat",
     attestationTitle: "Shift yang dikonfirmasi manajer",
     attestationDesc: "Porsi jam yang dibayar dan dikonfirmasi oleh manajer alih-alih check-in, per lokasi, selama {days} hari terakhir. Angka tinggi layak ditinjau, bukan dihukum.",
+    attestationEntries: "Entri",
+    attestationRate: "Dikonfirmasi %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const ind = {
     totalHours: "{hours} jam dari {count} shift",
     paidPlanOnly: "Ekspor penggajian adalah fitur paket berbayar. Tingkatkan untuk mengaktifkannya.",
     loadFailed: "Tidak bisa memuat jam penggajian. Coba lagi.",
+    approveFailed: "Tidak dapat menyetujui jam tersebut. Coba lagi.",
   },
 } as const;
 

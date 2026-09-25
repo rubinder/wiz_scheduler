@@ -1096,6 +1096,8 @@ const trLang = {
     statusDuplicate: "Yinelenen",
     attestationTitle: "Yönetici onaylı vardiyalar",
     attestationDesc: "Son {days} günde, giriş yerine yönetici tarafından onaylanan ödenebilir saatlerin şubeye göre oranı. Yüksek olması bakmaya değer, ceza gerekçesi değil.",
+    attestationEntries: "Kayıtlar",
+    attestationRate: "Onaylanan %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const trLang = {
     totalHours: "{count} vardiyada toplam {hours} saat",
     paidPlanOnly: "Bordro dışa aktarma ücretli plan özelliğidir. Etkinleştirmek için yükseltin.",
     loadFailed: "Bordro saatleri yüklenemedi. Tekrar deneyin.",
+    approveFailed: "Bu saatler onaylanamadı. Tekrar deneyin.",
   },
 } as const;
 

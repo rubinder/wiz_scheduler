@@ -365,7 +365,10 @@ async def list_time_entries(
     """Read-only. Writes nothing, derives nothing."""
     attester = aliased(User)
     query = (
-        select(TimeEntry, Employee.full_name, Location.name, attester.full_name)
+        select(
+            TimeEntry, Employee.full_name, Location.name, Location.timezone,
+            attester.full_name,
+        )
         .join(Employee, Employee.id == TimeEntry.employee_id)
         .join(Location, Location.id == TimeEntry.location_id)
         .outerjoin(attester, attester.id == TimeEntry.attested_by_user_id)
@@ -398,7 +401,16 @@ async def list_time_entries(
             end_time=entry.end_time,
             paid_minutes=entry.paid_minutes,
             source=entry.source,
-            checked_in_at=entry.checked_in_at,
+            # checked_in_at is a true instant (backend/services/check_in.py:
+            # `datetime.now(timezone.utc)`), unlike start_time/end_time, which
+            # the payroll schema serializes exactly as stored. Converting
+            # into the location's own zone recovers the wall-clock face the
+            # page renders with utils/shiftTime.ts — the same fix
+            # _candidate_shifts applies to paid_minutes above.
+            checked_in_at=(
+                _as_utc(entry.checked_in_at).astimezone(ZoneInfo(location_tz))
+                if entry.checked_in_at is not None else None
+            ),
             lateness_minutes=entry.lateness_minutes,
             attested_by_name=attested_by_name,
             attested_at=entry.attested_at,
@@ -406,7 +418,7 @@ async def list_time_entries(
             approved_at=entry.approved_at,
             exported_at=entry.exported_at,
         )
-        for entry, employee_name, location_name, attested_by_name
+        for entry, employee_name, location_name, location_tz, attested_by_name
         in (await db.execute(query)).all()
     ]
 

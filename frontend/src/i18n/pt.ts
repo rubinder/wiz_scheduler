@@ -1096,6 +1096,8 @@ const pt = {
     statusDuplicate: "Duplicado",
     attestationTitle: "Turnos confirmados pelo gestor",
     attestationDesc: "Proporção de horas pagáveis confirmadas por um gestor em vez de por check-in, por unidade, nos últimos {days} dias. Um valor alto merece atenção, não punição.",
+    attestationEntries: "Lançamentos",
+    attestationRate: "Confirmado %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const pt = {
     totalHours: "{hours} horas em {count} turnos",
     paidPlanOnly: "A exportação da folha é um recurso de plano pago. Faça upgrade para ativar.",
     loadFailed: "Não foi possível carregar as horas da folha. Tente novamente.",
+    approveFailed: "Não foi possível aprovar essas horas. Tente novamente.",
   },
 } as const;
 

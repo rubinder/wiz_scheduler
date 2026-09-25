@@ -1096,6 +1096,8 @@ const zh = {
     statusDuplicate: "重复",
     attestationTitle: "经理确认的班次",
     attestationDesc: "过去 {days} 天内，各门店由经理确认而非签到确认的应付工时占比。比例偏高值得关注，但不是处罚。",
+    attestationEntries: "记录数",
+    attestationRate: "已确认 %",
   },
 
   // ── Payroll (#78) ──
@@ -1143,6 +1145,7 @@ const zh = {
     totalHours: "{count} 个班次共 {hours} 小时",
     paidPlanOnly: "薪资导出是付费套餐功能。升级后即可使用。",
     loadFailed: "无法加载薪资工时。请重试。",
+    approveFailed: "无法批准这些工时。请重试。",
   },
 } as const;
 
