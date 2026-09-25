@@ -114,49 +114,52 @@ def _range_body(t: SimpleNamespace, **extra) -> dict:
 
 # --- plan gating ------------------------------------------------------------
 
-async def test_every_endpoint_is_paid_only(client: AsyncClient, free: SimpleNamespace):
-    calls = [
-        client.post("/api/v1/payroll/entries/derive", json=_range_body(free),
-                    headers=free.manager_headers),
-        client.get(f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
-                   headers=free.manager_headers),
-        client.get(f"/api/v1/payroll/exceptions?range_start={WEEK_AGO}&range_end={TODAY}",
-                   headers=free.manager_headers),
-        client.post("/api/v1/payroll/attest", json={"shift_id": _id()},
-                    headers=free.manager_headers),
-        client.post("/api/v1/payroll/approve", json=_range_body(free),
-                    headers=free.manager_headers),
-        client.post("/api/v1/payroll/export",
-                    json=_range_body(free, include_exported=False),
-                    headers=free.manager_headers),
-    ]
-    for call in calls:
-        resp = await call
-        assert resp.status_code == 402, resp.text
-        assert resp.json()["detail"]["code"] == "payroll_requires_paid_plan"
+# Tasks 5, 6, and 7: remove your endpoint's xfail mark below once its route exists.
+_GATED_ENDPOINTS = [
+    ("POST", "/payroll/entries/derive", "derive"),
+    ("GET", "/payroll/entries", "entries"),
+    ("GET", "/payroll/exceptions", "exceptions"),
+    pytest.param("POST", "/payroll/attest", "attest",
+                 marks=pytest.mark.xfail(strict=True, reason="built in Task 5")),
+    pytest.param("POST", "/payroll/approve", "approve",
+                 marks=pytest.mark.xfail(strict=True, reason="built in Task 6")),
+    pytest.param("POST", "/payroll/export", "export",
+                 marks=pytest.mark.xfail(strict=True, reason="built in Task 7")),
+]
 
 
-async def test_every_endpoint_is_manager_only(
-    client: AsyncClient, paid: SimpleNamespace
+def _sweep_call(client: AsyncClient, t: SimpleNamespace, headers: dict,
+                method: str, path: str, kind: str):
+    url = f"/api/v1{path}"
+    if kind in ("entries", "exceptions"):
+        return client.request(
+            method, f"{url}?range_start={WEEK_AGO}&range_end={TODAY}",
+            headers=headers,
+        )
+    if kind == "attest":
+        json = {"shift_id": _id()}
+    elif kind == "export":
+        json = _range_body(t, include_exported=False)
+    else:  # derive, approve
+        json = _range_body(t)
+    return client.request(method, url, json=json, headers=headers)
+
+
+@pytest.mark.parametrize("method,path,kind", _GATED_ENDPOINTS)
+async def test_every_endpoint_is_paid_only(
+    client: AsyncClient, free: SimpleNamespace, method: str, path: str, kind: str
 ):
-    calls = [
-        client.post("/api/v1/payroll/entries/derive", json=_range_body(paid),
-                    headers=paid.employee_headers),
-        client.get(f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
-                   headers=paid.employee_headers),
-        client.get(f"/api/v1/payroll/exceptions?range_start={WEEK_AGO}&range_end={TODAY}",
-                   headers=paid.employee_headers),
-        client.post("/api/v1/payroll/attest", json={"shift_id": _id()},
-                    headers=paid.employee_headers),
-        client.post("/api/v1/payroll/approve", json=_range_body(paid),
-                    headers=paid.employee_headers),
-        client.post("/api/v1/payroll/export",
-                    json=_range_body(paid, include_exported=False),
-                    headers=paid.employee_headers),
-    ]
-    for call in calls:
-        resp = await call
-        assert resp.status_code == 403, resp.text
+    resp = await _sweep_call(client, free, free.manager_headers, method, path, kind)
+    assert resp.status_code == 402, resp.text
+    assert resp.json()["detail"]["code"] == "payroll_requires_paid_plan"
+
+
+@pytest.mark.parametrize("method,path,kind", _GATED_ENDPOINTS)
+async def test_every_endpoint_is_manager_only(
+    client: AsyncClient, paid: SimpleNamespace, method: str, path: str, kind: str
+):
+    resp = await _sweep_call(client, paid, paid.employee_headers, method, path, kind)
+    assert resp.status_code == 403, resp.text
 
 
 # --- range validation -------------------------------------------------------
