@@ -11,6 +11,7 @@ import Company from "./pages/manager/Company";
 import Dashboard from "./pages/manager/Dashboard";
 import Employees from "./pages/manager/Employees";
 import Locations from "./pages/manager/Locations";
+import Payroll from "./pages/manager/Payroll";
 import Regions from "./pages/manager/Regions";
 import RoleEquivalents from "./pages/manager/RoleEquivalents";
 import Roles from "./pages/manager/Roles";
@@ -132,6 +133,7 @@ export default function App() {
             <Route path="shift-templates" element={<ShiftTemplates />} />
             <Route path="check-in-qr" element={<CheckInQr />} />
             <Route path="check-in-report" element={<CheckInReport />} />
+            <Route path="payroll" element={<Payroll />} />
             <Route path="special-hours" element={<SpecialHours />} />
             <Route path="schedule" element={<Schedule />} />
             <Route path="export-schedules" element={<ExportSchedules />} />

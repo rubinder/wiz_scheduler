@@ -83,6 +83,7 @@ const managerNav: NavEntry[] = [
     children: [
       { to: "/manager/check-in-qr", labelKey: "checkInQr" },
       { to: "/manager/check-in-report", labelKey: "checkInReport" },
+      { to: "/manager/payroll", labelKey: "payroll" },
     ],
   },
   { to: "/manager/data-privacy", labelKey: "dataPrivacy" },
