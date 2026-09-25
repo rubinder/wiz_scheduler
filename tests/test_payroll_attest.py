@@ -4,13 +4,15 @@ Every path here leaves an audit trail â€” source, attester, timestamp, reason â€
 because that is what makes it safe to pay someone who never scanned.
 """
 
+from datetime import date, datetime, timezone
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import TimeEntry
+from backend.models import Shift, ShiftSchedule, TimeEntry
 from tests.conftest import _id
 from tests.test_payroll_api import TODAY, WEEK_AGO, _tenant, _worked_shift
 
@@ -20,6 +22,27 @@ pytestmark = pytest.mark.asyncio
 @pytest_asyncio.fixture
 async def paid(db_session: AsyncSession):
     return await _tenant(db_session, paid=True)
+
+
+async def _shift_with_times(
+    db: AsyncSession, t, start: datetime, end: datetime,
+    status: str = "approved",
+) -> str:
+    """Build a shift from explicit UTC start/end instants, for cases
+    _worked_shift's relative-days-ago-plus-hours shape can't express: a DST
+    crossing, or start/end that share a wall-clock face."""
+    schedule_id, shift_id = _id(), _id()
+    db.add(ShiftSchedule(id=schedule_id, company_id=t.company_id,
+                         location_id=t.location_id,
+                         week_start_date=start.date(), status=status))
+    await db.flush()
+    db.add(Shift(id=shift_id, company_id=t.company_id,
+                 shift_schedule_id=schedule_id, location_id=t.location_id,
+                 employee_id=t.employee_id, role_id=t.role_id,
+                 role_name=t.role_name, date=start.date(), start_time=start,
+                 end_time=end))
+    await db.commit()
+    return shift_id
 
 
 async def test_attesting_creates_an_audited_entry(
@@ -159,3 +182,49 @@ async def test_a_shift_that_does_not_exist_is_not_found(
 
     assert resp.status_code == 404
     assert resp.json()["detail"]["code"] == "shift_not_found"
+
+
+async def test_attesting_a_dst_spanning_shift_pays_the_wall_clock_480(
+    client: AsyncClient, db_session: AsyncSession, paid
+):
+    """22:00 EST Mar 7 -> 06:00 EDT Mar 8 in America/New_York spans the
+    2026-03-08 spring-forward (the UTC gap is 7h, not 8h). Mirrors the
+    spring-forward fixture in tests/test_time_entries_derive.py, but through
+    attest_shift's own paid_minutes call rather than derive_time_entries'.
+    Reading the faces off the raw UTC instants
+    (paid_minutes(shift.start_time, shift.end_time), no zone conversion)
+    would compute 420, not 480 -- this is the regression test for that."""
+    start = datetime(2026, 3, 8, 3, 0, tzinfo=timezone.utc)   # 22:00 EST Mar 7
+    end = datetime(2026, 3, 8, 10, 0, tzinfo=timezone.utc)    # 06:00 EDT Mar 8
+    shift_id = await _shift_with_times(db_session, paid, start, end)
+
+    resp = await client.post("/api/v1/payroll/attest",
+                             json={"shift_id": shift_id},
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["paid_minutes"] == 480
+    assert body["pay_date"] == "2026-03-07"
+
+    entry = (await db_session.execute(select(TimeEntry))).scalar_one()
+    assert entry.paid_minutes == 480
+    assert entry.pay_date == date(2026, 3, 7)
+
+
+async def test_a_shift_with_equal_wall_clock_faces_is_malformed(
+    client: AsyncClient, db_session: AsyncSession, paid
+):
+    """Equal start/end faces would make paid_minutes pay a full 24 hours;
+    attest_shift refuses with the same 422 the schedule update handlers
+    already return for start_time == end_time, and creates no entry."""
+    same = datetime(2026, 9, 15, 13, 0, tzinfo=timezone.utc)
+    shift_id = await _shift_with_times(db_session, paid, same, same)
+
+    resp = await client.post("/api/v1/payroll/attest",
+                             json={"shift_id": shift_id},
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"]["code"] == "malformed_shift"
+    assert (await db_session.execute(select(TimeEntry))).first() is None
