@@ -9,8 +9,10 @@ from backend.models import (
     EmployeeAvailability,
     EmployeeCheckIn,
     EmployeeInvite,
+    PayrollExport,
     Shift,
     ShiftSchedule,
+    TimeEntry,
 )
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
@@ -109,6 +111,20 @@ async def run_data_retention(db: AsyncSession) -> dict:
     #    months of history; without this the table grows without bound and
     #    the figure is decoration.
     cutoff_check_ins = now - timedelta(days=settings.RETENTION_CHECKINS_DAYS)
+    expiring_check_in_ids = list((await db.execute(
+        select(EmployeeCheckIn.id).where(
+            EmployeeCheckIn.checked_in_at < cutoff_check_ins
+        )
+    )).scalars().all())
+    if expiring_check_in_ids:
+        # A pay record must still be able to say what it was based on after
+        # the scan is gone (#78). Only the LINK is cleared: checked_in_at and
+        # lateness_minutes are denormalised precisely so they outlive it.
+        await db.execute(
+            update(TimeEntry)
+            .where(TimeEntry.check_in_id.in_(expiring_check_in_ids))
+            .values(check_in_id=None)
+        )
     result = await db.execute(
         delete(EmployeeCheckIn).where(
             EmployeeCheckIn.checked_in_at < cutoff_check_ins
@@ -134,6 +150,34 @@ async def run_data_retention(db: AsyncSession) -> dict:
         )
     )
     summary["signup_signals_cleared"] = result.rowcount
+
+    # 9. Payroll export audit rows past their window (#78). The entries they
+    #    describe are NOT deleted — exported_at is the idempotency marker and
+    #    outliving the log is the point. Only the link is cleared, and the
+    #    UPDATE must run before the DELETE or the FK blocks it.
+    #
+    #    time_entries themselves are never swept: they are pay records, and no
+    #    retention period for them was decided in #78.
+    cutoff_payroll_logs = now - timedelta(
+        days=settings.RETENTION_PAYROLL_EXPORT_LOGS_DAYS
+    )
+    expiring_export_ids = list((await db.execute(
+        select(PayrollExport.id).where(
+            PayrollExport.created_at < cutoff_payroll_logs
+        )
+    )).scalars().all())
+    if expiring_export_ids:
+        await db.execute(
+            update(TimeEntry)
+            .where(TimeEntry.payroll_export_id.in_(expiring_export_ids))
+            .values(payroll_export_id=None)
+        )
+    result = await db.execute(
+        delete(PayrollExport).where(
+            PayrollExport.created_at < cutoff_payroll_logs
+        )
+    )
+    summary["payroll_export_logs_deleted"] = result.rowcount
 
     await db.commit()
 

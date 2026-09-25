@@ -241,6 +241,14 @@ class Settings(BaseSettings):
     # signal columns are nulled.
     RETENTION_SIGNUP_SIGNALS_DAYS: int = 180
 
+    # Payroll export audit rows (#78). A year, matching
+    # RETENTION_REVOKED_CONSENTS_DAYS: an export is a pay-affecting action and
+    # the question "who pulled that file, when, covering which dates" is one a
+    # customer asks during an audit, which is an annual cycle. Deleting the log
+    # does NOT clear time_entries.exported_at — that marker is what stops a pay
+    # period being exported twice and it outlives the log deliberately.
+    RETENTION_PAYROLL_EXPORT_LOGS_DAYS: int = 365
+
     # How long an approved schedule stays editable, measured from created_at
     # (the basis specified in #84 — not week_start_date, which diverges for a
     # schedule approved well ahead of the week it covers).
