@@ -1266,7 +1266,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
 
     Called by the day-90 cron after send_data_deleted_email. Caller must commit.
 
-    Deletes 19 explicit tables in dependency order plus the OG row.
+    Deletes 22 explicit tables in dependency order plus the OG row.
     storage_snapshots and billing_charges cascade automatically via
     ondelete=CASCADE on their FK to ownership_groups.id.
 
@@ -1299,12 +1299,29 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.models.failure_log import FailureLog
     from backend.models.token_usage import TokenUsage
     from backend.models.token_usage_daily import TokenUsageDaily
+    from backend.models.employee_check_in import EmployeeCheckIn
+    from backend.models.payroll_export import PayrollExport
+    from backend.models.time_entry import TimeEntry
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
     )).scalars().all()
 
     if company_ids:
+        # 0a. time_entries — refs shifts, employees, locations, roles,
+        #     employee_check_ins, users, payroll_exports (#78). Must go
+        #     before shifts, or the shift delete below trips its FK and the
+        #     whole day-90 deletion fails for any OG that ever ran payroll.
+        await db.execute(delete(TimeEntry).where(TimeEntry.company_id.in_(company_ids)))
+        # 0b. payroll_exports — refs companies, users, locations and
+        #     ownership_groups; nothing points at it once time_entries are
+        #     gone.
+        await db.execute(delete(PayrollExport).where(PayrollExport.company_id.in_(company_ids)))
+        # 0c. employee_check_ins — refs shifts, employees, locations (#63).
+        #     Same FK class as time_entries above: a scan points at the shift
+        #     it was matched to, so it has to go before the shift does. Runs
+        #     after time_entries, which point at check-ins in turn.
+        await db.execute(delete(EmployeeCheckIn).where(EmployeeCheckIn.company_id.in_(company_ids)))
         # 1. shifts — refs shift_schedules, employees, locations, roles
         await db.execute(delete(Shift).where(Shift.company_id.in_(company_ids)))
         # 2. shift_schedules — self-FK, refs employees/locations/roles

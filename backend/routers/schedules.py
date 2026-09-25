@@ -478,6 +478,30 @@ async def edit_approved_shifts(
                     )
                 touched.add(str(shift.employee_id))
                 if edit.deleted:
+                    # A payroll time entry points at this shift (#78). Pay
+                    # records are not schedule scratch: deleting the shift
+                    # would either 500 on the FK or, with a cascade, quietly
+                    # erase hours somebody is owed. Refuse and say why.
+                    from backend.models.time_entry import TimeEntry
+                    has_entry = (await db.execute(
+                        select(TimeEntry.id).where(
+                            TimeEntry.shift_id == shift.id
+                        )
+                    )).scalar_one_or_none()
+                    if has_entry is not None:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "code": "shift_has_time_entry",
+                                "index": idx,
+                                "shift_id": edit.shift_id,
+                                "message": (
+                                    "Payroll hours have already been "
+                                    "recorded for this shift. Remove the "
+                                    "time entry before deleting the shift."
+                                ),
+                            },
+                        )
                     await db.delete(shift)
                     applied += 1
                     continue

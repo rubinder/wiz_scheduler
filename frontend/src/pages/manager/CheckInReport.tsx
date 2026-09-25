@@ -14,7 +14,12 @@ import { getCheckInReport } from "../../api/checkIns";
 import { listEmployees } from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
-import type { CheckInReportRow, CheckInStatus, Employee } from "../../types";
+import type {
+  AttestationRateRow,
+  CheckInReportRow,
+  CheckInStatus,
+  Employee,
+} from "../../types";
 
 /** `local_date` is a bare "YYYY-MM-DD". `new Date(str)` parses that as UTC
  *  midnight, and the tick/tooltip formatters then render it in the viewer's
@@ -33,6 +38,7 @@ export default function CheckInReport() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [retentionDays, setRetentionDays] = useState(180);
+  const [attestation, setAttestation] = useState<AttestationRateRow[]>([]);
 
   useEffect(() => {
     listEmployees().then(setEmployees).catch(() => setEmployees([]));
@@ -43,8 +49,12 @@ export default function CheckInReport() {
       .then((r) => {
         setRows(r.rows);
         setRetentionDays(r.retention_days);
+        setAttestation(r.attestation);
       })
-      .catch(() => setRows([]));
+      .catch(() => {
+        setRows([]);
+        setAttestation([]);
+      });
   }, [employeeId]);
 
   /** Only matched rows carry a punctuality number; the rest have no shift to
@@ -158,6 +168,41 @@ export default function CheckInReport() {
           ))}
         </tbody>
       </table>
+
+      {attestation.length > 0 && (
+        <>
+          <h2 className={`text-lg font-semibold mt-10 mb-1 ${text.body}`}>
+            {t.checkIn.attestationTitle}
+          </h2>
+          <p className={`mb-3 max-w-2xl ${text.muted}`}>
+            {/* Reporting only. Nothing reads this rate to block an
+                attestation, refuse an export, or cap anything. */}
+            {t.checkIn.attestationDesc.replace("{days}", String(retentionDays))}
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="text-start py-2">{t.checkIn.selectLocation}</th>
+                <th className="text-end py-2">{t.checkIn.attestationEntries}</th>
+                <th className="text-end py-2">{t.payroll.sourceAttested}</th>
+                <th className="text-end py-2">{t.checkIn.attestationRate}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attestation.map((r) => (
+                <tr key={r.location_id}>
+                  <td className="py-1">{r.location_name}</td>
+                  <td className="py-1 text-end">{r.entries}</td>
+                  <td className="py-1 text-end">{r.attested}</td>
+                  <td className="py-1 text-end">
+                    {`${Math.round(r.rate * 100)}%`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
   );
 }

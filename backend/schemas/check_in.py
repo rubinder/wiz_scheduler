@@ -42,6 +42,15 @@ class CheckInReportRow(BaseModel):
     minutes_from_start: int | None
 
 
+class AttestationRateRow(BaseModel):
+    location_id: str
+    location_name: str
+    entries: int
+    attested: int
+    rate: float  # attested / entries, 0.0 when entries == 0
+
+
 class CheckInReportResponse(BaseModel):
     rows: list[CheckInReportRow]
     retention_days: int
+    attestation: list[AttestationRateRow]

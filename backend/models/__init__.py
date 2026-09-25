@@ -30,6 +30,8 @@ from backend.models.employee_check_in import EmployeeCheckIn
 from backend.models.og_email_send_log import OgEmailSendLog
 from backend.models.integration_import import IntegrationImport
 from backend.models.gdpr_export_log import GdprExportLog
+from backend.models.payroll_export import PayrollExport
+from backend.models.time_entry import TimeEntry
 from backend.models.activation_event import ActivationEvent
 
 __all__ = [
@@ -71,5 +73,7 @@ __all__ = [
     "OgEmailSendLog",
     "IntegrationImport",
     "GdprExportLog",
+    "PayrollExport",
+    "TimeEntry",
     "ActivationEvent",
 ]

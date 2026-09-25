@@ -504,6 +504,52 @@ async def test_deleting_a_shift_removes_the_row(
     assert remaining is None
 
 
+async def test_a_shift_with_payroll_hours_cannot_be_deleted(
+    client: AsyncClient, manager_token: str, approved_shift, db_session,
+):
+    """A time entry is a pay record (#78). Deleting the shift under it would
+    either trip time_entries_shift_id_fkey on Postgres or, worse, quietly
+    erase hours an employee is owed. The entry here is manager-attested, so
+    there is no check-in and the older shift_locked_by_checkin refusal does
+    not apply — this is the payroll guard on its own."""
+    from sqlalchemy import select
+    from backend.models import Shift, User
+    from backend.models.time_entry import (
+        TimeEntry, TIME_ENTRY_MANAGER_ATTESTED,
+    )
+
+    schedule_id, shift_id = approved_shift
+    attester = (await db_session.execute(
+        select(User).where(User.company_id == COMPANY_ID)
+    )).scalars().first()
+    db_session.add(TimeEntry(
+        id=_id(), company_id=COMPANY_ID, location_id=LOCATION_ID,
+        employee_id=EMPLOYEE1_ID, shift_id=shift_id, role_id=ROLE_FLOOR_ID,
+        role_name="Floor Associate", pay_date=date(2026, 8, 31),
+        start_time=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 8, 31, 17, 0, tzinfo=timezone.utc),
+        paid_minutes=480, source=TIME_ENTRY_MANAGER_ATTESTED,
+        attested_by_user_id=attester.id,
+        attested_at=datetime.now(timezone.utc),
+        attestation_reason="Phone died",
+    ))
+    await db_session.commit()
+
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{"shift_id": shift_id, "deleted": True}]},
+    )
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "shift_has_time_entry"
+    assert "payroll" in resp.json()["detail"]["message"].lower()
+    # Rolled back: the shift is still there.
+    assert (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one_or_none() is not None
+
+
 async def test_reassigning_changes_the_employee(
     client: AsyncClient, manager_token: str, approved_shift, second_employee_id, db_session,
 ):

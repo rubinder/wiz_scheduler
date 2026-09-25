@@ -2321,6 +2321,110 @@ async def test_delete_og_and_dependents_removes_full_subtree(
     assert (await db_session.execute(select(TokenUsage).where(TokenUsage.id == usage.id))).scalar_one_or_none() is None
 
 
+async def test_delete_og_and_dependents_removes_payroll_rows(
+    db_session: AsyncSession, og_with_card
+):
+    """time_entries and employee_check_ins both reference shifts, so an OG
+    that ever ran payroll (#78) or check-in (#63) cannot be deleted unless
+    those tables go first. Before the fix the shift DELETE tripped their FKs
+    and the whole day-90 deletion failed for exactly the customers who had
+    used the features most."""
+    from datetime import date, datetime, timezone
+    from sqlalchemy import select, func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import (
+        Company, Employee, Location, Region, Role, Shift, User,
+    )
+    from backend.models.schedule import ShiftSchedule
+    from backend.models.payroll_export import PayrollExport
+    from backend.models.time_entry import TimeEntry, TIME_ENTRY_CHECKED_IN
+    from backend.models.employee_check_in import (
+        EmployeeCheckIn, CHECK_IN_MATCHED,
+    )
+    from backend.models.ownership_group import OwnershipGroup
+
+    user = User(
+        id=_id(), company_id=COMPANY_ID, email="payroll-del@acme.test",
+        hashed_password="$2b$12$dummy", full_name="Payroll Manager",
+        user_role="manager",
+    )
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add_all([user, region])
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id,
+                        name="L1", timezone="America/New_York")
+    role = Role(id=_id(), company_id=COMPANY_ID, name="Server")
+    db_session.add_all([location, role])
+    await db_session.flush()
+    employee = Employee(id=_id(), company_id=COMPANY_ID, full_name="Alice")
+    schedule = ShiftSchedule(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        week_start_date=date(2026, 5, 4), status="approved",
+    )
+    db_session.add_all([employee, schedule])
+    await db_session.flush()
+    start = datetime(2026, 5, 4, 13, 0, tzinfo=timezone.utc)
+    shift = Shift(
+        id=_id(), company_id=COMPANY_ID, shift_schedule_id=schedule.id,
+        location_id=location.id, employee_id=employee.id, role_id=role.id,
+        role_name=role.name, date=start.date(), start_time=start,
+        end_time=start + timedelta(hours=8),
+    )
+    db_session.add(shift)
+    await db_session.flush()
+    check_in = EmployeeCheckIn(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        employee_id=employee.id, shift_id=shift.id,
+        checked_in_at=start, local_date=start.date(), counter=0,
+        status=CHECK_IN_MATCHED, minutes_from_start=0,
+    )
+    db_session.add(check_in)
+    await db_session.flush()
+    export = PayrollExport(
+        id=_id(), company_id=COMPANY_ID, ownership_group_id=OG_ID,
+        exported_by_user_id=user.id, format="csv", location_id=location.id,
+        range_start=date(2026, 5, 4), range_end=date(2026, 5, 10),
+        entry_count=1, paid_minutes_total=480,
+    )
+    db_session.add(export)
+    await db_session.flush()
+    entry = TimeEntry(
+        id=_id(), company_id=COMPANY_ID, location_id=location.id,
+        employee_id=employee.id, shift_id=shift.id, role_id=role.id,
+        role_name=role.name, pay_date=date(2026, 5, 4), start_time=start,
+        end_time=start + timedelta(hours=8), paid_minutes=480,
+        source=TIME_ENTRY_CHECKED_IN, check_in_id=check_in.id,
+        checked_in_at=start, lateness_minutes=0,
+        exported_at=datetime.now(timezone.utc), payroll_export_id=export.id,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == OG_ID)
+    )).scalar_one_or_none() is None
+    assert (await db_session.execute(
+        select(func.count()).select_from(TimeEntry)
+        .where(TimeEntry.company_id == COMPANY_ID)
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(func.count()).select_from(PayrollExport)
+        .where(PayrollExport.company_id == COMPANY_ID)
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(EmployeeCheckIn).where(EmployeeCheckIn.id == check_in.id)
+    )).scalar_one_or_none() is None
+    assert (await db_session.execute(
+        select(Shift).where(Shift.id == shift.id)
+    )).scalar_one_or_none() is None
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+
+
 async def test_delete_og_and_dependents_handles_empty_og(
     db_session: AsyncSession
 ):
