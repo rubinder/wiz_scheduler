@@ -16,6 +16,7 @@ from backend.config import settings
 from backend.dependencies import get_current_user, get_db, require_manager
 from backend.models import Company, Employee, EmployeeCheckIn, Location, User
 from backend.schemas.check_in import (
+    AttestationRateRow,
     CheckInQrResponse,
     CheckInReportResponse,
     CheckInReportRow,
@@ -29,6 +30,7 @@ from backend.services.check_in import (
 )
 from backend.services.check_in_token import check_in_deep_link
 from backend.services.plan import assert_paid_plan
+from backend.services.time_entries import attestation_rates
 
 router = APIRouter(prefix="/check-ins", tags=["check-ins"])
 
@@ -165,6 +167,20 @@ async def get_check_in_report(
         )
         for row, name in (await db.execute(query)).all()
     ]
+    # Attestation over the SAME retained window the punctuality rows use.
+    # Reporting only — nothing downstream reads `rate` to block anything.
+    rates = await attestation_rates(db, company_id, cutoff.date())
     return CheckInReportResponse(
-        rows=rows, retention_days=settings.RETENTION_CHECKINS_DAYS
+        rows=rows,
+        retention_days=settings.RETENTION_CHECKINS_DAYS,
+        attestation=[
+            AttestationRateRow(
+                location_id=r.location_id,
+                location_name=r.location_name,
+                entries=r.entries,
+                attested=r.attested,
+                rate=r.rate,
+            )
+            for r in rates
+        ],
     )

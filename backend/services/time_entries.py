@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -620,3 +620,60 @@ async def approve_entries(
 
     await db.commit()
     return ApproveResult(approved=approved, already_approved=already_approved)
+
+
+@dataclass(frozen=True)
+class AttestationRate:
+    """A plain dataclass local to this service; the router maps it to the
+    AttestationRateRow schema, keeping schema imports out of services the way
+    backend/routers/check_ins.py already does for the report rows."""
+
+    location_id: str
+    location_name: str
+    entries: int
+    attested: int
+    rate: float
+
+
+async def attestation_rates(
+    db: AsyncSession, company_id: str, since: date
+) -> list[AttestationRate]:
+    """Share of payable hours confirmed by a manager instead of a check-in.
+
+    REPORTING ONLY. Nothing reads `rate` to block an attestation, refuse an
+    export, or cap anything.
+
+    Outer-joined from Location so a location with zero entries reports 0.0
+    rather than vanishing from the list — a missing row reads as "fine" when
+    it actually means "no data".
+    """
+    attested_expr = func.sum(
+        case((TimeEntry.source == TIME_ENTRY_MANAGER_ATTESTED, 1), else_=0)
+    )
+    rows = (await db.execute(
+        select(Location.id, Location.name, func.count(TimeEntry.id), attested_expr)
+        .outerjoin(
+            TimeEntry,
+            and_(
+                TimeEntry.location_id == Location.id,
+                TimeEntry.company_id == company_id,
+                TimeEntry.pay_date >= since,
+            ),
+        )
+        .where(Location.company_id == company_id)
+        .group_by(Location.id, Location.name)
+    )).all()
+
+    rates = [
+        AttestationRate(
+            location_id=location_id,
+            location_name=location_name,
+            entries=entries,
+            attested=int(attested or 0),
+            rate=(int(attested or 0) / entries) if entries else 0.0,
+        )
+        for location_id, location_name, entries, attested in rows
+    ]
+    # Descending, so the locations worth looking at sort to the top.
+    rates.sort(key=lambda r: r.rate, reverse=True)
+    return rates
