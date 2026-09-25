@@ -17,6 +17,8 @@ from backend.dependencies import get_db, require_manager
 from backend.models import User
 from backend.schemas.payroll import (
     MAX_RANGE_DAYS,
+    PayrollApproveRequest,
+    PayrollApproveResponse,
     PayrollAttestRequest,
     PayrollDeriveResponse,
     PayrollEntriesResponse,
@@ -27,6 +29,7 @@ from backend.schemas.payroll import (
 )
 from backend.services.plan import assert_paid_plan
 from backend.services.time_entries import (
+    approve_entries,
     attest_shift,
     derive_time_entries,
     list_exceptions,
@@ -145,3 +148,20 @@ async def attest(
     )
     row = next(r for r in rows if r.id == entry.id)
     return TimeEntryRowSchema(**asdict(row))
+
+
+@router.post("/approve", response_model=PayrollApproveResponse)
+async def approve(
+    body: PayrollApproveRequest,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollApproveResponse:
+    company_id = str(current_user.company_id)
+    await assert_paid_plan(db, company_id, "payroll")
+    _validate_range(body.range_start, body.range_end)
+
+    result = await approve_entries(
+        db, company_id, body.range_start, body.range_end, current_user,
+        body.location_id, body.entry_ids,
+    )
+    return PayrollApproveResponse(**asdict(result))

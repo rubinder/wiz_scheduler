@@ -120,8 +120,7 @@ _GATED_ENDPOINTS = [
     ("GET", "/payroll/entries", "entries"),
     ("GET", "/payroll/exceptions", "exceptions"),
     ("POST", "/payroll/attest", "attest"),
-    pytest.param("POST", "/payroll/approve", "approve",
-                 marks=pytest.mark.xfail(strict=True, reason="built in Task 6")),
+    ("POST", "/payroll/approve", "approve"),
     pytest.param("POST", "/payroll/export", "export",
                  marks=pytest.mark.xfail(strict=True, reason="built in Task 7")),
 ]
@@ -262,3 +261,124 @@ async def test_another_companys_entries_are_invisible(
     )
 
     assert resp.json()["rows"] == []
+
+
+# --- approval ---------------------------------------------------------------
+
+async def _derive(client: AsyncClient, t: SimpleNamespace) -> None:
+    resp = await client.post("/api/v1/payroll/entries/derive",
+                             json=_range_body(t), headers=t.manager_headers)
+    assert resp.status_code == 200, resp.text
+
+
+async def _entry_ids(client: AsyncClient, t: SimpleNamespace) -> list[str]:
+    resp = await client.get(
+        f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
+        headers=t.manager_headers,
+    )
+    return [r["id"] for r in resp.json()["rows"]]
+
+
+async def test_approving_a_range_stamps_every_unapproved_entry(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    await _worked_shift(db_session, paid, days_ago=1)
+    await _worked_shift(db_session, paid, days_ago=2)
+    await _derive(client, paid)
+
+    resp = await client.post("/api/v1/payroll/approve", json=_range_body(paid),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"approved": 2, "already_approved": 0}
+
+    listed = await client.get(
+        f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
+        headers=paid.manager_headers,
+    )
+    assert listed.json()["approved_entries"] == 2
+
+
+async def test_approving_twice_does_not_move_the_timestamp(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    """The approval timestamp is an audit fact about when a human said yes,
+    and a second click must not rewrite it."""
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+    await client.post("/api/v1/payroll/approve", json=_range_body(paid),
+                      headers=paid.manager_headers)
+    first_stamp = (await client.get(
+        f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
+        headers=paid.manager_headers,
+    )).json()["rows"][0]["approved_at"]
+
+    second = await client.post("/api/v1/payroll/approve",
+                               json=_range_body(paid),
+                               headers=paid.manager_headers)
+
+    assert second.json() == {"approved": 0, "already_approved": 1}
+    after = (await client.get(
+        f"/api/v1/payroll/entries?range_start={WEEK_AGO}&range_end={TODAY}",
+        headers=paid.manager_headers,
+    )).json()["rows"][0]["approved_at"]
+    assert after == first_stamp
+
+
+async def test_entry_ids_approves_only_the_named_subset(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    await _worked_shift(db_session, paid, days_ago=1)
+    await _worked_shift(db_session, paid, days_ago=2)
+    await _derive(client, paid)
+    ids = await _entry_ids(client, paid)
+
+    resp = await client.post(
+        "/api/v1/payroll/approve",
+        json=_range_body(paid, entry_ids=[ids[0]]),
+        headers=paid.manager_headers,
+    )
+
+    assert resp.json() == {"approved": 1, "already_approved": 0}
+
+
+async def test_entry_ids_naming_another_companys_entry_is_refused(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    other = await _tenant(db_session, paid=True)
+    await _worked_shift(db_session, other)
+    await _derive(client, other)
+    stranger_ids = await _entry_ids(client, other)
+    await _worked_shift(db_session, paid)
+    await _derive(client, paid)
+
+    resp = await client.post(
+        "/api/v1/payroll/approve",
+        json=_range_body(paid, entry_ids=stranger_ids),
+        headers=paid.manager_headers,
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_entry_ids"
+
+
+async def test_entry_ids_outside_the_range_are_refused(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    await _worked_shift(db_session, paid, days_ago=1)
+    await _derive(client, paid)
+    ids = await _entry_ids(client, paid)
+
+    resp = await client.post(
+        "/api/v1/payroll/approve",
+        json=_range_body(
+            paid,
+            range_start=(TODAY - timedelta(days=30)).isoformat(),
+            range_end=(TODAY - timedelta(days=20)).isoformat(),
+            entry_ids=ids,
+        ),
+        headers=paid.manager_headers,
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "invalid_entry_ids"

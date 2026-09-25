@@ -93,6 +93,12 @@ class DeriveResult:
 
 
 @dataclass(frozen=True)
+class ApproveResult:
+    approved: int
+    already_approved: int
+
+
+@dataclass(frozen=True)
 class TimeEntryRow:
     id: str
     shift_id: str
@@ -560,3 +566,57 @@ async def attest_shift(
         )
     await db.refresh(entry)
     return entry
+
+
+async def approve_entries(
+    db: AsyncSession,
+    company_id: str,
+    range_start: date,
+    range_end: date,
+    user: User,
+    location_id: str | None = None,
+    entry_ids: list[str] | None = None,
+) -> ApproveResult:
+    """Say yes to a set of payable hours. Nothing exports unapproved.
+
+    Already-approved entries are counted and left untouched, not re-stamped:
+    the approval timestamp is an audit fact about when a human said yes.
+    """
+    query = select(TimeEntry).where(
+        TimeEntry.company_id == company_id,
+        TimeEntry.pay_date >= range_start,
+        TimeEntry.pay_date <= range_end,
+    )
+    if location_id:
+        query = query.where(TimeEntry.location_id == location_id)
+    if entry_ids:
+        query = query.where(TimeEntry.id.in_(entry_ids))
+
+    rows = list((await db.execute(query)).scalars().all())
+
+    if entry_ids and len(rows) != len(set(entry_ids)):
+        # An id that named another company's entry, or one outside the range,
+        # simply did not come back. Refusing the whole call is what keeps a
+        # partial approval from looking like a complete one. An EMPTY list is
+        # treated as "everything in range", exactly like null — the spec makes
+        # a non-empty list the trigger for subset mode.
+        raise _reject(
+            "invalid_entry_ids",
+            "Some of those entries are not in this range or not yours. "
+            "Nothing was approved.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    now = datetime.now(timezone.utc)
+    approved = 0
+    already_approved = 0
+    for row in rows:
+        if row.approved_at is not None:
+            already_approved += 1
+            continue
+        row.approved_at = now
+        row.approved_by_user_id = user.id
+        approved += 1
+
+    await db.commit()
+    return ApproveResult(approved=approved, already_approved=already_approved)
