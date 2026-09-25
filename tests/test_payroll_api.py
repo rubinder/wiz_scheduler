@@ -114,7 +114,6 @@ def _range_body(t: SimpleNamespace, **extra) -> dict:
 
 # --- plan gating ------------------------------------------------------------
 
-# Tasks 5, 6, and 7: remove your endpoint's xfail mark below once its route exists.
 _GATED_ENDPOINTS = [
     ("POST", "/payroll/entries/derive", "derive"),
     ("GET", "/payroll/entries", "entries"),
@@ -394,6 +393,10 @@ async def _approve_all(client: AsyncClient, t: SimpleNamespace) -> None:
 async def test_export_with_nothing_approved_is_refused(
     client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
 ):
+    from sqlalchemy import select as _select
+
+    from backend.models import PayrollExport
+
     await _worked_shift(db_session, paid)
     await _derive(client, paid)
 
@@ -403,6 +406,9 @@ async def test_export_with_nothing_approved_is_refused(
 
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "nothing_to_export"
+
+    exports = (await db_session.execute(_select(PayrollExport))).scalars().all()
+    assert exports == []
 
 
 async def test_approve_then_export_returns_csv_and_writes_one_audit_row(
@@ -416,17 +422,30 @@ async def test_approve_then_export_returns_csv_and_writes_one_audit_row(
     await _derive(client, paid)
     await _approve_all(client, paid)
 
-    resp = await client.post("/api/v1/payroll/export",
-                             json=_range_body(paid, include_exported=False),
-                             headers=paid.manager_headers)
+    resp = await client.post(
+        "/api/v1/payroll/export",
+        json=_range_body(paid, location_id=paid.location_id,
+                         include_exported=False),
+        headers=paid.manager_headers,
+    )
 
     assert resp.status_code == 200, resp.text
     assert resp.headers["content-type"].startswith("text/csv")
-    assert "attachment; filename=" in resp.headers["content-disposition"]
+    expected_filename = (
+        f"payroll_slug-{paid.company_id}_{WEEK_AGO.isoformat()}_"
+        f"{TODAY.isoformat()}.csv"
+    )
+    assert (resp.headers["content-disposition"]
+            == f'attachment; filename="{expected_filename}"')
     assert "employee_name" in resp.text
 
     exports = (await db_session.execute(_select(PayrollExport))).scalars().all()
     assert len(exports) == 1
+    assert exports[0].company_id == paid.company_id
+    assert exports[0].ownership_group_id == paid.og_id
+    assert exports[0].location_id == paid.location_id
+    assert exports[0].range_start == WEEK_AGO
+    assert exports[0].range_end == TODAY
     assert exports[0].entry_count == 1
     assert exports[0].paid_minutes_total == 480
     assert exports[0].format == "csv"
@@ -436,6 +455,63 @@ async def test_approve_then_export_returns_csv_and_writes_one_audit_row(
     await db_session.refresh(entry)
     assert entry.exported_at is not None
     assert entry.payroll_export_id == exports[0].id
+
+
+async def test_export_only_stamps_the_approved_entry_in_a_mixed_range(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    """One approved entry and one still-unapproved entry in the same range:
+    export must stamp only the approved one and leave the other's
+    exported_at NULL."""
+    from sqlalchemy import select as _select
+
+    from backend.models import TimeEntry
+
+    await _worked_shift(db_session, paid, days_ago=1)
+    await _worked_shift(db_session, paid, days_ago=2)
+    await _derive(client, paid)
+    ids = await _entry_ids(client, paid)
+
+    approve_resp = await client.post(
+        "/api/v1/payroll/approve",
+        json=_range_body(paid, entry_ids=[ids[0]]),
+        headers=paid.manager_headers,
+    )
+    assert approve_resp.status_code == 200, approve_resp.text
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=False),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+
+    entries = {
+        e.id: e
+        for e in (await db_session.execute(_select(TimeEntry))).scalars().all()
+    }
+    for e in entries.values():
+        await db_session.refresh(e)
+    assert entries[ids[0]].exported_at is not None
+    assert entries[ids[1]].approved_at is None
+    assert entries[ids[1]].exported_at is None
+
+
+async def test_export_only_sees_the_callers_own_company(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    """Multi-tenancy: another company's approved hours must never appear in,
+    or count toward, this company's export."""
+    other = await _tenant(db_session, paid=True)
+    await _worked_shift(db_session, other)
+    await _derive(client, other)
+    await _approve_all(client, other)
+
+    resp = await client.post("/api/v1/payroll/export",
+                             json=_range_body(paid, include_exported=False),
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "nothing_to_export"
 
 
 async def test_a_second_export_of_the_same_range_is_refused(

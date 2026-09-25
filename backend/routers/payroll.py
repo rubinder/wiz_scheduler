@@ -171,7 +171,7 @@ async def approve(
     return PayrollApproveResponse(**asdict(result))
 
 
-@router.post("/export")
+@router.post("/export", response_class=Response)
 async def export_csv(
     body: PayrollExportRequest,
     current_user: User = Depends(require_manager),
@@ -189,14 +189,16 @@ async def export_csv(
     await assert_paid_plan(db, company_id, "payroll")
     _validate_range(body.range_start, body.range_end)
 
+    # Fetched before export_approved so nothing can fail (and 500) after the
+    # rows are stamped and the audit row is committed.
+    slug = (await db.execute(
+        select(Company.slug).where(Company.id == company_id)
+    )).scalar_one()
+
     content, _export = await export_approved(
         db, company_id, current_user, body.range_start, body.range_end,
         body.location_id, body.include_exported,
     )
-
-    slug = (await db.execute(
-        select(Company.slug).where(Company.id == company_id)
-    )).scalar_one()
     filename = (
         f"payroll_{slug}_{body.range_start.isoformat()}_"
         f"{body.range_end.isoformat()}.csv"

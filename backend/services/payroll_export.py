@@ -11,6 +11,7 @@ import io
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -28,12 +29,34 @@ CSV_HEADER = [
     "source", "checked_in_at", "lateness_minutes",
 ]
 
+# Leading characters a spreadsheet application treats as the start of a
+# formula. A name, location or role name that starts with one of these opens
+# a formula-injection hole the moment a manager opens the file in Excel or
+# Sheets — see CWE-1236.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize(v: str) -> str:
+    """Defuse leading-character CSV formula injection in free-text columns.
+
+    Only applied to free text a user actually controls (employee_name,
+    location_name, role_name) — never to ids, dates, numbers or `source`,
+    which are never user-authored strings that reach a spreadsheet formula
+    bar unescaped.
+    """
+    if v.startswith(_FORMULA_PREFIXES):
+        return "'" + v
+    return v
+
 
 @dataclass(frozen=True)
 class PayrollCsvRow:
     """One exported line, carrying domain values rather than pre-formatted
     text — the formatting rules live in render_csv so they are testable in one
-    place. `paid_minutes` renders into the `paid_hours` column."""
+    place. `paid_minutes` renders into the `paid_hours` column. `timezone` is
+    the IANA zone `start_time`/`end_time`/`checked_in_at` are rendered into —
+    the location's, per the controller ruling that a pay file should read in
+    local wall-clock faces rather than whatever offset happened to be stored."""
 
     employee_id: str
     employee_name: str
@@ -48,6 +71,12 @@ class PayrollCsvRow:
     source: str
     checked_in_at: datetime | None
     lateness_minutes: int | None
+    timezone: str
+
+
+def _local_iso(dt: datetime, tz_name: str) -> str:
+    """Same instant, rendered in the location's zone with the offset intact."""
+    return dt.astimezone(ZoneInfo(tz_name)).isoformat()
 
 
 def render_csv(rows: list[PayrollCsvRow]) -> str:
@@ -61,7 +90,8 @@ def render_csv(rows: list[PayrollCsvRow]) -> str:
     Hours rather than minutes because that is what every payroll import
     template takes. checked_in_at and lateness_minutes are EMPTY, not "0", for
     an attested row: we did not observe an on-time arrival, we observed
-    nothing.
+    nothing. Free-text columns are run through _neutralize to defuse CSV
+    formula injection.
     """
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\r\n")
@@ -69,17 +99,17 @@ def render_csv(rows: list[PayrollCsvRow]) -> str:
     for row in rows:
         writer.writerow([
             row.employee_id,
-            row.employee_name,
+            _neutralize(row.employee_name),
             row.pay_date.isoformat(),
             row.location_id,
-            row.location_name,
+            _neutralize(row.location_name),
             row.role_id,
-            row.role_name,
-            row.start_time.isoformat(),
-            row.end_time.isoformat(),
+            _neutralize(row.role_name),
+            _local_iso(row.start_time, row.timezone),
+            _local_iso(row.end_time, row.timezone),
             f"{row.paid_minutes / 60:.2f}",
             row.source,
-            row.checked_in_at.isoformat() if row.checked_in_at else "",
+            _local_iso(row.checked_in_at, row.timezone) if row.checked_in_at else "",
             "" if row.lateness_minutes is None else str(row.lateness_minutes),
         ])
     return "﻿" + buf.getvalue()
@@ -104,7 +134,7 @@ async def export_approved(
     period and a re-download is not a second export.
     """
     query = (
-        select(TimeEntry, Employee.full_name, Location.name)
+        select(TimeEntry, Employee.full_name, Location.name, Location.timezone)
         .join(Employee, Employee.id == TimeEntry.employee_id)
         .join(Location, Location.id == TimeEntry.location_id)
         .where(
@@ -114,6 +144,10 @@ async def export_approved(
             TimeEntry.approved_at.isnot(None),
         )
         .order_by(TimeEntry.pay_date, Employee.full_name)
+        # Locks the selected rows (PostgreSQL; SQLite ignores it) so a double
+        # click can't have two concurrent exports both see exported_at IS NULL
+        # for the same entry and both believe they are the one that stamped it.
+        .with_for_update()
     )
     if location_id:
         query = query.where(TimeEntry.location_id == location_id)
@@ -150,13 +184,13 @@ async def export_approved(
         range_start=range_start,
         range_end=range_end,
         entry_count=len(found),
-        paid_minutes_total=sum(entry.paid_minutes for entry, _, _ in found),
+        paid_minutes_total=sum(entry.paid_minutes for entry, _, _, _ in found),
     )
     db.add(export)
     await db.flush()
 
     csv_rows: list[PayrollCsvRow] = []
-    for entry, employee_name, location_name in found:
+    for entry, employee_name, location_name, location_timezone in found:
         csv_rows.append(PayrollCsvRow(
             employee_id=entry.employee_id,
             employee_name=employee_name,
@@ -171,6 +205,7 @@ async def export_approved(
             source=entry.source,
             checked_in_at=entry.checked_in_at,
             lateness_minutes=entry.lateness_minutes,
+            timezone=location_timezone,
         ))
         if entry.exported_at is None:
             entry.exported_at = now
@@ -178,7 +213,10 @@ async def export_approved(
 
     content = render_csv(csv_rows)
     await db.commit()
-    await db.refresh(export)
+    # No db.refresh(export) here: the session factory is expire_on_commit=False
+    # (backend/database.py), so export's attributes are already populated from
+    # the flush above and nothing downstream reads a server-generated column
+    # that changed at commit time.
     logger.info(
         "payroll.export company_id=%s export_id=%s entries=%d minutes=%d",
         company_id, export.id, export.entry_count, export.paid_minutes_total,

@@ -29,6 +29,7 @@ def _row(**overrides) -> PayrollCsvRow:
         source="checked_in",
         checked_in_at=datetime(2026, 9, 15, 21, 56, tzinfo=NY),
         lateness_minutes=-4,
+        timezone="America/New_York",
     )
     fields.update(overrides)
     return PayrollCsvRow(**fields)
@@ -70,6 +71,22 @@ def test_timestamps_keep_the_offset_they_were_stored_with():
     assert row[CSV_HEADER.index("pay_date")] == "2026-09-15"
 
 
+def test_a_utc_stored_instant_renders_in_the_location_zone():
+    """The stored instant may arrive in any offset; the CSV always shows the
+    location's local wall-clock face, per the controller ruling that a pay
+    file reads in local time, not whatever offset happened to be persisted."""
+    row = _row(
+        start_time=datetime(2026, 9, 16, 2, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 9, 16, 10, 0, tzinfo=timezone.utc),
+        checked_in_at=datetime(2026, 9, 16, 1, 56, tzinfo=timezone.utc),
+        timezone="America/New_York",
+    )
+    parsed = _parse(render_csv([row]))[1]
+    assert parsed[CSV_HEADER.index("start_time")] == "2026-09-15T22:00:00-04:00"
+    assert parsed[CSV_HEADER.index("end_time")] == "2026-09-16T06:00:00-04:00"
+    assert parsed[CSV_HEADER.index("checked_in_at")] == "2026-09-15T21:56:00-04:00"
+
+
 def test_an_attested_row_reports_nothing_rather_than_zero():
     """Empty, not "0": we did not observe an on-time arrival, we observed
     nothing. And not "None", which is a Python repr leaking into a pay file."""
@@ -104,3 +121,39 @@ def test_the_attestation_reason_appears_nowhere():
     assert "reason" not in render_csv([_row(source="manager_attested",
                                             checked_in_at=None,
                                             lateness_minutes=None)])
+
+
+# --- CSV formula injection (CWE-1236) ---------------------------------------
+
+def test_a_formula_leading_name_is_neutralized():
+    """Excel and Sheets treat a leading =, +, -, @, tab or CR as the start of
+    a formula. A row is data an employer downloads and opens without
+    suspicion; it must never be able to run code or call out to a URL."""
+    row = _parse(render_csv([_row(employee_name='=HYPERLINK("http://x")')]))[1]
+    assert row[CSV_HEADER.index("employee_name")] == '\'=HYPERLINK("http://x")'
+
+
+def test_a_name_starting_with_a_hyphen_is_neutralized():
+    row = _parse(render_csv([_row(employee_name="-1+1")]))[1]
+    assert row[CSV_HEADER.index("employee_name")] == "'-1+1"
+
+
+def test_a_plain_name_is_unchanged():
+    row = _parse(render_csv([_row(employee_name="Dana Okafor")]))[1]
+    assert row[CSV_HEADER.index("employee_name")] == "Dana Okafor"
+
+
+def test_location_and_role_names_are_also_neutralized():
+    row = _parse(render_csv([
+        _row(location_name="=cmd", role_name="+SUM(1,1)")
+    ]))[1]
+    assert row[CSV_HEADER.index("location_name")] == "'=cmd"
+    assert row[CSV_HEADER.index("role_name")] == "'+SUM(1,1)"
+
+
+def test_ids_dates_numbers_and_source_are_never_neutralized():
+    """Neutralization is for user-controlled free text only — an id, a date,
+    a number or the fixed `source` enum are never rewritten even if they
+    happen to look formula-shaped."""
+    row = _parse(render_csv([_row(employee_id="=1+1")]))[1]
+    assert row[CSV_HEADER.index("employee_id")] == "=1+1"

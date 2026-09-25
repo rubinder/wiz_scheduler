@@ -542,8 +542,8 @@ BOM-less UTF-8 CSV as mojibake — which a payroll clerk will read as our bug.
 Column rules:
 
 - `pay_date` — `YYYY-MM-DD`.
-- `start_time`, `end_time` — ISO 8601 exactly as stored, offset intact, never
-  re-projected.
+- `start_time`, `end_time` — ISO 8601, rendered in the location's zone with the
+  offset intact (same instant, local faces).
 - `paid_hours` — `paid_minutes / 60` formatted to two decimal places
   (`"8.00"`, `"7.50"`). Hours rather than minutes because that is what every
   payroll import template on the issue's list takes.
