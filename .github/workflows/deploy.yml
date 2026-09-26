@@ -133,6 +133,9 @@ jobs:
           # Sender for transactional email. MUST be on a Resend-verified
           # domain — suggestival.com is verified; wizscheduler.com is not.
           TF_VAR_from_email: "wizscheduler@suggestival.com"
+          # CloudWatch alarm notifications (#49) and the billing operator
+          # alert (backend/services/operator_alerts.py) both go here.
+          TF_VAR_ops_alert_email: "admin@suggestival.com"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -210,6 +213,9 @@ jobs:
           # Sender for transactional email. MUST be on a Resend-verified
           # domain — suggestival.com is verified; wizscheduler.com is not.
           TF_VAR_from_email: "wizscheduler@suggestival.com"
+          # CloudWatch alarm notifications (#49) and the billing operator
+          # alert (backend/services/operator_alerts.py) both go here.
+          TF_VAR_ops_alert_email: "admin@suggestival.com"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:

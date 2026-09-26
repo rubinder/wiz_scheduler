@@ -226,6 +226,15 @@ resource "aws_ecs_task_definition" "app" {
           name  = "FROM_EMAIL"
           value = var.from_email != "" ? var.from_email : (var.domain_name != "" ? "noreply@${var.domain_name}" : "")
         },
+        {
+          # Recipient for the billing operator alert (services/operator_alerts.py)
+          # fired when a customer buys AI credits, so the operator knows to
+          # top up the Anthropic Console. Reuses the same address subscribed
+          # to the CloudWatch ops-alerts SNS topic (alarms.tf) — one inbox
+          # for both classes of "something needs a human" notification.
+          name  = "OPERATOR_ALERT_EMAIL"
+          value = var.ops_alert_email
+        },
       ]
 
       logConfiguration = {
