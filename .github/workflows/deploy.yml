@@ -6,6 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+# Serialises deploys to the same ref. Without this, two push-triggered runs
+# for the same commit (seen 2026-09-26: a duplicate webhook delivery fired
+# the workflow twice for one push) each start their own `aws ecs deploy-
+# task-definition`, racing the ECS API for the same service. This time both
+# runs pushed identical content and the second deployment simply replaced
+# the first ("Replaced by a new service deployment"), so production ended
+# up correct — but the first run's polling then lost track of its own
+# deployment ID and reported a false "rolled back by the circuit breaker"
+# failure. cancel-in-progress is false so a real in-flight deploy is never
+# killed; a genuine second push (a fast-follow fix) queues behind it instead.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
   ECR_REPOSITORY: wizscheduler
