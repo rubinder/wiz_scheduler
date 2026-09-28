@@ -870,7 +870,7 @@ const fr = {
     featuresTitle: "Tout ce dont vous avez besoin",
     featuresDesc: "De la gestion multi-sites à l'optimisation par AI, Wiz Scheduler gère la complexité à votre place.",
     strategiesTitle: "Stratégies de planification",
-    strategiesDesc: "Choisissez l'approche adaptée à votre entreprise. Combinez les stratégies entre les sites.",
+    strategiesDesc: "Choisissez l'approche adaptée à votre entreprise. Combinez les stratégies entre les sites. L'IA est une stratégie optionnelle parmi quatre — aucune n'est obligatoire.",
     pricingTitle: "Tarification simple et transparente",
     pricingDesc: "Commencez gratuitement. Ne payez qu'en grandissant. Aucun frais caché.",
     allInOnePlan: "Plan tout-en-un",
@@ -916,7 +916,7 @@ const fr = {
     ctaDesc: "Rejoignez des milliers de managers qui gagnent des heures chaque semaine.",
     ctaBtn: "Créer un compte",
     featAITitle: "Génération de plannings par AI",
-    featAIDesc: "Claude AI analyse les disponibilités, compétences et dynamiques d'équipe pour créer des plannings optimaux en quelques secondes.",
+    featAIDesc: "Claude AI analyse les disponibilités, compétences et dynamiques d'équipe pour créer des plannings optimaux en quelques secondes. Optionnel — les stratégies algorithmiques gratuites créent un planning complet sans elle.",
     featStrategiesTitle: "Stratégies multiples",
     featStrategiesDesc: "Rotation, équité sur 3 mois, plafonds d'heures ou aléatoire pur. Choisissez ce qui convient à chaque site.",
     featMultiLocTitle: "Multi-sites",
@@ -949,8 +949,8 @@ const fr = {
     stratMaxHoursTag: "GRATUIT",
     stratMaxHoursDesc: "Plafonne chaque employé à X heures par planning. Limite d'heures ajustable (4-60h) et rigueur (de préférence souple à plafond strict). Respecte les affinités : les contraintes strictes sont appliquées, les préférences souples influencent le score.",
     stratAI: "Génération AI",
-    stratAITag: "CRÉDITS PRÉPAYÉS",
-    stratAIDesc: "Claude AI lit le contexte complet (disponibilités, compétences, affinités, exigences de postes) et produit un planning optimisé. Respecte toutes les contraintes d'affinité. Idéal pour les scénarios complexes.",
+    stratAITag: "OPTIONNEL · CRÉDITS PRÉPAYÉS",
+    stratAIDesc: "Claude AI lit le contexte complet (disponibilités, compétences, affinités, exigences de postes) et produit un planning optimisé. Respecte toutes les contraintes d'affinité. Idéal pour les scénarios complexes. C'est une voie optionnelle — les trois stratégies gratuites ci-dessous produisent un planning complet sans toucher à l'IA ni aux crédits.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Ce que le planificateur prend en compte",
     inputsDesc: "Chaque brouillon, de chaque stratégie, est vérifié selon les mêmes règles. Elles portent ici les mêmes noms que sur la page Règles de planification de l'application.",
@@ -1024,6 +1024,10 @@ const fr = {
         title: "Employés",
         desc: "La liste maîtresse. Définissez pour chacun les rôles attribués, le niveau de compétence, les lieux où il peut travailler, les limites d'heures et la disponibilité. L'édition en ligne accélère les mises à jour groupées.",
       },
+      team: {
+        title: "Équipe",
+        desc: "Invitez d'autres gestionnaires à vous aider à administrer le compte. Suivez les invitations en attente et voyez qui a déjà accepté, le tout au même endroit.",
+      },
       "hour-restrictions": {
         title: "Restrictions d'heures",
         desc: "Imposez des plafonds et planchers hebdomadaires par employé. Utile pour les visas étudiants, les contrats à temps partiel et les budgets d'heures supplémentaires. L'IA ne planifiera jamais en dehors de ces bornes.",
@@ -1032,9 +1036,25 @@ const fr = {
         title: "Jours bloqués",
         desc: "Bloquez des journées entières quand un lieu est fermé ou un employé indisponible. Jours fériés, vacances, formations — le planificateur les respecte automatiquement.",
       },
+      "day-preferences": {
+        title: "Préférences de jours",
+        desc: "Pondérez de 0 à 1 les jours de la semaine que chaque employé préfère travailler. Le planificateur favorise davantage cet employé pour les quarts ce jour-là — une préférence souple qui s'efface quand personne d'autre n'est disponible.",
+      },
+      "hour-range-preferences": {
+        title: "Préférences de plage horaire",
+        desc: "Pondérez de 0 à 1 les heures de la journée que chaque employé préfère travailler. Un quart compte pour la préférence dès qu'au moins la moitié tombe dans la plage choisie.",
+      },
+      "frequency-caps": {
+        title: "Plafonds de fréquence",
+        desc: "Limitez le nombre de fois par semaine qu'un employé peut être planifié dans une plage horaire donnée, pondéré de 0 à 1. Utile pour plafonner les quarts du soir ou du week-end sans les exclure complètement.",
+      },
       "employee-onboarding": {
         title: "Intégration des employés",
         desc: "Invitez les nouveaux employés par e-mail. Ils renseignent eux-mêmes leur disponibilité et leurs informations personnelles — vous restez concentré sur l'activité, pas sur la saisie.",
+      },
+      "employee-availability": {
+        title: "Disponibilité des employés",
+        desc: "Consultez au même endroit les disponibilités déclarées par chaque employé, et importez-les ou ajustez-les directement — plus besoin de courir après des feuilles de calcul avant de générer un planning.",
       },
       "employee-association": {
         title: "Association d'employés",
@@ -1044,6 +1064,22 @@ const fr = {
         title: "Modèles de quart",
         desc: "Définissez le motif hebdomadaire récurrent de chaque lieu : quels rôles, combien de chacun, quels jours, à quelles heures. Le plan que l'IA remplit.",
       },
+      "check-in-qr": {
+        title: "Code de pointage",
+        desc: "Un code QR rotatif que les employés scannent pour pointer leur arrivée. Comme il change à chaque scan, une capture d'écran est inutile pour quiconque n'est pas sur place.",
+      },
+      "check-in-report": {
+        title: "Rapport de pointage",
+        desc: "Consultez l'écart entre l'heure d'arrivée de chaque employé et son heure prévue, sur la durée, ainsi que la part des heures qu'un gestionnaire a dû confirmer manuellement faute de scan.",
+      },
+      payroll: {
+        title: "Paie",
+        desc: "Transformez automatiquement les quarts approuvés et pointés en heures payables. Confirmez le rare quart que personne n'a scanné, approuvez une période de paie et exportez directement en CSV.",
+      },
+      "special-hours": {
+        title: "Horaires spéciaux",
+        desc: "Définissez des horaires d'ouverture ponctuels pour les jours fériés et autres journées inhabituelles. Le planificateur substitue une copie du modèle de quart pour ce jour à l'horaire hebdomadaire habituel.",
+      },
       schedule: {
         title: "Planning",
         desc: "Générez des plannings hebdomadaires optimisés en un clic. Choisissez une stratégie algorithmique (Rotation, Heures Max, Aléatoire) ou l'IA. Examinez les résultats par lieu, éditez en ligne et publiez.",
@@ -1051,6 +1087,10 @@ const fr = {
       "export-schedules": {
         title: "Exporter les plannings",
         desc: "Téléchargez les plannings publiés en CSV ou PDF, ou poussez-les directement vers 7shifts et Deputy. Vos flux de paie et de caisse existants restent inchangés.",
+      },
+      "approved-schedules": {
+        title: "Plannings approuvés",
+        desc: "Consultez n'importe quelle semaine passée exactement telle qu'elle était au moment de son approbation — l'enregistrement permanent sur lequel repose le reste de l'application, y compris la paie.",
       },
       "data-privacy": {
         title: "Confidentialité des données",

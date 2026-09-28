@@ -870,7 +870,7 @@ const zh = {
     featuresTitle: "您所需的一切",
     featuresDesc: "从多门店管理到 AI 驱动的优化，Wiz Scheduler 为您处理复杂性。",
     strategiesTitle: "排班策略",
-    strategiesDesc: "选择适合您业务的方法。跨门店自由组合策略。",
+    strategiesDesc: "选择适合您业务的方法。跨门店自由组合策略。AI 只是四种策略中的一种可选项——都不是必须的。",
     pricingTitle: "简单、透明的定价",
     pricingDesc: "免费开始。仅在扩展时付费。无隐藏费用。",
     allInOnePlan: "全能套餐",
@@ -916,7 +916,7 @@ const zh = {
     ctaDesc: "加入每周节省数小时的数千名经理。",
     ctaBtn: "创建账户",
     featAITitle: "AI 排班生成",
-    featAIDesc: "Claude AI 分析可用性、技能和团队动态，在数秒内创建最优排班。",
+    featAIDesc: "Claude AI 分析可用性、技能和团队动态，在数秒内创建最优排班。这是可选的——免费的算法策略无需它也能生成完整排班。",
     featStrategiesTitle: "多种策略",
     featStrategiesDesc: "轮换、3 个月历史公平性、最大工时限制或纯随机。为每个门店选择最合适的。",
     featMultiLocTitle: "多门店",
@@ -949,8 +949,8 @@ const zh = {
     stratMaxHoursTag: "免费",
     stratMaxHoursDesc: "将任何员工限制为每个排班 X 小时。可调节的小时限制（4-60 小时）和严格程度（从软性偏好到硬性上限）。尊重员工亲和力：硬性约束被执行，软性偏好影响评分。",
     stratAI: "AI 生成",
-    stratAITag: "预付额度",
-    stratAIDesc: "Claude AI 读取完整上下文（可用性、技能、亲和力、班次需求）并生成优化的排班。遵守所有亲和力约束。最适合复杂场景。",
+    stratAITag: "可选 · 预付额度",
+    stratAIDesc: "Claude AI 读取完整上下文（可用性、技能、亲和力、班次需求）并生成优化的排班。遵守所有亲和力约束。最适合复杂场景。这是一条可选路径——下面三种免费策略无需使用 AI 或额度即可生成完整排班。",
     // Inputs (what the scheduler considers)
     inputsTitle: "排班器考虑的因素",
     inputsDesc: "每种策略生成的每份草案都会依据相同的规则进行检查。这里使用的名称与应用内排班规则页面相同。",
@@ -1024,6 +1024,10 @@ const zh = {
         title: "员工",
         desc: "员工总名册。为每个人设置可承担的角色、技能等级、可工作的门店、工时上下限以及可用时间。行内编辑让批量更新高效便捷。",
       },
+      team: {
+        title: "团队",
+        desc: "邀请其他管理员协助运营账户。跟踪待处理的邀请,一目了然谁已接受。",
+      },
       "hour-restrictions": {
         title: "工时限制",
         desc: "为每位员工强制每周工时上下限。适用于学生签证、兼职合同和加班预算。AI 不会安排超出这些范围的班次。",
@@ -1032,9 +1036,25 @@ const zh = {
         title: "不可用日",
         desc: "在门店关闭或员工不可用时屏蔽整天。节假日、休假、培训日 — 排班器都会自动遵守。",
       },
+      "day-preferences": {
+        title: "日期偏好",
+        desc: "为每位员工设置一周中各天的偏好权重,范围 0 到 1。排班器会更倾向于在该员工偏好的日子安排班次 — 这是一种软性偏好,在无人可用时会让步。",
+      },
+      "hour-range-preferences": {
+        title: "时段偏好",
+        desc: "为每位员工设置一天中各时段的偏好权重,范围 0 到 1。只要班次至少一半落在所选时段内,就会计入该偏好。",
+      },
+      "frequency-caps": {
+        title: "频次上限",
+        desc: "限制某位员工每周在指定时段内被排班的次数,权重范围 0 到 1。适合限制晚班或周末班次的次数,而不是完全禁止。",
+      },
       "employee-onboarding": {
         title: "员工入职",
         desc: "通过邮件邀请新员工。他们自助填写可用时间和个人信息 — 你专注于经营,而不是追着数据跑。",
+      },
+      "employee-availability": {
+        title: "员工可用时间",
+        desc: "在一处查看每位员工自行填报的可用时间段,并可直接导入或调整 — 生成排班前不用再追着表格跑。",
       },
       "employee-association": {
         title: "员工关联",
@@ -1044,6 +1064,22 @@ const zh = {
         title: "班次模板",
         desc: "定义每个门店的周期性周班次模式:需要哪些角色、各需多少人、哪些日子、几点几分。AI 将以此为蓝本填充。",
       },
+      "check-in-qr": {
+        title: "签到码",
+        desc: "员工扫码签到上班的动态二维码。由于每次扫描后都会变化,不在现场的人截图也毫无用处。",
+      },
+      "check-in-report": {
+        title: "签到报告",
+        desc: "查看每位员工的到岗时间与排班时间的偏差趋势,以及由管理员手动确认(而非扫码)的工时占比。",
+      },
+      payroll: {
+        title: "工资单",
+        desc: "自动把已批准且已签到的班次转换为可付薪工时。确认极少数无人扫码的班次,批准某个薪资周期,直接导出为 CSV。",
+      },
+      "special-hours": {
+        title: "特殊营业时间",
+        desc: "为节假日等非常规日期设置一次性营业时间。排班器会为该天套用克隆的班次模板,而不是常规的每周模板。",
+      },
       schedule: {
         title: "排班",
         desc: "一键生成优化的周排班。选择算法策略(轮换、最大工时、随机)或 AI。按门店审阅结果,行内编辑后发布。",
@@ -1051,6 +1087,10 @@ const zh = {
       "export-schedules": {
         title: "导出排班",
         desc: "将已发布的排班下载为 CSV 或 PDF,或直接推送到 7shifts 和 Deputy。你现有的工资和 POS 流程不变。",
+      },
+      "approved-schedules": {
+        title: "已批准排班",
+        desc: "浏览任意一个过去的周排班,一如它被批准那一刻的样子 — 这是应用其余部分(包括工资单)所依赖的永久记录。",
       },
       "data-privacy": {
         title: "数据隐私",

@@ -870,7 +870,7 @@ const pt = {
     featuresTitle: "Tudo o que você precisa",
     featuresDesc: "De gestão multi-local à otimização com AI, o Wiz Scheduler cuida da complexidade para que você não precise.",
     strategiesTitle: "Estratégias de agendamento",
-    strategiesDesc: "Escolha a abordagem que se adapta ao seu negócio. Combine estratégias entre locais.",
+    strategiesDesc: "Escolha a abordagem que se adapta ao seu negócio. Combine estratégias entre locais. A IA é uma estratégia opcional entre quatro — nenhuma delas é obrigatória.",
     pricingTitle: "Preços simples e transparentes",
     pricingDesc: "Comece grátis. Pague apenas ao escalar. Sem taxas ocultas.",
     allInOnePlan: "Plano tudo-em-um",
@@ -916,7 +916,7 @@ const pt = {
     ctaDesc: "Junte-se a milhares de gestores que economizam horas toda semana.",
     ctaBtn: "Criar conta",
     featAITitle: "Geração de escalas com AI",
-    featAIDesc: "Claude AI analisa disponibilidade, habilidades e dinâmica da equipe para criar escalas ótimas em segundos.",
+    featAIDesc: "Claude AI analisa disponibilidade, habilidades e dinâmica da equipe para criar escalas ótimas em segundos. Opcional — as estratégias algorítmicas gratuitas criam uma escala completa sem ela.",
     featStrategiesTitle: "Múltiplas estratégias",
     featStrategiesDesc: "Rotação, equidade de histórico de 3 meses, limites máximos de horas ou aleatório puro. Escolha o que funciona para cada local.",
     featMultiLocTitle: "Multi-local",
@@ -949,8 +949,8 @@ const pt = {
     stratMaxHoursTag: "GRÁTIS",
     stratMaxHoursDesc: "Limita qualquer funcionário a X horas por escala. Limite de horas ajustável (4-60h) e rigor (de preferência flexível a limite rígido). Respeita afinidades de funcionários: restrições rígidas são aplicadas, preferências flexíveis influenciam a pontuação.",
     stratAI: "Geração AI",
-    stratAITag: "CRÉDITOS PRÉ-PAGOS",
-    stratAIDesc: "Claude AI lê o contexto completo (disponibilidade, habilidades, afinidades, requisitos de turno) e produz uma escala otimizada. Respeita todas as restrições de afinidade. Ideal para cenários complexos.",
+    stratAITag: "OPCIONAL · CRÉDITOS PRÉ-PAGOS",
+    stratAIDesc: "Claude AI lê o contexto completo (disponibilidade, habilidades, afinidades, requisitos de turno) e produz uma escala otimizada. Respeita todas as restrições de afinidade. Ideal para cenários complexos. É um caminho opcional — as três estratégias gratuitas abaixo produzem uma escala completa sem usar IA ou créditos.",
     // Inputs (what the scheduler considers)
     inputsTitle: "O Que o Agendador Considera",
     inputsDesc: "Cada rascunho, de cada estratégia, é verificado com base nas mesmas regras. Aqui elas têm os mesmos nomes usados na página Regras de Agendamento do aplicativo.",
@@ -1024,6 +1024,10 @@ const pt = {
         title: "Funcionários",
         desc: "A lista principal. Defina as funções, nível de habilidade, unidades em que pode trabalhar, limites de horas e disponibilidade de cada pessoa. A edição inline torna atualizações em massa rápidas.",
       },
+      team: {
+        title: "Equipe",
+        desc: "Convide outros gestores para ajudar a administrar a conta. Acompanhe convites pendentes e veja quem já aceitou, tudo em um só lugar.",
+      },
       "hour-restrictions": {
         title: "Restrições de horas",
         desc: "Imponha limites semanais máximos e mínimos por funcionário. Útil para vistos de estudante, contratos de meio período e orçamentos de horas extras. A IA nunca escala fora desses limites.",
@@ -1032,9 +1036,25 @@ const pt = {
         title: "Dias bloqueados",
         desc: "Bloqueie dias inteiros quando uma unidade estiver fechada ou um funcionário indisponível. Feriados, férias, dias de treinamento — o escalador respeita todos automaticamente.",
       },
+      "day-preferences": {
+        title: "Preferências de dias",
+        desc: "Pondere de 0 a 1 quais dias da semana cada funcionário prefere trabalhar. O escalador favorece mais esse funcionário para turnos nesse dia — uma preferência flexível que cede quando não há mais ninguém disponível.",
+      },
+      "hour-range-preferences": {
+        title: "Preferências de faixa horária",
+        desc: "Pondere de 0 a 1 os horários do dia que cada funcionário prefere trabalhar. Um turno conta para a preferência quando pelo menos metade dele cai dentro da faixa escolhida.",
+      },
+      "frequency-caps": {
+        title: "Limites de frequência",
+        desc: "Limite quantas vezes por semana um funcionário pode ser escalado dentro de uma faixa horária, ponderado de 0 a 1. Útil para limitar turnos noturnos ou de fim de semana sem descartá-los por completo.",
+      },
       "employee-onboarding": {
         title: "Integração de funcionários",
         desc: "Convide novos funcionários por e-mail. Eles mesmos preenchem sua disponibilidade e dados pessoais — você foca no negócio, não em correr atrás de dados.",
+      },
+      "employee-availability": {
+        title: "Disponibilidade de funcionários",
+        desc: "Veja em um só lugar a disponibilidade que cada funcionário informou, e importe ou ajuste diretamente — sem mais correr atrás de planilhas antes de gerar uma escala.",
       },
       "employee-association": {
         title: "Associação de funcionários",
@@ -1044,6 +1064,22 @@ const pt = {
         title: "Modelos de turno",
         desc: "Defina o padrão semanal recorrente de cada unidade: quais funções, quantas de cada, em quais dias e horários. O plano que a IA preenche.",
       },
+      "check-in-qr": {
+        title: "Código de check-in",
+        desc: "Um código QR rotativo que os funcionários escaneiam para registrar a chegada no turno. Como ele muda a cada escaneamento, uma captura de tela dele é inútil para quem não está no local.",
+      },
+      "check-in-report": {
+        title: "Relatório de check-in",
+        desc: "Veja o quanto cada funcionário se desviou do horário programado ao longo do tempo, além da proporção de horas que um gestor precisou confirmar manualmente em vez de por escaneamento.",
+      },
+      payroll: {
+        title: "Folha de pagamento",
+        desc: "Transforme automaticamente turnos aprovados e com check-in em horas pagáveis. Confirme o turno raro que ninguém escaneou, aprove um período de pagamento e exporte direto para CSV.",
+      },
+      "special-hours": {
+        title: "Horários especiais",
+        desc: "Defina horários de funcionamento pontuais para feriados e outros dias fora do padrão. O escalador usa uma cópia do modelo de turno para aquele dia em vez do padrão semanal.",
+      },
       schedule: {
         title: "Escala",
         desc: "Gere escalas semanais otimizadas com um clique. Escolha uma estratégia algorítmica (Rotação, Horas Máx., Aleatória) ou IA. Revise resultados por unidade, edite inline e publique.",
@@ -1051,6 +1087,10 @@ const pt = {
       "export-schedules": {
         title: "Exportar escalas",
         desc: "Baixe escalas publicadas como CSV ou PDF, ou envie diretamente para 7shifts e Deputy. Seus fluxos de folha de pagamento e PDV existentes não mudam.",
+      },
+      "approved-schedules": {
+        title: "Escalas aprovadas",
+        desc: "Navegue por qualquer semana passada exatamente como ela ficou no momento da aprovação — o registro permanente sobre o qual o restante do app, incluindo a folha de pagamento, é construído.",
       },
       "data-privacy": {
         title: "Privacidade de dados",

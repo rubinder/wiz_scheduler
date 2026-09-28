@@ -870,7 +870,7 @@ const es = {
     featuresTitle: "Todo lo que necesitas",
     featuresDesc: "Desde la gestión de múltiples ubicaciones hasta la optimización con AI, Wiz Scheduler maneja la complejidad para que tú no tengas que hacerlo.",
     strategiesTitle: "Estrategias de programación",
-    strategiesDesc: "Elige el enfoque que se adapte a tu negocio. Combina estrategias entre ubicaciones.",
+    strategiesDesc: "Elige el enfoque que se adapte a tu negocio. Combina estrategias entre ubicaciones. La IA es una estrategia opcional entre cuatro — ninguna la requiere.",
     pricingTitle: "Precios simples y transparentes",
     pricingDesc: "Comienza gratis. Solo paga al escalar. Sin cargos ocultos.",
     allInOnePlan: "Plan todo en uno",
@@ -916,7 +916,7 @@ const es = {
     ctaDesc: "Únete a miles de gerentes que ahorran horas cada semana.",
     ctaBtn: "Crear cuenta",
     featAITitle: "Generación de horarios con AI",
-    featAIDesc: "Claude AI analiza disponibilidad, habilidades y dinámica del equipo para crear horarios óptimos en segundos.",
+    featAIDesc: "Claude AI analiza disponibilidad, habilidades y dinámica del equipo para crear horarios óptimos en segundos. Opcional — las estrategias algorítmicas gratuitas generan un horario completo sin usarla.",
     featStrategiesTitle: "Múltiples estrategias",
     featStrategiesDesc: "Rotación, equidad de historial de 3 meses, límites máximos de horas o completamente aleatorio. Elige lo que funcione para cada ubicación.",
     featMultiLocTitle: "Múltiples ubicaciones",
@@ -949,8 +949,8 @@ const es = {
     stratMaxHoursTag: "GRATIS",
     stratMaxHoursDesc: "Limita a cualquier empleado a X horas por horario. Límite de horas ajustable (4-60h) y rigurosidad (de preferencia blanda a límite estricto). Respeta las afinidades de empleados: las restricciones duras se aplican, las preferencias blandas influyen en la puntuación.",
     stratAI: "Generación con AI",
-    stratAITag: "CRÉDITOS PREPAGO",
-    stratAIDesc: "Claude AI lee el contexto completo (disponibilidad, habilidades, afinidades, requisitos de turnos) y produce un horario optimizado. Respeta todas las restricciones de afinidad. Ideal para escenarios complejos.",
+    stratAITag: "OPCIONAL · CRÉDITOS PREPAGO",
+    stratAIDesc: "Claude AI lee el contexto completo (disponibilidad, habilidades, afinidades, requisitos de turnos) y produce un horario optimizado. Respeta todas las restricciones de afinidad. Ideal para escenarios complejos. Es una vía opcional — las tres estrategias gratuitas de abajo generan un horario completo sin usar IA ni créditos.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Qué considera el programador",
     inputsDesc: "Cada borrador, de cada estrategia, se verifica con las mismas reglas. Aquí llevan los mismos nombres que en la página de Reglas de Programación de la app.",
@@ -1024,6 +1024,10 @@ const es = {
         title: "Empleados",
         desc: "El listado maestro. Establece los roles asignados, nivel de habilidad, ubicaciones donde puede trabajar, límites de horas y disponibilidad de cada persona. La edición en línea agiliza las actualizaciones masivas.",
       },
+      team: {
+        title: "Equipo",
+        desc: "Invita a otros gerentes para que ayuden a administrar la cuenta. Sigue las invitaciones pendientes y quién ya las aceptó, todo en un solo lugar.",
+      },
       "hour-restrictions": {
         title: "Restricciones de horas",
         desc: "Aplica topes y mínimos semanales por empleado. Útil para visas de estudiante, acuerdos a tiempo parcial y presupuestos de horas extras. La IA nunca planificará fuera de estos límites.",
@@ -1032,9 +1036,25 @@ const es = {
         title: "Días bloqueados",
         desc: "Bloquea días enteros cuando una ubicación está cerrada o un empleado no está disponible. Festivos, vacaciones, días de capacitación — el planificador los respeta automáticamente.",
       },
+      "day-preferences": {
+        title: "Preferencias de días",
+        desc: "Pondera qué días de la semana prefiere trabajar cada empleado, de 0 a 1. El planificador favorece más a ese empleado para turnos ese día — una preferencia suave que cede cuando no hay nadie más disponible.",
+      },
+      "hour-range-preferences": {
+        title: "Preferencias de franja horaria",
+        desc: "Pondera las horas del día que cada empleado prefiere trabajar, de 0 a 1. Un turno cuenta para la preferencia cuando al menos la mitad cae dentro del rango elegido.",
+      },
+      "frequency-caps": {
+        title: "Límites de frecuencia",
+        desc: "Limita cuántas veces por semana se puede asignar a un empleado dentro de una franja horaria, ponderado de 0 a 1. Útil para limitar turnos nocturnos o de fin de semana sin descartarlos por completo.",
+      },
       "employee-onboarding": {
         title: "Incorporación de empleados",
         desc: "Invita a nuevos empleados por correo. Ellos mismos completan su disponibilidad y datos personales — tú te concentras en operar el negocio, no en perseguir datos.",
+      },
+      "employee-availability": {
+        title: "Disponibilidad de empleados",
+        desc: "Consulta en un solo lugar la disponibilidad que cada empleado reportó, e impórtala o ajústala directamente — sin perseguir hojas de cálculo antes de generar un horario.",
       },
       "employee-association": {
         title: "Asociación de empleados",
@@ -1044,6 +1064,22 @@ const es = {
         title: "Plantillas de turnos",
         desc: "Define el patrón semanal recurrente de cada ubicación: qué roles se necesitan, cuántos de cada uno, en qué días y a qué horas. El plano que la IA rellena.",
       },
+      "check-in-qr": {
+        title: "Código de registro",
+        desc: "Un código QR rotativo que los empleados escanean para registrar su llegada. Como cambia con cada escaneo, una captura de pantalla es inútil para quien no esté en el lugar.",
+      },
+      "check-in-report": {
+        title: "Reporte de registros",
+        desc: "Observa cuánto se desvió cada empleado de su hora de inicio programada a lo largo del tiempo, además de la proporción de horas que un gerente tuvo que confirmar a mano en vez de con un escaneo.",
+      },
+      payroll: {
+        title: "Nómina",
+        desc: "Convierte automáticamente los turnos aprobados y registrados en horas pagables. Confirma el turno excepcional que nadie escaneó, aprueba un período de pago y exporta directo a CSV.",
+      },
+      "special-hours": {
+        title: "Horarios especiales",
+        desc: "Define horarios de operación excepcionales para festivos y otros días no habituales. El planificador usa una copia de la plantilla de turnos para ese día en lugar de la semanal habitual.",
+      },
       schedule: {
         title: "Horario",
         desc: "Genera horarios semanales optimizados con un clic. Elige una estrategia algorítmica (Rotación, Máximas horas, Aleatoria) o IA. Revisa los resultados por ubicación, edita en línea y publica.",
@@ -1051,6 +1087,10 @@ const es = {
       "export-schedules": {
         title: "Exportar horarios",
         desc: "Descarga los horarios publicados como CSV o PDF, o envíalos directamente a 7shifts y Deputy. Tu flujo de nómina y POS existente no cambia.",
+      },
+      "approved-schedules": {
+        title: "Horarios aprobados",
+        desc: "Consulta cualquier semana pasada tal como quedó en el momento de su aprobación — el registro permanente sobre el que se basa el resto de la app, incluida la nómina.",
       },
       "data-privacy": {
         title: "Privacidad de datos",
