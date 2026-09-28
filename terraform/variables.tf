@@ -84,7 +84,10 @@ variable "domain_name" {
 variable "marketing_live" {
   description = "Cutover step B. When true the marketing distribution takes apex + www, the app distribution moves to app.<domain_name>, Route53 and backend URLs follow. Flip only after the marketing site is verified on its CloudFront hostname (see terraform/marketing.tf)."
   type        = bool
-  default     = false
+  # Flipped true 2026-09-28: marketing site verified live at
+  # d3maf6a9zykypv.cloudfront.net, Google OAuth client's authorized
+  # JavaScript origins updated to include https://app.wizscheduler.com.
+  default = true
 }
 
 variable "from_email" {
