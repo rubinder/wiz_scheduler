@@ -870,7 +870,7 @@ const vi = {
     featuresTitle: "Mọi thứ bạn cần",
     featuresDesc: "Từ quản lý đa địa điểm đến tối ưu hóa bằng AI, Wiz Scheduler xử lý sự phức tạp để bạn không phải lo.",
     strategiesTitle: "Chiến lược lập lịch",
-    strategiesDesc: "Chọn phương pháp phù hợp với doanh nghiệp của bạn. Kết hợp linh hoạt giữa các địa điểm.",
+    strategiesDesc: "Chọn phương pháp phù hợp với doanh nghiệp của bạn. Kết hợp linh hoạt giữa các địa điểm. AI chỉ là một trong bốn chiến lược tùy chọn — không chiến lược nào bắt buộc.",
     pricingTitle: "Giá đơn giản, minh bạch",
     pricingDesc: "Bắt đầu miễn phí. Chỉ trả khi mở rộng. Không phí ẩn.",
     allInOnePlan: "Gói tất cả trong một",
@@ -916,7 +916,7 @@ const vi = {
     ctaDesc: "Tham gia cùng hàng ngàn quản lý tiết kiệm hàng giờ mỗi tuần.",
     ctaBtn: "Tạo tài khoản",
     featAITitle: "Tạo lịch bằng AI",
-    featAIDesc: "Claude AI phân tích khả dụng, kỹ năng và động lực nhóm để tạo lịch tối ưu trong vài giây.",
+    featAIDesc: "Claude AI phân tích khả dụng, kỹ năng và động lực nhóm để tạo lịch tối ưu trong vài giây. Đây là tùy chọn — các chiến lược thuật toán miễn phí vẫn tạo được lịch hoàn chỉnh mà không cần đến nó.",
     featStrategiesTitle: "Nhiều chiến lược",
     featStrategiesDesc: "Luân phiên, công bằng lịch sử 3 tháng, giới hạn giờ tối đa, hoặc hoàn toàn ngẫu nhiên. Chọn phù hợp cho từng địa điểm.",
     featMultiLocTitle: "Đa địa điểm",
@@ -949,8 +949,8 @@ const vi = {
     stratMaxHoursTag: "MIỄN PHÍ",
     stratMaxHoursDesc: "Giới hạn bất kỳ nhân viên nào ở X giờ mỗi lịch. Giới hạn giờ có thể điều chỉnh (4-60 giờ) và mức độ nghiêm ngặt (từ sở thích mềm đến giới hạn cứng). Tôn trọng mối quan hệ nhân viên: ràng buộc cứng được thực thi, sở thích mềm ảnh hưởng đến điểm số.",
     stratAI: "Tạo bằng AI",
-    stratAITag: "TÍN DỤNG TRẢ TRƯỚC",
-    stratAIDesc: "Claude AI đọc toàn bộ ngữ cảnh (khả dụng, kỹ năng, mối quan hệ, yêu cầu ca) và tạo lịch tối ưu. Tôn trọng mọi ràng buộc quan hệ. Tốt nhất cho các tình huống phức tạp.",
+    stratAITag: "TÙY CHỌN · TÍN DỤNG TRẢ TRƯỚC",
+    stratAIDesc: "Claude AI đọc toàn bộ ngữ cảnh (khả dụng, kỹ năng, mối quan hệ, yêu cầu ca) và tạo lịch tối ưu. Tôn trọng mọi ràng buộc quan hệ. Tốt nhất cho các tình huống phức tạp. Đây là một lựa chọn không bắt buộc — ba chiến lược miễn phí bên dưới vẫn tạo ra lịch hoàn chỉnh mà không cần dùng AI hay tín dụng.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Những Gì Bộ Lập Lịch Xem Xét",
     inputsDesc: "Mỗi bản nháp, từ mỗi chiến lược, đều được kiểm tra theo cùng các quy tắc. Ở đây chúng mang cùng tên như trên trang Quy Tắc Lập Lịch trong ứng dụng.",
@@ -1024,6 +1024,10 @@ const vi = {
         title: "Nhân viên",
         desc: "Danh sách chính. Đặt vai trò được giao, mức kỹ năng, các chi nhánh có thể làm, giới hạn giờ và tính sẵn sàng cho từng người. Chỉnh sửa trong dòng giúp cập nhật hàng loạt nhanh chóng.",
       },
+      team: {
+        title: "Đội quản lý",
+        desc: "Mời các quản lý khác cùng điều hành tài khoản. Theo dõi lời mời đang chờ và xem ai đã chấp nhận, tất cả ở một nơi.",
+      },
       "hour-restrictions": {
         title: "Giới hạn giờ làm",
         desc: "Áp dụng giới hạn trên và dưới giờ làm hàng tuần cho từng nhân viên. Hữu ích cho visa sinh viên, hợp đồng bán thời gian và ngân sách làm thêm giờ. AI sẽ không lên lịch ngoài giới hạn này.",
@@ -1032,9 +1036,25 @@ const vi = {
         title: "Ngày chặn",
         desc: "Chặn cả ngày khi một chi nhánh đóng cửa hoặc nhân viên không có mặt. Ngày lễ, kỳ nghỉ, ngày đào tạo — trình lên lịch tự động tuân thủ.",
       },
+      "day-preferences": {
+        title: "Tùy chọn ngày",
+        desc: "Gán trọng số cho những ngày trong tuần mà mỗi nhân viên thích làm việc, từ 0 đến 1. Trình lên lịch ưu tiên nhân viên đó hơn cho ca vào ngày đó — một tùy chọn mềm sẽ nhường bước khi không còn ai khác sẵn sàng.",
+      },
+      "hour-range-preferences": {
+        title: "Tùy chọn khung giờ",
+        desc: "Gán trọng số cho khung giờ trong ngày mà mỗi nhân viên thích làm việc, từ 0 đến 1. Một ca được tính vào tùy chọn khi ít nhất một nửa ca đó nằm trong khung giờ đã chọn.",
+      },
+      "frequency-caps": {
+        title: "Giới hạn tần suất",
+        desc: "Giới hạn số lần một nhân viên có thể được xếp lịch trong một khung giờ nhất định mỗi tuần, với trọng số từ 0 đến 1. Hữu ích để giới hạn ca tối hoặc cuối tuần mà không loại bỏ hoàn toàn.",
+      },
       "employee-onboarding": {
         title: "Tiếp nhận nhân viên mới",
         desc: "Mời nhân viên mới qua email. Họ tự khai tính sẵn sàng và thông tin cá nhân — bạn tập trung vào kinh doanh, không phải đuổi theo dữ liệu.",
+      },
+      "employee-availability": {
+        title: "Tính sẵn sàng của nhân viên",
+        desc: "Xem các khung thời gian sẵn sàng mà từng nhân viên tự khai báo ở một nơi, rồi nhập hoặc điều chỉnh trực tiếp — không còn phải lùng sục bảng tính trước khi tạo lịch.",
       },
       "employee-association": {
         title: "Mối quan hệ nhân viên",
@@ -1044,6 +1064,22 @@ const vi = {
         title: "Mẫu ca làm việc",
         desc: "Định nghĩa mẫu ca lặp lại hàng tuần cho từng chi nhánh: cần vai trò nào, mỗi vai trò bao nhiêu người, vào ngày và giờ nào. Bản thiết kế mà AI sẽ điền vào.",
       },
+      "check-in-qr": {
+        title: "Mã điểm danh",
+        desc: "Một mã QR xoay vòng để nhân viên quét khi điểm danh vào ca. Vì mã đổi sau mỗi lần quét, ảnh chụp màn hình sẽ vô dụng với bất kỳ ai không có mặt tại địa điểm.",
+      },
+      "check-in-report": {
+        title: "Báo cáo điểm danh",
+        desc: "Xem mỗi nhân viên đến lệch giờ bắt đầu theo lịch bao nhiêu, theo dõi theo thời gian, cùng với tỷ lệ giờ mà quản lý phải xác nhận thủ công thay vì qua quét mã.",
+      },
+      payroll: {
+        title: "Bảng lương",
+        desc: "Tự động chuyển các ca đã duyệt và đã điểm danh thành giờ được trả lương. Xác nhận ca hiếm hoi không ai quét mã, duyệt một kỳ lương, và xuất thẳng ra CSV.",
+      },
+      "special-hours": {
+        title: "Giờ đặc biệt",
+        desc: "Đặt giờ hoạt động riêng cho ngày lễ và các ngày bất thường khác. Trình lên lịch sẽ dùng một bản sao mẫu ca cho ngày đó thay vì mẫu hàng tuần thông thường.",
+      },
       schedule: {
         title: "Lịch làm",
         desc: "Tạo lịch tuần tối ưu chỉ với một cú nhấp. Chọn chiến lược thuật toán (Xoay vòng, Tối đa giờ, Ngẫu nhiên) hoặc AI. Xem kết quả theo từng chi nhánh, chỉnh sửa trong dòng và phát hành.",
@@ -1051,6 +1087,10 @@ const vi = {
       "export-schedules": {
         title: "Xuất lịch",
         desc: "Tải lịch đã phát hành ở dạng CSV hoặc PDF, hoặc đẩy trực tiếp tới 7shifts và Deputy. Quy trình lương và POS hiện tại không thay đổi.",
+      },
+      "approved-schedules": {
+        title: "Lịch đã duyệt",
+        desc: "Xem lại bất kỳ tuần nào trong quá khứ đúng như lúc nó được duyệt — bản ghi cố định mà phần còn lại của ứng dụng, kể cả bảng lương, được xây dựng dựa trên đó.",
       },
       "data-privacy": {
         title: "Quyền riêng tư dữ liệu",

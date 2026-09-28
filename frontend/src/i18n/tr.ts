@@ -870,7 +870,7 @@ const trLang = {
     featuresTitle: "İhtiyacınız Olan Her Şey",
     featuresDesc: "Çok lokasyonlu yönetimden AI destekli optimizasyona kadar, Wiz Scheduler karmaşıklığı sizin yerinize yönetir.",
     strategiesTitle: "Planlama Stratejileri",
-    strategiesDesc: "İşinize uygun yaklaşımı seçin. Lokasyonlar arasında stratejileri karıştırın.",
+    strategiesDesc: "İşinize uygun yaklaşımı seçin. Lokasyonlar arasında stratejileri karıştırın. AI, dört stratejiden yalnızca biridir ve isteğe bağlıdır — hiçbiri zorunlu değildir.",
     pricingTitle: "Basit, Şeffaf Fiyatlandırma",
     pricingDesc: "Ücretsiz başlayın. Yalnızca büyüdüğünüzde ödeyin. Gizli ücret yok.",
     allInOnePlan: "Hepsi Bir Arada Plan",
@@ -916,7 +916,7 @@ const trLang = {
     ctaDesc: "Her hafta saatlerce tasarruf eden binlerce yöneticiye katılın.",
     ctaBtn: "Hesap Oluşturun",
     featAITitle: "AI Program Oluşturma",
-    featAIDesc: "Claude AI müsaitlik, beceriler ve ekip dinamiklerini analiz ederek saniyeler içinde optimal programlar oluşturur.",
+    featAIDesc: "Claude AI müsaitlik, beceriler ve ekip dinamiklerini analiz ederek saniyeler içinde optimal programlar oluşturur. İsteğe bağlıdır — ücretsiz algoritmik stratejiler AI olmadan da eksiksiz bir program oluşturur.",
     featStrategiesTitle: "Çoklu Stratejiler",
     featStrategiesDesc: "Rotasyon, 3 aylık geçmiş adaleti, maksimum saat sınırları veya tamamen rastgele. Her lokasyon için uygun olanı seçin.",
     featMultiLocTitle: "Çoklu Lokasyon",
@@ -949,8 +949,8 @@ const trLang = {
     stratMaxHoursTag: "ÜCRETSİZ",
     stratMaxHoursDesc: "Herhangi bir çalışanı program başına X saatle sınırlar. Ayarlanabilir saat limiti (4-60 saat) ve katılık (esnek tercihten katı sınıra). Çalışan uyumlarını dikkate alır: katı kısıtlamalar uygulanır, esnek tercihler puanlamayı etkiler.",
     stratAI: "AI Oluşturma",
-    stratAITag: "ÖN ÖDEMELİ KREDİ",
-    stratAIDesc: "Claude AI tüm bağlamı (müsaitlik, beceriler, uyumlar, vardiya gereksinimleri) okur ve optimize edilmiş bir program üretir. Tüm uyum kısıtlamalarını dikkate alır. Karmaşık senaryolar için idealdir.",
+    stratAITag: "İSTEĞE BAĞLI · ÖN ÖDEMELİ KREDİ",
+    stratAIDesc: "Claude AI tüm bağlamı (müsaitlik, beceriler, uyumlar, vardiya gereksinimleri) okur ve optimize edilmiş bir program üretir. Tüm uyum kısıtlamalarını dikkate alır. Karmaşık senaryolar için idealdir. Bu isteğe bağlı bir yoldur — aşağıdaki üç ücretsiz strateji, AI veya kredi kullanmadan tam bir program oluşturur.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Planlayıcının Dikkate Aldıkları",
     inputsDesc: "Her stratejinin her taslağı aynı kurallara göre kontrol edilir. Burada uygulamadaki Planlama Kuralları sayfasındaki aynı isimleri taşırlar.",
@@ -1024,6 +1024,10 @@ const trLang = {
         title: "Çalışanlar",
         desc: "Ana çalışan listesi. Her kişinin atanmış rollerini, beceri seviyesini, çalışabileceği şubeleri, saat sınırlarını ve uygunluğunu ayarlayın. Satır içi düzenleme toplu güncellemeleri hızlandırır.",
       },
+      team: {
+        title: "Ekip",
+        desc: "Hesabı yönetmeye yardımcı olması için başka yöneticileri davet edin. Bekleyen davetleri takip edin ve kimin zaten kabul ettiğini tek bir yerden görün.",
+      },
       "hour-restrictions": {
         title: "Saat kısıtlamaları",
         desc: "Çalışan başına haftalık üst ve alt saat sınırlarını uygulayın. Öğrenci vizesi, yarı zamanlı sözleşme ve fazla mesai bütçeleri için kullanışlıdır. AI bu sınırların dışına asla çizelge yapmaz.",
@@ -1032,9 +1036,25 @@ const trLang = {
         title: "Kapalı günler",
         desc: "Bir şube kapalıyken veya bir çalışan müsait değilken günleri tamamen engelleyin. Tatil, izin, eğitim günleri — çizelgeleyici otomatik olarak bunlara uyar.",
       },
+      "day-preferences": {
+        title: "Gün tercihleri",
+        desc: "Her çalışanın haftanın hangi günlerinde çalışmayı tercih ettiğini 0 ile 1 arasında ağırlıklandırın. Çizelgeleyici o çalışanı o gündeki vardiyalar için daha güçlü şekilde tercih eder — başka kimse müsait değilse geri çekilen esnek bir tercihtir.",
+      },
+      "hour-range-preferences": {
+        title: "Saat aralığı tercihleri",
+        desc: "Her çalışanın günün hangi saatlerinde çalışmayı tercih ettiğini 0 ile 1 arasında ağırlıklandırın. Bir vardiyanın en az yarısı seçilen zaman aralığına girdiğinde tercih için sayılır.",
+      },
+      "frequency-caps": {
+        title: "Sıklık sınırları",
+        desc: "Bir çalışanın belirli bir saat aralığında haftada kaç kez çizelgelenebileceğini, 0 ile 1 arasında ağırlıklandırarak sınırlayın. Akşam veya hafta sonu vardiyalarını tamamen dışlamadan sınırlamak için kullanışlıdır.",
+      },
       "employee-onboarding": {
         title: "Çalışan dahil etme",
         desc: "Yeni çalışanları e-postayla davet edin. Uygunluk ve kişisel bilgilerini kendileri girer — siz veri girişiyle değil işle ilgilenirsiniz.",
+      },
+      "employee-availability": {
+        title: "Çalışan uygunluğu",
+        desc: "Her çalışanın kendi bildirdiği uygunluk aralıklarını tek bir yerde görün, doğrudan içe aktarın veya düzenleyin — bir çizelge oluşturmadan önce artık tablolar peşinde koşmayın.",
       },
       "employee-association": {
         title: "Çalışan ilişkileri",
@@ -1044,6 +1064,22 @@ const trLang = {
         title: "Vardiya şablonları",
         desc: "Her şube için tekrarlayan haftalık vardiya kalıbını tanımlayın: hangi roller, her birinden kaç kişi, hangi günlerde ve saatlerde. AI'nın dolduracağı taslaktır.",
       },
+      "check-in-qr": {
+        title: "Giriş kodu",
+        desc: "Çalışanların vardiyalarına giriş yapmak için okuttuğu, sürekli değişen bir QR kod. Her okutmada değiştiği için ekran görüntüsü, o konumda bulunmayan kimseye bir işe yaramaz.",
+      },
+      "check-in-report": {
+        title: "Giriş raporu",
+        desc: "Her çalışanın planlanan başlangıç saatinden ne kadar saptığını zaman içinde görün; ayrıca bir yöneticinin okutma yerine elle onaylamak zorunda kaldığı saatlerin oranını da görün.",
+      },
+      payroll: {
+        title: "Bordro",
+        desc: "Onaylanmış ve giriş yapılmış vardiyaları otomatik olarak ödenebilir saatlere dönüştürün. Kimsenin okutmadığı nadir vardiyayı onaylayın, bir ödeme dönemini onaylayın ve doğrudan CSV olarak dışa aktarın.",
+      },
+      "special-hours": {
+        title: "Özel saatler",
+        desc: "Tatiller ve diğer olağandışı günler için tek seferlik çalışma saatleri belirleyin. Çizelgeleyici o gün için normal haftalık şablon yerine kopyalanmış bir vardiya şablonu kullanır.",
+      },
       schedule: {
         title: "Çizelge",
         desc: "Tek tıkla optimize edilmiş haftalık çizelgeler oluşturun. Algoritmik strateji (Rotasyon, Maks Saat, Rastgele) veya AI seçin. Şube başına sonuçları inceleyin, satır içi düzenleyin ve yayınlayın.",
@@ -1051,6 +1087,10 @@ const trLang = {
       "export-schedules": {
         title: "Çizelge dışa aktarımı",
         desc: "Yayınlanmış çizelgeleri CSV veya PDF olarak indirin ya da doğrudan 7shifts ve Deputy'ye gönderin. Mevcut bordro ve POS akışlarınız değişmez.",
+      },
+      "approved-schedules": {
+        title: "Onaylanmış çizelgeler",
+        desc: "Geçmişteki herhangi bir haftayı, onaylandığı andaki haliyle tam olarak inceleyin — bordro dahil uygulamanın geri kalanının üzerine kurulduğu kalıcı kayıt.",
       },
       "data-privacy": {
         title: "Veri gizliliği",

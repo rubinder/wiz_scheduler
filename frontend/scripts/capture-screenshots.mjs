@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Capture screenshots of all 15 manager pages.
+// Capture screenshots of all 25 manager pages.
 //
 // One-time setup (after a fresh `npm install`):
 //   cd frontend && npx playwright install chromium
@@ -32,13 +32,23 @@ const PAGES = [
   { slug: "roles", path: "/manager/roles" },
   { slug: "role-equivalents", path: "/manager/role-equivalents" },
   { slug: "employees", path: "/manager/employees" },
+  { slug: "team", path: "/manager/team" },
   { slug: "hour-restrictions", path: "/manager/hour-restrictions" },
   { slug: "day-blackouts", path: "/manager/day-blackouts" },
+  { slug: "day-preferences", path: "/manager/day-preferences" },
+  { slug: "hour-range-preferences", path: "/manager/hour-range-preferences" },
+  { slug: "frequency-caps", path: "/manager/frequency-caps" },
   { slug: "employee-onboarding", path: "/manager/employee-onboarding" },
+  { slug: "employee-availability", path: "/manager/employee-availability" },
   { slug: "employee-association", path: "/manager/employee-association" },
   { slug: "shift-templates", path: "/manager/shift-templates" },
+  { slug: "check-in-qr", path: "/manager/check-in-qr" },
+  { slug: "check-in-report", path: "/manager/check-in-report" },
+  { slug: "payroll", path: "/manager/payroll" },
+  { slug: "special-hours", path: "/manager/special-hours" },
   { slug: "schedule", path: "/manager/schedule" },
   { slug: "export-schedules", path: "/manager/export-schedules" },
+  { slug: "approved-schedules", path: "/manager/approved-schedules" },
   { slug: "data-privacy", path: "/manager/data-privacy" },
 ];
 
@@ -66,6 +76,15 @@ async function main() {
     process.stdout.write(`[capture] ${slug} ... `);
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
+      // Payroll defaults its range to the current week; the seeded demo's
+      // approved/checked-in shifts sit in the week of 2026-08-31, so point
+      // the range there or the screenshot shows an empty page.
+      if (slug === "payroll") {
+        const dateInputs = page.locator('input[type="date"]');
+        await dateInputs.nth(0).fill("2026-08-31");
+        await dateInputs.nth(1).fill("2026-09-07");
+        await page.waitForTimeout(500);
+      }
       await page.waitForTimeout(500); // settle animations
       await page.screenshot({ path: out, fullPage: true });
       console.log(`saved ${out}`);
@@ -77,7 +96,7 @@ async function main() {
   }
 
   await browser.close();
-  console.log("[done] all 15 screenshots captured");
+  console.log("[done] all 25 screenshots captured");
 }
 
 main().catch((err) => {

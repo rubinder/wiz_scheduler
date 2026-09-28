@@ -870,7 +870,7 @@ const de = {
     featuresTitle: "Alles, was Sie brauchen",
     featuresDesc: "Von der Verwaltung mehrerer Standorte bis zur AI-gestützten Optimierung — Wiz Scheduler übernimmt die Komplexität für Sie.",
     strategiesTitle: "Planungsstrategien",
-    strategiesDesc: "Wählen Sie den Ansatz, der zu Ihrem Unternehmen passt. Kombinieren Sie Strategien standortübergreifend.",
+    strategiesDesc: "Wählen Sie den Ansatz, der zu Ihrem Unternehmen passt. Kombinieren Sie Strategien standortübergreifend. KI ist eine von vier optionalen Strategien — keine davon ist erforderlich.",
     pricingTitle: "Einfache, transparente Preise",
     pricingDesc: "Kostenlos starten. Erst bei Skalierung zahlen. Keine versteckten Gebühren.",
     allInOnePlan: "All-in-One-Plan",
@@ -916,7 +916,7 @@ const de = {
     ctaDesc: "Schließen Sie sich Tausenden von Managern an, die jede Woche Stunden sparen.",
     ctaBtn: "Konto erstellen",
     featAITitle: "AI-Dienstplanerstellung",
-    featAIDesc: "Claude AI analysiert Verfügbarkeiten, Fähigkeiten und Teamdynamik, um in Sekunden optimale Dienstpläne zu erstellen.",
+    featAIDesc: "Claude AI analysiert Verfügbarkeiten, Fähigkeiten und Teamdynamik, um in Sekunden optimale Dienstpläne zu erstellen. Optional — die kostenlosen algorithmischen Strategien erstellen auch ohne KI einen vollständigen Dienstplan.",
     featStrategiesTitle: "Mehrere Strategien",
     featStrategiesDesc: "Rotation, 3-Monats-Fairness, Höchststunden-Limits oder reiner Zufall. Wählen Sie, was für jeden Standort funktioniert.",
     featMultiLocTitle: "Multi-Standort",
@@ -949,8 +949,8 @@ const de = {
     stratMaxHoursTag: "KOSTENLOS",
     stratMaxHoursDesc: "Begrenzt jeden Mitarbeiter auf X Stunden pro Dienstplan. Einstellbares Stundenlimit (4–60 Std.) und Strenge (weiche Präferenz bis harte Grenze). Berücksichtigt Mitarbeiter-Affinitäten: harte Einschränkungen werden durchgesetzt, weiche Präferenzen beeinflussen die Bewertung.",
     stratAI: "AI-Generierung",
-    stratAITag: "PREPAID-GUTHABEN",
-    stratAIDesc: "Claude AI liest den vollständigen Kontext (Verfügbarkeit, Fähigkeiten, Affinitäten, Schichtanforderungen) und erstellt einen optimierten Dienstplan. Respektiert alle Affinitäts-Einschränkungen. Ideal für komplexe Szenarien.",
+    stratAITag: "OPTIONAL · PREPAID-GUTHABEN",
+    stratAIDesc: "Claude AI liest den vollständigen Kontext (Verfügbarkeit, Fähigkeiten, Affinitäten, Schichtanforderungen) und erstellt einen optimierten Dienstplan. Respektiert alle Affinitäts-Einschränkungen. Ideal für komplexe Szenarien. Es ist ein optionaler Weg — die drei kostenlosen Strategien unten erstellen einen vollständigen Dienstplan, ohne KI oder Guthaben zu berühren.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Was der Planer berücksichtigt",
     inputsDesc: "Jeder Entwurf, aus jeder Strategie, wird gegen dieselben Regeln geprüft. Sie tragen hier dieselben Namen wie auf der Seite Planungsregeln in der App.",
@@ -1024,6 +1024,10 @@ const de = {
         title: "Mitarbeiter",
         desc: "Die Stammliste. Legen Sie für jede Person Rollen, Qualifikationsniveau, Einsatzstandorte, Stundengrenzen und Verfügbarkeit fest. Inline-Bearbeitung macht Massenänderungen schnell.",
       },
+      team: {
+        title: "Team",
+        desc: "Laden Sie weitere Manager ein, die das Konto mitverwalten. Behalten Sie offene Einladungen im Blick und sehen Sie, wer bereits angenommen hat — alles an einem Ort.",
+      },
       "hour-restrictions": {
         title: "Stundenbegrenzungen",
         desc: "Setzen Sie wöchentliche Höchst- und Mindeststunden pro Mitarbeiter durch. Nützlich für Studierendenvisa, Teilzeitvereinbarungen und Überstundenbudgets. Die KI plant nie außerhalb dieser Grenzen.",
@@ -1032,9 +1036,25 @@ const de = {
         title: "Sperrtage",
         desc: "Sperren Sie ganze Tage, wenn ein Standort geschlossen ist oder ein Mitarbeiter nicht verfügbar ist. Feiertage, Urlaub, Schulungen — der Planer berücksichtigt sie automatisch.",
       },
+      "day-preferences": {
+        title: "Tagespräferenzen",
+        desc: "Gewichten Sie von 0 bis 1, an welchen Wochentagen ein Mitarbeiter bevorzugt arbeitet. Der Planer bevorzugt diesen Mitarbeiter stärker für Schichten an diesem Tag — eine weiche Präferenz, die zurücktritt, wenn niemand sonst verfügbar ist.",
+      },
+      "hour-range-preferences": {
+        title: "Uhrzeit-Präferenzen",
+        desc: "Gewichten Sie von 0 bis 1, zu welchen Tageszeiten ein Mitarbeiter bevorzugt arbeitet. Eine Schicht zählt für die Präferenz, sobald mindestens die Hälfte davon in den gewählten Zeitraum fällt.",
+      },
+      "frequency-caps": {
+        title: "Häufigkeitsgrenzen",
+        desc: "Begrenzen Sie, wie oft pro Woche ein Mitarbeiter innerhalb eines bestimmten Zeitraums eingeteilt werden darf, gewichtet von 0 bis 1. Nützlich, um Abend- oder Wochenendschichten zu begrenzen, ohne sie ganz auszuschließen.",
+      },
       "employee-onboarding": {
         title: "Mitarbeiter-Onboarding",
         desc: "Laden Sie neue Mitarbeiter per E-Mail ein. Sie pflegen ihre Verfügbarkeit und persönlichen Daten selbst — Sie konzentrieren sich auf den Betrieb, nicht auf Dateneingabe.",
+      },
+      "employee-availability": {
+        title: "Mitarbeiterverfügbarkeit",
+        desc: "Sehen Sie die selbst gemeldete Verfügbarkeit jedes Mitarbeiters an einem Ort und importieren oder passen Sie sie direkt an — keine Tabellenkalkulationen mehr, bevor Sie einen Plan erstellen.",
       },
       "employee-association": {
         title: "Mitarbeiter-Zuordnung",
@@ -1044,6 +1064,22 @@ const de = {
         title: "Schichtvorlagen",
         desc: "Definieren Sie das wiederkehrende Wochenschichtmuster jedes Standorts: welche Rollen, wie viele jeweils, an welchen Tagen und zu welchen Zeiten. Die Vorlage, die die KI ausfüllt.",
       },
+      "check-in-qr": {
+        title: "Check-in-Code",
+        desc: "Ein rotierender QR-Code, den Mitarbeiter zum Einchecken ihrer Schicht scannen. Da er sich bei jedem Scan ändert, ist ein Screenshot davon für jeden nutzlos, der nicht vor Ort ist.",
+      },
+      "check-in-report": {
+        title: "Check-in-Bericht",
+        desc: "Sehen Sie, wie stark jeder Mitarbeiter zeitlich von seinem geplanten Beginn abwich, im zeitlichen Verlauf dargestellt, sowie den Anteil der Stunden, die ein Manager von Hand statt per Scan bestätigen musste.",
+      },
+      payroll: {
+        title: "Lohnabrechnung",
+        desc: "Wandeln Sie genehmigte, eingecheckte Schichten automatisch in abrechenbare Stunden um. Bestätigen Sie die seltene Schicht, für die niemand gescannt hat, genehmigen Sie einen Abrechnungszeitraum und exportieren Sie direkt als CSV.",
+      },
+      "special-hours": {
+        title: "Sonderöffnungszeiten",
+        desc: "Legen Sie einmalige Öffnungszeiten für Feiertage und andere untypische Tage fest. Der Planer setzt für diesen Tag eine Kopie einer Schichtvorlage anstelle der regulären Wochenvorlage ein.",
+      },
       schedule: {
         title: "Plan",
         desc: "Erstellen Sie mit einem Klick optimierte Wochenpläne. Wählen Sie eine algorithmische Strategie (Rotation, Max Stunden, Zufall) oder KI. Prüfen Sie Ergebnisse pro Standort, bearbeiten Sie inline und veröffentlichen Sie.",
@@ -1051,6 +1087,10 @@ const de = {
       "export-schedules": {
         title: "Pläne exportieren",
         desc: "Laden Sie veröffentlichte Pläne als CSV oder PDF herunter oder übergeben Sie sie direkt an 7shifts und Deputy. Ihre bestehenden Lohn- und POS-Abläufe bleiben unverändert.",
+      },
+      "approved-schedules": {
+        title: "Genehmigte Pläne",
+        desc: "Sehen Sie sich jede vergangene Woche genau so an, wie sie im Moment der Genehmigung aussah — die dauerhafte Aufzeichnung, auf der der Rest der App, einschließlich der Lohnabrechnung, aufbaut.",
       },
       "data-privacy": {
         title: "Datenschutz",

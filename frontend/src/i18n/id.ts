@@ -870,7 +870,7 @@ const ind = {
     featuresTitle: "Semua yang Anda Butuhkan",
     featuresDesc: "Dari manajemen multi-lokasi hingga optimasi berbasis AI, Wiz Scheduler menangani kerumitan agar Anda tidak perlu.",
     strategiesTitle: "Strategi Penjadwalan",
-    strategiesDesc: "Pilih pendekatan yang sesuai dengan bisnis Anda. Campurkan strategi di berbagai lokasi.",
+    strategiesDesc: "Pilih pendekatan yang sesuai dengan bisnis Anda. Campurkan strategi di berbagai lokasi. AI hanyalah satu dari empat strategi opsional — tidak satu pun yang wajib digunakan.",
     pricingTitle: "Harga Sederhana dan Transparan",
     pricingDesc: "Mulai gratis. Bayar hanya saat berkembang. Tanpa biaya tersembunyi.",
     allInOnePlan: "Paket All-In-One",
@@ -916,7 +916,7 @@ const ind = {
     ctaDesc: "Bergabunglah dengan ribuan manajer yang menghemat berjam-jam setiap minggu.",
     ctaBtn: "Buat Akun",
     featAITitle: "Pembuatan Jadwal AI",
-    featAIDesc: "Claude AI menganalisis ketersediaan, keterampilan, dan dinamika tim untuk membuat jadwal optimal dalam hitungan detik.",
+    featAIDesc: "Claude AI menganalisis ketersediaan, keterampilan, dan dinamika tim untuk membuat jadwal optimal dalam hitungan detik. Opsional — strategi algoritmik gratis sudah bisa membuat jadwal lengkap tanpa AI.",
     featStrategiesTitle: "Beragam Strategi",
     featStrategiesDesc: "Rotasi, keadilan riwayat 3 bulan, batas jam maksimum, atau acak murni. Pilih yang cocok untuk setiap lokasi.",
     featMultiLocTitle: "Multi-Lokasi",
@@ -949,8 +949,8 @@ const ind = {
     stratMaxHoursTag: "GRATIS",
     stratMaxHoursDesc: "Membatasi karyawan mana pun hingga X jam per jadwal. Batas jam yang dapat disesuaikan (4-60 jam) dan tingkat keketatan (dari preferensi lunak hingga batas keras). Menghormati afinitas karyawan: batasan keras ditegakkan, preferensi lunak memengaruhi penilaian.",
     stratAI: "AI Generate",
-    stratAITag: "KREDIT PRABAYAR",
-    stratAIDesc: "Claude AI membaca konteks lengkap (ketersediaan, keterampilan, afinitas, persyaratan shift) dan menghasilkan jadwal yang dioptimalkan. Menghormati semua batasan afinitas. Terbaik untuk skenario kompleks.",
+    stratAITag: "OPSIONAL · KREDIT PRABAYAR",
+    stratAIDesc: "Claude AI membaca konteks lengkap (ketersediaan, keterampilan, afinitas, persyaratan shift) dan menghasilkan jadwal yang dioptimalkan. Menghormati semua batasan afinitas. Terbaik untuk skenario kompleks. Ini jalur opsional — tiga strategi gratis di bawah ini menghasilkan jadwal lengkap tanpa menyentuh AI atau kredit.",
     // Inputs (what the scheduler considers)
     inputsTitle: "Apa yang Dipertimbangkan Penjadwal",
     inputsDesc: "Setiap draf, dari setiap strategi, diperiksa terhadap aturan yang sama. Di sini namanya sama dengan yang digunakan di halaman Aturan Penjadwalan pada aplikasi.",
@@ -1024,6 +1024,10 @@ const ind = {
         title: "Karyawan",
         desc: "Daftar utama. Atur peran yang ditugaskan, tingkat keterampilan, cabang tempat bekerja, batas jam, dan ketersediaan setiap orang. Pengeditan inline membuat pembaruan massal cepat.",
       },
+      team: {
+        title: "Tim",
+        desc: "Undang manajer lain untuk membantu menjalankan akun. Pantau undangan yang tertunda dan lihat siapa yang sudah menerima, semua di satu tempat.",
+      },
       "hour-restrictions": {
         title: "Pembatasan jam",
         desc: "Berlakukan batas atas dan bawah jam mingguan per karyawan. Berguna untuk visa pelajar, kesepakatan paruh waktu, dan anggaran lembur. AI tidak akan pernah menjadwalkan di luar batas ini.",
@@ -1032,9 +1036,25 @@ const ind = {
         title: "Hari tidak tersedia",
         desc: "Blokir hari penuh ketika cabang tutup atau karyawan tidak tersedia. Hari libur, cuti, hari pelatihan — penjadwal menghormatinya secara otomatis.",
       },
+      "day-preferences": {
+        title: "Preferensi hari",
+        desc: "Beri bobot hari-hari dalam seminggu yang lebih disukai setiap karyawan, dari 0 sampai 1. Penjadwal lebih mengutamakan karyawan itu untuk shift pada hari tersebut — preferensi lunak yang mengalah bila tidak ada orang lain yang tersedia.",
+      },
+      "hour-range-preferences": {
+        title: "Preferensi rentang jam",
+        desc: "Beri bobot jam-jam dalam sehari yang lebih disukai setiap karyawan, dari 0 sampai 1. Satu shift dihitung sebagai preferensi begitu setidaknya separuhnya berada dalam rentang waktu yang dipilih.",
+      },
+      "frequency-caps": {
+        title: "Batas frekuensi",
+        desc: "Batasi berapa kali seminggu seorang karyawan boleh dijadwalkan dalam rentang jam tertentu, dengan bobot 0 sampai 1. Berguna untuk membatasi shift malam atau akhir pekan tanpa menghapusnya sepenuhnya.",
+      },
       "employee-onboarding": {
         title: "Onboarding karyawan",
         desc: "Undang karyawan baru melalui email. Mereka mengisi sendiri ketersediaan dan data pribadi — Anda tetap fokus menjalankan bisnis, bukan mengejar data.",
+      },
+      "employee-availability": {
+        title: "Ketersediaan karyawan",
+        desc: "Lihat jendela ketersediaan yang dilaporkan sendiri oleh setiap karyawan di satu tempat, lalu impor atau sesuaikan langsung — tidak perlu lagi mengejar spreadsheet sebelum membuat jadwal.",
       },
       "employee-association": {
         title: "Asosiasi karyawan",
@@ -1044,6 +1064,22 @@ const ind = {
         title: "Template shift",
         desc: "Tentukan pola shift mingguan berulang untuk setiap cabang: peran apa yang dibutuhkan, berapa banyak masing-masing, pada hari dan jam berapa. Cetak biru yang akan diisi AI.",
       },
+      "check-in-qr": {
+        title: "Kode check-in",
+        desc: "Kode QR yang berputar dan dipindai karyawan untuk check-in ke shift mereka. Karena berubah setiap kali dipindai, tangkapan layarnya tidak berguna bagi siapa pun yang tidak sedang berada di lokasi.",
+      },
+      "check-in-report": {
+        title: "Laporan check-in",
+        desc: "Lihat seberapa jauh setiap karyawan datang dari waktu mulai terjadwal, digambarkan dari waktu ke waktu, ditambah proporsi jam yang harus dikonfirmasi manual oleh manajer, bukan lewat pemindaian.",
+      },
+      payroll: {
+        title: "Penggajian",
+        desc: "Ubah shift yang disetujui dan sudah check-in menjadi jam yang bisa dibayar secara otomatis. Konfirmasi shift langka yang tidak dipindai siapa pun, setujui satu periode gaji, dan ekspor langsung ke CSV.",
+      },
+      "special-hours": {
+        title: "Jam khusus",
+        desc: "Atur jam operasional khusus untuk hari libur dan hari tidak biasa lainnya. Penjadwal akan memakai salinan template shift untuk hari itu, bukan template mingguan biasa.",
+      },
       schedule: {
         title: "Jadwal",
         desc: "Buat jadwal mingguan yang dioptimalkan dengan satu klik. Pilih strategi algoritma (Rotasi, Jam Maks, Acak) atau AI. Tinjau hasil per cabang, edit inline, dan publikasikan.",
@@ -1051,6 +1087,10 @@ const ind = {
       "export-schedules": {
         title: "Ekspor jadwal",
         desc: "Unduh jadwal yang dipublikasikan sebagai CSV atau PDF, atau kirim langsung ke 7shifts dan Deputy. Alur penggajian dan POS Anda yang ada tetap tidak berubah.",
+      },
+      "approved-schedules": {
+        title: "Jadwal yang disetujui",
+        desc: "Telusuri minggu mana pun di masa lalu persis seperti tampilannya saat disetujui — catatan permanen yang menjadi dasar bagian lain aplikasi ini, termasuk penggajian.",
       },
       "data-privacy": {
         title: "Privasi data",

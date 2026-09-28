@@ -871,7 +871,7 @@ const en = {
     featuresTitle: "Everything You Need",
     featuresDesc: "From multi-location management to AI-powered optimization, Wiz Scheduler handles the complexity so you don't have to.",
     strategiesTitle: "Scheduling Strategies",
-    strategiesDesc: "Choose the approach that fits your business. Mix and match across locations.",
+    strategiesDesc: "Choose the approach that fits your business. Mix and match across locations. AI is one optional strategy among four — none of them require it.",
     pricingTitle: "Simple, Transparent Pricing",
     pricingDesc: "No hidden fees. Pricing philosophy is to charge $18 a month and charge only more to cover associated costs.",
     allInOnePlan: "All-In-One Plan",
@@ -918,7 +918,7 @@ const en = {
     ctaBtn: "Create Account",
     // Features
     featAITitle: "AI Schedule Generation",
-    featAIDesc: "Claude AI analyzes availability, skills, and team dynamics to create optimal schedules in seconds.",
+    featAIDesc: "Claude AI analyzes availability, skills, and team dynamics to create optimal schedules in seconds. Optional — the free algorithmic strategies build a complete schedule without it.",
     featStrategiesTitle: "Multiple Strategies",
     featStrategiesDesc: "Rotation, 3-month history fairness, max-hours caps, or pure random. Pick what works for each location.",
     featMultiLocTitle: "Multi-Location",
@@ -952,8 +952,8 @@ const en = {
     stratMaxHoursTag: "FREE",
     stratMaxHoursDesc: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
     stratAI: "AI Generate",
-    stratAITag: "PREPAID CREDITS",
-    stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios.",
+    stratAITag: "OPTIONAL · PREPAID CREDITS",
+    stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios. It's an optional path — the three free strategies below produce a full schedule without touching AI or credits.",
     // Inputs (what the scheduler considers)
     inputsTitle: "What the Scheduler Considers",
     inputsDesc: "Every draft, from every strategy, is checked against the same rules. They carry the same names here as on the Scheduling Rules page in the app.",
@@ -1028,6 +1028,10 @@ const en = {
         title: "Employees",
         desc: "The master roster. Set each person's assigned roles, skill level, locations they can work at, hour limits, and availability. Inline editing makes bulk updates fast.",
       },
+      team: {
+        title: "Team",
+        desc: "Invite other managers to help run the account. Track pending invites and see who has already accepted, all in one place.",
+      },
       "hour-restrictions": {
         title: "Hour Restrictions",
         desc: "Enforce per-employee weekly hour caps and minimums. Useful for student visas, part-time agreements, and overtime budgets. The AI will never schedule outside these bounds.",
@@ -1036,9 +1040,25 @@ const en = {
         title: "Day Blackouts",
         desc: "Block off entire days when a location is closed or an employee is unavailable. Holidays, vacations, training days — the scheduler respects them all automatically.",
       },
+      "day-preferences": {
+        title: "Day Preferences",
+        desc: "Weight which days of the week each employee prefers to work, from 0 to 1. The scheduler favors that employee more strongly for shifts on that day — a soft preference that yields when no one else is available.",
+      },
+      "hour-range-preferences": {
+        title: "Hour Range Preferences",
+        desc: "Weight the hours of the day each employee prefers to work, from 0 to 1. A shift counts toward a preference once at least half of it falls inside the chosen time range.",
+      },
+      "frequency-caps": {
+        title: "Frequency Caps",
+        desc: "Limit how many times per week an employee can be scheduled inside a given hour range, weighted 0 to 1. Useful for capping evening or weekend shifts without ruling them out entirely.",
+      },
       "employee-onboarding": {
         title: "Employee Onboarding",
         desc: "Invite new hires by email. They self-serve their availability and personal details — you stay focused on running the business, not chasing data entry.",
+      },
+      "employee-availability": {
+        title: "Employee Availability",
+        desc: "See every employee's self-reported availability windows in one place, and import or adjust them directly — no more chasing spreadsheets before you generate a schedule.",
       },
       "employee-association": {
         title: "Employee Association",
@@ -1048,6 +1068,22 @@ const en = {
         title: "Shift Templates",
         desc: "Define each location's recurring weekly shift pattern: which roles are needed, how many of each, on which days, and at what times. The blueprint the AI fills in.",
       },
+      "check-in-qr": {
+        title: "Check-In Code",
+        desc: "A rotating QR code employees scan to check in for their shift. Because it changes with every scan, a screenshot of it is useless to anyone who isn't standing at the location.",
+      },
+      "check-in-report": {
+        title: "Check-In Report",
+        desc: "See how far from their scheduled start each employee arrived, plotted over time, plus the share of hours a manager had to confirm by hand instead of a scan.",
+      },
+      payroll: {
+        title: "Payroll",
+        desc: "Turn approved, checked-in shifts into payable hours automatically. Confirm the rare shift nobody scanned for, approve a pay period, and export straight to CSV.",
+      },
+      "special-hours": {
+        title: "Special Hours",
+        desc: "Set one-off operating hours for holidays and other non-standard days. The scheduler swaps in a cloned shift template for that day instead of the regular weekly one.",
+      },
       schedule: {
         title: "Schedule",
         desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish.",
@@ -1055,6 +1091,10 @@ const en = {
       "export-schedules": {
         title: "Export Schedules",
         desc: "Download published schedules as CSV or PDF, or push directly to 7shifts and Deputy. Keep your existing payroll and POS workflows unchanged.",
+      },
+      "approved-schedules": {
+        title: "Approved Schedules",
+        desc: "Browse any past week exactly as it looked the moment it was approved — the permanent record the rest of the app, including payroll, is built on.",
       },
       "data-privacy": {
         title: "Data Privacy",
