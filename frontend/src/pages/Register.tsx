@@ -181,7 +181,7 @@ export default function Register() {
               <span>
                 {t.gdpr.acceptPrivacy}{" "}
                 <a
-                  href="/privacy-policy"
+                  href="https://wizscheduler.com/privacy-policy"
                   target="_blank"
                   rel="noopener noreferrer"
                   className={m.btn.link}
@@ -200,7 +200,7 @@ export default function Register() {
               <span>
                 {t.gdpr.acceptTerms}{" "}
                 <a
-                  href="/terms"
+                  href="https://wizscheduler.com/terms"
                   target="_blank"
                   rel="noopener noreferrer"
                   className={m.btn.link}

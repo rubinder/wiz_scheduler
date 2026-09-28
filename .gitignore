@@ -32,3 +32,4 @@ frontend/dist/
 
 # Claude Code worktrees (isolated workspaces; never committed)
 .claude/worktrees/
+.DS_Store

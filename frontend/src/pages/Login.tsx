@@ -333,17 +333,32 @@ export default function Login() {
         <div
           className={`mt-4 pt-4 border-t ${m.rule.line} flex flex-wrap items-center justify-center gap-x-2 text-center text-xs ${m.text.muted}`}
         >
-          <Link to="/privacy-policy" className={m.btn.link}>
+          <a
+            href="https://wizscheduler.com/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={m.btn.link}
+          >
             {t.gdpr.privacyPolicy}
-          </Link>
+          </a>
           <span>|</span>
-          <Link to="/terms" className={m.btn.link}>
+          <a
+            href="https://wizscheduler.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={m.btn.link}
+          >
             {t.gdpr.termsOfService}
-          </Link>
+          </a>
           <span>|</span>
-          <Link to="/dpa" className={m.btn.link}>
+          <a
+            href="https://wizscheduler.com/dpa"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={m.btn.link}
+          >
             {t.gdpr.dpa}
-          </Link>
+          </a>
         </div>
     </AuthLayout>
   );

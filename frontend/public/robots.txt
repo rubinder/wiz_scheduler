@@ -1,11 +1,8 @@
 User-agent: *
-Allow: /
-Allow: /login
-Allow: /register
-Allow: /privacy-policy
-Allow: /terms
-Disallow: /manager/
-Disallow: /employee/
-Disallow: /api/
+Disallow: /
 
-Sitemap: https://wizscheduler.com/sitemap.xml
+# The marketing site at wizscheduler.com owns the public-facing pages and
+# their sitemap now (see docs/superpowers/specs
+# 2026-09-22-marketing-site-design.md). This app subdomain is the
+# authenticated product and login/register flows only — nothing here is
+# meant to be indexed.
