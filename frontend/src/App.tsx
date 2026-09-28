@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import ExternalRedirect from "./components/shared/ExternalRedirect";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
@@ -40,11 +41,6 @@ const AcceptManagerInvite = lazy(() => import("./pages/AcceptManagerInvite"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
-const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
-const TermsOfService = lazy(() => import("./pages/TermsOfService"));
-const DataProcessingAgreement = lazy(() => import("./pages/DataProcessingAgreement"));
-const Landing = lazy(() => import("./pages/Landing"));
-const Features = lazy(() => import("./pages/Features"));
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -97,6 +93,13 @@ export default function App() {
       }
     >
       <Routes>
+        {/* wizscheduler.com owns marketing content and the legal pages now
+            (see docs/superpowers/specs/2026-09-22-marketing-site-design.md). */}
+        <Route
+          path="/features"
+          element={<ExternalRedirect to="https://wizscheduler.com/features" />}
+        />
+
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -105,10 +108,6 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/dpa" element={<DataProcessingAgreement />} />
-        <Route path="/features" element={<Features />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>
@@ -149,7 +148,10 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Landing page for unauthenticated users */}
+        {/* Root: signed-in users go to their dashboard; everyone else goes
+            to /login — the marketing home page lives at wizscheduler.com
+            now (see docs/superpowers/specs
+            2026-09-22-marketing-site-design.md). */}
         <Route
           path="/"
           element={
@@ -164,7 +166,7 @@ export default function App() {
                 <Navigate to="/employee/availability" replace />
               )
             ) : (
-              <Landing />
+              <Navigate to="/login" replace />
             )
           }
         />

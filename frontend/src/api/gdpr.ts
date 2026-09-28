@@ -18,13 +18,6 @@ export interface DataExport {
   consents: ConsentRecord[];
 }
 
-export interface PolicyDocument {
-  version: string;
-  effective_date: string;
-  content: string;
-  processors?: { name: string; purpose: string; location: string }[];
-}
-
 export async function exportMyData(): Promise<DataExport> {
   return apiFetch<DataExport>("/gdpr/export");
 }
@@ -35,16 +28,4 @@ export async function deleteMyAccount(): Promise<{ deleted: boolean }> {
 
 export async function getConsents(): Promise<ConsentRecord[]> {
   return apiFetch<ConsentRecord[]>("/gdpr/consents");
-}
-
-export async function getPrivacyPolicy(): Promise<PolicyDocument> {
-  return apiFetch<PolicyDocument>("/gdpr/privacy-policy");
-}
-
-export async function getTermsOfService(): Promise<PolicyDocument> {
-  return apiFetch<PolicyDocument>("/gdpr/terms");
-}
-
-export async function getDpa(): Promise<PolicyDocument> {
-  return apiFetch<PolicyDocument>("/gdpr/dpa");
 }
