@@ -55,3 +55,21 @@ def test_seniority_score_derived_from_hire_date():
     scores = {c["id"]: c["_seniority_score"] for c in result}
     assert scores["e_senior"] == 0.0
     assert scores["e_junior"] == 1.0
+
+
+def test_seniority_score_manual_rank_takes_precedence_over_hire_date():
+    """Regression test for #134: manual seniority_rank should not tie with
+    derived ranks when both are present in the pool. The manual-ranked employee
+    should have a lower (more senior) score."""
+    from datetime import date
+    pool = [
+        _prepared("e_manual_rank_1", seniority_rank=1, hire_date=date(2024, 1, 1)),
+        _prepared("e_derived_rank", hire_date=date(2020, 1, 1)),
+    ]
+    result = eligible_for_slot(pool, "Monday", "Floor", "09:00", "17:00")
+    scores = {c["id"]: c["_seniority_score"] for c in result}
+    # e_manual_rank_1 has rank 1 (manual), normalizes to lower score (more senior)
+    # e_derived_rank has rank 2 (derived after manual), normalizes to higher score (less senior)
+    assert scores["e_manual_rank_1"] < scores["e_derived_rank"], (
+        f"Manual rank should win: {scores['e_manual_rank_1']} should be < {scores['e_derived_rank']}"
+    )

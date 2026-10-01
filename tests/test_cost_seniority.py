@@ -56,7 +56,7 @@ def test_resolve_seniority_ranks_manual_wins_over_hire_date():
     ]
     ranks = resolve_seniority_ranks(pool)
     assert ranks["e2"] == 1.0
-    assert ranks["e1"] == 1.0  # earliest (only) hire_date among the non-manual group
+    assert ranks["e1"] == 2.0  # derived ranks start after the highest manual rank (1), so e1 -> 2
 
 
 def test_resolve_seniority_ranks_hire_date_order():
