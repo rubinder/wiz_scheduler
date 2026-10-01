@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LocationCreate(BaseModel):
@@ -10,6 +10,8 @@ class LocationCreate(BaseModel):
     # Minimum rest hours between shifts on different days (NYC Fair Workweek
     # clopening rule = 11). NULL/omitted = no constraint.
     min_rest_hours: float | None = None
+    overtime_threshold_hours: float | None = Field(default=None, gt=0)
+    overtime_premium_multiplier: float | None = Field(default=None, ge=1)
 
 
 class LocationUpdate(BaseModel):
@@ -19,6 +21,8 @@ class LocationUpdate(BaseModel):
     geo_coord: dict | None = None
     timezone: str | None = None
     min_rest_hours: float | None = None
+    overtime_threshold_hours: float | None = Field(default=None, gt=0)
+    overtime_premium_multiplier: float | None = Field(default=None, ge=1)
 
 
 class LocationResponse(BaseModel):
@@ -30,6 +34,8 @@ class LocationResponse(BaseModel):
     geo_coord: dict | None
     timezone: str
     min_rest_hours: float | None = None
+    overtime_threshold_hours: float | None = None
+    overtime_premium_multiplier: float | None = None
 
     model_config = {"from_attributes": True}
 

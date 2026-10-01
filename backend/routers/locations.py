@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
-from backend.services.plan import assert_can_add
+from backend.services.plan import assert_can_add, assert_paid_plan
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -33,6 +33,8 @@ async def create_location(
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
     await assert_can_add(db, str(current_user.company_id), locations=1)
+    if body.overtime_threshold_hours is not None or body.overtime_premium_multiplier is not None:
+        await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
     location = Location(
         company_id=current_user.company_id,
@@ -42,6 +44,8 @@ async def create_location(
         geo_coord=body.geo_coord,
         timezone=body.timezone,
         min_rest_hours=body.min_rest_hours,
+        overtime_threshold_hours=body.overtime_threshold_hours,
+        overtime_premium_multiplier=body.overtime_premium_multiplier,
     )
     db.add(location)
     await db.commit()
@@ -78,6 +82,9 @@ async def update_location(
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
+    if "overtime_threshold_hours" in body.model_fields_set or "overtime_premium_multiplier" in body.model_fields_set:
+        await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
+
     if body.region_id is not None:
         location.region_id = body.region_id
     if body.name is not None:
@@ -91,6 +98,10 @@ async def update_location(
     # Nullable + clearable: send {"min_rest_hours": null} to remove the rule.
     if "min_rest_hours" in body.model_fields_set:
         location.min_rest_hours = body.min_rest_hours
+    if "overtime_threshold_hours" in body.model_fields_set:
+        location.overtime_threshold_hours = body.overtime_threshold_hours
+    if "overtime_premium_multiplier" in body.model_fields_set:
+        location.overtime_premium_multiplier = body.overtime_premium_multiplier
 
     await db.commit()
     await db.refresh(location)
