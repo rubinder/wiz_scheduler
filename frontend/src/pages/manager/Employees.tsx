@@ -147,7 +147,10 @@ export default function Employees() {
           editValues.company_ids.length > 0
             ? editValues.company_ids
             : undefined,
-        pay_rate: editValues.pay_rate === "" ? null : Number(editValues.pay_rate),
+        pay_rate:
+          plan?.plan === "free"
+            ? undefined
+            : (editValues.pay_rate === "" ? null : Number(editValues.pay_rate)),
         hire_date: editValues.hire_date === "" ? null : editValues.hire_date,
         seniority_rank: editValues.seniority_rank === "" ? null : Number(editValues.seniority_rank),
       });

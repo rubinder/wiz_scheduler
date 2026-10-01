@@ -45,10 +45,12 @@ export default function Company() {
     try {
       const updated = await companyApi.updateCompany({
         name,
-        overtime_threshold_hours:
-          overtimeThresholdHours === "" ? null : Number(overtimeThresholdHours),
-        overtime_premium_multiplier:
-          overtimePremiumMultiplier === "" ? null : Number(overtimePremiumMultiplier),
+        overtime_threshold_hours: overtimeGated
+          ? undefined
+          : (overtimeThresholdHours === "" ? null : Number(overtimeThresholdHours)),
+        overtime_premium_multiplier: overtimeGated
+          ? undefined
+          : (overtimePremiumMultiplier === "" ? null : Number(overtimePremiumMultiplier)),
       });
       setCompany(updated);
       setSuccess(t.companyPage.updateSuccess);

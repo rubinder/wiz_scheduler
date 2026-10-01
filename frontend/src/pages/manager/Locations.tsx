@@ -105,8 +105,8 @@ export default function Locations() {
         address: (row.address as string) || null,
         timezone: row.timezone as string,
         min_rest_hours: parseMinRest(row.min_rest_hours),
-        overtime_threshold_hours: parseMinRest(row.overtime_threshold_hours),
-        overtime_premium_multiplier: parseMinRest(row.overtime_premium_multiplier),
+        overtime_threshold_hours: overtimeGated ? undefined : parseMinRest(row.overtime_threshold_hours),
+        overtime_premium_multiplier: overtimeGated ? undefined : parseMinRest(row.overtime_premium_multiplier),
       });
       await fetchData();
     } catch (err: unknown) {
