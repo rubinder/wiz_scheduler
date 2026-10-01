@@ -68,17 +68,27 @@ def resolve_seniority_ranks(pool: List[Dict[str, Any]]) -> Dict[str, float]:
     A manual `seniority_rank` wins when set; otherwise rank is derived from
     `hire_date` (1 = earliest hire_date) among the remaining employees.
     Employees with neither field set are omitted from the result.
+    Manual and derived ranks are combined into a single consistent ranking
+    where lower numbers are more senior.
     """
     resolved: Dict[str, float] = {}
     derive_from: List[Dict[str, Any]] = []
+    max_manual_rank = 0
+
+    # First pass: collect manual ranks and candidates for derivation
     for e in pool:
         eid = str(e["id"])
         if e.get("seniority_rank") is not None:
-            resolved[eid] = float(e["seniority_rank"])
+            manual_rank = float(e["seniority_rank"])
+            resolved[eid] = manual_rank
+            max_manual_rank = max(max_manual_rank, manual_rank)
         elif e.get("hire_date") is not None:
             derive_from.append(e)
-    for i, e in enumerate(sorted(derive_from, key=lambda x: x["hire_date"]), start=1):
+
+    # Second pass: assign derived ranks starting after the highest manual rank
+    for i, e in enumerate(sorted(derive_from, key=lambda x: x["hire_date"]), start=int(max_manual_rank) + 1):
         resolved[str(e["id"])] = float(i)
+
     return resolved
 
 

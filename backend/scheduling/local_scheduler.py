@@ -25,6 +25,12 @@ from backend.scheduling.preferences import (
     matches_range,
     preference_score,
 )
+from backend.scheduling.cost_seniority import (
+    COST_WEIGHT,
+    DEFAULT_OVERTIME_THRESHOLD_HOURS,
+    SENIORITY_WEIGHT,
+    overtime_score,
+)
 from backend.scheduling.rest_rules import _min_rest_violation, _rest_gap_hours  # noqa: F401
 from backend.scheduling.state import SchedulingState, ShiftAssignment
 
@@ -176,6 +182,12 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
     # this run so rest is enforced across locations, then grow it as we
     # assign shifts here.
     min_rest_hours = location.get("min_rest_hours")
+
+    # Configurable per company/location (Location overrides Company, both
+    # NULL falls back to the 40h constant) -- resolved once per location run,
+    # same pattern as min_rest_hours above.
+    overtime_threshold = location.get("overtime_threshold_hours")
+
     employee_shift_windows: Dict[str, List[Dict[str, str]]] = {
         eid: list(windows)
         for eid, windows in (state.get("availability_draft", {}) or {}).items()
@@ -286,6 +298,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     start=start_hm,
                     end=end_hm,
                     range_counts=range_counts,
+                    overtime_threshold=overtime_threshold,
                 )
 
                 if chosen is None:
@@ -461,6 +474,7 @@ def _pick_employee(
     start: str = "00:00",
     end: str = "23:59",
     range_counts: Dict[Any, int] | None = None,
+    overtime_threshold: float | None = None,
 ) -> Dict[str, Any] | None:
     """Select one employee from *available* based on *strategy* and affinities.
 
@@ -508,7 +522,13 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            score = opp * 100 + aff + pref
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+            ot = overtime_score(
+                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
+                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            )
+            score = opp * 100 + aff + pref + cost + sen + ot
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -527,7 +547,13 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+            ot = overtime_score(
+                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
+                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            )
+            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -551,8 +577,14 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+            ot = overtime_score(
+                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
+                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            )
             # Blend between random (opp_cost only) and full history consideration
-            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + (history_penalty * strategy_param * 10)
+            score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot + (history_penalty * strategy_param * 10)
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
@@ -594,6 +626,12 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+            ot = overtime_score(
+                current_hrs, shift_duration_hrs,
+                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            )
 
             # Penalty for being near/over the cap, scaled by strictness
             if projected_hrs > max_hrs:
@@ -604,7 +642,7 @@ def _pick_employee(
             # Prefer employees with fewer hours (spread the load)
             hours_penalty = current_hrs * strictness * 5
 
-            score = opp_cost * 100 - e.get("_skill", 0) + aff + pref + over_penalty + hours_penalty
+            score = opp_cost * 100 - e.get("_skill", 0) + aff + pref + cost + sen + ot + over_penalty + hours_penalty
             scored.append((score, e))
 
         scored.sort(key=lambda x: x[0])
