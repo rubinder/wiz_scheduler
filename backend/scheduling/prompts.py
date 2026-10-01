@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
+from backend.scheduling.cost_seniority import cost_score, resolve_seniority_ranks, seniority_score
 from backend.scheduling.preferences import blocked_by_hard_preference, preference_score
 
 # Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
@@ -128,14 +129,15 @@ def eligible_for_slot(
     count against.
 
     Callers must pass employees already prepared with `_role_names` and
-    `_day_windows`. Each returned dict is the input dict plus `_skill` for the
-    requested role.
+    `_day_windows`. Each returned dict is the input dict plus `_skill`, `_cost_score`, and
+    `_seniority_score` (see backend.scheduling.cost_seniority), all computed
+    once here so both scheduling paths see identical values.
 
     `day_index` and `range_counts` are optional: omitting `day_index` skips
     the weight-1.0 hard preference filter entirely, which is what keeps
     existing callers (and the no-preference case) byte-identical.
     """
-    eligible: List[Dict[str, Any]] = []
+    filtered: List[Dict[str, Any]] = []
     for e in prepared_employees:
         if role_name not in e["_role_names"]:
             continue
@@ -157,8 +159,21 @@ def eligible_for_slot(
             ),
             0,
         )
-        eligible.append({**e, "_skill": skill})
-    return eligible
+        filtered.append({**e, "_skill": skill})
+
+    # Cost and seniority are normalized against this slot's own eligible
+    # pool (not the whole roster), so what a candidate's score expresses is
+    # "how does this person compare to the others who could actually fill
+    # this slot" — see cost_seniority.cost_score/seniority_score.
+    resolved_ranks = resolve_seniority_ranks(filtered)
+    return [
+        {
+            **e,
+            "_cost_score": cost_score(e, filtered),
+            "_seniority_score": seniority_score(e, resolved_ranks),
+        }
+        for e in filtered
+    ]
 
 
 def _format_avail_str(day_windows: Dict[str, List[Tuple[str, str]]]) -> str:
