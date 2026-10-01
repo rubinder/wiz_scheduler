@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -22,3 +22,17 @@ class Company(Base):
         DateTime(timezone=True), server_default=text("now()")
     )
     external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Overtime scheduling defaults for this company (#134). NULL = fall back
+    # to the next level down (location, then a 40h/1.5x code default) — see
+    # backend/scheduling/cost_seniority.resolve_overtime_threshold. Paid-plan
+    # gated at the API write layer.
+    overtime_threshold_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    overtime_premium_multiplier: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "overtime_premium_multiplier IS NULL OR overtime_premium_multiplier >= 1",
+            name="ck_companies_overtime_premium_multiplier",
+        ),
+    )
