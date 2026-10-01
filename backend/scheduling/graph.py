@@ -22,6 +22,7 @@ from backend.models import (
     ShiftTemplate,
 )
 from backend.scheduling.local_scheduler import Strategy, local_schedule
+from backend.scheduling.cost_seniority import resolve_overtime_threshold
 from backend.scheduling.nodes import (
     _subtract_consumed,
     annotate_preferences,
@@ -640,6 +641,12 @@ async def _load_initial_state(
             "contributing_template_ids": contributing_ids,
         }
 
+    # Resolve the company-level overtime default once; each location below
+    # applies its own override on top (see cost_seniority.resolve_overtime_threshold).
+    company_result = await db.execute(select(Company).where(Company.id == company_id))
+    company_row = company_result.scalar_one_or_none()
+    company_overtime_threshold = company_row.overtime_threshold_hours if company_row else None
+
     # Load locations — only those that have a successfully resolved template
     loc_query = select(Location).where(Location.company_id == company_id)
     if selected_location_ids:
@@ -653,6 +660,9 @@ async def _load_initial_state(
             "timezone": loc.timezone,
             "address": loc.address,
             "min_rest_hours": loc.min_rest_hours,
+            "overtime_threshold_hours": resolve_overtime_threshold(
+                company_overtime_threshold, loc.overtime_threshold_hours
+            ),
         }
         for loc in locations_orm
     ]
@@ -754,6 +764,9 @@ async def _load_initial_state(
             "affinities": emp_affinities_map.get(eid, []),
             "available_windows": emp_avail_map.get(eid, []),
             "max_hours_per_week": emp.max_hours_per_week,
+            "pay_rate": emp.pay_rate,
+            "hire_date": emp.hire_date,
+            "seniority_rank": emp.seniority_rank,
             "day_blackouts": emp_blackout_map.get(eid, []),
             "day_preferences": loaded_prefs.get(eid, {}).get("day_preferences", []),
             "hour_range_preferences": loaded_prefs.get(eid, {}).get("hour_range_preferences", []),

@@ -278,3 +278,57 @@ async def test_load_initial_state_fuses_override_into_weekly_schedule(
     assert thu_slots[0]["role_name"] == "Server"
     assert thu_slots[0]["start_time"] == "09:00"
     assert thu_slots[0]["end_time"] == "14:00"
+
+
+async def test_load_initial_state_resolves_overtime_threshold_and_loads_cost_fields(
+    db_session, seed_company, seed_location,
+):
+    """Location override beats company default beats the 40h constant, and
+    pay_rate/hire_date/seniority_rank load onto each employee dict (#134)."""
+    from datetime import date
+    from backend.models import Employee
+    from backend.scheduling.graph import _load_initial_state
+
+    seed_company.overtime_threshold_hours = 35.0
+    emp = Employee(
+        company_id=seed_company.id, full_name="Dana Okafor",
+        location_ids=[seed_location.id],
+        pay_rate=24.50, hire_date=date(2022, 3, 1), seniority_rank=2,
+    )
+    db_session.add(emp)
+    await db_session.commit()
+
+    state = await _load_initial_state(
+        company_id=str(seed_company.id),
+        week_start_date="2026-12-21",
+        db=db_session,
+        num_days=7,
+    )
+
+    loc = next(l for l in state["locations"] if l["id"] == str(seed_location.id))
+    assert loc["overtime_threshold_hours"] == 35.0  # company default, no location override
+
+    loaded_emp = next(e for e in state["employees"] if e["id"] == str(emp.id))
+    assert loaded_emp["pay_rate"] == 24.50
+    assert loaded_emp["hire_date"] == date(2022, 3, 1)
+    assert loaded_emp["seniority_rank"] == 2
+
+
+async def test_load_initial_state_location_overtime_threshold_overrides_company(
+    db_session, seed_company, seed_location,
+):
+    from backend.scheduling.graph import _load_initial_state
+
+    seed_company.overtime_threshold_hours = 35.0
+    seed_location.overtime_threshold_hours = 30.0
+    await db_session.commit()
+
+    state = await _load_initial_state(
+        company_id=str(seed_company.id),
+        week_start_date="2026-12-21",
+        db=db_session,
+        num_days=7,
+    )
+
+    loc = next(l for l in state["locations"] if l["id"] == str(seed_location.id))
+    assert loc["overtime_threshold_hours"] == 30.0
