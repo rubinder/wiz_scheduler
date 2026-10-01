@@ -72,11 +72,34 @@ def test_more_senior_candidate_ordered_first_via_hire_date():
 
 
 def test_overtime_pushes_committed_employee_later_and_shows_hours():
+    # Overtime scoring is opt-in: it must be explicitly configured via
+    # overtime_threshold_hours, not inferred from the mere presence of
+    # committed hours (see test_overtime_disabled_when_no_threshold_configured
+    # below for the no-op guarantee this protects).
+    location_with_threshold = {**LOCATION, "overtime_threshold_hours": 40.0}
     employees = [_employee("e_committed"), _employee("e_fresh")]
     prompt = build_schedule_prompt(
-        LOCATION, SHIFT_TEMPLATE, employees, "2026-08-31",
+        location_with_threshold, SHIFT_TEMPLATE, employees, "2026-08-31",
         employee_hours_committed={"e_committed": 38.0},
     )
     line = _eligible_line(prompt)
     assert line.index("e_fresh") < line.index("e_committed")
     assert "hours_committed=38.0" in prompt
+
+
+def test_overtime_disabled_when_no_threshold_configured():
+    """Regression: overtime scoring must be truly inert (byte-identical
+    prompt) when no overtime_threshold_hours is configured anywhere, even
+    when an employee has committed hours well past 40 this run. Previously
+    the threshold silently defaulted to 40h, so any tenant who never
+    configured overtime still got overtime-driven reordering/rendering."""
+    employees = [_employee("e_committed"), _employee("e_fresh")]
+    prompt_with_hours = build_schedule_prompt(
+        LOCATION, SHIFT_TEMPLATE, employees, "2026-08-31",
+        employee_hours_committed={"e_committed": 45.0},
+    )
+    prompt_without_hours = build_schedule_prompt(
+        LOCATION, SHIFT_TEMPLATE, employees, "2026-08-31",
+        employee_hours_committed=None,
+    )
+    assert prompt_with_hours == prompt_without_hours

@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Tuple
 
 from backend.scheduling.cost_seniority import (
     COST_WEIGHT,
-    DEFAULT_OVERTIME_THRESHOLD_HOURS,
     SENIORITY_WEIGHT,
     cost_score,
     overtime_score,
@@ -222,8 +221,6 @@ def build_schedule_prompt(
     tz_offset = _tz_offset_example(location["timezone"])
 
     overtime_threshold = location.get("overtime_threshold_hours")
-    if overtime_threshold is None:
-        overtime_threshold = DEFAULT_OVERTIME_THRESHOLD_HOURS
     hours_committed_map = employee_hours_committed or {}
 
     weekly_schedule: Dict[str, List[dict]] = shift_template.get("weekly_schedule", {})
@@ -291,10 +288,13 @@ def build_schedule_prompt(
                 (preference_score(c, day_index, start, end, {}) if day_index is not None else 0.0)
                 + c.get("_cost_score", 0.0) * COST_WEIGHT
                 + c.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-                + overtime_score(
-                    hours_committed_map.get(str(c["id"]), 0.0),
-                    _shift_duration_hours(start, end),
-                    overtime_threshold,
+                + (
+                    overtime_score(
+                        hours_committed_map.get(str(c["id"]), 0.0),
+                        _shift_duration_hours(start, end),
+                        overtime_threshold,
+                    )
+                    if overtime_threshold is not None else 0.0
                 )
             ))
             eligible = []
@@ -306,7 +306,7 @@ def build_schedule_prompt(
                 if c.get("seniority_rank") is not None or c.get("hire_date") is not None:
                     parts.append(f"seniority={c['_seniority_score']:.2f}")
                 hours_committed = hours_committed_map.get(cid, 0.0)
-                if hours_committed > 0:
+                if overtime_threshold is not None and hours_committed > 0:
                     parts.append(f"hours_committed={hours_committed:.1f}/threshold={overtime_threshold:.0f}")
                 eligible.append(f'{cid} [{", ".join(parts)}]')
 
@@ -381,7 +381,7 @@ def build_schedule_prompt(
         or e.get("seniority_rank") is not None
         or e.get("hire_date") is not None
         for e in emp_data
-    ) or any(v > 0 for v in hours_committed_map.values())
+    ) or overtime_threshold is not None
 
     extra_rules = ""
     next_rule_num = 7

@@ -764,7 +764,7 @@ async def _load_initial_state(
             "affinities": emp_affinities_map.get(eid, []),
             "available_windows": emp_avail_map.get(eid, []),
             "max_hours_per_week": emp.max_hours_per_week,
-            "pay_rate": emp.pay_rate,
+            "pay_rate": float(emp.pay_rate) if emp.pay_rate is not None else None,
             "hire_date": emp.hire_date,
             "seniority_rank": emp.seniority_rank,
             "day_blackouts": emp_blackout_map.get(eid, []),

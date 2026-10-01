@@ -4,9 +4,11 @@ Both scheduling paths — local_scheduler.py's deterministic picker and
 prompts.py's AI-path candidate ordering/rendering — consume these functions
 so the two paths score identically. Mirrors preferences.py's conventions:
 plain Dict[str, Any] employee representations, lower score = more preferred,
-and 0.0 for "no data configured", which is what keeps this feature additive
-(a company that sets nothing gets unchanged scheduling behavior).
+and 0.5 for "no data configured" (neutral — neither cheap nor expensive,
+neither senior nor junior), which is what keeps this feature additive (a
+company that sets nothing gets unchanged scheduling behavior).
 """
+import itertools
 from typing import Any, Dict, List
 
 DEFAULT_OVERTIME_THRESHOLD_HOURS = 40.0
@@ -22,13 +24,17 @@ OVERTIME_PENALTY_PER_HOUR = 15.0
 
 def resolve_overtime_threshold(
     company_threshold: float | None, location_threshold: float | None
-) -> float:
-    """Location override beats company default beats the 40h constant."""
+) -> float | None:
+    """Location override beats company default. Returns None when neither
+    level sets a threshold — overtime scoring is then disabled entirely for
+    this location, not silently defaulted to 40h, so a tenant who configures
+    nothing gets unchanged scheduling behavior. DEFAULT_OVERTIME_THRESHOLD_HOURS
+    is a UI placeholder/suggestion only; it is never used as a runtime fallback."""
     if location_threshold is not None:
         return float(location_threshold)
     if company_threshold is not None:
         return float(company_threshold)
-    return DEFAULT_OVERTIME_THRESHOLD_HOURS
+    return None
 
 
 def resolve_overtime_multiplier(
@@ -47,13 +53,14 @@ def cost_score(emp: Dict[str, Any], pool: List[Dict[str, Any]]) -> float:
 
     0.0 = cheapest rated candidate, 1.0 = most expensive, 0.5 when every
     rated candidate shares the same rate (no discriminating information).
-    Returns 0.0 when this employee has no pay_rate configured — opt-in per
-    employee, not just per company.
+    Returns 0.5 when this employee has no pay_rate/resolved rank configured
+    (neutral — no data is neither cheap nor expensive, neither senior nor
+    junior) — opt-in per employee, not just per company.
     """
     rate = emp.get("pay_rate")
     if rate is None:
-        return 0.0
-    rates = [e["pay_rate"] for e in pool if e.get("pay_rate") is not None]
+        return 0.5
+    rates = [float(e["pay_rate"]) for e in pool if e.get("pay_rate") is not None]
     if len(rates) < 2:
         return 0.5
     lo, hi = min(rates), max(rates)
@@ -66,28 +73,29 @@ def resolve_seniority_ranks(pool: List[Dict[str, Any]]) -> Dict[str, float]:
     """Resolved seniority rank per employee id in *pool*.
 
     A manual `seniority_rank` wins when set; otherwise rank is derived from
-    `hire_date` (1 = earliest hire_date) among the remaining employees.
+    `hire_date` (among the remaining employees, earliest first) and fills in
+    whichever positive integers no manual rank already claims — so a manual
+    `seniority_rank=5` means "5th most senior," leaving ranks 1-4 open for
+    the four most-senior derived employees, rather than outranking every
+    derived employee regardless of their actual hire dates.
     Employees with neither field set are omitted from the result.
-    Manual and derived ranks are combined into a single consistent ranking
-    where lower numbers are more senior.
     """
     resolved: Dict[str, float] = {}
     derive_from: List[Dict[str, Any]] = []
-    max_manual_rank = 0
+    manual_ranks: set[int] = set()
 
-    # First pass: collect manual ranks and candidates for derivation
     for e in pool:
         eid = str(e["id"])
         if e.get("seniority_rank") is not None:
-            manual_rank = float(e["seniority_rank"])
-            resolved[eid] = manual_rank
-            max_manual_rank = max(max_manual_rank, manual_rank)
+            manual_rank = int(e["seniority_rank"])
+            resolved[eid] = float(manual_rank)
+            manual_ranks.add(manual_rank)
         elif e.get("hire_date") is not None:
             derive_from.append(e)
 
-    # Second pass: assign derived ranks starting after the highest manual rank
-    for i, e in enumerate(sorted(derive_from, key=lambda x: x["hire_date"]), start=int(max_manual_rank) + 1):
-        resolved[str(e["id"])] = float(i)
+    available_ranks = (n for n in itertools.count(1) if n not in manual_ranks)
+    for e in sorted(derive_from, key=lambda x: x["hire_date"]):
+        resolved[str(e["id"])] = float(next(available_ranks))
 
     return resolved
 
@@ -95,12 +103,13 @@ def resolve_seniority_ranks(pool: List[Dict[str, Any]]) -> Dict[str, float]:
 def seniority_score(emp: Dict[str, Any], resolved_ranks: Dict[str, float]) -> float:
     """0-1 min-max normalized resolved rank among *resolved_ranks*.
 
-    0.0 = most senior present, 0.5 when every ranked candidate ties, 0.0 when
-    this employee has no resolved rank.
+    0.0 = most senior present, 0.5 when every ranked candidate ties, 0.5
+    when this employee has no resolved rank configured (neutral — no data
+    is neither cheap nor expensive, neither senior nor junior).
     """
     eid = str(emp["id"])
     if eid not in resolved_ranks:
-        return 0.0
+        return 0.5
     ranks = list(resolved_ranks.values())
     if len(ranks) < 2:
         return 0.5

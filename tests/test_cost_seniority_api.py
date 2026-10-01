@@ -122,3 +122,33 @@ async def test_negative_pay_rate_rejected(client: AsyncClient, paid: SimpleNames
         json={"pay_rate": -5.0}, headers=paid.manager_headers,
     )
     assert resp.status_code == 422, resp.text
+
+
+async def test_free_plan_employee_update_omitting_pay_rate_succeeds(client: AsyncClient, free: SimpleNamespace):
+    """The frontend omits (never nulls) gated fields from update payloads on
+    a free plan so unrelated edits don't trip the paid-gate. A body that
+    genuinely lacks the `pay_rate` key must succeed regardless of plan."""
+    resp = await client.put(
+        f"/api/v1/employees/{free.employee_id}",
+        json={"full_name": "New Name"}, headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["full_name"] == "New Name"
+
+
+async def test_free_plan_company_update_omitting_overtime_fields_succeeds(client: AsyncClient, free: SimpleNamespace):
+    resp = await client.put(
+        "/api/v1/company/",
+        json={"name": "New Co Name"}, headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["name"] == "New Co Name"
+
+
+async def test_free_plan_location_update_omitting_overtime_fields_succeeds(client: AsyncClient, free: SimpleNamespace):
+    resp = await client.put(
+        f"/api/v1/locations/{free.location_id}",
+        json={"timezone": "America/Chicago"}, headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["timezone"] == "America/Chicago"

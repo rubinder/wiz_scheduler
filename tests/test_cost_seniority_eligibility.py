@@ -18,11 +18,11 @@ def _prepared(eid, **overrides):
     return base
 
 
-def test_no_data_configured_scores_are_zero():
+def test_no_data_configured_scores_are_neutral():
     pool = [_prepared("e1"), _prepared("e2")]
     result = eligible_for_slot(pool, "Monday", "Floor", "09:00", "17:00")
-    assert {c["_cost_score"] for c in result} == {0.0}
-    assert {c["_seniority_score"] for c in result} == {0.0}
+    assert {c["_cost_score"] for c in result} == {0.5}
+    assert {c["_seniority_score"] for c in result} == {0.5}
 
 
 def test_cost_score_normalized_across_eligible_pool():

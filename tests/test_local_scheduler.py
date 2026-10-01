@@ -592,3 +592,25 @@ class TestCostSeniorityOvertimeScoring:
         result = local_schedule(state, strategy="rotation")
 
         assert result["current_parsed_shifts"][0]["employee_id"] == "e002"
+
+    def test_overtime_disabled_when_no_threshold_configured(self):
+        """Regression: with no overtime_threshold_hours configured anywhere
+        (location default, no company override), overtime scoring must be
+        completely inert, even when employee_weekly_hours_draft seeds an
+        employee already past 40 hours. Previously the threshold silently
+        defaulted to 40h, so every tenant who never configured overtime
+        still got overtime-driven assignment changes."""
+        def _run(seed_hours: dict):
+            near_cap = _make_employee("e001", "Near Cap", [ROLE_FLOOR], "loc00001", [MON_9_17])
+            fresh = _make_employee("e002", "Fresh", [ROLE_FLOOR], "loc00001", [MON_9_17])
+            schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+            state = _make_state([near_cap, fresh], schedule)
+            # No overtime_threshold_hours set on current_location -- unconfigured.
+            state["employee_weekly_hours_draft"] = seed_hours
+            _random.seed(1234)
+            return local_schedule(state, strategy="rotation")["current_parsed_shifts"]
+
+        with_seeded_hours = _run({"e001": 45.0})
+        without_seeded_hours = _run({})
+
+        assert with_seeded_hours == without_seeded_hours

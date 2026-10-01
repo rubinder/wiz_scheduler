@@ -27,7 +27,6 @@ from backend.scheduling.preferences import (
 )
 from backend.scheduling.cost_seniority import (
     COST_WEIGHT,
-    DEFAULT_OVERTIME_THRESHOLD_HOURS,
     SENIORITY_WEIGHT,
     overtime_score,
 )
@@ -183,9 +182,10 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
     # assign shifts here.
     min_rest_hours = location.get("min_rest_hours")
 
-    # Configurable per company/location (Location overrides Company, both
-    # NULL falls back to the 40h constant) -- resolved once per location run,
-    # same pattern as min_rest_hours above.
+    # Configurable per company/location (Location overrides Company; both
+    # NULL means overtime scoring is disabled entirely for this location,
+    # not defaulted to 40h -- see cost_seniority.resolve_overtime_threshold)
+    # -- resolved once per location run, same pattern as min_rest_hours above.
     overtime_threshold = location.get("overtime_threshold_hours")
 
     employee_shift_windows: Dict[str, List[Dict[str, str]]] = {
@@ -524,9 +524,9 @@ def _pick_employee(
             )
             cost = e.get("_cost_score", 0.0) * COST_WEIGHT
             sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = overtime_score(
-                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
-                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            ot = (
+                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                if overtime_threshold is not None else 0.0
             )
             score = opp * 100 + aff + pref + cost + sen + ot
             scored.append((score, e))
@@ -549,9 +549,9 @@ def _pick_employee(
             )
             cost = e.get("_cost_score", 0.0) * COST_WEIGHT
             sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = overtime_score(
-                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
-                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            ot = (
+                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                if overtime_threshold is not None else 0.0
             )
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot
             scored.append((score, e))
@@ -579,9 +579,9 @@ def _pick_employee(
             )
             cost = e.get("_cost_score", 0.0) * COST_WEIGHT
             sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = overtime_score(
-                (employee_hours or {}).get(eid, 0.0), shift_duration_hrs,
-                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            ot = (
+                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                if overtime_threshold is not None else 0.0
             )
             # Blend between random (opp_cost only) and full history consideration
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot + (history_penalty * strategy_param * 10)
@@ -628,9 +628,9 @@ def _pick_employee(
             )
             cost = e.get("_cost_score", 0.0) * COST_WEIGHT
             sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = overtime_score(
-                current_hrs, shift_duration_hrs,
-                overtime_threshold if overtime_threshold is not None else DEFAULT_OVERTIME_THRESHOLD_HOURS,
+            ot = (
+                overtime_score(current_hrs, shift_duration_hrs, overtime_threshold)
+                if overtime_threshold is not None else 0.0
             )
 
             # Penalty for being near/over the cap, scaled by strictness
