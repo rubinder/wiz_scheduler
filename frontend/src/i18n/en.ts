@@ -420,6 +420,11 @@ const en = {
     filterAllLocations: "All locations",
     limitReached: "Free plan allows {limit} employees — upgrade to add more.",
     csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
+    payRate: "Pay Rate ($/hr)",
+    payRateGatedHint: "Upgrade to a paid plan to set pay rate for cost-aware scheduling.",
+    hireDate: "Hire Date",
+    seniorityRank: "Seniority Rank",
+    seniorityRankHint: "Manual override — leave blank to rank by hire date.",
   },
 
   // ── Employee Onboarding ──

@@ -419,6 +419,11 @@ const zh = {
     filterAllLocations: "All locations",
     limitReached: "免费版最多允许 {limit} 名员工——升级以添加更多。",
     csvLimitError: "此文件包含 {rows} 名员工，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
+    payRate: "薪资 ($/小时)",
+    payRateGatedHint: "升级到付费计划以设置薪资，用于成本感知排班。",
+    hireDate: "入职日期",
+    seniorityRank: "资历排名",
+    seniorityRankHint: "手动覆盖 — 留空则按入职日期排名。",
   },
 
   // ── Employee Onboarding ──

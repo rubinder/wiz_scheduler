@@ -419,6 +419,11 @@ const pcm = {
     filterAllLocations: "All locations",
     limitReached: "Free plan de allow only {limit} workers — upgrade make you fit add more.",
     csvLimitError: "This file get {rows} workers but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
+    payRate: "Pay Rate ($/hr)",
+    payRateGatedHint: "Upgrade go paid plan to set pay rate for cost-aware scheduling.",
+    hireDate: "Hire Date",
+    seniorityRank: "Seniority Rank",
+    seniorityRankHint: "Manual override — leave am blank make e rank by hire date.",
   },
 
   // ── Employee Onboarding ──

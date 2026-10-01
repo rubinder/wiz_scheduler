@@ -419,6 +419,11 @@ const fr = {
     filterAllLocations: "All locations",
     limitReached: "Le plan gratuit autorise {limit} employés — passez à un forfait supérieur pour en ajouter davantage.",
     csvLimitError: "Ce fichier contient {rows} employés, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
+    payRate: "Taux horaire ($/h)",
+    payRateGatedHint: "Passez à un forfait payant pour définir le taux horaire pour une planification tenant compte des coûts.",
+    hireDate: "Date d'embauche",
+    seniorityRank: "Rang d'ancienneté",
+    seniorityRankHint: "Remplacement manuel — laissez vide pour classer par date d'embauche.",
   },
 
   // ── Employee Onboarding ──

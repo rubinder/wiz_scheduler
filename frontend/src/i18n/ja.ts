@@ -419,6 +419,11 @@ const ja = {
     filterAllLocations: "All locations",
     limitReached: "無料プランでは従業員は{limit}人までです。追加するにはアップグレードしてください。",
     csvLimitError: "このファイルには{rows}人の従業員が含まれていますが、無料プランの残り枠は{remaining}人分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
+    payRate: "時給 ($/時)",
+    payRateGatedHint: "コストを考慮したスケジューリングのために時給を設定するには、有料プランにアップグレードしてください。",
+    hireDate: "採用日",
+    seniorityRank: "勤続順位",
+    seniorityRankHint: "手動上書き — 空欄のままにすると採用日順にランク付けされます。",
   },
 
   // ── Employee Onboarding ──

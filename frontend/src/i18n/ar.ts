@@ -419,6 +419,11 @@ const ar = {
     filterAllLocations: "All locations",
     limitReached: "الخطة المجانية تسمح بـ {limit} موظفين — قم بالترقية لإضافة المزيد.",
     csvLimitError: "يحتوي هذا الملف على {rows} موظفين، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
+    payRate: "الأجر ($/ساعة)",
+    payRateGatedHint: "قم بالترقية إلى خطة مدفوعة لتعيين الأجر من أجل جدولة واعية بالتكلفة.",
+    hireDate: "تاريخ التعيين",
+    seniorityRank: "ترتيب الأقدمية",
+    seniorityRankHint: "تجاوز يدوي — اتركه فارغًا للترتيب حسب تاريخ التعيين.",
   },
 
   // ── Employee Onboarding ──

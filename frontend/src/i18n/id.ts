@@ -419,6 +419,11 @@ const ind = {
     filterAllLocations: "All locations",
     limitReached: "Paket gratis mengizinkan {limit} karyawan — upgrade untuk menambah lebih banyak.",
     csvLimitError: "File ini berisi {rows} karyawan, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
+    payRate: "Tarif Gaji ($/jam)",
+    payRateGatedHint: "Upgrade ke paket berbayar untuk mengatur tarif gaji demi penjadwalan yang memperhitungkan biaya.",
+    hireDate: "Tanggal Perekrutan",
+    seniorityRank: "Peringkat Senioritas",
+    seniorityRankHint: "Penggantian manual — biarkan kosong untuk mengurutkan berdasarkan tanggal perekrutan.",
   },
 
   // ── Employee Onboarding ──

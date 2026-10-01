@@ -419,6 +419,11 @@ const pt = {
     filterAllLocations: "All locations",
     limitReached: "O plano gratuito permite {limit} funcionários — faça upgrade para adicionar mais.",
     csvLimitError: "Este arquivo tem {rows} funcionários, mas seu plano gratuito só tem espaço para {remaining}. O arquivo inteiro seria rejeitado — faça upgrade ou envie um arquivo menor.",
+    payRate: "Taxa de pagamento ($/h)",
+    payRateGatedHint: "Faça upgrade para um plano pago para definir a taxa de pagamento para agendamento com base em custos.",
+    hireDate: "Data de contratação",
+    seniorityRank: "Classificação de antiguidade",
+    seniorityRankHint: "Substituição manual — deixe em branco para classificar por data de contratação.",
   },
 
   // ── Employee Onboarding ──

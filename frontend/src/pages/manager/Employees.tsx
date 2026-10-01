@@ -39,7 +39,13 @@ export default function Employees() {
     roles: RoleAssignment[];
     location_ids: string[];
     company_ids: string[];
-  }>({ full_name: "", email: "", roles: [], location_ids: [], company_ids: [] });
+    pay_rate: string;
+    hire_date: string;
+    seniority_rank: string;
+  }>({
+    full_name: "", email: "", roles: [], location_ids: [], company_ids: [],
+    pay_rate: "", hire_date: "", seniority_rank: "",
+  });
 
   // Add-row state
   const [showAddRow, setShowAddRow] = useState(false);
@@ -49,7 +55,13 @@ export default function Employees() {
     roles: RoleAssignment[];
     location_ids: string[];
     company_ids: string[];
-  }>({ full_name: "", email: "", roles: [], location_ids: [], company_ids: [] });
+    pay_rate: string;
+    hire_date: string;
+    seniority_rank: string;
+  }>({
+    full_name: "", email: "", roles: [], location_ids: [], company_ids: [],
+    pay_rate: "", hire_date: "", seniority_rank: "",
+  });
 
   const fetchData = useCallback(async () => {
     try {
@@ -100,6 +112,9 @@ export default function Employees() {
       })),
       location_ids: emp.location_ids ?? [],
       company_ids: emp.company_ids ?? [],
+      pay_rate: emp.pay_rate != null ? String(emp.pay_rate) : "",
+      hire_date: emp.hire_date ?? "",
+      seniority_rank: emp.seniority_rank != null ? String(emp.seniority_rank) : "",
     });
   };
 
@@ -111,6 +126,9 @@ export default function Employees() {
       roles: [],
       location_ids: [],
       company_ids: [],
+      pay_rate: "",
+      hire_date: "",
+      seniority_rank: "",
     });
   };
 
@@ -129,6 +147,9 @@ export default function Employees() {
           editValues.company_ids.length > 0
             ? editValues.company_ids
             : undefined,
+        pay_rate: editValues.pay_rate === "" ? null : Number(editValues.pay_rate),
+        hire_date: editValues.hire_date === "" ? null : editValues.hire_date,
+        seniority_rank: editValues.seniority_rank === "" ? null : Number(editValues.seniority_rank),
       });
       setEditingId(null);
       await fetchData();
@@ -161,6 +182,9 @@ export default function Employees() {
           addValues.company_ids.length > 0
             ? addValues.company_ids
             : undefined,
+        pay_rate: addValues.pay_rate === "" ? null : Number(addValues.pay_rate),
+        hire_date: addValues.hire_date === "" ? null : addValues.hire_date,
+        seniority_rank: addValues.seniority_rank === "" ? null : Number(addValues.seniority_rank),
       });
       setAddValues({
         full_name: "",
@@ -168,6 +192,9 @@ export default function Employees() {
         roles: [],
         location_ids: [],
         company_ids: [],
+        pay_rate: "",
+        hire_date: "",
+        seniority_rank: "",
       });
       setShowAddRow(false);
       await fetchData();
@@ -438,6 +465,15 @@ export default function Employees() {
                 {t.common.email}
               </th>
               <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+                {t.employeesPage.payRate}
+              </th>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+                {t.employeesPage.hireDate}
+              </th>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
+                {t.employeesPage.seniorityRank}
+              </th>
+              <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.locations}
               </th>
               {hasMultipleCompanies && (
@@ -490,6 +526,55 @@ export default function Employees() {
                       />
                     ) : (
                       <span className={`text-sm ${text.body}`}>{emp.email ?? ""}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="glass-input-sm w-full"
+                        disabled={plan?.plan === "free"}
+                        title={plan?.plan === "free" ? t.employeesPage.payRateGatedHint : undefined}
+                        value={editValues.pay_rate}
+                        onChange={(e) =>
+                          setEditValues((v) => ({ ...v, pay_rate: e.target.value }))
+                        }
+                      />
+                    ) : (
+                      <span className={`text-sm ${text.body}`}>{emp.pay_rate ?? ""}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        className="glass-input-sm w-full"
+                        value={editValues.hire_date}
+                        onChange={(e) =>
+                          setEditValues((v) => ({ ...v, hire_date: e.target.value }))
+                        }
+                      />
+                    ) : (
+                      <span className={`text-sm ${text.body}`}>{emp.hire_date ?? ""}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="glass-input-sm w-full"
+                        title={t.employeesPage.seniorityRankHint}
+                        value={editValues.seniority_rank}
+                        onChange={(e) =>
+                          setEditValues((v) => ({ ...v, seniority_rank: e.target.value }))
+                        }
+                      />
+                    ) : (
+                      <span className={`text-sm ${text.body}`}>{emp.seniority_rank ?? ""}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -585,6 +670,39 @@ export default function Employees() {
                   />
                 </td>
                 <td className="px-4 py-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="glass-input-sm w-full"
+                    placeholder={t.employeesPage.payRate}
+                    disabled={plan?.plan === "free"}
+                    title={plan?.plan === "free" ? t.employeesPage.payRateGatedHint : undefined}
+                    value={addValues.pay_rate}
+                    onChange={(e) => setAddValues((v) => ({ ...v, pay_rate: e.target.value }))}
+                  />
+                </td>
+                <td className="px-4 py-2">
+                  <input
+                    type="date"
+                    className="glass-input-sm w-full"
+                    value={addValues.hire_date}
+                    onChange={(e) => setAddValues((v) => ({ ...v, hire_date: e.target.value }))}
+                  />
+                </td>
+                <td className="px-4 py-2">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="glass-input-sm w-full"
+                    placeholder={t.employeesPage.seniorityRank}
+                    title={t.employeesPage.seniorityRankHint}
+                    value={addValues.seniority_rank}
+                    onChange={(e) => setAddValues((v) => ({ ...v, seniority_rank: e.target.value }))}
+                  />
+                </td>
+                <td className="px-4 py-2">
                   {renderLocationEditor(addValues.location_ids, (ids) =>
                     setAddValues((v) => ({ ...v, location_ids: ids }))
                   )}
@@ -617,6 +735,9 @@ export default function Employees() {
                         roles: [],
                         location_ids: [],
                         company_ids: [],
+                        pay_rate: "",
+                        hire_date: "",
+                        seniority_rank: "",
                       });
                     }}
                     className={action.cancel}
