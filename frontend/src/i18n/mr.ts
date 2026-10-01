@@ -361,6 +361,9 @@ const mr = {
     companyName: "कंपनीचे नाव",
     slug: "स्लग",
     updateSuccess: "कंपनीचे नाव यशस्वीरीत्या अद्ययावत झाले.",
+    overtimeThreshold: "ओव्हरटाइम मर्यादा (तास/आठवडा)",
+    overtimeMultiplier: "ओव्हरटाइम प्रीमियम गुणक",
+    overtimeGatedHint: "ओव्हरटाइम सेटिंग्ज कॉन्फिगर करण्यासाठी सशुल्क योजनेत श्रेणीसुधारित करा.",
   },
 
   // ── Regions ──

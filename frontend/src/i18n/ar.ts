@@ -361,6 +361,9 @@ const ar = {
     companyName: "اسم الشركة",
     slug: "المعرّف المختصر",
     updateSuccess: "تم تحديث اسم الشركة بنجاح.",
+    overtimeThreshold: "حد العمل الإضافي (ساعات/أسبوع)",
+    overtimeMultiplier: "مُضاعِف أجر العمل الإضافي",
+    overtimeGatedHint: "قم بالترقية إلى خطة مدفوعة لتكوين إعدادات العمل الإضافي.",
   },
 
   // ── Regions ──

@@ -361,6 +361,9 @@ const fr = {
     companyName: "Nom de l'entreprise",
     slug: "Identifiant",
     updateSuccess: "Le nom de l'entreprise a été mis à jour avec succès.",
+    overtimeThreshold: "Seuil d'heures supplémentaires (h/semaine)",
+    overtimeMultiplier: "Multiplicateur de prime d'heures supplémentaires",
+    overtimeGatedHint: "Passez à un forfait payant pour configurer les paramètres d'heures supplémentaires.",
   },
 
   // ── Regions ──

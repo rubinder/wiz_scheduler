@@ -361,6 +361,9 @@ const ur = {
     companyName: "کمپنی کا نام",
     slug: "سلگ",
     updateSuccess: "کمپنی کا نام کامیابی سے اپ ڈیٹ ہو گیا۔",
+    overtimeThreshold: "اووَر ٹائم حد (گھنٹے/ہفتہ)",
+    overtimeMultiplier: "اووَر ٹائم پریمیم ضارب",
+    overtimeGatedHint: "اووَر ٹائم ترتیبات کنفیگر کرنے کے لیے ادائیگی والے پلان میں اپ گریڈ کریں۔",
   },
 
   // ── Regions ──

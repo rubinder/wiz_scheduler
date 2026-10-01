@@ -361,6 +361,9 @@ const vi = {
     companyName: "Tên công ty",
     slug: "Slug",
     updateSuccess: "Đã cập nhật tên công ty thành công.",
+    overtimeThreshold: "Ngưỡng làm thêm giờ (giờ/tuần)",
+    overtimeMultiplier: "Hệ số phụ cấp làm thêm giờ",
+    overtimeGatedHint: "Nâng cấp lên gói trả phí để cấu hình cài đặt làm thêm giờ.",
   },
 
   // ── Regions ──

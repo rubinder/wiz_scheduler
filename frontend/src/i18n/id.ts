@@ -361,6 +361,9 @@ const ind = {
     companyName: "Nama Perusahaan",
     slug: "Slug",
     updateSuccess: "Nama perusahaan berhasil diperbarui.",
+    overtimeThreshold: "Ambang Lembur (jam/minggu)",
+    overtimeMultiplier: "Pengali Premi Lembur",
+    overtimeGatedHint: "Tingkatkan ke paket berbayar untuk mengonfigurasi pengaturan lembur.",
   },
 
   // ── Regions ──

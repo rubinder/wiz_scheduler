@@ -361,6 +361,9 @@ const ja = {
     companyName: "会社名",
     slug: "スラッグ",
     updateSuccess: "会社名が正常に更新されました。",
+    overtimeThreshold: "残業しきい値 (時間/週)",
+    overtimeMultiplier: "残業割増倍率",
+    overtimeGatedHint: "残業設定を構成するには有料プランにアップグレードしてください。",
   },
 
   // ── Regions ──

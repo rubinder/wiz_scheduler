@@ -361,6 +361,9 @@ const ta = {
     companyName: "நிறுவனப் பெயர்",
     slug: "Slug",
     updateSuccess: "நிறுவனப் பெயர் வெற்றிகரமாக புதுப்பிக்கப்பட்டது.",
+    overtimeThreshold: "ஓவர்டைம் வரம்பு (மணி/வாரம்)",
+    overtimeMultiplier: "ஓவர்டைம் பிரீமியம் பெருக்கி",
+    overtimeGatedHint: "ஓவர்டைம் அமைப்புகளை கட்டமைக்க கட்டண திட்டத்திற்கு மேம்படுத்தவும்.",
   },
 
   // ── Regions ──

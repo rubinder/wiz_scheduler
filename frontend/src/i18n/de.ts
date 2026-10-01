@@ -361,6 +361,9 @@ const de = {
     companyName: "Unternehmensname",
     slug: "Slug",
     updateSuccess: "Unternehmensname erfolgreich aktualisiert.",
+    overtimeThreshold: "Überstundenschwelle (Std./Woche)",
+    overtimeMultiplier: "Überstundenzuschlag-Multiplikator",
+    overtimeGatedHint: "Führen Sie ein Upgrade auf einen kostenpflichtigen Plan durch, um die Überstundeneinstellungen zu konfigurieren.",
   },
 
   // ── Regions ──

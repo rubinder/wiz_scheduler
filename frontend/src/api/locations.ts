@@ -12,6 +12,8 @@ export function createLocation(body: {
   geo_coord?: Record<string, unknown> | null;
   timezone: string;
   min_rest_hours?: number | null;
+  overtime_threshold_hours?: number | null;
+  overtime_premium_multiplier?: number | null;
 }): Promise<Location> {
   return apiFetch<Location>("/locations/", {
     method: "POST",
@@ -28,6 +30,8 @@ export function updateLocation(
     geo_coord?: Record<string, unknown> | null;
     timezone?: string;
     min_rest_hours?: number | null;
+    overtime_threshold_hours?: number | null;
+    overtime_premium_multiplier?: number | null;
   }
 ): Promise<Location> {
   return apiFetch<Location>(`/locations/${id}`, {

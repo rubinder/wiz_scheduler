@@ -47,6 +47,8 @@ export interface Company {
   slug: string;
   ownership_group_id: string | null;
   created_at: string;
+  overtime_threshold_hours: number | null;
+  overtime_premium_multiplier: number | null;
 }
 
 // ── Ownership Group ──
@@ -90,6 +92,10 @@ export interface Location {
   /** Minimum rest hours between shifts on different days (NYC Fair Workweek
    * clopening rule = 11). null = no constraint. */
   min_rest_hours: number | null;
+  /** Overrides the company default when set; both null falls back to a 40h
+   * code default. Paid-plan gated at the API write layer. */
+  overtime_threshold_hours: number | null;
+  overtime_premium_multiplier: number | null;
 }
 
 // ── Role ──

@@ -361,6 +361,9 @@ const pcm = {
     companyName: "Company Name",
     slug: "Slug",
     updateSuccess: "Company name don update well well.",
+    overtimeThreshold: "Overtime Limit (hrs/week)",
+    overtimeMultiplier: "Overtime Premium Multiplier",
+    overtimeGatedHint: "Upgrade go paid plan make you fit configure overtime settings.",
   },
 
   // ── Regions ──

@@ -361,6 +361,9 @@ const es = {
     companyName: "Nombre de la empresa",
     slug: "Slug",
     updateSuccess: "Nombre de la empresa actualizado correctamente.",
+    overtimeThreshold: "Umbral de horas extra (hrs/semana)",
+    overtimeMultiplier: "Multiplicador de prima por horas extra",
+    overtimeGatedHint: "Actualice a un plan de pago para configurar los ajustes de horas extra.",
   },
 
   // ── Regions ──

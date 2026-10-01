@@ -361,6 +361,9 @@ const trLang = {
     companyName: "Şirket Adı",
     slug: "Kısa Ad",
     updateSuccess: "Şirket adı başarıyla güncellendi.",
+    overtimeThreshold: "Fazla Mesai Eşiği (saat/hafta)",
+    overtimeMultiplier: "Fazla Mesai Prim Çarpanı",
+    overtimeGatedHint: "Fazla mesai ayarlarını yapılandırmak için ücretli bir plana yükseltin.",
   },
 
   // ── Regions ──

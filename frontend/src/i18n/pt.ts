@@ -361,6 +361,9 @@ const pt = {
     companyName: "Nome da empresa",
     slug: "Slug",
     updateSuccess: "Nome da empresa atualizado com sucesso.",
+    overtimeThreshold: "Limite de horas extras (h/semana)",
+    overtimeMultiplier: "Multiplicador de prêmio de horas extras",
+    overtimeGatedHint: "Atualize para um plano pago para configurar as definições de horas extras.",
   },
 
   // ── Regions ──

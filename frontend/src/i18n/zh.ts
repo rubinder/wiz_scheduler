@@ -361,6 +361,9 @@ const zh = {
     companyName: "公司名称",
     slug: "标识符",
     updateSuccess: "公司名称更新成功。",
+    overtimeThreshold: "加班阈值（小时/周）",
+    overtimeMultiplier: "加班费倍数",
+    overtimeGatedHint: "升级到付费计划以配置加班设置。",
   },
 
   // ── Regions ──

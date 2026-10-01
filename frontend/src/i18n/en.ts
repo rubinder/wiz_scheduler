@@ -362,6 +362,9 @@ const en = {
     companyName: "Company Name",
     slug: "Slug",
     updateSuccess: "Company name updated successfully.",
+    overtimeThreshold: "Overtime Threshold (hrs/week)",
+    overtimeMultiplier: "Overtime Premium Multiplier",
+    overtimeGatedHint: "Upgrade to a paid plan to configure overtime settings.",
   },
 
   // ── Regions ──

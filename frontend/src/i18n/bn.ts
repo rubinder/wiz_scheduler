@@ -361,6 +361,9 @@ const bn = {
     companyName: "কোম্পানির নাম",
     slug: "স্লাগ",
     updateSuccess: "কোম্পানির নাম সফলভাবে আপডেট হয়েছে।",
+    overtimeThreshold: "ওভারটাইম থ্রেশহোল্ড (ঘণ্টা/সপ্তাহ)",
+    overtimeMultiplier: "ওভারটাইম প্রিমিয়াম গুণক",
+    overtimeGatedHint: "ওভারটাইম সেটিংস কনফিগার করতে একটি পেইড প্ল্যানে আপগ্রেড করুন।",
   },
 
   // ── Regions ──
