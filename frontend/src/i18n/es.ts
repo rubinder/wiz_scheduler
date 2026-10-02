@@ -361,6 +361,9 @@ const es = {
     companyName: "Nombre de la empresa",
     slug: "Slug",
     updateSuccess: "Nombre de la empresa actualizado correctamente.",
+    overtimeThreshold: "Umbral de horas extra (hrs/semana)",
+    overtimeMultiplier: "Multiplicador de prima por horas extra",
+    overtimeGatedHint: "Actualice a un plan de pago para configurar los ajustes de horas extra.",
   },
 
   // ── Regions ──
@@ -419,6 +422,11 @@ const es = {
     filterAllLocations: "All locations",
     limitReached: "El plan gratuito permite {limit} empleados — mejora tu plan para agregar más.",
     csvLimitError: "Este archivo tiene {rows} empleados, pero tu plan gratuito solo tiene espacio para {remaining}. Se rechazaría el archivo completo — mejora tu plan o sube un archivo más pequeño.",
+    payRate: "Tarifa de pago ($/h)",
+    payRateGatedHint: "Mejora a un plan de pago para establecer la tarifa de pago para la programación basada en costos.",
+    hireDate: "Fecha de contratación",
+    seniorityRank: "Rango de antigüedad",
+    seniorityRankHint: "Anulación manual — déjalo en blanco para clasificar por fecha de contratación.",
   },
 
   // ── Employee Onboarding ──

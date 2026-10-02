@@ -361,6 +361,9 @@ const ar = {
     companyName: "اسم الشركة",
     slug: "المعرّف المختصر",
     updateSuccess: "تم تحديث اسم الشركة بنجاح.",
+    overtimeThreshold: "حد العمل الإضافي (ساعات/أسبوع)",
+    overtimeMultiplier: "مُضاعِف أجر العمل الإضافي",
+    overtimeGatedHint: "قم بالترقية إلى خطة مدفوعة لتكوين إعدادات العمل الإضافي.",
   },
 
   // ── Regions ──
@@ -419,6 +422,11 @@ const ar = {
     filterAllLocations: "All locations",
     limitReached: "الخطة المجانية تسمح بـ {limit} موظفين — قم بالترقية لإضافة المزيد.",
     csvLimitError: "يحتوي هذا الملف على {rows} موظفين، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
+    payRate: "الأجر ($/ساعة)",
+    payRateGatedHint: "قم بالترقية إلى خطة مدفوعة لتعيين الأجر من أجل جدولة واعية بالتكلفة.",
+    hireDate: "تاريخ التعيين",
+    seniorityRank: "ترتيب الأقدمية",
+    seniorityRankHint: "تجاوز يدوي — اتركه فارغًا للترتيب حسب تاريخ التعيين.",
   },
 
   // ── Employee Onboarding ──

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
 from backend.models import Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
-from backend.services.plan import assert_can_add, assert_roster_editable
+from backend.services.plan import assert_can_add, assert_paid_plan, assert_roster_editable
 from backend.schemas.employee import (
     AvailabilityCreate,
     AvailabilityResponse,
@@ -171,6 +171,8 @@ async def create_employee(
 ) -> EmployeeResponse:
     await assert_roster_editable(db, str(current_user.company_id))
     await assert_can_add(db, str(current_user.company_id), employees=1)
+    if body.pay_rate is not None:
+        await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
     employee = Employee(
         company_id=current_user.company_id,
@@ -179,6 +181,9 @@ async def create_employee(
         user_id=body.user_id,
         location_ids=body.location_ids,
         max_hours_per_week=body.max_hours_per_week,
+        pay_rate=body.pay_rate,
+        hire_date=body.hire_date,
+        seniority_rank=body.seniority_rank,
     )
     db.add(employee)
     await db.flush()
@@ -229,6 +234,12 @@ async def update_employee(
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
+    # Gate on the VALUE being set, not just the field's presence, so a
+    # free-plan company can clear a stale pay_rate (set it to null) without
+    # needing to re-upgrade -- clearing never grants paid-tier behavior.
+    if "pay_rate" in body.model_fields_set and body.pay_rate is not None:
+        await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
+
     if body.full_name is not None:
         employee.full_name = body.full_name
     if body.email is not None:
@@ -241,6 +252,12 @@ async def update_employee(
     # (remove the restriction) by sending {"max_hours_per_week": null}.
     if "max_hours_per_week" in body.model_fields_set:
         employee.max_hours_per_week = body.max_hours_per_week
+    if "pay_rate" in body.model_fields_set:
+        employee.pay_rate = body.pay_rate
+    if "hire_date" in body.model_fields_set:
+        employee.hire_date = body.hire_date
+    if "seniority_rank" in body.model_fields_set:
+        employee.seniority_rank = body.seniority_rank
 
     if body.roles is not None:
         await _sync_employee_roles(db, employee.id, current_user.company_id, body.roles)

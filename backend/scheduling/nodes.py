@@ -236,6 +236,7 @@ def build_prompt(state: SchedulingState) -> Dict[str, Any]:
         week_start_date=state["week_start_date"],
         conflict_notes=conflict_notes,
         num_days=state.get("num_days", 7),
+        employee_hours_committed=state.get("employee_weekly_hours_draft", {}),
     )
     logger.warning(
         "[SCHED-TRACE] build_prompt: location=%s prompt_length=%d chars",

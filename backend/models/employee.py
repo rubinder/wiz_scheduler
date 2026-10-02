@@ -31,8 +31,20 @@ class Employee(Base):
     # Weekly hour cap. NULL means no cap.
     max_hours_per_week: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Cost/seniority scheduling signals (#134). All nullable — NULL means the
+    # manager hasn't opted this employee into the corresponding soft-weight
+    # scoring term. pay_rate is paid-plan gated at the API write layer
+    # (backend/routers/employees.py); hire_date/seniority_rank are free.
+    pay_rate: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    seniority_rank: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+
     roles: Mapped[list["EmployeeRole"]] = relationship(
         back_populates="employee", lazy="selectin"
+    )
+
+    __table_args__ = (
+        CheckConstraint("seniority_rank > 0", name="ck_employees_seniority_rank"),
     )
 
 

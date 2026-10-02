@@ -361,6 +361,9 @@ const trLang = {
     companyName: "Şirket Adı",
     slug: "Kısa Ad",
     updateSuccess: "Şirket adı başarıyla güncellendi.",
+    overtimeThreshold: "Fazla Mesai Eşiği (saat/hafta)",
+    overtimeMultiplier: "Fazla Mesai Prim Çarpanı",
+    overtimeGatedHint: "Fazla mesai ayarlarını yapılandırmak için ücretli bir plana yükseltin.",
   },
 
   // ── Regions ──
@@ -419,6 +422,11 @@ const trLang = {
     filterAllLocations: "All locations",
     limitReached: "Ücretsiz plan {limit} çalışana izin verir — daha fazla eklemek için yükseltin.",
     csvLimitError: "Bu dosyada {rows} çalışan var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
+    payRate: "Ücret Oranı ($/sa)",
+    payRateGatedHint: "Maliyet bilincine sahip planlama için ücret oranını belirlemek üzere ücretli plana yükseltin.",
+    hireDate: "İşe Alım Tarihi",
+    seniorityRank: "Kıdem Sırası",
+    seniorityRankHint: "Manuel geçersiz kılma — işe alım tarihine göre sıralamak için boş bırakın.",
   },
 
   // ── Employee Onboarding ──

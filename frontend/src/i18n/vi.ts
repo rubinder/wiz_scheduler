@@ -361,6 +361,9 @@ const vi = {
     companyName: "Tên công ty",
     slug: "Slug",
     updateSuccess: "Đã cập nhật tên công ty thành công.",
+    overtimeThreshold: "Ngưỡng làm thêm giờ (giờ/tuần)",
+    overtimeMultiplier: "Hệ số phụ cấp làm thêm giờ",
+    overtimeGatedHint: "Nâng cấp lên gói trả phí để cấu hình cài đặt làm thêm giờ.",
   },
 
   // ── Regions ──
@@ -419,6 +422,11 @@ const vi = {
     filterAllLocations: "All locations",
     limitReached: "Gói miễn phí cho phép {limit} nhân viên — nâng cấp để thêm nhiều hơn.",
     csvLimitError: "Tệp này có {rows} nhân viên, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
+    payRate: "Mức lương ($/giờ)",
+    payRateGatedHint: "Nâng cấp lên gói trả phí để đặt mức lương cho việc lập lịch có cân nhắc chi phí.",
+    hireDate: "Ngày tuyển dụng",
+    seniorityRank: "Thứ hạng thâm niên",
+    seniorityRankHint: "Ghi đè thủ công — để trống để xếp hạng theo ngày tuyển dụng.",
   },
 
   // ── Employee Onboarding ──

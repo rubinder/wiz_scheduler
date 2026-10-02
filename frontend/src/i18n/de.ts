@@ -361,6 +361,9 @@ const de = {
     companyName: "Unternehmensname",
     slug: "Slug",
     updateSuccess: "Unternehmensname erfolgreich aktualisiert.",
+    overtimeThreshold: "Überstundenschwelle (Std./Woche)",
+    overtimeMultiplier: "Überstundenzuschlag-Multiplikator",
+    overtimeGatedHint: "Führen Sie ein Upgrade auf einen kostenpflichtigen Plan durch, um die Überstundeneinstellungen zu konfigurieren.",
   },
 
   // ── Regions ──
@@ -419,6 +422,11 @@ const de = {
     filterAllLocations: "All locations",
     limitReached: "Der kostenlose Plan erlaubt {limit} Mitarbeiter — upgraden, um weitere hinzuzufügen.",
     csvLimitError: "Diese Datei enthält {rows} Mitarbeiter, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
+    payRate: "Stundenlohn ($/Std.)",
+    payRateGatedHint: "Führen Sie ein Upgrade auf einen kostenpflichtigen Plan durch, um den Stundenlohn für kostenbewusste Planung festzulegen.",
+    hireDate: "Einstellungsdatum",
+    seniorityRank: "Dienstalter-Rang",
+    seniorityRankHint: "Manuelle Überschreibung — leer lassen, um nach Einstellungsdatum zu ranken.",
   },
 
   // ── Employee Onboarding ──

@@ -1,6 +1,14 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
+from backend.scheduling.cost_seniority import (
+    COST_WEIGHT,
+    SENIORITY_WEIGHT,
+    cost_score,
+    overtime_score,
+    resolve_seniority_ranks,
+    seniority_score,
+)
 from backend.scheduling.preferences import blocked_by_hard_preference, preference_score
 
 # Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
@@ -10,6 +18,18 @@ _DAY_INDEX_FOR_PROMPT = {
     "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
     "Friday": 4, "Saturday": 5, "Sunday": 6,
 }
+
+
+def _shift_duration_hours(start_hm: str, end_hm: str) -> float:
+    """Calculate shift duration in hours from HH:MM strings."""
+    sh, sm = map(int, start_hm.split(":"))
+    eh, em = map(int, end_hm.split(":"))
+    start_min = sh * 60 + sm
+    end_min = eh * 60 + em
+    if end_min <= start_min:
+        end_min += 24 * 60  # overnight shift
+    return (end_min - start_min) / 60.0
+
 
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -128,14 +148,15 @@ def eligible_for_slot(
     count against.
 
     Callers must pass employees already prepared with `_role_names` and
-    `_day_windows`. Each returned dict is the input dict plus `_skill` for the
-    requested role.
+    `_day_windows`. Each returned dict is the input dict plus `_skill`, `_cost_score`, and
+    `_seniority_score` (see backend.scheduling.cost_seniority), all computed
+    once here so both scheduling paths see identical values.
 
     `day_index` and `range_counts` are optional: omitting `day_index` skips
     the weight-1.0 hard preference filter entirely, which is what keeps
     existing callers (and the no-preference case) byte-identical.
     """
-    eligible: List[Dict[str, Any]] = []
+    filtered: List[Dict[str, Any]] = []
     for e in prepared_employees:
         if role_name not in e["_role_names"]:
             continue
@@ -157,8 +178,21 @@ def eligible_for_slot(
             ),
             0,
         )
-        eligible.append({**e, "_skill": skill})
-    return eligible
+        filtered.append({**e, "_skill": skill})
+
+    # Cost and seniority are normalized against this slot's own eligible
+    # pool (not the whole roster), so what a candidate's score expresses is
+    # "how does this person compare to the others who could actually fill
+    # this slot" — see cost_seniority.cost_score/seniority_score.
+    resolved_ranks = resolve_seniority_ranks(filtered)
+    return [
+        {
+            **e,
+            "_cost_score": cost_score(e, filtered),
+            "_seniority_score": seniority_score(e, resolved_ranks),
+        }
+        for e in filtered
+    ]
 
 
 def _format_avail_str(day_windows: Dict[str, List[Tuple[str, str]]]) -> str:
@@ -179,11 +213,15 @@ def build_schedule_prompt(
     week_start_date: str,
     conflict_notes: str = "",
     num_days: int = 7,
+    employee_hours_committed: Dict[str, float] | None = None,
 ) -> str:
     """Build the full scheduling prompt for a single location."""
     date_map = _build_date_map(week_start_date, num_days)
     date_to_day = {date: day for day, date in date_map.items()}
     tz_offset = _tz_offset_example(location["timezone"])
+
+    overtime_threshold = location.get("overtime_threshold_hours")
+    hours_committed_map = employee_hours_committed or {}
 
     weekly_schedule: Dict[str, List[dict]] = shift_template.get("weekly_schedule", {})
 
@@ -247,10 +285,30 @@ def build_schedule_prompt(
             # pattern local_scheduler._pick_employee uses for the same
             # reason.
             candidates.sort(key=lambda c: (
-                preference_score(c, day_index, start, end, {})
-                if day_index is not None else 0.0
+                (preference_score(c, day_index, start, end, {}) if day_index is not None else 0.0)
+                + c.get("_cost_score", 0.0) * COST_WEIGHT
+                + c.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+                + (
+                    overtime_score(
+                        hours_committed_map.get(str(c["id"]), 0.0),
+                        _shift_duration_hours(start, end),
+                        overtime_threshold,
+                    )
+                    if overtime_threshold is not None else 0.0
+                )
             ))
-            eligible = [f'{c["id"]} [skill={c["_skill"]}]' for c in candidates]
+            eligible = []
+            for c in candidates:
+                cid = str(c["id"])
+                parts = [f"skill={c['_skill']}"]
+                if c.get("pay_rate") is not None:
+                    parts.append(f"cost={c['_cost_score']:.2f}")
+                if c.get("seniority_rank") is not None or c.get("hire_date") is not None:
+                    parts.append(f"seniority={c['_seniority_score']:.2f}")
+                hours_committed = hours_committed_map.get(cid, 0.0)
+                if overtime_threshold is not None and hours_committed > 0:
+                    parts.append(f"hours_committed={hours_committed:.1f}/threshold={overtime_threshold:.0f}")
+                eligible.append(f'{cid} [{", ".join(parts)}]')
 
             eligible_str = ", ".join(eligible) if eligible else "NONE AVAILABLE"
             req_lines.append(
@@ -261,6 +319,7 @@ def build_schedule_prompt(
     requirements_block = "\n".join(req_lines)
 
     # Build employee roster (only role-relevant employees)
+    roster_seniority_ranks = resolve_seniority_ranks(emp_data)
     roster_lines: List[str] = []
     for e in emp_data:
         affinities = e.get("affinities", [])
@@ -268,10 +327,14 @@ def build_schedule_prompt(
         if affinities:
             aff_parts = [f'{a.get("target_id", "")}:{a.get("level", 0)}' for a in affinities]
             aff_str = f"\n  affinities: [{', '.join(aff_parts)}]"
+        eid = str(e["id"])
+        seniority_str = ""
+        if eid in roster_seniority_ranks:
+            seniority_str = f"\n  seniority_rank: {int(roster_seniority_ranks[eid])}"
         roster_lines.append(
             f"- {e['id']}\n"
             f"  roles: [{e['_roles_display']}]\n"
-            f"  available: {e['_avail_display']}{aff_str}"
+            f"  available: {e['_avail_display']}{aff_str}{seniority_str}"
         )
 
     roster_block = "\n".join(roster_lines) if roster_lines else "(no eligible employees)"
@@ -313,12 +376,31 @@ def build_schedule_prompt(
         e.get("day_preferences") or e.get("hour_range_preferences") or e.get("hour_range_caps")
         for e in emp_data
     )
-    preference_rule = (
-        f"7. The Eligible list is ordered BEST FIRST by employee scheduling\n"
-        f"   preferences. Prefer earlier entries when candidates are otherwise\n"
-        f"   equal.\n"
-        if has_preferences else ""
-    )
+    has_cost_seniority_overtime = any(
+        e.get("pay_rate") is not None
+        or e.get("seniority_rank") is not None
+        or e.get("hire_date") is not None
+        for e in emp_data
+    ) or overtime_threshold is not None
+
+    extra_rules = ""
+    next_rule_num = 7
+    if has_preferences:
+        extra_rules += (
+            f"{next_rule_num}. The Eligible list is ordered BEST FIRST by employee scheduling\n"
+            f"   preferences. Prefer earlier entries when candidates are otherwise\n"
+            f"   equal.\n"
+        )
+        next_rule_num += 1
+    if has_cost_seniority_overtime:
+        extra_rules += (
+            f"{next_rule_num}. Some Eligible entries show cost, seniority, and/or\n"
+            f"   hours_committed/threshold. Prefer lower cost and higher seniority when\n"
+            f"   candidates are otherwise equal, and avoid pushing an employee's\n"
+            f"   hours_committed past their threshold when an alternative eligible\n"
+            f"   employee can cover the slot.\n"
+        )
+        next_rule_num += 1
 
     prompt = (
         f"You are a scheduling assistant for {location['name']} (timezone: {location['timezone']}).\n"
@@ -348,7 +430,7 @@ def build_schedule_prompt(
         f"4. Distribute hours fairly — avoid giving one employee all the shifts.\n"
         f"5. Prefer higher skill_level employees.\n"
         f"6. Honour affinity constraints if present.\n"
-        f"{preference_rule}"
+        f"{extra_rules}"
         f"\n"
         f"OUTPUT FORMAT\n"
         f"=============\n"

@@ -42,6 +42,8 @@ export default function Locations() {
     plan.locations.limit !== null &&
     plan.locations.count >= plan.locations.limit;
 
+  const overtimeGated = plan?.plan === "free";
+
   const columns: Column[] = useMemo(
     () => [
       { key: "name", label: "Name", type: "text" },
@@ -62,8 +64,30 @@ export default function Locations() {
           "Minimum hours of rest between an employee's shifts on different days. " +
           "Set 11 for NYC Fair Workweek compliance (no clopenings). Leave blank for no limit.",
       },
+      ...(overtimeGated
+        ? []
+        : [
+            {
+              key: "overtime_threshold_hours",
+              label: "Overtime threshold (h/wk)",
+              type: "number" as const,
+              placeholder: "e.g. 40",
+              title:
+                "Hours/week after which the scheduler avoids assigning more hours to an " +
+                "employee at this location. Leave blank to use the company default (or 40h).",
+            },
+            {
+              key: "overtime_premium_multiplier",
+              label: "Overtime premium multiplier",
+              type: "number" as const,
+              placeholder: "e.g. 1.5",
+              title:
+                "Pay multiplier for overtime hours at this location. Leave blank to use the " +
+                "company default (or 1.5x).",
+            },
+          ]),
     ],
-    [regions]
+    [regions, overtimeGated]
   );
 
   // Blank/invalid → null (no constraint); otherwise a non-negative number.
@@ -81,6 +105,8 @@ export default function Locations() {
         address: (row.address as string) || null,
         timezone: row.timezone as string,
         min_rest_hours: parseMinRest(row.min_rest_hours),
+        overtime_threshold_hours: overtimeGated ? undefined : parseMinRest(row.overtime_threshold_hours),
+        overtime_premium_multiplier: overtimeGated ? undefined : parseMinRest(row.overtime_premium_multiplier),
       });
       await fetchData();
     } catch (err: unknown) {
@@ -140,6 +166,8 @@ export default function Locations() {
         address: (row.address as string) || null,
         timezone: (row.timezone as string) || "UTC",
         min_rest_hours: parseMinRest(row.min_rest_hours),
+        overtime_threshold_hours: parseMinRest(row.overtime_threshold_hours),
+        overtime_premium_multiplier: parseMinRest(row.overtime_premium_multiplier),
       });
       await fetchData();
       await refreshPlan();
@@ -180,6 +208,11 @@ export default function Locations() {
           onUpload={handleImportUpload}
           onClose={() => setShowImportModal(false)}
         />
+      )}
+      {overtimeGated && (
+        <p className={`text-xs ${text.muted} mb-2`}>
+          Upgrade to a paid plan to configure overtime settings for a location.
+        </p>
       )}
       <div className="glass-card">
         <DataTable
