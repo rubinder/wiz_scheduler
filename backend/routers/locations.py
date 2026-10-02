@@ -82,7 +82,10 @@ async def update_location(
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
-    if "overtime_threshold_hours" in body.model_fields_set or "overtime_premium_multiplier" in body.model_fields_set:
+    # Gate on the VALUE being set, not just the field's presence, so a
+    # free-plan location can clear stale overtime settings (set to null)
+    # without needing to re-upgrade -- clearing never grants paid-tier behavior.
+    if body.overtime_threshold_hours is not None or body.overtime_premium_multiplier is not None:
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
     if body.region_id is not None:

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Company, Employee, Location, Region, User
@@ -152,3 +153,69 @@ async def test_free_plan_location_update_omitting_overtime_fields_succeeds(clien
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["timezone"] == "America/Chicago"
+
+
+# --- clearing a stale paid value never requires a paid plan ---------------
+#
+# A company that set these fields while paid and then downgraded must still
+# be able to clear them through the API. The gate fires on the VALUE being
+# set (a non-null value grants nothing until paid), never on merely sending
+# an explicit null -- clearing can't grant paid-tier behavior.
+
+async def test_free_plan_can_clear_employee_pay_rate_to_null(
+    client: AsyncClient, free: SimpleNamespace, db_session: AsyncSession
+):
+    emp = (await db_session.execute(
+        select(Employee).where(Employee.id == free.employee_id)
+    )).scalar_one()
+    emp.pay_rate = 20.0
+    await db_session.commit()
+
+    resp = await client.put(
+        f"/api/v1/employees/{free.employee_id}",
+        json={"pay_rate": None}, headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["pay_rate"] is None
+
+
+async def test_free_plan_can_clear_company_overtime_fields_to_null(
+    client: AsyncClient, free: SimpleNamespace, db_session: AsyncSession
+):
+    company = (await db_session.execute(
+        select(Company).where(Company.id == free.company_id)
+    )).scalar_one()
+    company.overtime_threshold_hours = 35.0
+    company.overtime_premium_multiplier = 2.0
+    await db_session.commit()
+
+    resp = await client.put(
+        "/api/v1/company/",
+        json={"overtime_threshold_hours": None, "overtime_premium_multiplier": None},
+        headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["overtime_threshold_hours"] is None
+    assert body["overtime_premium_multiplier"] is None
+
+
+async def test_free_plan_can_clear_location_overtime_fields_to_null(
+    client: AsyncClient, free: SimpleNamespace, db_session: AsyncSession
+):
+    location = (await db_session.execute(
+        select(Location).where(Location.id == free.location_id)
+    )).scalar_one()
+    location.overtime_threshold_hours = 30.0
+    location.overtime_premium_multiplier = 1.8
+    await db_session.commit()
+
+    resp = await client.put(
+        f"/api/v1/locations/{free.location_id}",
+        json={"overtime_threshold_hours": None, "overtime_premium_multiplier": None},
+        headers=free.manager_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["overtime_threshold_hours"] is None
+    assert body["overtime_premium_multiplier"] is None

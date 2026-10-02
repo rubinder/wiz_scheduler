@@ -234,7 +234,10 @@ async def update_employee(
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-    if "pay_rate" in body.model_fields_set:
+    # Gate on the VALUE being set, not just the field's presence, so a
+    # free-plan company can clear a stale pay_rate (set it to null) without
+    # needing to re-upgrade -- clearing never grants paid-tier behavior.
+    if "pay_rate" in body.model_fields_set and body.pay_rate is not None:
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
     if body.full_name is not None:
