@@ -599,9 +599,21 @@ class TestCostSeniorityOvertimeScoring:
         completely inert, even when employee_weekly_hours_draft seeds an
         employee already past 40 hours. Previously the threshold silently
         defaulted to 40h, so every tenant who never configured overtime
-        still got overtime-driven assignment changes."""
+        still got overtime-driven assignment changes.
+
+        e001 is given a clear skill edge over e002 so the two are NOT tied
+        on every other scoring term -- without that edge this test passes
+        vacuously (both pre- and post-fix) because a strategy-seed tie-break
+        happens to land on the same employee either way. With the edge,
+        e001 wins on skill alone whenever overtime scoring is truly inert,
+        and a reintroduced 40h default would flip the winner to e002 once
+        e001's seeded 45h crosses it (45+8-40=13h over * 15 pts/h = 195pts,
+        which swamps the skill edge) -- so this discriminates the bug.
+        """
+        ROLE_FLOOR_HIGH_SKILL = {"role_id": "role0001", "role_name": "Floor", "skill_level": 6}
+
         def _run(seed_hours: dict):
-            near_cap = _make_employee("e001", "Near Cap", [ROLE_FLOOR], "loc00001", [MON_9_17])
+            near_cap = _make_employee("e001", "Near Cap", [ROLE_FLOOR_HIGH_SKILL], "loc00001", [MON_9_17])
             fresh = _make_employee("e002", "Fresh", [ROLE_FLOOR], "loc00001", [MON_9_17])
             schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
             state = _make_state([near_cap, fresh], schedule)
@@ -614,3 +626,7 @@ class TestCostSeniorityOvertimeScoring:
         without_seeded_hours = _run({})
 
         assert with_seeded_hours == without_seeded_hours
+        # Non-vacuity: e001 (skill edge) wins both runs because overtime
+        # scoring is inert -- if it ever stops winning, the test above would
+        # also start failing for the wrong reason, so pin it explicitly too.
+        assert without_seeded_hours[0]["employee_id"] == "e001"
