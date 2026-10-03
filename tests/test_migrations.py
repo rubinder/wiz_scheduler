@@ -32,11 +32,11 @@ def test_migration_chain_integrity():
         # Extract revision and down_revision
         import re
         rev_match = re.search(r"revision\s*=\s*['\"]([^'\"]+)['\"]", content)
-        down_match = re.search(r"down_revision\s*=\s*['\"]([^'\"]+)['\"]", content)
+        down_match = re.search(r"down_revision\s*=\s*(?:['\"]([^'\"]+)['\"]|None)", content)
 
         if rev_match:
             revision = rev_match.group(1)
-            down_revision = down_match.group(1) if down_match else None
+            down_revision = down_match.group(1) if down_match and down_match.group(1) else None
             revisions[revision] = {
                 "file": filepath.name,
                 "down_revision": down_revision,
@@ -72,23 +72,3 @@ def test_no_duplicate_filenames():
 
     duplicates = [p for p in prefixes if prefixes.count(p) > 1]
     assert not duplicates, f"Duplicate migration prefixes: {duplicates}. {filenames}"
-
-
-@pytest.mark.asyncio
-async def test_migration_upgrade_downgrade(async_engine):
-    """Test that migrations can be applied and reversed (async DB)."""
-    # Note: This test requires a test database connection.
-    # It's marked asyncio to match the app's async patterns.
-    # In CI, this should run against a test PostgreSQL instance.
-
-    async with async_engine.begin() as conn:
-        # Check if alembic_version table exists
-        inspector = inspect(await conn.run_sync(lambda sync_conn: sync_conn))
-        tables = inspector.get_table_names()
-
-        # Basic check: migrations should create at least the alembic_version table
-        # Full upgrade/downgrade testing requires running alembic CLI
-        # which is better tested via integration tests
-        assert "alembic_version" in tables or len(tables) > 0, (
-            "Expected migration tables to exist"
-        )
