@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0038b_make_employee_roles_skill_level_nullable'
-down_revision = '0038_add_cost_and_seniority_fields'
+revision = '0038b'
+down_revision = '0038'
 branch_labels = None
 depends_on = None
 

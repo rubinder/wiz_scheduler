@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0039_make_optional_columns_nullable'
-down_revision = '0038b_make_employee_roles_skill_level_nullable'
+revision = '0039'
+down_revision = '0038b'
 branch_labels = None
 depends_on = None
 

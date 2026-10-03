@@ -33,3 +33,6 @@ frontend/dist/
 # Claude Code worktrees (isolated workspaces; never committed)
 .claude/worktrees/
 .DS_Store
+
+# Playwright MCP console logs
+.playwright-mcp/console-*.log
