@@ -27,6 +27,9 @@ export function createEmployee(body: {
   roles?: { role_id: string; skill_level: number }[] | null;
   company_ids?: string[];
   max_hours_per_week?: number | null;
+  pay_rate?: number | null;
+  hire_date?: string | null;
+  seniority_rank?: number | null;
 }): Promise<Employee> {
   return apiFetch<Employee>("/employees/", {
     method: "POST",
@@ -44,6 +47,9 @@ export function updateEmployee(
     roles?: { role_id: string; skill_level: number }[] | null;
     company_ids?: string[];
     max_hours_per_week?: number | null;
+    pay_rate?: number | null;
+    hire_date?: string | null;
+    seniority_rank?: number | null;
   }
 ): Promise<Employee> {
   return apiFetch<Employee>(`/employees/${id}`, {

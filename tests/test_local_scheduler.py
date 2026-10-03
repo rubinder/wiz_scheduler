@@ -18,7 +18,13 @@ from backend.scheduling.state import SchedulingState
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_employee(eid: str, name: str, roles: list[dict], location_id: str, windows: list[dict] | None = None):
+def _make_employee(
+    eid: str, name: str, roles: list[dict], location_id: str,
+    windows: list[dict] | None = None,
+    pay_rate: float | None = None,
+    hire_date=None,
+    seniority_rank: int | None = None,
+):
     """Build an employee dict matching the shape used in SchedulingState."""
     return {
         "id": eid,
@@ -28,6 +34,9 @@ def _make_employee(eid: str, name: str, roles: list[dict], location_id: str, win
         "roles": roles,
         "affinities": [],
         "available_windows": windows or [],
+        "pay_rate": pay_rate,
+        "hire_date": hire_date,
+        "seniority_rank": seniority_rank,
     }
 
 
@@ -531,3 +540,93 @@ class TestAffinityConstraints:
                     f"seed={seed}: hard-negative pair shared overlapping windows: "
                     f"opener={opener}, mid={mid}"
                 )
+
+
+class TestCostSeniorityOvertimeScoring:
+    """#134: cost, seniority, and overtime as soft tie-break signals."""
+
+    def test_cheaper_employee_preferred_when_otherwise_equal(self):
+        cheap = _make_employee("e001", "Cheap Carla", [ROLE_FLOOR], "loc00001", [MON_9_17], pay_rate=10.0)
+        pricey = _make_employee("e002", "Pricey Pat", [ROLE_FLOOR], "loc00001", [MON_9_17], pay_rate=30.0)
+        schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+        state = _make_state([cheap, pricey], schedule)
+
+        result = local_schedule(state, strategy="rotation")
+
+        assert len(result["current_parsed_shifts"]) == 1
+        assert result["current_parsed_shifts"][0]["employee_id"] == "e001"
+
+    def test_more_senior_employee_preferred_via_hire_date(self):
+        from datetime import date
+        junior = _make_employee("e001", "Junior", [ROLE_FLOOR], "loc00001", [MON_9_17], hire_date=date(2024, 1, 1))
+        senior = _make_employee("e002", "Senior", [ROLE_FLOOR], "loc00001", [MON_9_17], hire_date=date(2018, 1, 1))
+        schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+        state = _make_state([junior, senior], schedule)
+
+        result = local_schedule(state, strategy="rotation")
+
+        assert result["current_parsed_shifts"][0]["employee_id"] == "e002"
+
+    def test_manual_seniority_rank_overrides_hire_date(self):
+        from datetime import date
+        # e001 hired more recently but manually ranked as more senior (rank 1).
+        manual_senior = _make_employee("e001", "Manual Senior", [ROLE_FLOOR], "loc00001", [MON_9_17], hire_date=date(2024, 1, 1), seniority_rank=1)
+        by_tenure = _make_employee("e002", "By Tenure", [ROLE_FLOOR], "loc00001", [MON_9_17], hire_date=date(2018, 1, 1))
+        schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+        state = _make_state([manual_senior, by_tenure], schedule)
+
+        result = local_schedule(state, strategy="rotation")
+
+        assert result["current_parsed_shifts"][0]["employee_id"] == "e001"
+
+    def test_overtime_penalized_when_projected_hours_exceed_threshold(self):
+        near_cap = _make_employee("e001", "Near Cap", [ROLE_FLOOR], "loc00001", [MON_9_17])
+        fresh = _make_employee("e002", "Fresh", [ROLE_FLOOR], "loc00001", [MON_9_17])
+        schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+        state = _make_state([near_cap, fresh], schedule)
+        state["current_location"]["overtime_threshold_hours"] = 40.0
+        # e001 already has 38h committed this run; this 8h shift would push
+        # them to 46h (6h over). e002 starts fresh: 0 -> 8h, no penalty.
+        state["employee_weekly_hours_draft"] = {"e001": 38.0}
+
+        result = local_schedule(state, strategy="rotation")
+
+        assert result["current_parsed_shifts"][0]["employee_id"] == "e002"
+
+    def test_overtime_disabled_when_no_threshold_configured(self):
+        """Regression: with no overtime_threshold_hours configured anywhere
+        (location default, no company override), overtime scoring must be
+        completely inert, even when employee_weekly_hours_draft seeds an
+        employee already past 40 hours. Previously the threshold silently
+        defaulted to 40h, so every tenant who never configured overtime
+        still got overtime-driven assignment changes.
+
+        e001 is given a clear skill edge over e002 so the two are NOT tied
+        on every other scoring term -- without that edge this test passes
+        vacuously (both pre- and post-fix) because a strategy-seed tie-break
+        happens to land on the same employee either way. With the edge,
+        e001 wins on skill alone whenever overtime scoring is truly inert,
+        and a reintroduced 40h default would flip the winner to e002 once
+        e001's seeded 45h crosses it (45+8-40=13h over * 15 pts/h = 195pts,
+        which swamps the skill edge) -- so this discriminates the bug.
+        """
+        ROLE_FLOOR_HIGH_SKILL = {"role_id": "role0001", "role_name": "Floor", "skill_level": 6}
+
+        def _run(seed_hours: dict):
+            near_cap = _make_employee("e001", "Near Cap", [ROLE_FLOOR_HIGH_SKILL], "loc00001", [MON_9_17])
+            fresh = _make_employee("e002", "Fresh", [ROLE_FLOOR], "loc00001", [MON_9_17])
+            schedule = {"Monday": [{"role_name": "Floor", "role_id": "role0001", "headcount": 1, "start_time": "09:00", "end_time": "17:00"}]}
+            state = _make_state([near_cap, fresh], schedule)
+            # No overtime_threshold_hours set on current_location -- unconfigured.
+            state["employee_weekly_hours_draft"] = seed_hours
+            _random.seed(1234)
+            return local_schedule(state, strategy="rotation")["current_parsed_shifts"]
+
+        with_seeded_hours = _run({"e001": 45.0})
+        without_seeded_hours = _run({})
+
+        assert with_seeded_hours == without_seeded_hours
+        # Non-vacuity: e001 (skill edge) wins both runs because overtime
+        # scoring is inert -- if it ever stops winning, the test above would
+        # also start failing for the wrong reason, so pin it explicitly too.
+        assert without_seeded_hours[0]["employee_id"] == "e001"

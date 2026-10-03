@@ -17,6 +17,9 @@ class EmployeeCreate(BaseModel):
     roles: list[EmployeeRoleSchema] | None = None
     company_ids: list[str] | None = None  # additional companies to assign to
     max_hours_per_week: float | None = None
+    pay_rate: float | None = Field(default=None, ge=0)  # paid-plan gated in the router
+    hire_date: date | None = None
+    seniority_rank: int | None = Field(default=None, gt=0)
 
 
 class EmployeeUpdate(BaseModel):
@@ -30,6 +33,9 @@ class EmployeeUpdate(BaseModel):
     # Pydantic v2: a field not present in the payload stays as default None;
     # routers must send this field to mutate it (nullable means "no cap").
     max_hours_per_week: float | None = None
+    pay_rate: float | None = Field(default=None, ge=0)  # paid-plan gated in the router
+    hire_date: date | None = None
+    seniority_rank: int | None = Field(default=None, gt=0)
 
 
 class EmployeeRoleResponse(BaseModel):
@@ -74,6 +80,9 @@ class EmployeeResponse(BaseModel):
     email: str | None
     location_ids: list[str] | None
     max_hours_per_week: float | None = None
+    pay_rate: float | None = None
+    hire_date: date | None = None
+    seniority_rank: int | None = None
     roles: list[EmployeeRoleResponse] = []
     company_ids: list[str] = []
 

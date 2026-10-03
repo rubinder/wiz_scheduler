@@ -68,9 +68,15 @@ cost_score(emp) = (pay_rate - min_rate_among_eligible) / (max_rate_among_eligibl
 candidates score 0.5 when every eligible candidate shares the same rate
 (avoids divide-by-zero, and correctly signals "no discriminating information
 here"). An employee with `pay_rate IS NULL` is excluded from the normalization
-range and contributes `0.0` to their own score — pay rate is opt-in per
-employee too, not just per company, and an employee nobody entered a rate for
-should never look artificially expensive.
+range and contributes **`0.5`** to their own score — not `0.0` as an earlier
+draft of this spec said. `0.5` is the neutral midpoint already used for "no
+discriminating information"; `0.0` is the *cheapest* end of the scale, so
+using it for "no data" made an unrated employee look artificially cheap
+(during partial rollout) and penalized the one employee who *did* have a rate
+entered in an otherwise-unrated pool — the opposite of this paragraph's own
+stated intent. Pay rate is opt-in per employee too, not just per company, and
+an employee nobody entered a rate for should never look artificially
+expensive *or* artificially cheap.
 
 This was explicitly chosen over sending raw `pay_rate` dollars to the LLM,
 after weighing it in brainstorming: a per-slot relative rank gives the model
@@ -92,13 +98,30 @@ scheduling run:
 ```
 resolved_threshold = location.overtime_threshold_hours
                       or company.overtime_threshold_hours
-                      or DEFAULT_OVERTIME_THRESHOLD_HOURS  # 40.0
+                      or None   # NOT a 40.0 fallback — see below
 ```
+
+**Corrected post-implementation (a final-review finding, 2026-10-01): the
+threshold must resolve to `None`, not a 40.0 default, when neither level sets
+one.** The original draft of this section had `resolved_threshold` fall back
+to `DEFAULT_OVERTIME_THRESHOLD_HOURS` (40.0) when both levels were unset. That
+directly contradicted this spec's own Goal section ("a manager who sets
+nothing gets byte-identical scheduling behavior to today"): a silent 40h
+fallback makes overtime scoring active for *every* tenant, including ones who
+configured nothing, the moment any employee's hours (within one location, or
+carried across locations in one run) exceed 40. `resolve_overtime_threshold`
+returns `float | None`; `None` means overtime scoring is skipped entirely for
+that location (the `overtime_score` term contributes `0.0`, unconditionally,
+not `0.0`-via-a-40h-comparison). `DEFAULT_OVERTIME_THRESHOLD_HOURS` survives
+only as placeholder text in the Company/Location settings UI, suggesting a
+starting value — it is never read as a runtime fallback.
 
 `overtime_score(emp)` returns a penalty proportional to how far
 `employee_hours[eid] + shift_duration_hrs` would land past `resolved_threshold`
-if this candidate is chosen — 0 when the projected total stays at or under
-threshold. This is a **soft** nudge exactly like preference weights: the
+if this candidate is chosen, **only when `resolved_threshold` is not `None`**
+— 0 when the projected total stays at or under threshold, and the term is
+skipped entirely (not computed against an implicit default) when no threshold
+is configured. This is a **soft** nudge exactly like preference weights: the
 scheduler may still push someone into overtime when no alternative covers the
 slot. `overtime_premium_multiplier` (same company/location override shape,
 default 1.5) is stored now for the payroll/reporting side to read later, but
@@ -113,12 +136,25 @@ resolved_rank(emp) = emp.seniority_rank if emp.seniority_rank is not None
                       else rank_by(emp.hire_date)  # earlier hire_date = lower rank number = more senior
 ```
 
+**Corrected post-implementation (a final-review finding, 2026-10-01): a
+manual `seniority_rank` must only claim its own number, not outrank every
+hire-date-derived employee.** Derived ranks are assigned from whichever
+positive integers no manual rank already claims (in hire_date order), so a
+manual `seniority_rank=5` leaves ranks 1-4 open for the four most-senior
+derived employees — matching the natural reading "5th most senior" — rather
+than an earlier draft's behavior of starting every derived rank right after
+the single highest manual rank in the pool, which made any manual rank
+outrank every derived employee regardless of actual hire date.
+
 Employees with neither field set are excluded from ranking and contribute a
-neutral `0.0`, the same treatment cost gives an employee with no `pay_rate`.
-`seniority_score(emp)` min-max normalizes `resolved_rank` across the *slot's
-eligible pool* (0.0 = most senior present, 1.0 = least), mirroring the cost
-score's normalization for consistency, and is added as a small-weight term —
-a tie-break, not a dominant factor, matching how skill_level already works
+neutral **`0.5`** — not `0.0` as an earlier draft of this spec said, for the
+same reason cost's neutral value was corrected above: `0.0` is the *most
+senior* end of the scale, so using it for "no data" made an unranked
+employee look artificially senior. `seniority_score(emp)` min-max normalizes
+`resolved_rank` across the *slot's eligible pool* (0.0 = most senior present,
+1.0 = least), mirroring the cost score's normalization for consistency, and
+is added as a small-weight term — a tie-break, not a dominant factor,
+matching how skill_level already works
 (`-e.get("_skill", 0)` in `_pick_employee`).
 
 ### New shared module: `backend/scheduling/cost_seniority.py`
@@ -192,16 +228,25 @@ nullable columns to existing tables.
 
 ## Testing
 
-- **No-op regression**: with every new field NULL, both schedulers produce
-  byte-identical output to today. This is the load-bearing test, same
-  reasoning as the preferences spec's no-op test — `cost_score`,
-  `overtime_score`, and `seniority_score` must each independently return
-  `0.0` for an all-NULL candidate pool.
+- **No-op regression**: with every new field NULL (including no overtime
+  threshold configured anywhere), both schedulers produce byte-identical
+  output to today — **this must hold even when an employee's hours exceed
+  40 within a location or across locations in one run**, since
+  `resolve_overtime_threshold` returns `None`, not a 40.0 fallback, in that
+  case. This is the load-bearing test, same reasoning as the preferences
+  spec's no-op test — `cost_score` and `seniority_score` must each
+  independently return `0.5` (neutral, not `0.0`) for an all-NULL candidate
+  pool, and `overtime_score`'s term must be skipped entirely (contributing
+  `0.0` to the total score unconditionally) whenever the resolved threshold
+  is `None`, never computed against an implicit default.
 - **Normalization edge cases**: single eligible candidate (score 0.5, no
   divide-by-zero), all-equal rates, one candidate with `pay_rate` set and
-  others NULL.
+  others NULL (the NULL candidates score `0.5`, neutral — not `0.0`).
 - **Overtime threshold resolution**: location override beats company
-  default beats the 40.0 constant; same shape test for the multiplier.
+  default beats `None` (never a 40.0 fallback — the 40.0 constant is a UI
+  placeholder only); same shape test for the multiplier, which does fall
+  back to its 1.5x constant since it's never used to gate scoring, only
+  stored for payroll's future use.
 - **Seniority resolution**: manual `seniority_rank` beats `hire_date`
   derivation; an employee with neither is excluded from ranking, not
   treated as least senior.
@@ -216,8 +261,15 @@ nullable columns to existing tables.
 
 Error handling follows the pipeline's existing contract: these are inputs
 computed in Python before the LLM call, not LLM output, so no new parsing
-path is introduced; a missing/NULL field degrades to a neutral `0.0`
-contribution, never an exception.
+path is introduced; a missing/NULL field degrades to a neutral `0.5`
+contribution for cost/seniority (or no contribution at all for overtime,
+when no threshold is configured), never an exception. **A final-review
+finding also surfaced that `Employee.pay_rate` loads from its `Numeric(8,2)`
+column as `decimal.Decimal`, not `float`, which raised `TypeError` inside
+`cost_score`'s arithmetic** — the state-construction boundary in
+`graph.py` now coerces to `float` explicitly, and `cost_score` coerces
+defensively too, since this class of bug is invisible to `==`-based test
+assertions (`Decimal("24.50") == 24.50` is `True`).
 
 ## Out of scope
 

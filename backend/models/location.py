@@ -1,4 +1,4 @@
-from sqlalchemy import Float, ForeignKey, String
+from sqlalchemy import CheckConstraint, Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,3 +27,14 @@ class Location(Base):
     # days. NULL = no constraint. Set to 11 for NYC Fair Workweek "clopening"
     # compliance (fast food). Enforced as a hard constraint by the scheduler.
     min_rest_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Per-location override of the company default. NULL = inherit.
+    overtime_threshold_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    overtime_premium_multiplier: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "overtime_premium_multiplier IS NULL OR overtime_premium_multiplier >= 1",
+            name="ck_locations_overtime_premium_multiplier",
+        ),
+    )
