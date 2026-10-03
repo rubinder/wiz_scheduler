@@ -1,7 +1,7 @@
 """Make optional columns nullable for external imports (7shifts, Deputy)
 
 Revision ID: 0039_make_optional_columns_nullable
-Revises: 0038_make_employee_roles_skill_level_nullable
+Revises: 0038b_make_employee_roles_skill_level_nullable
 Create Date: 2026-10-03 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '0039_make_optional_columns_nullable'
-down_revision = '0038_make_employee_roles_skill_level_nullable'
+down_revision = '0038b_make_employee_roles_skill_level_nullable'
 branch_labels = None
 depends_on = None
 

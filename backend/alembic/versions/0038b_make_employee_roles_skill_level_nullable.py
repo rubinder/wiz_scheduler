@@ -1,7 +1,7 @@
 """Make employee_roles.skill_level nullable
 
-Revision ID: 0038_make_employee_roles_skill_level_nullable
-Revises: 0037_add_time_entries_and_payroll_exports
+Revision ID: 0038b_make_employee_roles_skill_level_nullable
+Revises: 0038_add_cost_and_seniority_fields
 Create Date: 2026-10-03 00:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0038_make_employee_roles_skill_level_nullable'
-down_revision = '0037_add_time_entries_and_payroll_exports'
+revision = '0038b_make_employee_roles_skill_level_nullable'
+down_revision = '0038_add_cost_and_seniority_fields'
 branch_labels = None
 depends_on = None
 

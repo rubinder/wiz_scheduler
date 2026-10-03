@@ -1,0 +1,76 @@
+- generic [ref=f19e3]:
+  - complementary [ref=f19e5]:
+    - heading "Wiz Scheduler" [level=1] [ref=f19e7]
+    - navigation [ref=f19e8]:
+      - link "Dashboard" [ref=f19e9] [cursor=pointer]:
+        - /url: /manager/dashboard
+      - button "Organization" [ref=f19e11] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f19e13]: ▸
+      - generic [ref=f19e14]:
+        - button "Roles & Skills" [expanded] [ref=f19e15] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f19e17]: ▾
+        - generic [ref=f19e18]:
+          - link "Roles" [ref=f19e19] [cursor=pointer]:
+            - /url: /manager/roles
+          - link "Role Equivalents" [ref=f19e20] [cursor=pointer]:
+            - /url: /manager/role-equivalents
+      - button "People" [ref=f19e22] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f19e24]: ▸
+      - button "Scheduling Rules" [ref=f19e26] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f19e28]: ▸
+      - button "Scheduling" [ref=f19e30] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f19e32]: ▸
+      - button "Check-In" [ref=f19e34] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f19e36]: ▸
+      - link "Data & Privacy" [ref=f19e37] [cursor=pointer]:
+        - /url: /manager/data-privacy
+    - generic [ref=f19e38]: Test Scheduler
+  - generic [ref=f19e39]:
+    - banner [ref=f19e40]:
+      - heading "Wiz Scheduler" [level=2] [ref=f19e41]
+      - generic [ref=f19e42]:
+        - generic [ref=f19e43]: Test Scheduling Company
+        - generic [ref=f19e44]: Test Scheduler
+        - combobox "Language" [ref=f19e45]:
+          - option "English" [selected]
+          - option "中文"
+          - option "हिन्दी"
+          - option "Español"
+          - option "Français"
+          - option "العربية"
+          - option "বাংলা"
+          - option "Русский"
+          - option "Português"
+          - option "اردو"
+          - option "Bahasa Indonesia"
+          - option "Deutsch"
+          - option "日本語"
+          - option "Naijá Píjin"
+          - option "मराठी"
+          - option "తెలుగు"
+          - option "Türkçe"
+          - option "தமிழ்"
+          - option "Tiếng Việt"
+        - button "Logout" [ref=f19e46] [cursor=pointer]
+    - main [ref=f19e47]:
+      - generic [ref=f19e48]:
+        - generic [ref=f19e49]:
+          - heading "Roles" [level=1] [ref=f19e50]
+          - button "Import Data" [ref=f19e51] [cursor=pointer]
+        - table [ref=f19e54]:
+          - rowgroup [ref=f19e55]:
+            - row [ref=f19e56]:
+              - columnheader "Name" [ref=f19e57]
+              - columnheader "Description" [ref=f19e58]
+              - columnheader "External ID" [ref=f19e59]
+              - columnheader "Actions" [ref=f19e60]
+          - rowgroup [ref=f19e61]:
+            - row [ref=f19e62]:
+              - cell [ref=f19e63]:
+                - textbox [ref=f19e64]
+              - cell [ref=f19e65]:
+                - textbox [ref=f19e66]
+              - cell "auto" [ref=f19e67]
+              - cell [ref=f19e68]:
+                - button "Add" [ref=f19e69] [cursor=pointer]
+                - button "Cancel" [ref=f19e70] [cursor=pointer]
