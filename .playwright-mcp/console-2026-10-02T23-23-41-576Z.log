@@ -1,0 +1,2 @@
+[    1044ms] [WARNING] [GSI_LOGGER]: Provided button width is invalid: 100% @ https://accounts.google.com/gsi/client:86
+[    1143ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://app.wizscheduler.com/login:0

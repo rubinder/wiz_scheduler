@@ -1,0 +1,26 @@
+- generic [ref=f9e5]:
+  - generic [ref=f9e6]:
+    - generic [ref=f9e7]:
+      - link "Wiz Scheduler" [ref=f9e8] [cursor=pointer]:
+        - /url: /
+      - combobox "Language" [ref=f9e11]
+    - generic [ref=f9e12]:
+      - heading "Create an Account" [level=1] [ref=f9e13]
+      - iframe [ref=f9e16]:
+        - button "Sign up with Google. Opens in new tab" [ref=f10e3] [cursor=pointer]:
+          - generic [ref=f10e5]: Sign up with Google
+      - generic [ref=f9e17]: or continue with
+      - generic [ref=f9e21]
+      - paragraph [ref=f9e43]: After registering, you can link your Google account from the login page.
+      - paragraph [ref=f9e44]
+  - generic [ref=f9e48]:
+    - generic [ref=f9e50]: MON
+    - generic [ref=f9e51]: TUE
+    - generic [ref=f9e52]: WED
+    - generic [ref=f9e53]: THU
+    - generic [ref=f9e54]: FRI
+    - generic [ref=f9e55]: SAT
+    - generic [ref=f9e56]: SUN
+    - generic [ref=f9e57]: OPEN
+    - generic [ref=f9e66]: MID
+    - generic [ref=f9e75]: CLOSE

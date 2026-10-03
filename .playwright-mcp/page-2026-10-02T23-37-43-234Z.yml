@@ -1,0 +1,96 @@
+- generic [ref=f11e5]:
+  - complementary [ref=f11e6]:
+    - heading "Wiz Scheduler" [level=1] [ref=f11e8]
+    - navigation [ref=f11e9]:
+      - link "Dashboard" [ref=f11e10] [cursor=pointer]:
+        - /url: /manager/dashboard
+      - button "Organization" [ref=f11e12] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e14]: ▸
+      - button "Roles & Skills" [ref=f11e16] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e18]: ▸
+      - button "People" [ref=f11e20] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e22]: ▸
+      - button "Scheduling Rules" [ref=f11e24] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e26]: ▸
+      - button "Scheduling" [ref=f11e28] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e30]: ▸
+      - button "Check-In" [ref=f11e32] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f11e34]: ▸
+      - link "Data & Privacy" [ref=f11e35] [cursor=pointer]:
+        - /url: /manager/data-privacy
+    - generic [ref=f11e36]: Test Scheduler
+  - generic [ref=f11e37]:
+    - banner [ref=f11e38]:
+      - heading "Wiz Scheduler" [level=2] [ref=f11e39]
+      - generic [ref=f11e40]:
+        - generic [ref=f11e41]: Test Scheduling Company
+        - generic [ref=f11e42]: Test Scheduler
+        - combobox "Language" [ref=f11e43]:
+          - option "English" [selected]
+          - option "中文"
+          - option "हिन्दी"
+          - option "Español"
+          - option "Français"
+          - option "العربية"
+          - option "বাংলা"
+          - option "Русский"
+          - option "Português"
+          - option "اردو"
+          - option "Bahasa Indonesia"
+          - option "Deutsch"
+          - option "日本語"
+          - option "Naijá Píjin"
+          - option "मराठी"
+          - option "తెలుగు"
+          - option "Türkçe"
+          - option "தமிழ்"
+          - option "Tiếng Việt"
+        - button "Logout" [ref=f11e44] [cursor=pointer]
+    - main [ref=f11e45]:
+      - generic [ref=f11e46]:
+        - generic [ref=f11e47]:
+          - heading "Welcome, Test Scheduler" [level=1] [ref=f11e48]
+          - generic [ref=f11e49]:
+            - button "Import from 7shifts" [disabled] [ref=f11e50]
+            - button "Import from Deputy" [disabled] [ref=f11e51]
+        - paragraph [ref=f11e52]: Manage your scheduling from the dashboard below.
+        - paragraph [ref=f11e53]: Available on paid plans — upgrade to import automatically.
+        - generic [ref=f11e54]:
+          - generic [ref=f11e55]:
+            - heading "Link your Google account" [level=3] [ref=f11e56]
+            - paragraph [ref=f11e57]: Add Google sign-in so you can log in faster next time. Your Google account email must match this account.
+          - generic [ref=f11e60]:
+            - button "Continue with Google. Opens in new tab" [ref=f11e62] [cursor=pointer]:
+              - generic [ref=f11e64]: Continue with Google
+            - iframe [ref=f11e75]:
+              - button "Continue with Google. Opens in new tab" [ref=f13e3] [cursor=pointer]:
+                - generic [ref=f13e5]: Continue with Google
+        - generic [ref=f11e76]:
+          - link [ref=f11e77] [cursor=pointer]:
+            - /url: /manager/company
+            - heading "Company" [level=3] [ref=f11e78]
+            - paragraph [ref=f11e79]: View and edit company settings
+          - link [ref=f11e80] [cursor=pointer]:
+            - /url: /manager/regions
+            - heading "Regions" [level=3] [ref=f11e81]
+            - paragraph [ref=f11e82]: Manage geographic regions
+          - link [ref=f11e83] [cursor=pointer]:
+            - /url: /manager/locations
+            - heading "Locations" [level=3] [ref=f11e84]
+            - paragraph [ref=f11e85]: Manage store locations
+          - link [ref=f11e86] [cursor=pointer]:
+            - /url: /manager/roles
+            - heading "Roles" [level=3] [ref=f11e87]
+            - paragraph [ref=f11e88]: Define employee roles
+          - link [ref=f11e89] [cursor=pointer]:
+            - /url: /manager/employees
+            - heading "Employees" [level=3] [ref=f11e90]
+            - paragraph [ref=f11e91]: Manage your workforce
+          - link [ref=f11e92] [cursor=pointer]:
+            - /url: /manager/shift-templates
+            - heading "Shift Templates" [level=3] [ref=f11e93]
+            - paragraph [ref=f11e94]: Configure weekly shift patterns
+          - link [ref=f11e95] [cursor=pointer]:
+            - /url: /manager/schedule
+            - heading "Schedule" [level=3] [ref=f11e96]
+            - paragraph [ref=f11e97]: Generate and approve schedules

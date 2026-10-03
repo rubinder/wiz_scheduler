@@ -1,0 +1,91 @@
+- generic [ref=f18e3]:
+  - complementary [ref=f18e5]:
+    - heading "Wiz Scheduler" [level=1] [ref=f18e7]
+    - navigation [ref=f18e8]:
+      - link "Dashboard" [ref=f18e9] [cursor=pointer]:
+        - /url: /manager/dashboard
+      - generic [ref=f18e10]:
+        - button "Organization" [expanded] [ref=f18e11] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f18e13]: ▾
+        - generic [ref=f18e14]:
+          - link "Company" [ref=f18e15] [cursor=pointer]:
+            - /url: /manager/company
+          - link "Team" [ref=f18e16] [cursor=pointer]:
+            - /url: /manager/team
+          - link "Regions" [ref=f18e17] [cursor=pointer]:
+            - /url: /manager/regions
+          - link "Locations" [ref=f18e18] [cursor=pointer]:
+            - /url: /manager/locations
+          - link "Special Hours" [ref=f18e19] [cursor=pointer]:
+            - /url: /manager/special-hours
+      - button "Roles & Skills" [ref=f18e21] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f18e23]: ▸
+      - button "People" [ref=f18e25] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f18e27]: ▸
+      - button "Scheduling Rules" [ref=f18e29] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f18e31]: ▸
+      - button "Scheduling" [ref=f18e33] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f18e35]: ▸
+      - button "Check-In" [ref=f18e37] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f18e39]: ▸
+      - link "Data & Privacy" [ref=f18e40] [cursor=pointer]:
+        - /url: /manager/data-privacy
+    - generic [ref=f18e41]: Test Scheduler
+  - generic [ref=f18e42]:
+    - banner [ref=f18e43]:
+      - heading "Wiz Scheduler" [level=2] [ref=f18e44]
+      - generic [ref=f18e45]:
+        - generic [ref=f18e46]: Test Scheduling Company
+        - generic [ref=f18e47]: Test Scheduler
+        - combobox "Language" [ref=f18e48]:
+          - option "English" [selected]
+          - option "中文"
+          - option "हिन्दी"
+          - option "Español"
+          - option "Français"
+          - option "العربية"
+          - option "বাংলা"
+          - option "Русский"
+          - option "Português"
+          - option "اردو"
+          - option "Bahasa Indonesia"
+          - option "Deutsch"
+          - option "日本語"
+          - option "Naijá Píjin"
+          - option "मराठी"
+          - option "తెలుగు"
+          - option "Türkçe"
+          - option "தமிழ்"
+          - option "Tiếng Việt"
+        - button "Logout" [ref=f18e49] [cursor=pointer]
+    - main [ref=f18e50]:
+      - generic [ref=f18e51]:
+        - generic [ref=f18e52]:
+          - heading "Locations" [level=1] [ref=f18e53]
+          - button "Import Data" [ref=f18e54] [cursor=pointer]
+        - paragraph [ref=f18e55]: Upgrade to a paid plan to configure overtime settings for a location.
+        - table [ref=f18e58]:
+          - rowgroup [ref=f18e59]:
+            - row [ref=f18e60]:
+              - columnheader "Name" [ref=f18e61]
+              - columnheader "Region" [ref=f18e62]
+              - columnheader "Address" [ref=f18e63]
+              - columnheader "Timezone" [ref=f18e64]
+              - columnheader "Min rest (h)" [ref=f18e65]
+              - columnheader "Actions" [ref=f18e66]
+          - rowgroup [ref=f18e67]:
+            - row [ref=f18e68]:
+              - cell [ref=f18e69]:
+                - textbox [ref=f18e70]
+              - cell "-- select --" [ref=f18e71]:
+                - combobox [ref=f18e72]:
+                  - option "-- select --" [selected]
+              - cell [ref=f18e73]:
+                - textbox [ref=f18e74]
+              - cell [ref=f18e75]:
+                - textbox [ref=f18e76]
+              - cell [ref=f18e77]:
+                - spinbutton "e.g. 11" [ref=f18e78]
+              - cell [ref=f18e79]:
+                - button "Add" [ref=f18e80] [cursor=pointer]
+                - button "Cancel" [ref=f18e81] [cursor=pointer]

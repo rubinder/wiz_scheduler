@@ -1,0 +1,396 @@
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - generic [ref=e4]:
+      - link "Wiz Scheduler" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e7]:
+        - link "NYC Fair Workweek" [ref=e8] [cursor=pointer]:
+          - /url: /nyc-fair-workweek-scheduling
+        - link "Free schedule checker" [ref=e9] [cursor=pointer]:
+          - /url: /free-schedule-checker
+        - link "Features" [ref=e10] [cursor=pointer]:
+          - /url: /features
+      - generic [ref=e11]:
+        - list "Language" [ref=e12]:
+          - listitem [ref=e13]:
+            - link "EN" [ref=e14] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=e15]:
+            - link "ES" [ref=e16] [cursor=pointer]:
+              - /url: /es
+        - link "Sign In" [ref=e17] [cursor=pointer]:
+          - /url: https://app.wizscheduler.com/login
+        - link "Register" [ref=e18] [cursor=pointer]:
+          - /url: https://app.wizscheduler.com/register
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - paragraph [ref=e22]: Algorithmic & AI-Powered Employee Scheduling
+      - heading "Smart Scheduling, Zero Hassle" [level=1] [ref=e23]
+      - paragraph [ref=e24]: Generate optimized weekly shift schedules with Algorithmic strategies or AI. Automatically respects availability, roles, skill levels, and team preferences.
+      - generic [ref=e25]:
+        - link "Get Started" [ref=e26] [cursor=pointer]:
+          - /url: https://app.wizscheduler.com/register
+        - link "View Pricing" [ref=e27] [cursor=pointer]:
+          - /url: "#pricing"
+        - link "View Demo" [ref=e28] [cursor=pointer]:
+          - /url: "#demo"
+    - generic [aria-hidden] [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e32]: MON
+        - generic [ref=e33]: TUE
+        - generic [ref=e34]: WED
+        - generic [ref=e35]: THU
+        - generic [ref=e36]: FRI
+        - generic [ref=e37]: SAT
+        - generic [ref=e38]: SUN
+        - generic [ref=e39]:
+          - generic [ref=e40]: OPEN
+          - generic [ref=e42]:
+            - generic [ref=e43]: Front
+            - generic [ref=e44]: 06–14
+          - generic [ref=e45]:
+            - generic [ref=e46]: Front
+            - generic [ref=e47]: 06–14
+          - generic [ref=e48]:
+            - generic [ref=e49]: Front
+            - generic [ref=e50]: 06–14
+          - generic [ref=e51]:
+            - generic [ref=e52]: Front
+            - generic [ref=e53]: 06–14
+          - generic [ref=e54]:
+            - generic [ref=e55]: Front
+            - generic [ref=e56]: 06–14
+          - generic [ref=e57]:
+            - generic [ref=e58]: Prep
+            - generic [ref=e59]: 07–15
+          - generic [ref=e60]:
+            - generic [ref=e61]: Front
+            - generic [ref=e62]: 08–16
+        - generic [ref=e63]:
+          - generic [ref=e64]: MID
+          - generic [ref=e66]:
+            - generic [ref=e67]: Line
+            - generic [ref=e68]: 11–19
+          - generic [ref=e69]:
+            - generic [ref=e70]: Line
+            - generic [ref=e71]: 11–19
+          - generic [ref=e72]:
+            - generic [ref=e73]: Prep
+            - generic [ref=e74]: 10–18
+          - generic [ref=e76]:
+            - generic [ref=e77]: Line
+            - generic [ref=e78]: 11–19
+          - generic [ref=e79]:
+            - generic [ref=e80]: Line
+            - generic [ref=e81]: 11–19
+          - generic [ref=e82]:
+            - generic [ref=e83]: Line
+            - generic [ref=e84]: 12–20
+        - generic [ref=e85]:
+          - generic [ref=e86]: CLOSE
+          - generic [ref=e88]:
+            - generic [ref=e89]: Close
+            - generic [ref=e90]: 16–00
+          - generic [ref=e92]:
+            - generic [ref=e93]: Close
+            - generic [ref=e94]: 16–00
+          - generic [ref=e95]:
+            - generic [ref=e96]: Close
+            - generic [ref=e97]: 16–00
+          - generic [ref=e98]:
+            - generic [ref=e99]: Close
+            - generic [ref=e100]: 16–00
+          - generic [ref=e101]:
+            - generic [ref=e102]: Close
+            - generic [ref=e103]: 16–00
+      - generic [ref=e105]:
+        - generic [ref=e106]: 0 shifts
+        - generic [ref=e107]: 0 people
+        - generic [ref=e108]: 0 rest violations
+  - main [ref=e109]:
+    - generic [ref=e112]:
+      - generic [ref=e113]: 01 — Capability
+      - heading "Everything You Need" [level=2] [ref=e114]
+    - paragraph [ref=e115]: From multi-location management to AI-powered optimization, Wiz Scheduler handles the complexity so you don't have to.
+    - generic [ref=e116]:
+      - generic [ref=e117]:
+        - heading "AI Schedule Generation" [level=3] [ref=e118]
+        - paragraph [ref=e119]: Claude AI analyzes availability, skills, and team dynamics to create optimal schedules in seconds. Optional — the free algorithmic strategies build a complete schedule without it.
+      - generic [ref=e120]:
+        - heading "Multiple Strategies" [level=3] [ref=e121]
+        - paragraph [ref=e122]: Rotation, 3-month history fairness, max-hours caps, or pure random. Pick what works for each location.
+      - generic [ref=e123]:
+        - heading "Multi-Location" [level=3] [ref=e124]
+        - paragraph [ref=e125]: Manage regions, locations, and ownership groups. Each location gets its own shift templates and schedules.
+    - generic [ref=e126]:
+      - generic [ref=e127]:
+        - term [ref=e128]: Per-Employee Hour Caps
+        - definition [ref=e129]: Set a maximum weekly hours limit for each employee. The scheduler enforces the cap across all locations in a single run — no manual tracking needed.
+      - generic [ref=e130]:
+        - term [ref=e131]: Day Blackout Rules
+        - definition [ref=e132]: Block out recurring time ranges per day of week when an employee must not be scheduled. For example, "no Mondays 8 PM–10 PM" — enforced automatically every week.
+      - generic [ref=e133]:
+        - term [ref=e134]: Employee Self-Service
+        - definition [ref=e135]: Employees set their own availability via invite links. Managers see it all in one place.
+      - generic [ref=e136]:
+        - term [ref=e137]: 7shifts Integration
+        - definition [ref=e138]: Import employees, roles, and availability from 7shifts. Export approved schedules back with one click.
+      - generic [ref=e139]:
+        - term [ref=e140]: Deputy Integration
+        - definition [ref=e141]: Import locations, areas, employees, and unavailability from Deputy. Unavailability is automatically inverted into availability windows for scheduling.
+      - generic [ref=e142]:
+        - term [ref=e143]: GDPR Compliant
+        - definition [ref=e144]: Data export, account deletion, consent tracking, log redaction, and automatic data retention policies.
+      - generic [ref=e145]:
+        - term [ref=e146]: Team Affinities
+        - definition [ref=e147]: Set preferences for who should (or shouldn't) work together. Hard and soft constraints supported.
+      - generic [ref=e148]:
+        - term [ref=e149]: Role Equivalents
+        - definition [ref=e150]: Group similar roles so employees can fill shifts across equivalent positions automatically.
+      - generic [ref=e151]:
+        - term [ref=e152]: 19 Languages
+        - definition [ref=e153]: Full UI localization in English, Chinese, Hindi, Spanish, French, Arabic, Japanese, and 12 more.
+    - generic [ref=e155]:
+      - paragraph [ref=e156]: 02 — Proof
+      - heading "See It in Action" [level=2] [ref=e157]
+      - paragraph [ref=e158]: Watch a quick walkthrough of how Wiz Scheduler helps you build optimized schedules in minutes.
+      - iframe [ref=e160]:
+        - generic [ref=f1e1]:
+          - generic "YouTube Video Player" [ref=f1e3]
+          - generic [ref=f1e5]:
+            - generic:
+              - generic:
+                - generic [ref=f1e6] [cursor=pointer]
+                - button "Play video" [ref=f1e10] [cursor=pointer]
+                - button "Hide player controls" [ref=f1e12] [cursor=pointer]
+                - generic [ref=f1e14]:
+                  - generic [ref=f1e19]:
+                    - generic [ref=f1e20]:
+                      - link "Wiz Scheduler Demo" [ref=f1e21] [cursor=pointer]:
+                        - /url: https://www.youtube.com/watch?v=t1FblchNbb8
+                      - link "R R" [ref=f1e22] [cursor=pointer]:
+                        - /url: /channel/UCdpi_Pt5M79n3JDxlpzBI2A
+                    - generic [ref=f1e24]:
+                      - button [ref=f1e25] [cursor=pointer]
+                      - generic [ref=f1e27]:
+                        - generic: R R
+                        - generic: No subscribers
+                  - generic [ref=f1e28]:
+                    - button "Copy link" [ref=f1e31] [cursor=pointer]
+                    - link "Watch on YouTube" [ref=f1e42] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=t1FblchNbb8
+                      - generic [ref=f1e43]: Watch on
+      - link "Explore every manager screen →" [ref=e162] [cursor=pointer]:
+        - /url: /features
+    - generic [ref=e165]:
+      - generic [ref=e166]: 03 — Method
+      - heading "Scheduling Strategies" [level=2] [ref=e167]
+    - paragraph [ref=e168]: Choose the approach that fits your business. Mix and match across locations. AI is one optional strategy among four — none of them require it.
+    - generic [ref=e169]:
+      - paragraph [ref=e170]: OPTIONAL · PREPAID CREDITS
+      - heading "AI Generate" [level=3] [ref=e171]
+      - paragraph [ref=e172]: Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios. It's an optional path — the three free strategies below produce a full schedule without touching AI or credits.
+    - generic [ref=e173]:
+      - generic [ref=e174]:
+        - paragraph [ref=e175]: FREE
+        - heading "Rotation" [level=3] [ref=e176]
+        - paragraph [ref=e177]: "Evenly distributes shifts across employees within the current schedule. Penalizes repeat assignments to the same role. Respects employee affinities: hard constraints are enforced, soft preferences influence scoring."
+      - generic [ref=e178]:
+        - paragraph [ref=e179]: FREE
+        - heading "Rotation (3-Month History)" [level=3] [ref=e180]
+        - paragraph [ref=e181]: "Considers total hours worked per role over the past 3 months. Adjustable fairness weight from random (0) to strictly fair (1). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring."
+      - generic [ref=e182]:
+        - paragraph [ref=e183]: FREE
+        - heading "Max Hours Per Employee" [level=3] [ref=e184]
+        - paragraph [ref=e185]: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring."
+    - generic [ref=e188]:
+      - generic [ref=e189]: 04 — Inputs
+      - heading "What the Scheduler Considers" [level=2] [ref=e190]
+    - paragraph [ref=e191]: Every draft, from every strategy, is checked against the same rules. They carry the same names here as on the Scheduling Rules page in the app.
+    - generic [ref=e192]:
+      - generic [ref=e193]:
+        - paragraph [ref=e194]: Always enforced
+        - generic [ref=e195]:
+          - generic [ref=e196]:
+            - term [ref=e197]: Employee availability
+            - definition [ref=e198]: Shifts land only inside the windows each employee has given. No availability on file means never scheduled. Hours already booked at another location in the same run are held.
+          - generic [ref=e199]:
+            - term [ref=e200]: Roles and skill levels
+            - definition [ref=e201]: An employee must hold the shift's role, or an equivalent one. Higher skill levels are favored when several people qualify.
+          - generic [ref=e202]:
+            - term [ref=e203]: Hour Restrictions
+            - definition [ref=e204]: A weekly hour cap per employee, held across every location in the same run.
+          - generic [ref=e205]:
+            - term [ref=e206]: Day Rules
+            - definition [ref=e207]: Recurring blackout ranges per day of the week. The scheduler never places a shift across one.
+          - generic [ref=e208]:
+            - term [ref=e209]: Minimum rest
+            - definition [ref=e210]: A per-location gap between shifts on different days, so nobody closes and then opens.
+          - generic [ref=e211]:
+            - term [ref=e212]: Employee Association
+            - definition [ref=e213]: Cannot-work-together pairs are never put on the same shift. Must-work-together, nice-to-have and prefer-apart pairs steer who gets picked.
+      - generic [ref=e214]:
+        - paragraph [ref=e215]: Weighted 0 to 1. At 1.0 a preference becomes a rule.
+        - generic [ref=e216]:
+          - generic [ref=e217]:
+            - term [ref=e218]: Day Preferences
+            - definition [ref=e219]: Which days of the week each employee prefers.
+          - generic [ref=e220]:
+            - term [ref=e221]: Hour Range Preferences
+            - definition [ref=e222]: Which times of day each employee prefers. A shift counts when at least half of it falls in the range.
+          - generic [ref=e223]:
+            - term [ref=e224]: Frequency Caps
+            - definition [ref=e225]: How many times a week an employee works inside a given hour range.
+    - paragraph [ref=e226]: Shift templates and specific-date overrides define what needs filling. Every draft is re-validated after generation, and any shift that went against a soft preference is flagged for review.
+    - paragraph [ref=e227]: "Not yet considered: pay rates, overtime premiums, seniority. Minimum rest is the only labor-law rule built in."
+    - generic [ref=e230]:
+      - generic [ref=e231]: 05 — Cost
+      - heading "Simple, Transparent Pricing" [level=2] [ref=e232]
+    - paragraph [ref=e233]: No hidden fees. Pricing philosophy is to charge $18 a month and charge only more to cover associated costs.
+    - generic [ref=e234]:
+      - paragraph [ref=e235]: "Example: Coffee Chain with 50 Locations"
+      - table [ref=e237]:
+        - rowgroup [ref=e238]:
+          - row [ref=e239]:
+            - columnheader "Item" [ref=e240]
+            - columnheader "Usage" [ref=e241]
+            - columnheader "Cost" [ref=e242]
+        - rowgroup [ref=e243]:
+          - row [ref=e244]:
+            - cell "Base subscription" [ref=e245]
+            - cell [ref=e246]
+            - cell "$18.00" [ref=e247]
+          - row [ref=e248]:
+            - cell "Schedules generated" [ref=e249]
+            - cell "200 / month" [ref=e250]
+            - cell "$0.30 (150 overage = 3 blocks)" [ref=e251]
+          - row [ref=e252]:
+            - cell "AI Generate (occasional)" [ref=e253]
+            - cell "~$1.50 in tokens" [ref=e254]
+            - cell "$1.95 from credits" [ref=e255]
+          - row [ref=e256]:
+            - cell "Storage" [ref=e257]
+            - cell "~0.3 GB" [ref=e258]
+            - cell "$0.00 (within 0.5 GB free)" [ref=e259]
+          - row [ref=e260]:
+            - cell "Employees" [ref=e261]
+            - cell "2,500" [ref=e262]
+            - cell "$2.00 (1.5K overage = 2 blocks)" [ref=e263]
+          - row [ref=e264]:
+            - cell "Monthly Total" [ref=e265]
+            - cell [ref=e266]
+            - cell "$22.25" [ref=e267]
+    - generic [ref=e268]:
+      - paragraph [ref=e269]: All-In-One Plan
+      - generic [ref=e270]: $18 / month
+      - paragraph [ref=e271]: Rotation, Max Hours and Random scheduling are always included. AI Generate runs on prepaid credit packs.
+      - paragraph [ref=e272]: Base subscription per ownership group. Includes 50 schedules a month, 0.5 GB of storage and 1K employees.
+      - generic [ref=e273]:
+        - generic [ref=e274]:
+          - generic [ref=e275]: From $10
+          - generic [ref=e276]: AI credit packs
+        - generic [ref=e277]:
+          - generic [ref=e278]: "50"
+          - generic [ref=e279]: Complimentary schedules / month
+        - generic [ref=e280]:
+          - generic [ref=e281]: 0.5 GB
+          - generic [ref=e282]: Storage included
+        - generic [ref=e283]:
+          - generic [ref=e284]: 1K
+          - generic [ref=e285]: Employees included
+    - generic [ref=e286]:
+      - generic [ref=e287]:
+        - paragraph [ref=e288]: AI
+        - heading "AI Scheduling" [level=3] [ref=e289]
+        - generic [ref=e290]:
+          - generic [ref=e291]:
+            - generic [ref=e292]: AI credit packs
+            - generic [ref=e293]: $10 · $25 · $50
+          - generic [ref=e294]:
+            - generic [ref=e295]: Overage
+            - generic [ref=e296]: Cost x 130%
+          - paragraph [ref=e297]: Claude Sonnet 5 token cost ($2/M in, $10/M out) at 130%, debited from prepaid packs of $10, $25 or $50.
+      - generic [ref=e298]:
+        - paragraph [ref=e299]: RUNS
+        - heading "Schedules" [level=3] [ref=e300]
+        - generic [ref=e301]:
+          - generic [ref=e302]:
+            - generic [ref=e303]: Included
+            - generic [ref=e304]: 50 / month
+          - generic [ref=e305]:
+            - generic [ref=e306]: Overage
+            - generic [ref=e307]: $0.10 / 50
+          - paragraph [ref=e308]: All generation types count. Billed in blocks of 50 after the free 50.
+      - generic [ref=e309]:
+        - paragraph [ref=e310]: DATA
+        - heading "Storage" [level=3] [ref=e311]
+        - generic [ref=e312]:
+          - generic [ref=e313]:
+            - generic [ref=e314]: Included
+            - generic [ref=e315]: 0.5 GB
+          - generic [ref=e316]:
+            - generic [ref=e317]: Overage
+            - generic [ref=e318]: $0.50 / GB
+          - paragraph [ref=e319]: "All data: employees, schedules, availability, shifts, and history."
+      - generic [ref=e320]:
+        - paragraph [ref=e321]: TEAM
+        - heading "Employees" [level=3] [ref=e322]
+        - generic [ref=e323]:
+          - generic [ref=e324]:
+            - generic [ref=e325]: Included
+            - generic [ref=e326]: 1,000
+          - generic [ref=e327]:
+            - generic [ref=e328]: Overage
+            - generic [ref=e329]: $1.00 / 1K
+          - paragraph [ref=e330]: Per ownership group. Billed in blocks of 1K beyond the free tier.
+    - generic [ref=e333]:
+      - generic [ref=e334]: 06 — Assurance
+      - heading "Privacy & Compliance" [level=2] [ref=e335]
+    - paragraph [ref=e336]: Built with GDPR compliance in mind. Your data, your control.
+    - generic [ref=e337]:
+      - generic [ref=e338]:
+        - term [ref=e339]: Data Export
+        - definition [ref=e340]: Download all your data as JSON anytime.
+      - generic [ref=e341]:
+        - term [ref=e342]: Right to Erasure
+        - definition [ref=e343]: Delete your account and all data permanently.
+      - generic [ref=e344]:
+        - term [ref=e345]: Consent Tracking
+        - definition [ref=e346]: Every consent recorded with timestamp and IP.
+      - generic [ref=e347]:
+        - term [ref=e348]: No Names to AI
+        - definition [ref=e349]: Employee names are never sent to the LLM.
+    - generic [ref=e350]:
+      - link "Privacy Policy" [ref=e351] [cursor=pointer]:
+        - /url: /privacy-policy
+      - link "Terms of Service" [ref=e352] [cursor=pointer]:
+        - /url: /terms
+      - link "Data Processing Agreement" [ref=e353] [cursor=pointer]:
+        - /url: /dpa
+    - generic [ref=e354]:
+      - heading "Ready to Simplify Scheduling?" [level=2] [ref=e355]
+      - paragraph [ref=e356]: Join thousands of managers saving hours every week.
+      - generic [ref=e357]:
+        - link "Create Account" [ref=e358] [cursor=pointer]:
+          - /url: https://app.wizscheduler.com/register
+        - link "Sign In" [ref=e359] [cursor=pointer]:
+          - /url: https://app.wizscheduler.com/login
+  - contentinfo [ref=e360]:
+    - generic [ref=e361]:
+      - generic [ref=e362]: Wiz Scheduler
+      - generic [ref=e364]:
+        - link "Features" [ref=e365] [cursor=pointer]:
+          - /url: /features
+        - link "NYC Fair Workweek" [ref=e366] [cursor=pointer]:
+          - /url: /nyc-fair-workweek-scheduling
+        - link "Free schedule checker" [ref=e367] [cursor=pointer]:
+          - /url: /free-schedule-checker
+        - link "Compare with 7shifts" [ref=e368] [cursor=pointer]:
+          - /url: /compare/7shifts
+        - link "Privacy Policy" [ref=e369] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms of Service" [ref=e370] [cursor=pointer]:
+          - /url: /terms
+        - link "Data Processing Agreement" [ref=e371] [cursor=pointer]:
+          - /url: /dpa
+      - generic [ref=e372]: Suggestival LLC
