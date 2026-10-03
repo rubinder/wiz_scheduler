@@ -29,10 +29,11 @@ def test_migration_chain_integrity():
         with open(filepath) as f:
             content = f.read()
 
-        # Extract revision and down_revision
+        # Extract revision and down_revision (handle both old and new format)
         import re
-        rev_match = re.search(r"revision\s*=\s*['\"]([^'\"]+)['\"]", content)
-        down_match = re.search(r"down_revision\s*=\s*(?:['\"]([^'\"]+)['\"]|None)", content)
+        # New format: revision: str = "0005" | Old format: revision = '0005'
+        rev_match = re.search(r"revision\s*(?::\s*\w+)?\s*=\s*['\"]([^'\"]+)['\"]", content)
+        down_match = re.search(r"down_revision\s*(?::\s*[^=]+)?\s*=\s*(?:['\"]([^'\"]+)['\"]|None)", content)
 
         if rev_match:
             revision = rev_match.group(1)
