@@ -201,7 +201,8 @@ async def register(
         ownership_group, request, email=body.email, device_id=body.device_id
     )
 
-    slug = secrets.token_hex(3)
+    from backend.utils.id_gen import generate_company_slug
+    slug = generate_company_slug()
 
     company = Company(
         name=body.company_name,
