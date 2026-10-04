@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, String, text
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, JSON, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -29,6 +29,11 @@ class Company(Base):
     # gated at the API write layer.
     overtime_threshold_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     overtime_premium_multiplier: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Default signal weights for scheduling at this company.
+    # {"seniority_weight": 0.0, "pay_weight": 0.0, "overtime_weight": 0.0, "affinity_weight": 0.0}
+    # NULL = no defaults set; location can still have its own defaults or schedules can override.
+    signal_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
