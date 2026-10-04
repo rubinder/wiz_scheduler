@@ -145,9 +145,11 @@ async def _get_or_create_wiz_company(
         existing.name = company_name
         return existing
 
+    from backend.utils.id_gen import generate_company_slug
+
     new_company = Company(
         name=company_name,
-        slug=secrets.token_hex(3),
+        slug=generate_company_slug(),
         ownership_group_id=ownership_group_id,
         external_id=ext_company_id,
     )

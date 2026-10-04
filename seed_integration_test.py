@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 DB_PARAM_PATH = os.environ.get("DB_PARAM_PATH", "/wizscheduler/test-db")
 TEST_COMPANY_ID = os.environ.get("TEST_COMPANY_ID", "integ-test-001")
+TEST_COMPANY_SLUG = "integ-test-001"  # Matches backend.utils.id_gen.TEST_COMPANY_SLUG - prevents accidental collision
 TEST_OG_ID = "integ-og-001"
 
 EMPLOYEE_COUNT = int(os.environ.get("EMPLOYEE_COUNT", "55"))
@@ -238,7 +239,7 @@ async def seed_integration_test(
             "id": TEST_COMPANY_ID,
             "og_id": TEST_OG_ID,
             "name": "Integration Test Company",
-            "slug": "integ-test-company",
+            "slug": TEST_COMPANY_SLUG,
         },
     )
     print("✓ Company")
@@ -396,8 +397,7 @@ async def seed_integration_test(
     result = await db.execute(
         text(
             "DELETE FROM employee_availability "
-            "WHERE company_id = :company_id "
-            "AND company_id IN (SELECT id FROM companies WHERE slug LIKE 'integ%')"
+            "WHERE company_id = :company_id"
         ),
         {"company_id": TEST_COMPANY_ID},
     )

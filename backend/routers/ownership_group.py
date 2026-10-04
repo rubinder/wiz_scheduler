@@ -94,9 +94,9 @@ async def add_company_to_group(
             detail="No ownership group found for this company",
         )
 
-    import secrets
+    from backend.utils.id_gen import generate_company_slug
 
-    slug = secrets.token_hex(3)
+    slug = generate_company_slug()
     new_company = Company(
         name=body.name,
         slug=slug,
