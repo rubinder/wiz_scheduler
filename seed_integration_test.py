@@ -40,7 +40,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 DB_PARAM_PATH = os.environ.get("DB_PARAM_PATH", "/wizscheduler/test-db")
 TEST_COMPANY_ID = os.environ.get("TEST_COMPANY_ID", "integ-test-001")
-TEST_COMPANY_SLUG = "integ-test-001"  # Matches backend.utils.id_gen.TEST_COMPANY_SLUG - prevents accidental collision
+# Slug reserved in reserved test namespace (matches backend.utils.id_gen.TEST_COMPANY_SLUG_PREFIX)
+# Any slug starting with 'integ' is reserved for test companies
+TEST_COMPANY_SLUG = "integ-test-001"
 TEST_OG_ID = "integ-og-001"
 
 EMPLOYEE_COUNT = int(os.environ.get("EMPLOYEE_COUNT", "55"))
