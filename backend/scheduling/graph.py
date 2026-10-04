@@ -905,6 +905,10 @@ async def run_scheduling_pipeline(
     strategy_param: float = 0.5,
     strategy_param2: float = 0.0,
     num_days: int = 7,
+    seniority_weight: float = 0.0,
+    pay_weight: float = 0.0,
+    overtime_weight: float = 0.0,
+    affinity_weight: float = 0.0,
 ) -> AsyncGenerator[LocationResult, None]:
     """Run the scheduling pipeline and yield LocationResult dicts as they're produced.
 
@@ -919,6 +923,10 @@ async def run_scheduling_pipeline(
             "rotation", or "rotation_history").
         strategy_param: Fairness weight for rotation_history (0.0-1.0).
         num_days: Number of days to schedule starting from week_start_date.
+        seniority_weight: Signal weight for seniority preference (0.0-1.0).
+        pay_weight: Signal weight for cost optimization (0.0-1.0).
+        overtime_weight: Signal weight for overtime minimization (0.0-1.0).
+        affinity_weight: Signal weight for team affinities (0.0-1.0).
 
     Yields:
         LocationResult dicts, one per location, as each location completes.
@@ -965,6 +973,14 @@ async def run_scheduling_pipeline(
     if not allowed_locations:
         return
     initial_state["locations"] = allowed_locations
+
+    # Add signal configuration to state
+    initial_state["signal_config"] = {
+        "seniority_weight": seniority_weight,
+        "pay_weight": pay_weight,
+        "overtime_weight": overtime_weight,
+        "affinity_weight": affinity_weight,
+    }
 
     # For rotation_history strategy, load 3-month role minutes from DB
     if use_local and strategy == "rotation_history":

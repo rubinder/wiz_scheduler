@@ -212,10 +212,23 @@ async def generate_schedule(
                     strategy_param=body.strategy_param if body.strategy_param is not None else 0.5,
                     strategy_param2=body.strategy_param2 if body.strategy_param2 is not None else 0.0,
                     num_days=body.num_days,
+                    seniority_weight=body.seniority_weight,
+                    pay_weight=body.pay_weight,
+                    overtime_weight=body.overtime_weight,
+                    affinity_weight=body.affinity_weight,
                 ):
                     # Persist a ShiftSchedule row so approve/reject have a record to find
                     loc_id = chunk.get("location_id", "")
                     if loc_id:
+                        signal_config = {
+                            "seniority_weight": body.seniority_weight,
+                            "pay_weight": body.pay_weight,
+                            "overtime_weight": body.overtime_weight,
+                            "affinity_weight": body.affinity_weight,
+                            "strategy": body.strategy,
+                            "strategy_param": body.strategy_param,
+                            "strategy_param2": body.strategy_param2,
+                        }
                         sched = ShiftSchedule(
                             company_id=current_user.company_id,
                             location_id=loc_id,
@@ -225,6 +238,7 @@ async def generate_schedule(
                             strategy=body.strategy if body.use_local else "ai",
                             strategy_param=body.strategy_param,
                             strategy_param2=body.strategy_param2,
+                            signal_config=signal_config,
                             preference_summary=chunk.get("preference_summary"),
                         )
                         db.add(sched)
