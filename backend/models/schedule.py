@@ -25,6 +25,9 @@ class ShiftSchedule(Base):
     strategy: Mapped[str | None] = mapped_column(String, nullable=True)
     strategy_param: Mapped[float | None] = mapped_column(Float, nullable=True)
     strategy_param2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Signal weights used when generating this schedule (audit trail)
+    # {"seniority_weight": 0.5, "pay_weight": 0.0, "overtime_weight": 0.1, "affinity_weight": 0.9}
+    signal_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
