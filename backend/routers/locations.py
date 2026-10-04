@@ -106,6 +106,12 @@ async def update_location(
     if "overtime_premium_multiplier" in body.model_fields_set:
         location.overtime_premium_multiplier = body.overtime_premium_multiplier
 
+    # Update signal_config if provided (gated on paid plan for signal weight features)
+    if "signal_config" in body.model_fields_set:
+        if body.signal_config is not None:
+            await assert_paid_plan(db, str(current_user.company_id), "signal_weight_scheduling")
+        location.signal_config = body.signal_config
+
     await db.commit()
     await db.refresh(location)
     return LocationResponse.model_validate(location)

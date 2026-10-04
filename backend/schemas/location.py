@@ -12,6 +12,7 @@ class LocationCreate(BaseModel):
     min_rest_hours: float | None = None
     overtime_threshold_hours: float | None = Field(default=None, gt=0)
     overtime_premium_multiplier: float | None = Field(default=None, ge=1)
+    signal_config: dict | None = None  # Default signal weights for this location
 
 
 class LocationUpdate(BaseModel):
@@ -23,6 +24,7 @@ class LocationUpdate(BaseModel):
     min_rest_hours: float | None = None
     overtime_threshold_hours: float | None = Field(default=None, gt=0)
     overtime_premium_multiplier: float | None = Field(default=None, ge=1)
+    signal_config: dict | None = None  # Default signal weights {seniority, pay, overtime, affinity}
 
 
 class LocationResponse(BaseModel):
@@ -36,6 +38,7 @@ class LocationResponse(BaseModel):
     min_rest_hours: float | None = None
     overtime_threshold_hours: float | None = None
     overtime_premium_multiplier: float | None = None
+    signal_config: dict | None = None  # Default signal weights for this location
 
     model_config = {"from_attributes": True}
 

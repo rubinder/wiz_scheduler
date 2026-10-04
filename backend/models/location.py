@@ -32,6 +32,11 @@ class Location(Base):
     overtime_threshold_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     overtime_premium_multiplier: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Default signal weights for scheduling at this location.
+    # Overrides company defaults when set. NULL = inherit from company.
+    # {"seniority_weight": 0.0, "pay_weight": 0.0, "overtime_weight": 0.0, "affinity_weight": 0.0}
+    signal_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     __table_args__ = (
         CheckConstraint(
             "overtime_premium_multiplier IS NULL OR overtime_premium_multiplier >= 1",
