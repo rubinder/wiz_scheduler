@@ -14,6 +14,7 @@ export function createLocation(body: {
   min_rest_hours?: number | null;
   overtime_threshold_hours?: number | null;
   overtime_premium_multiplier?: number | null;
+  signal_config?: Record<string, number> | null;
 }): Promise<Location> {
   return apiFetch<Location>("/locations/", {
     method: "POST",
@@ -32,6 +33,7 @@ export function updateLocation(
     min_rest_hours?: number | null;
     overtime_threshold_hours?: number | null;
     overtime_premium_multiplier?: number | null;
+    signal_config?: Record<string, number> | null;
   }
 ): Promise<Location> {
   return apiFetch<Location>(`/locations/${id}`, {

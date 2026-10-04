@@ -17,6 +17,10 @@ interface GenerateOptions {
   strategyParam?: number;
   strategyParam2?: number;
   numDays?: number;
+  seniorityWeight?: number;
+  payWeight?: number;
+  overtimeWeight?: number;
+  affinityWeight?: number;
 }
 
 interface UseScheduleStreamReturn {
@@ -82,6 +86,19 @@ export function useScheduleStream(): UseScheduleStreamReturn {
       }
       if (options?.numDays && options.numDays !== 7) {
         body.num_days = options.numDays;
+      }
+      // Add signal weight parameters if provided
+      if (options?.seniorityWeight !== undefined) {
+        body.seniority_weight = options.seniorityWeight;
+      }
+      if (options?.payWeight !== undefined) {
+        body.pay_weight = options.payWeight;
+      }
+      if (options?.overtimeWeight !== undefined) {
+        body.overtime_weight = options.overtimeWeight;
+      }
+      if (options?.affinityWeight !== undefined) {
+        body.affinity_weight = options.affinityWeight;
       }
 
       fetch("/api/v1/schedules/generate", {
