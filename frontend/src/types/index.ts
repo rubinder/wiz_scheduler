@@ -41,6 +41,13 @@ export interface User {
 
 // ── Company ──
 
+export interface SignalConfig {
+  seniority_weight: number;
+  pay_weight: number;
+  overtime_weight: number;
+  affinity_weight: number;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -49,6 +56,7 @@ export interface Company {
   created_at: string;
   overtime_threshold_hours: number | null;
   overtime_premium_multiplier: number | null;
+  signal_config: SignalConfig | null;
 }
 
 // ── Ownership Group ──
@@ -96,6 +104,9 @@ export interface Location {
    * code default. Paid-plan gated at the API write layer. */
   overtime_threshold_hours: number | null;
   overtime_premium_multiplier: number | null;
+  /** Default signal weights for scheduling at this location.
+   * Overrides company defaults when set. null = inherit from company. */
+  signal_config: SignalConfig | null;
 }
 
 // ── Role ──
@@ -247,6 +258,10 @@ export interface ShiftSchedule {
   status: string;
   created_at: string;
   shifts: Shift[];
+  strategy: string | null;
+  strategy_param: number | null;
+  strategy_param2: number | null;
+  signal_config: SignalConfig | null;
 }
 
 export interface Shift {
