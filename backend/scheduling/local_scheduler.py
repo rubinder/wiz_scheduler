@@ -531,18 +531,15 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            # Apply signal weights to cost and seniority scores
-            base_cost_weight = COST_WEIGHT * pay_weight if pay_weight > 0 else COST_WEIGHT
-            base_sen_weight = SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else SENIORITY_WEIGHT
-
-            cost = e.get("_cost_score", 0.0) * base_cost_weight
-            sen = e.get("_seniority_score", 0.0) * base_sen_weight
+            # Apply signal weights: 0 = disabled, >0 = enabled with scaled weight
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
             ot = (
                 overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
-                if overtime_threshold is not None else 0.0
+                if overtime_threshold is not None and overtime_weight > 0 else 0.0
             )
             # Apply affinity weight
-            aff = aff * affinity_weight if affinity_weight > 0 else aff
+            aff = aff * affinity_weight if affinity_weight > 0 else 0.0
 
             score = opp * 100 + aff + pref + cost + sen + ot
             scored.append((score, e))
@@ -569,18 +566,15 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            # Apply signal weights to cost and seniority scores
-            base_cost_weight = COST_WEIGHT * pay_weight if pay_weight > 0 else COST_WEIGHT
-            base_sen_weight = SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else SENIORITY_WEIGHT
-
-            cost = e.get("_cost_score", 0.0) * base_cost_weight
-            sen = e.get("_seniority_score", 0.0) * base_sen_weight
+            # Apply signal weights: 0 = disabled, >0 = enabled with scaled weight
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
             ot = (
                 overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
-                if overtime_threshold is not None else 0.0
+                if overtime_threshold is not None and overtime_weight > 0 else 0.0
             )
             # Apply affinity weight
-            aff = aff * affinity_weight if affinity_weight > 0 else aff
+            aff = aff * affinity_weight if affinity_weight > 0 else 0.0
 
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot
             scored.append((score, e))
@@ -612,18 +606,15 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            # Apply signal weights to cost and seniority scores
-            base_cost_weight = COST_WEIGHT * pay_weight if pay_weight > 0 else COST_WEIGHT
-            base_sen_weight = SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else SENIORITY_WEIGHT
-
-            cost = e.get("_cost_score", 0.0) * base_cost_weight
-            sen = e.get("_seniority_score", 0.0) * base_sen_weight
+            # Apply signal weights: 0 = disabled, >0 = enabled with scaled weight
+            cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
             ot = (
                 overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
-                if overtime_threshold is not None else 0.0
+                if overtime_threshold is not None and overtime_weight > 0 else 0.0
             )
             # Apply affinity weight
-            aff = aff * affinity_weight if affinity_weight > 0 else aff
+            aff = aff * affinity_weight if affinity_weight > 0 else 0.0
 
             # Blend between random (opp_cost only) and full history consideration
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot + (history_penalty * strategy_param * 10)
