@@ -348,6 +348,66 @@ def employee_token(seed_employee_user: User) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Schema compatibility test fixtures (fresh instances per test)
+# ---------------------------------------------------------------------------
+
+@pytest_asyncio.fixture
+async def test_company(db_session: AsyncSession) -> Company:
+    """Fresh company for compatibility tests."""
+    company = Company(id=_id(), name="Test Company", slug=_id())
+    db_session.add(company)
+    await db_session.commit()
+    await db_session.refresh(company)
+    return company
+
+
+@pytest_asyncio.fixture
+async def test_region(db_session: AsyncSession, test_company: Company) -> Region:
+    """Fresh region for compatibility tests."""
+    region = Region(id=_id(), company_id=test_company.id, name="Test Region")
+    db_session.add(region)
+    await db_session.commit()
+    await db_session.refresh(region)
+    return region
+
+
+@pytest_asyncio.fixture
+async def test_location(db_session: AsyncSession, test_company: Company, test_region: Region) -> Location:
+    """Fresh location for compatibility tests."""
+    loc = Location(
+        id=_id(),
+        company_id=test_company.id,
+        region_id=test_region.id,
+        name="Test Location",
+        timezone="UTC",
+    )
+    db_session.add(loc)
+    await db_session.commit()
+    await db_session.refresh(loc)
+    return loc
+
+
+@pytest_asyncio.fixture
+async def test_employee(db_session: AsyncSession, test_company: Company) -> Employee:
+    """Fresh employee for compatibility tests."""
+    emp = Employee(
+        id=_id(),
+        company_id=test_company.id,
+        full_name="Test Employee",
+        email="test@example.com",
+    )
+    db_session.add(emp)
+    await db_session.commit()
+    await db_session.refresh(emp)
+    return emp
+
+
+@pytest_asyncio.fixture
+async def db(db_session: AsyncSession) -> AsyncSession:
+    """Alias for db_session for schema compatibility tests."""
+    return db_session
+
+# ---------------------------------------------------------------------------
 # Composite fixture used by team-collab + locking tests
 # ---------------------------------------------------------------------------
 
