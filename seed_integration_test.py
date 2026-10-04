@@ -61,6 +61,8 @@ def get_db_credentials() -> dict[str, str]:
       - {DB_PARAM_PATH}/username
       - {DB_PARAM_PATH}/password
       - {DB_PARAM_PATH}/database
+
+    Fails hard if credentials are missing (no insecure fallback).
     """
     ssm = boto3.client("ssm", region_name=AWS_REGION)
     params = [
@@ -74,12 +76,27 @@ def get_db_credentials() -> dict[str, str]:
     response = ssm.get_parameters(Names=params, WithDecryption=True)
     param_dict = {p["Name"]: p["Value"] for p in response["Parameters"]}
 
+    # Fail hard if any required credential is missing
+    required_keys = [
+        f"{DB_PARAM_PATH}/host",
+        f"{DB_PARAM_PATH}/port",
+        f"{DB_PARAM_PATH}/username",
+        f"{DB_PARAM_PATH}/password",
+        f"{DB_PARAM_PATH}/database",
+    ]
+    missing = [k for k in required_keys if k not in param_dict]
+    if missing:
+        raise ValueError(
+            f"Missing required Parameter Store credentials: {missing}. "
+            f"Set them in AWS Parameter Store before running."
+        )
+
     return {
-        "host": param_dict.get(f"{DB_PARAM_PATH}/host", "localhost"),
-        "port": param_dict.get(f"{DB_PARAM_PATH}/port", "5432"),
-        "username": param_dict.get(f"{DB_PARAM_PATH}/username", "postgres"),
-        "password": param_dict.get(f"{DB_PARAM_PATH}/password", ""),
-        "database": param_dict.get(f"{DB_PARAM_PATH}/database", "wizscheduler"),
+        "host": param_dict[f"{DB_PARAM_PATH}/host"],
+        "port": param_dict[f"{DB_PARAM_PATH}/port"],
+        "username": param_dict[f"{DB_PARAM_PATH}/username"],
+        "password": param_dict[f"{DB_PARAM_PATH}/password"],
+        "database": param_dict[f"{DB_PARAM_PATH}/database"],
     }
 
 
@@ -375,10 +392,17 @@ async def seed_integration_test(
 
     # --- Availability (refresh for next N days) ---
     # DELETE existing, then INSERT fresh for reproducibility
-    await db.execute(
-        text("DELETE FROM employee_availability WHERE company_id = :company_id"),
+    # Scoped to test company only to prevent accidental data loss
+    result = await db.execute(
+        text(
+            "DELETE FROM employee_availability "
+            "WHERE company_id = :company_id "
+            "AND company_id IN (SELECT id FROM companies WHERE slug LIKE 'integ%')"
+        ),
         {"company_id": TEST_COMPANY_ID},
     )
+    if result.rowcount > 0:
+        print(f"  (refreshed {result.rowcount} existing availability windows)")
 
     start_date = datetime.now(timezone.utc).date()
     rows = []
@@ -442,18 +466,8 @@ async def seed_integration_test(
 
 async def main() -> None:
     """Standalone entry point for testing."""
-    try:
-        credentials = get_db_credentials()
-    except Exception as e:
-        print(f"⚠️  Could not fetch from Parameter Store: {e}")
-        print("   Using environment variables or defaults...")
-        credentials = {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": os.environ.get("DB_PORT", "5432"),
-            "username": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", ""),
-            "database": os.environ.get("DB_NAME", "wizscheduler"),
-        }
+    # Fail hard if credentials are unavailable (no insecure fallback)
+    credentials = get_db_credentials()
 
     async for db in get_db_session(credentials):
         result = await seed_integration_test(db)

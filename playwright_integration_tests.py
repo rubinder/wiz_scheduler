@@ -38,7 +38,14 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 TEST_BASE_URL = os.environ.get("TEST_BASE_URL", "http://localhost:5173")
 TEST_COMPANY_ID = os.environ.get("TEST_COMPANY_ID", "integ-test-001")
 TEST_MANAGER_EMAIL = os.environ.get("TEST_MANAGER_EMAIL", "manager@integ-test.local")
-TEST_MANAGER_PASSWORD = os.environ.get("TEST_MANAGER_PASSWORD", "integ-test-password")
+
+# Password must be explicitly set (no insecure default)
+if "TEST_MANAGER_PASSWORD" not in os.environ:
+    raise ValueError(
+        "TEST_MANAGER_PASSWORD environment variable is required. "
+        "Set it from AWS Parameter Store or secure credential source."
+    )
+TEST_MANAGER_PASSWORD = os.environ["TEST_MANAGER_PASSWORD"]
 
 # Seeded location IDs (must match seed_integration_test.py)
 TEST_LOCATION_1_ID = "integ-loc-001"
