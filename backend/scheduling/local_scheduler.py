@@ -123,6 +123,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
     shift_template = state["current_shift_template"]
     employees = state["current_employees"]
     week_start_date = state["week_start_date"]
+    signal_config = state.get("signal_config", {})
 
     num_days = state.get("num_days", 7)
     date_map = _build_date_map(week_start_date, num_days)
@@ -299,6 +300,7 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
                     end=end_hm,
                     range_counts=range_counts,
                     overtime_threshold=overtime_threshold,
+                    signal_config=signal_config,
                 )
 
                 if chosen is None:
@@ -475,6 +477,7 @@ def _pick_employee(
     end: str = "23:59",
     range_counts: Dict[Any, int] | None = None,
     overtime_threshold: float | None = None,
+    signal_config: Dict[str, float] | None = None,
 ) -> Dict[str, Any] | None:
     """Select one employee from *available* based on *strategy* and affinities.
 
@@ -513,6 +516,14 @@ def _pick_employee(
 
     if strategy == "random":
         # Compute affinity-adjusted opportunity cost, pick from best tier
+        signal_config = signal_config or {}
+        seniority_weight = signal_config.get("seniority_weight", 0.0)
+        pay_weight = signal_config.get("pay_weight", 0.0)
+        overtime_weight = signal_config.get("overtime_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        # Check if any signal weights are explicitly set (non-zero)
+        any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
+
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
             eid = str(e["id"])
@@ -522,12 +533,25 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
-            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = (
-                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
-                if overtime_threshold is not None else 0.0
-            )
+
+            if any_signal_specified:
+                # Weighted mode: only include signals when explicitly weighted
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
+                    if overtime_threshold is not None and overtime_weight > 0 else 0.0
+                )
+                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
+            else:
+                # Backward-compatible mode: all signals active at base weights
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                    if overtime_threshold is not None else 0.0
+                )
+
             score = opp * 100 + aff + pref + cost + sen + ot
             scored.append((score, e))
 
@@ -537,6 +561,14 @@ def _pick_employee(
         return random.choice(tied)
 
     elif strategy == "rotation":
+        signal_config = signal_config or {}
+        seniority_weight = signal_config.get("seniority_weight", 0.0)
+        pay_weight = signal_config.get("pay_weight", 0.0)
+        overtime_weight = signal_config.get("overtime_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        # Check if any signal weights are explicitly set (non-zero)
+        any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
+
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
             eid = str(e["id"])
@@ -547,12 +579,25 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
-            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = (
-                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
-                if overtime_threshold is not None else 0.0
-            )
+
+            if any_signal_specified:
+                # Weighted mode: only include signals when explicitly weighted
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
+                    if overtime_threshold is not None and overtime_weight > 0 else 0.0
+                )
+                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
+            else:
+                # Backward-compatible mode: all signals active at base weights
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                    if overtime_threshold is not None else 0.0
+                )
+
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot
             scored.append((score, e))
 
@@ -563,6 +608,14 @@ def _pick_employee(
 
     elif strategy == "rotation_history":
         # strategy_param: 1.0 = always pick fewest-hours, 0.0 = essentially random
+        signal_config = signal_config or {}
+        seniority_weight = signal_config.get("seniority_weight", 0.0)
+        pay_weight = signal_config.get("pay_weight", 0.0)
+        overtime_weight = signal_config.get("overtime_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        # Check if any signal weights are explicitly set (non-zero)
+        any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
+
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
             eid = str(e["id"])
@@ -577,12 +630,25 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
-            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = (
-                overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
-                if overtime_threshold is not None else 0.0
-            )
+
+            if any_signal_specified:
+                # Weighted mode: only include signals when explicitly weighted
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
+                    if overtime_threshold is not None and overtime_weight > 0 else 0.0
+                )
+                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
+            else:
+                # Backward-compatible mode: all signals active at base weights
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+                ot = (
+                    overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold)
+                    if overtime_threshold is not None else 0.0
+                )
+
             # Blend between random (opp_cost only) and full history consideration
             score = opp_cost * 100 + fills * 10 - e.get("_skill", 0) + aff + pref + cost + sen + ot + (history_penalty * strategy_param * 10)
             scored.append((score, e))
@@ -601,6 +667,12 @@ def _pick_employee(
     elif strategy == "max_hours":
         # strategy_param = max hours (e.g. 40)
         # strategy_param2 = strictness (1.0 = hard cap, 0.0 = no enforcement)
+        signal_config = signal_config or {}
+        seniority_weight = signal_config.get("seniority_weight", 0.0)
+        pay_weight = signal_config.get("pay_weight", 0.0)
+        overtime_weight = signal_config.get("overtime_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.0)
+
         max_hrs = strategy_param if strategy_param > 0 else 40.0
         strictness = strategy_param2
         emp_hrs = employee_hours or {}
@@ -615,6 +687,9 @@ def _pick_employee(
                 available = capped
             # If everyone would exceed, fall through to scoring (don't leave shift empty)
 
+        # Check if any signal weights are explicitly set (non-zero)
+        any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
+
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
             eid = str(e["id"])
@@ -626,12 +701,24 @@ def _pick_employee(
                 preference_score(e, day_index, start, end, range_counts)
                 if day_index is not None else 0.0
             )
-            cost = e.get("_cost_score", 0.0) * COST_WEIGHT
-            sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
-            ot = (
-                overtime_score(current_hrs, shift_duration_hrs, overtime_threshold)
-                if overtime_threshold is not None else 0.0
-            )
+
+            if any_signal_specified:
+                # Weighted mode: only include signals when explicitly weighted
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT * pay_weight if pay_weight > 0 else 0.0
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT * seniority_weight if seniority_weight > 0 else 0.0
+                ot = (
+                    overtime_score(current_hrs, shift_duration_hrs, overtime_threshold) * overtime_weight
+                    if overtime_threshold is not None and overtime_weight > 0 else 0.0
+                )
+                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
+            else:
+                # Backward-compatible mode: all signals active at base weights
+                cost = e.get("_cost_score", 0.0) * COST_WEIGHT
+                sen = e.get("_seniority_score", 0.0) * SENIORITY_WEIGHT
+                ot = (
+                    overtime_score(current_hrs, shift_duration_hrs, overtime_threshold)
+                    if overtime_threshold is not None else 0.0
+                )
 
             # Penalty for being near/over the cap, scaled by strictness
             if projected_hrs > max_hrs:

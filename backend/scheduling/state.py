@@ -104,3 +104,5 @@ class SchedulingState(TypedDict):
     # Set by annotate_preferences, copied onto LocationResult by emit_result
     # (#99). None when annotate_preferences degraded rather than raised.
     current_preference_summary: Dict[str, Any] | None
+    # Signal weights for scheduling (0.0-1.0 scale, default 0.0 = disabled)
+    signal_config: Dict[str, float]

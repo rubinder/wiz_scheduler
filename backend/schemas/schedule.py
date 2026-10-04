@@ -15,6 +15,14 @@ class GenerateRequest(BaseModel):
     strategy: Literal["random", "rotation", "rotation_history", "max_hours"] = "random"
     strategy_param: float | None = None
     strategy_param2: float | None = None
+
+    # Signal weights: 0.0-1.0 in 0.1 increments (default 0.0 = not relevant)
+    # See SCHEDULING_SIGNAL_CONTROLS.md for semantics
+    seniority_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    pay_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    overtime_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    affinity_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+
     # Capped at 7: the per-day template fusion in
     # backend.scheduling.graph._load_initial_state keys the fused
     # weekly_schedule by day name. A window >7 days would contain duplicate
@@ -118,6 +126,7 @@ class ShiftScheduleResponse(BaseModel):
     strategy: str | None = None
     strategy_param: float | None = None
     strategy_param2: float | None = None
+    signal_config: dict | None = None  # Signal weights used when generating schedule
     created_at: datetime
     preference_summary: dict | None = None
     shifts: list[ShiftResponse] = []
