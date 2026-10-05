@@ -11,6 +11,7 @@ import { listSpecialHours } from "../../api/specialHours";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
 import StatusBadge from "../../components/shared/StatusBadge";
 import ScheduleGrid, { fmtHM, getDayLabel } from "../../components/shared/ScheduleGrid";
+import SignalWeightConfig from "../../components/shared/SignalWeightConfig";
 import DemoGuard from "../../components/shared/DemoGuard";
 import PlanBanner from "../../components/shared/PlanBanner";
 import VerifyEmailBanner from "../../components/shared/VerifyEmailBanner";
@@ -25,6 +26,7 @@ import type {
   LocationResult,
   ShiftAssignment,
   ShiftTemplate,
+  SignalConfig,
   SpecialHoursDay,
 } from "../../types";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
@@ -389,6 +391,9 @@ export default function Schedule() {
   const [fairnessWeight, setFairnessWeight] = useState(0.7);
   const [maxHours, setMaxHours] = useState(40);
   const [hourStrictness, setHourStrictness] = useState(0.8);
+  // Signal weight overrides for generation (AI mode only)
+  const [signalWeightOverrides, setSignalWeightOverrides] = useState<SignalConfig | null>(null);
+  const [showSignalWeightOverrides, setShowSignalWeightOverrides] = useState(false);
 
   // Once plan state loads, if AI generation is gated (free plan — see
   // usePlan's fail-open contract: `plan` stays null on fetch failure, so
@@ -598,6 +603,13 @@ export default function Schedule() {
         strategy: localStrategy,
         ...(localStrategy === "rotation_history" ? { strategyParam: fairnessWeight } : {}),
         ...(localStrategy === "max_hours" ? { strategyParam: maxHours, strategyParam2: hourStrictness } : {}),
+      } : {}),
+      // Pass signal weight overrides for AI generation
+      ...(generateMode === "ai" && signalWeightOverrides ? {
+        seniorityWeight: signalWeightOverrides.seniority_weight,
+        payWeight: signalWeightOverrides.pay_weight,
+        overtimeWeight: signalWeightOverrides.overtime_weight,
+        affinityWeight: signalWeightOverrides.affinity_weight,
       } : {}),
       numDays,
     });
@@ -1147,6 +1159,36 @@ export default function Schedule() {
                 )}
             </div>
 
+            {generateMode === "ai" && (
+              <div className={`px-6 py-3 border-t ${border.default}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <label className={`text-sm font-medium ${text.secondary}`}>
+                    Signal Weight Overrides
+                  </label>
+                  <button
+                    onClick={() => setShowSignalWeightOverrides(!showSignalWeightOverrides)}
+                    className="text-sm text-blue-500 hover:text-blue-700"
+                  >
+                    {showSignalWeightOverrides ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {showSignalWeightOverrides && (
+                  <SignalWeightConfig
+                    config={signalWeightOverrides}
+                    onChange={setSignalWeightOverrides}
+                    readOnly={false}
+                  />
+                )}
+                {!showSignalWeightOverrides && (
+                  <p className={`text-xs ${text.muted}`}>
+                    {signalWeightOverrides && Object.values(signalWeightOverrides).some((v) => v > 0)
+                      ? "Overrides active — will use location/company defaults otherwise"
+                      : "Using location/company defaults"}
+                  </p>
+                )}
+              </div>
+            )}
+
             {generateMode === "local" && (
               <div className={`px-6 py-3 bg-emerald-50 border-t ${border.default}`}>
                 <label className={`block text-sm font-medium ${text.secondary} mb-2`}>
@@ -1465,6 +1507,31 @@ export default function Schedule() {
                       <li key={i}>{err}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {locationResult.signal_config && Object.values(locationResult.signal_config).some((v) => v > 0) && (
+                <div className={`px-4 py-3 border-b ${border.subtle} bg-blue-50/50`}>
+                  <p className={`text-xs font-semibold ${text.secondary} mb-2`}>
+                    ⚙️ Signal Weights Used
+                  </p>
+                  <div className="grid grid-cols-4 gap-3 text-xs">
+                    {(["seniority_weight", "pay_weight", "overtime_weight", "affinity_weight"] as const).map((key) => {
+                      const val = locationResult.signal_config![key];
+                      const labels: Record<string, string> = {
+                        seniority_weight: "Seniority",
+                        pay_weight: "Pay",
+                        overtime_weight: "Overtime",
+                        affinity_weight: "Affinity",
+                      };
+                      return (
+                        <div key={key}>
+                          <div className={text.muted}>{labels[key]}</div>
+                          <div className="font-semibold">{val.toFixed(1)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -1437,6 +1437,7 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         "errors": location_errors,
         "status": status,
         "preference_summary": state.get("current_preference_summary"),
+        "signal_config": state.get("signal_config", {}),
     }
 
     draft_schedules = list(state["draft_schedules"])

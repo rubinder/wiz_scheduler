@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as companyApi from "../../api/company";
-import type { Company as CompanyType } from "../../types";
+import type { Company as CompanyType, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { usePlan } from "../../hooks/usePlan";
 import DemoGuard from "../../components/shared/DemoGuard";
+import SignalWeightConfig from "../../components/shared/SignalWeightConfig";
 import { text, border, bg } from "../../theme";
 
 export default function Company() {
@@ -13,6 +14,7 @@ export default function Company() {
   const [name, setName] = useState("");
   const [overtimeThresholdHours, setOvertimeThresholdHours] = useState("");
   const [overtimePremiumMultiplier, setOvertimePremiumMultiplier] = useState("");
+  const [signalConfig, setSignalConfig] = useState<SignalConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -28,6 +30,7 @@ export default function Company() {
       setOvertimePremiumMultiplier(
         data.overtime_premium_multiplier != null ? String(data.overtime_premium_multiplier) : ""
       );
+      setSignalConfig(data.signal_config);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load company");
     }
@@ -43,6 +46,7 @@ export default function Company() {
     setSuccess("");
     setSaving(true);
     try {
+      const signalWeightGated = plan?.plan === "free";
       const updated = await companyApi.updateCompany({
         name,
         overtime_threshold_hours: overtimeGated
@@ -51,6 +55,7 @@ export default function Company() {
         overtime_premium_multiplier: overtimeGated
           ? undefined
           : (overtimePremiumMultiplier === "" ? null : Number(overtimePremiumMultiplier)),
+        signal_config: signalWeightGated ? undefined : (signalConfig as unknown as Record<string, number> | null),
       });
       setCompany(updated);
       setSuccess(t.companyPage.updateSuccess);
@@ -139,6 +144,17 @@ export default function Company() {
           {overtimeGated && (
             <p className={`text-xs ${text.muted}`}>{t.companyPage.overtimeGatedHint}</p>
           )}
+
+          {signalConfig !== undefined && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <SignalWeightConfig
+                config={signalConfig}
+                onChange={setSignalConfig}
+                readOnly={plan?.plan === "free"}
+              />
+            </div>
+          )}
+
           <DemoGuard>
             <button
               type="submit"
