@@ -4,8 +4,9 @@ import * as regionsApi from "../../api/regions";
 import DataTable, { type Column } from "../../components/shared/DataTable";
 import ImportModal from "../../components/shared/ImportModal";
 import DemoGuard from "../../components/shared/DemoGuard";
+import SignalWeightConfig from "../../components/shared/SignalWeightConfig";
 import { usePlan } from "../../hooks/usePlan";
-import type { Location, Region } from "../../types";
+import type { Location, Region, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
 
@@ -16,6 +17,8 @@ export default function Locations() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [editingSignalConfig, setEditingSignalConfig] = useState<SignalConfig | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -99,7 +102,8 @@ export default function Locations() {
 
   const handleSave = async (idx: number, row: Record<string, unknown>) => {
     try {
-      await locationsApi.updateLocation(locations[idx].id, {
+      const location = locations[idx];
+      await locationsApi.updateLocation(location.id, {
         name: row.name as string,
         region_id: row.region_id as string,
         address: (row.address as string) || null,
@@ -231,7 +235,104 @@ export default function Locations() {
               : undefined
           }
         />
+        {!overtimeGated && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap gap-2">
+              {locations.map((loc) => (
+                <button
+                  key={loc.id}
+                  onClick={() => {
+                    setSelectedLocationId(loc.id);
+                    setEditingSignalConfig(loc.signal_config || {
+                      seniority_weight: 0,
+                      pay_weight: 0,
+                      overtime_weight: 0,
+                      affinity_weight: 0,
+                    });
+                  }}
+                  className="text-sm glass-btn-secondary"
+                >
+                  ⚙️ {loc.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {selectedLocationId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="glass-card p-6 max-w-lg w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className={`text-lg font-bold ${text.heading}`}>
+                Signal Weight Settings
+              </h2>
+              <button
+                onClick={() => {
+                  setSelectedLocationId(null);
+                  setEditingSignalConfig(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editingSignalConfig !== null && (
+              <SignalWeightConfig
+                config={editingSignalConfig}
+                onChange={setEditingSignalConfig}
+                readOnly={false}
+              />
+            )}
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setSelectedLocationId(null);
+                  setEditingSignalConfig(null);
+                }}
+                className="flex-1 glass-btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (selectedLocationId && editingSignalConfig) {
+                    const location = locations.find(
+                      (l) => l.id === selectedLocationId
+                    );
+                    if (location) {
+                      try {
+                        await locationsApi.updateLocation(selectedLocationId, {
+                          name: location.name,
+                          region_id: location.region_id,
+                          address: location.address,
+                          timezone: location.timezone,
+                          min_rest_hours: location.min_rest_hours,
+                          signal_config: editingSignalConfig as unknown as Record<string, number>,
+                        });
+                        setSelectedLocationId(null);
+                        setEditingSignalConfig(null);
+                        await fetchData();
+                      } catch (err: unknown) {
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Update failed"
+                        );
+                      }
+                    }
+                  }
+                }}
+                className="flex-1 glass-btn-primary"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
