@@ -849,12 +849,25 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
             if rname and rid:
                 template_role_ids[rname] = rid
 
-    # Count assigned shifts per (day, role_name) — only valid shifts
-    assigned_counts: Dict[tuple[str, str], int] = {}
+    # Count assigned shifts per (day, role_name, start_time, end_time) — only valid shifts
+    assigned_counts: Dict[tuple[str, str, str, str], int] = {}
     for shift in shifts:
         if shift["status"] == "ok":
             day = date_to_day.get(shift["date"], "")
-            key = (day, shift["role_name"])
+            start_time = shift.get("start_time", "")
+            end_time = shift.get("end_time", "")
+            # Extract time portion from ISO timestamp, strip timezone and seconds
+            # e.g., "2026-01-01T09:00:00-04:00" -> "09:00", "09:00:00" -> "09:00"
+            def extract_hm(iso_time: str) -> str:
+                if "T" in iso_time:
+                    time_part = iso_time.split("T")[1]  # "09:00:00-04:00" or "09:00:00"
+                    time_part = time_part.split("+")[0].split("-")[0]  # Remove timezone
+                    hm = ":".join(time_part.split(":")[:-1])  # Keep HH:MM only
+                    return hm
+                return ""
+            start_hm = extract_hm(start_time)
+            end_hm = extract_hm(end_time)
+            key = (day, shift["role_name"], start_hm, end_hm)
             assigned_counts[key] = assigned_counts.get(key, 0) + 1
 
     for day, slots in weekly_schedule.items():
@@ -862,7 +875,9 @@ def validate_schedule(state: SchedulingState) -> Dict[str, Any]:
             role_name = slot.get("role_name", "")
             role_id = template_role_ids.get(role_name, "")
             headcount = slot.get("headcount", 1)
-            key = (day, role_name)
+            start_time = slot.get("start_time", "")
+            end_time = slot.get("end_time", "")
+            key = (day, role_name, start_time, end_time)
             filled = assigned_counts.get(key, 0)
             shortage = headcount - filled
             if shortage > 0:
