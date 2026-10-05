@@ -393,7 +393,7 @@ export default function Schedule() {
   const [hourStrictness, setHourStrictness] = useState(0.8);
   // Signal weight overrides for generation (AI mode only)
   const [signalWeightOverrides, setSignalWeightOverrides] = useState<SignalConfig | null>(null);
-  const [showSignalWeightOverrides, setShowSignalWeightOverrides] = useState(false);
+  const [showSignalWeightOverrides, setShowSignalWeightOverrides] = useState(true);
 
   // Once plan state loads, if AI generation is gated (free plan — see
   // usePlan's fail-open contract: `plan` stays null on fetch failure, so
@@ -1070,7 +1070,7 @@ export default function Schedule() {
       {/* Template Picker Modal */}
       {showTemplatePicker && (
         <div className="glass-modal-overlay">
-          <div className="glass-modal w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+          <div className="glass-modal w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
             <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
               <h2 className={`text-lg font-semibold ${text.heading}`}>
                 {t.schedule.selectTemplates}
