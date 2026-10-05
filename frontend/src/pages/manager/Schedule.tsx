@@ -1160,7 +1160,7 @@ export default function Schedule() {
             </div>
 
             {/* Signal Weight Overrides - available for both AI and local modes */}
-            <div className={`px-6 py-3 border-t ${border.default}`}>
+            <div className={`px-6 py-3 border-t ${border.default} max-h-48 overflow-y-auto`}>
               <div className="flex items-center justify-between mb-3">
                 <label className={`text-sm font-medium ${text.secondary}`}>
                   Signal Weight Overrides
