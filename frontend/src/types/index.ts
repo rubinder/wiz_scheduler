@@ -315,6 +315,7 @@ export interface LocationResult {
   status: string;
   schedule_id?: string;
   preference_summary?: PreferenceSummary | null;
+  signal_config?: SignalConfig | null;
 }
 
 // ── Invites ──

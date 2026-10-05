@@ -968,6 +968,12 @@ async def run_scheduling_pipeline(
             shifts=[],
             errors=[verdict["message"] or "Free plan allowance used."],
             status="QUOTA_EXCEEDED",
+            signal_config={
+                "seniority_weight": seniority_weight,
+                "pay_weight": pay_weight,
+                "overtime_weight": overtime_weight,
+                "affinity_weight": affinity_weight,
+            },
         )
 
     if not allowed_locations:

@@ -43,6 +43,8 @@ class LocationResult(TypedDict, total=False):
     # Per-location roster-thin summary (#99). Set by annotate_preferences,
     # copied here by emit_result. None when annotate_preferences degraded.
     preference_summary: Dict[str, Any] | None
+    # Signal weights used for this location's scheduling (0.0-1.0 scale)
+    signal_config: Dict[str, float]
 
 
 class SchedulingState(TypedDict):

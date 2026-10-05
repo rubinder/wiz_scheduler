@@ -244,6 +244,13 @@ async def generate_schedule(
                         db.add(sched)
                         await db.flush()
                         chunk["schedule_id"] = str(sched.id)
+                        # Include signal_config in the response
+                        chunk["signal_config"] = {
+                            "seniority_weight": body.seniority_weight,
+                            "pay_weight": body.pay_weight,
+                            "overtime_weight": body.overtime_weight,
+                            "affinity_weight": body.affinity_weight,
+                        }
 
                         # Deduct credits if over schedule free tier
                         from backend.services.billing import deduct_credits_for_schedule_overage
