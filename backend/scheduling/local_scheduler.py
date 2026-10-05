@@ -520,7 +520,7 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
 
@@ -565,7 +565,7 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
 
@@ -612,7 +612,7 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0, affinity_weight > 0])
 
@@ -671,7 +671,7 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.0)
+        affinity_weight = signal_config.get("affinity_weight", 0.5)
 
         max_hrs = strategy_param if strategy_param > 0 else 40.0
         strictness = strategy_param2
