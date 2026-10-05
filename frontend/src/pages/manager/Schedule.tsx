@@ -393,7 +393,7 @@ export default function Schedule() {
   const [hourStrictness, setHourStrictness] = useState(0.8);
   // Signal weight overrides for generation (AI mode only)
   const [signalWeightOverrides, setSignalWeightOverrides] = useState<SignalConfig | null>(null);
-  const [showSignalWeightOverrides, setShowSignalWeightOverrides] = useState(true);
+  const [showSignalWeightOverrides, setShowSignalWeightOverrides] = useState(false);
 
   // Once plan state loads, if AI generation is gated (free plan — see
   // usePlan's fail-open contract: `plan` stays null on fetch failure, so
