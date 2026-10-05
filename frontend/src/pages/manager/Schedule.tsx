@@ -1159,35 +1159,34 @@ export default function Schedule() {
                 )}
             </div>
 
-            {generateMode === "ai" && (
-              <div className={`px-6 py-3 border-t ${border.default}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <label className={`text-sm font-medium ${text.secondary}`}>
-                    Signal Weight Overrides
-                  </label>
-                  <button
-                    onClick={() => setShowSignalWeightOverrides(!showSignalWeightOverrides)}
-                    className="text-sm text-blue-500 hover:text-blue-700"
-                  >
-                    {showSignalWeightOverrides ? "Hide" : "Show"}
-                  </button>
-                </div>
-                {showSignalWeightOverrides && (
-                  <SignalWeightConfig
-                    config={signalWeightOverrides}
-                    onChange={setSignalWeightOverrides}
-                    readOnly={false}
-                  />
-                )}
-                {!showSignalWeightOverrides && (
-                  <p className={`text-xs ${text.muted}`}>
-                    {signalWeightOverrides && Object.values(signalWeightOverrides).some((v) => v > 0)
-                      ? "Overrides active — will use location/company defaults otherwise"
-                      : "Using location/company defaults"}
-                  </p>
-                )}
+            {/* Signal Weight Overrides - available for both AI and local modes */}
+            <div className={`px-6 py-3 border-t ${border.default}`}>
+              <div className="flex items-center justify-between mb-3">
+                <label className={`text-sm font-medium ${text.secondary}`}>
+                  Signal Weight Overrides
+                </label>
+                <button
+                  onClick={() => setShowSignalWeightOverrides(!showSignalWeightOverrides)}
+                  className="text-sm text-blue-500 hover:text-blue-700"
+                >
+                  {showSignalWeightOverrides ? "Hide" : "Show"}
+                </button>
               </div>
-            )}
+              {showSignalWeightOverrides && (
+                <SignalWeightConfig
+                  config={signalWeightOverrides}
+                  onChange={setSignalWeightOverrides}
+                  readOnly={false}
+                />
+              )}
+              {!showSignalWeightOverrides && (
+                <p className={`text-xs ${text.muted}`}>
+                  {signalWeightOverrides && Object.values(signalWeightOverrides).some((v) => v > 0)
+                    ? "Overrides active — will use location/company defaults otherwise"
+                    : "Using location/company defaults"}
+                </p>
+              )}
+            </div>
 
             {generateMode === "local" && (
               <div className={`px-6 py-3 bg-emerald-50 border-t ${border.default}`}>
