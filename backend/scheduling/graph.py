@@ -689,9 +689,15 @@ async def _load_initial_state(
             "skill_level": er.skill_level,
         })
 
-    # Load employee affinities
+    # Load employee affinities (filter by entry_date and expiration_date)
+    from datetime import datetime
+    week_date = datetime.fromisoformat(week_start_date).date()
     aff_result = await db.execute(
-        select(EmployeeAffinity).where(EmployeeAffinity.company_id == company_id)
+        select(EmployeeAffinity).where(
+            EmployeeAffinity.company_id == company_id,
+            EmployeeAffinity.entry_date <= week_date,
+            (EmployeeAffinity.expiration_date == None) | (EmployeeAffinity.expiration_date >= week_date),
+        )
     )
     affinities_orm = aff_result.scalars().all()
     emp_affinities_map: Dict[str, List[Dict[str, Any]]] = {}

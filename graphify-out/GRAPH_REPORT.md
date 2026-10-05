@@ -1,2011 +1,819 @@
-# Graph Report - .  (2026-09-15)
+# Graph Report - .  (2026-10-05)
 
 ## Corpus Check
-- Large corpus: 407 files · ~1,290,816 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 480 files · ~1,998,301 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 3672 nodes · 5955 edges · 338 communities detected
-- Extraction: 73% EXTRACTED · 27% INFERRED · 0% AMBIGUOUS · INFERRED: 1623 edges (avg confidence: 0.52)
+- 1793 nodes · 3826 edges · 128 communities detected
+- Extraction: 62% EXTRACTED · 38% INFERRED · 0% AMBIGUOUS · INFERRED: 1442 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_OwnershipGroup  BillingCharge  test_billing.py|OwnershipGroup / BillingCharge / test_billing.py]]
-- [[_COMMUNITY_datetime  Base  Base|datetime / Base / Base]]
-- [[_COMMUNITY_SchedulingState  LocationResult  ShiftAssignment|SchedulingState / LocationResult / ShiftAssignment]]
-- [[_COMMUNITY_BaseModel  employee.py  employees.py|BaseModel / employee.py / employees.py]]
-- [[_COMMUNITY_Marketing & Auth Restyle Implementation Plan  get_plan_stat|Marketing & Auth Restyle Implementation Plan / get_plan_stat]]
-- [[_COMMUNITY_Paid AI Credits & Conventions|Paid AI Credits & Conventions]]
-- [[_COMMUNITY_BaseModel  employee.py  employees.py|BaseModel / employee.py / employees.py]]
-- [[_COMMUNITY_test_check_in_service.py  CheckInRejected  _scan()|test_check_in_service.py / CheckInRejected / _scan()]]
-- [[_COMMUNITY_SchedulingState  LocationResult  ShiftAssignment|SchedulingState / LocationResult / ShiftAssignment]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_auth.py  ForgotPasswordRequest  GoogleAuthResponse|auth.py / ForgotPasswordRequest / GoogleAuthResponse]]
-- [[_COMMUNITY_Migration canceled_at + Notification Columns  process_canc|Migration: canceled_at + Notification Columns / process_canc]]
-- [[_COMMUNITY_test_gdpr.py  GdprExportLog  gdpr.py|test_gdpr.py / GdprExportLog / gdpr.py]]
-- [[_COMMUNITY_test_auth.py  Tests for the apiv1auth endpoints.  Emplo|test_auth.py / Tests for the /api/v1/auth endpoints. / Emplo]]
-- [[_COMMUNITY_preferences.py  violations_for_slot()  matches_range()|preferences.py / violations_for_slot() / matches_range()]]
-- [[_COMMUNITY_test_plan_generation_gate.py  _add_schedules()  _make_over|test_plan_generation_gate.py / _add_schedules() / _make_over]]
-- [[_COMMUNITY_test_location_quota.py  _quota()  _schedule()|test_location_quota.py / _quota() / _schedule()]]
-- [[_COMMUNITY_test_email_verification.py  Email verification minting, re|test_email_verification.py / Email verification: minting, re]]
-- [[_COMMUNITY_conftest.py  _make_token()  _id()|conftest.py / _make_token() / _id()]]
-- [[_COMMUNITY_LangGraph Scheduling Pipeline (Why)  Entry Flow + Template|LangGraph Scheduling Pipeline (Why) / Entry Flow + Template ]]
-- [[_COMMUNITY_test_demo_roster_lock.py  _login()  test_an_ordinary_free_|test_demo_roster_lock.py / _login() / test_an_ordinary_free_]]
-- [[_COMMUNITY_test_seed_prune.py  _count()  test_prune_deletes_generated|test_seed_prune.py / _count() / test_prune_deletes_generated]]
-- [[_COMMUNITY__win()  test_min_rest_clopening.py  _emp_with_windows()|_win() / test_min_rest_clopening.py / _emp_with_windows()]]
-- [[_COMMUNITY_test_preferences_ai_path.py  _shift()  test_cap_seeds_from|test_preferences_ai_path.py / _shift() / test_cap_seeds_from]]
-- [[_COMMUNITY_ManagerUser  locustfile.py  .on_start()|ManagerUser / locustfile.py / .on_start()]]
-- [[_COMMUNITY_test_plan.py  free_og()  og_with_two_companies()|test_plan.py / free_og() / og_with_two_companies()]]
-- [[_COMMUNITY_test_abuse_report.py  _og()  _signals()|test_abuse_report.py / _og() / _signals()]]
-- [[_COMMUNITY_import_7shifts.py  import_availabilities_from_7shifts()  i|import_7shifts.py / import_availabilities_from_7shifts() / i]]
-- [[_COMMUNITY_test_seed_availability.py  _windows()  test_date_columns_a|test_seed_availability.py / _windows() / test_date_columns_a]]
-- [[_COMMUNITY_test_edit_approved_warnings.py  codes()  _busy_employee()|test_edit_approved_warnings.py / codes() / _busy_employee()]]
-- [[_COMMUNITY_test_plan_enforcement.py  _add_employees()  _employee_csv(|test_plan_enforcement.py / _add_employees() / _employee_csv(]]
-- [[_COMMUNITY_Schedule.tsx  daysBetween()  handleConfirmGenerate()|Schedule.tsx / daysBetween() / handleConfirmGenerate()]]
-- [[_COMMUNITY_test_email_link_origin.py  _FakeRequest  test_a_subdomain_|test_email_link_origin.py / _FakeRequest / test_a_subdomain_]]
-- [[_COMMUNITY_test_rate_limit.py  SlidingWindowLimiter  rate_limit.py|test_rate_limit.py / SlidingWindowLimiter / rate_limit.py]]
-- [[_COMMUNITY_test_locations.py  test_bulk_upload_rejects_oversize_body()|test_locations.py / test_bulk_upload_rejects_oversize_body()]]
-- [[_COMMUNITY_test_availability_holds.py  approved_schedule_fixture()  s|test_availability_holds.py / approved_schedule_fixture() / s]]
-- [[_COMMUNITY_test_preference_overlap.py  test_short_shift_inside_a_long_|test_preference_overlap.py / test_short_shift_inside_a_long_]]
-- [[_COMMUNITY_test_quota_matches_plan.py  _make_og()  test_credits_still|test_quota_matches_plan.py / _make_og() / test_credits_still]]
-- [[_COMMUNITY_test_plan_demo_exception.py  _add_schedules()  test_demo_g|test_plan_demo_exception.py / _add_schedules() / test_demo_g]]
-- [[_COMMUNITY_test_plan_billing_api.py  Plan + upgrade endpoints on the b|test_plan_billing_api.py / Plan + upgrade endpoints on the b]]
-- [[_COMMUNITY_employees.ts  acceptInvite()  bulkUploadEmployees()|employees.ts / acceptInvite() / bulkUploadEmployees()]]
-- [[_COMMUNITY_SecurityHeadersMiddleware  MetricsMiddleware  metrics.py|SecurityHeadersMiddleware / MetricsMiddleware / metrics.py]]
-- [[_COMMUNITY__emp()|_emp()]]
-- [[_COMMUNITY_test_fairness_history.py  _history()  _schedule()|test_fairness_history.py / _history() / _schedule()]]
-- [[_COMMUNITY_test_check_in_api.py  _tenant()  free()|test_check_in_api.py / _tenant() / free()]]
-- [[_COMMUNITY_seed.py  main()  _prune_over_limit_demo_data()|seed.py / main() / _prune_over_limit_demo_data()]]
-- [[_COMMUNITY_test_signup_signals.py  _og_for()  _register()|test_signup_signals.py / _og_for() / _register()]]
-- [[_COMMUNITY_test_preference_scoring.py  _emp()  test_a_cap_does_not_ap|test_preference_scoring.py / _emp() / test_a_cap_does_not_ap]]
-- [[_COMMUNITY_test_db_connection_budget.py  _per_process()  _peak_connec|test_db_connection_budget.py / _per_process() / _peak_connec]]
-- [[_COMMUNITY_test_roles.py  test_bulk_upload_rejects_oversize_body()  T|test_roles.py / test_bulk_upload_rejects_oversize_body() / T]]
-- [[_COMMUNITY_test_preference_annotations.py  _shift()  _prefs()|test_preference_annotations.py / _shift() / _prefs()]]
-- [[_COMMUNITY_plan.py  get_plan_state()  LimitCount|plan.py / get_plan_state() / LimitCount]]
-- [[_COMMUNITY_billing.ts  confirmReactivation()  confirmUpgrade()|billing.ts / confirmReactivation() / confirmUpgrade()]]
-- [[_COMMUNITY_test_employees.py  test_bulk_upload_accepts_under_size_cap(|test_employees.py / test_bulk_upload_accepts_under_size_cap(]]
-- [[_COMMUNITY_location_quota.py  resolve_location_quota()  LocationQuota|location_quota.py / resolve_location_quota() / LocationQuota]]
-- [[_COMMUNITY_nyc_leads.py  main()  build_rows()|nyc_leads.py / main() / build_rows()]]
-- [[_COMMUNITY_Auto-Reload Buffer (AI + Schedules)  Monthly InvoiceItems T|Auto-Reload Buffer (AI + Schedules) / Monthly InvoiceItems T]]
-- [[_COMMUNITY_Employees.tsx  countCsvRows()  handleImportUpload()|Employees.tsx / countCsvRows() / handleImportUpload()]]
-- [[_COMMUNITY_test_integration_import_quota.py  _make_og()  test_burst_a|test_integration_import_quota.py / _make_og() / test_burst_a]]
-- [[_COMMUNITY_scheduling_preferences.py  _get_owned_employee()  create_d|scheduling_preferences.py / _get_owned_employee() / create_d]]
-- [[_COMMUNITY_schedulingPreferences.ts  createDayPreference()  createHou|schedulingPreferences.ts / createDayPreference() / createHou]]
-- [[_COMMUNITY_test_annotate_preferences_node.py  _emp()  _shift()|test_annotate_preferences_node.py / _emp() / _shift()]]
-- [[_COMMUNITY_test_email_quota.py  _make_og()  test_at_cap_blocks_and_do|test_email_quota.py / _make_og() / test_at_cap_blocks_and_do]]
-- [[_COMMUNITY_email_verification.py  send_verification()  assert_email_v|email_verification.py / send_verification() / assert_email_v]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_employees table  companies table  locations table|employees table / companies table / locations table]]
-- [[_COMMUNITY_test_scheduling_preferences_api.py  test_free_plan_is_not_b|test_scheduling_preferences_api.py / test_free_plan_is_not_b]]
-- [[_COMMUNITY_test_check_in_model.py  _row()  _tenant()|test_check_in_model.py / _row() / _tenant()]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_Employee Availability & Association Management Page  Employ|Employee Availability & Association Management Page / Employ]]
-- [[_COMMUNITY_Manager Dashboard  Company Management Card  Employees Mana|Manager Dashboard / Company Management Card / Employees Mana]]
-- [[_COMMUNITY_Data table with employee hour restrictions  Hour Restrictio|Data table with employee hour restrictions / Hour Restrictio]]
-- [[_COMMUNITY_test_regions.py  Tests for apiv1regions endpoints.  tes|test_regions.py / Tests for /api/v1/regions endpoints. / tes]]
-- [[_COMMUNITY_ShiftCalendar.tsx  blocksToScheduleJson()  deleteEditBlock|ShiftCalendar.tsx / blocksToScheduleJson() / deleteEditBlock]]
-- [[_COMMUNITY_test_pagination.py  test_no_exception_on_absurd_input()  U|test_pagination.py / test_no_exception_on_absurd_input() / U]]
-- [[_COMMUNITY_test_scheduling_preferences_model.py  test_weight_defaults_|test_scheduling_preferences_model.py / test_weight_defaults_]]
-- [[_COMMUNITY__Visitor  test_utc_today.py  _offenders()|_Visitor / test_utc_today.py / _offenders()]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_Schedule Generation Page  Location Schedule Section (Downto|Schedule Generation Page / Location Schedule Section (Downto]]
-- [[_COMMUNITY_Delete Your Account section  Data & Privacy page  Export Y|Delete Your Account section / Data & Privacy page / Export Y]]
-- [[_COMMUNITY_FrequencyCaps.tsx  parseMaxPerWeek()  handleCreate()|FrequencyCaps.tsx / parseMaxPerWeek() / handleCreate()]]
-- [[_COMMUNITY_RoleEquivalents.tsx  resetForm()  handleSubmit()|RoleEquivalents.tsx / resetForm() / handleSubmit()]]
-- [[_COMMUNITY_ShiftTemplates.tsx  handleSubmit()  nextId()|ShiftTemplates.tsx / handleSubmit() / nextId()]]
-- [[_COMMUNITY_test_sidebar_routes.py  test_the_parser_still_finds_both_si|test_sidebar_routes.py / test_the_parser_still_finds_both_si]]
-- [[_COMMUNITY_Day Rules Manager Page  Add Rule Form  Day Rules Feature|Day Rules Manager Page / Add Rule Form / Day Rules Feature]]
-- [[_COMMUNITY_Location Entity  Locations DataTable  Locations Manager Pa|Location Entity / Locations DataTable / Locations Manager Pa]]
-- [[_COMMUNITY_Shift Templates Manager Page  Shift Template Card (Weekday|Shift Templates Manager Page / Shift Template Card (Weekday ]]
-- [[_COMMUNITY_Employee Onboarding page  Employee onboarding workflow - se|Employee Onboarding page / Employee onboarding workflow - se]]
-- [[_COMMUNITY_Export Approved Schedules page  Approved Schedule domain en|Export Approved Schedules page / Approved Schedule domain en]]
-- [[_COMMUNITY_EditShiftModal.tsx  submit()  handleDelete()|EditShiftModal.tsx / submit() / handleDelete()]]
-- [[_COMMUNITY_Team.tsx  closeModal()  handleSubmitInvite()|Team.tsx / closeModal() / handleSubmitInvite()]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_test_scheduling_model.py  test_model_id_carries_no_date_suf|test_scheduling_model.py / test_model_id_carries_no_date_suf]]
-- [[_COMMUNITY_test_avail_tz.py  test_parse_avail_keeps_window_on_its_own_|test_avail_tz.py / test_parse_avail_keeps_window_on_its_own_]]
-- [[_COMMUNITY_test_email_normalize.py  test_malformed_falls_back_to_clean|test_email_normalize.py / test_malformed_falls_back_to_clean]]
-- [[_COMMUNITY_test_eligibility_shared.py  test_no_path_reimplements_the_b|test_eligibility_shared.py / test_no_path_reimplements_the_b]]
-- [[_COMMUNITY_base_url.py  _allowed_origins()  _origin_of()|base_url.py / _allowed_origins() / _origin_of()]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_Page List 15 Manager Screens  Features.tsx Page Component|Page List: 15 Manager Screens / Features.tsx Page Component ]]
-- [[_COMMUNITY_Employee Entity  Employee Data Table  Employees Manager Pa|Employee Entity / Employee Data Table / Employees Manager Pa]]
-- [[_COMMUNITY_Roles Management Page  Roles DataTable  Edit Delete Action|Roles Management Page / Roles DataTable / Edit Delete Action]]
-- [[_COMMUNITY_Role Equivalents Manager Page  Role Equivalents (Grouping S|Role Equivalents Manager Page / Role Equivalents (Grouping S]]
-- [[_COMMUNITY_Company Settings Page  Company Settings Form  Manager User|Company Settings Page / Company Settings Form / Manager User]]
-- [[_COMMUNITY_Regions Data Table  Regions Management Page  Add Row Butto|Regions Data Table / Regions Management Page / Add Row Butto]]
-- [[_COMMUNITY__employeesShared.ts  formatDate()  formatTime()|_employeesShared.ts / formatDate() / formatTime()]]
-- [[_COMMUNITY_Locations.tsx  parseMinRest()  countCsvRows()|Locations.tsx / parseMinRest() / countCsvRows()]]
-- [[_COMMUNITY_HourRestrictions.tsx  parseValue()  handleSave()|HourRestrictions.tsx / parseValue() / handleSave()]]
-- [[_COMMUNITY__state_for_toronto_all_day_monday()  test_avail_local_wallc|_state_for_toronto_all_day_monday() / test_avail_local_wallc]]
-- [[_COMMUNITY_Abuse Report Clustering|Abuse Report Clustering]]
-- [[_COMMUNITY_CHECKIN_QR_SECRET Fail-Closed Design  FRONTEND_URL Trusted|CHECKIN_QR_SECRET Fail-Closed Design / FRONTEND_URL Trusted ]]
-- [[_COMMUNITY_gdpr.ts  deleteMyAccount()  exportMyData()|gdpr.ts / deleteMyAccount() / exportMyData()]]
-- [[_COMMUNITY_test_shift_templates.py  Tests for apiv1shift-templates|test_shift_templates.py / Tests for /api/v1/shift-templates ]]
-- [[_COMMUNITY_schedules.ts  approveSchedule()  getSchedule()|schedules.ts / approveSchedule() / getSchedule()]]
-- [[_COMMUNITY_locations.ts  bulkUploadLocations()  createLocation()|locations.ts / bulkUploadLocations() / createLocation()]]
-- [[_COMMUNITY_client.ts  ApiError  .constructor()|client.ts / ApiError / .constructor()]]
-- [[_COMMUNITY_HourRangePreferences.tsx  handleCreate()  handleDelete()|HourRangePreferences.tsx / handleCreate() / handleDelete()]]
-- [[_COMMUNITY_ApprovedSchedules.tsx  toDateStr()  buildMonthGrid()|ApprovedSchedules.tsx / toDateStr() / buildMonthGrid()]]
-- [[_COMMUNITY_DayPreferences.tsx  handleCreate()  handleDelete()|DayPreferences.tsx / handleCreate() / handleDelete()]]
-- [[_COMMUNITY_signup_signals.py  record_signup_signals()  _user_agent_ha|signup_signals.py / record_signup_signals() / _user_agent_ha]]
-- [[_COMMUNITY_roles.ts  bulkUploadRoles()  createRole()|roles.ts / bulkUploadRoles() / createRole()]]
-- [[_COMMUNITY_JSONFormatter  setup_logging()  logging_config.py|JSONFormatter / setup_logging() / logging_config.py]]
-- [[_COMMUNITY_condensed_roles.py  _build_response()  create_condensed_ro|condensed_roles.py / _build_response() / create_condensed_ro]]
-- [[_COMMUNITY_Operator Alert Tests|Operator Alert Tests]]
-- [[_COMMUNITY_preferenceText.ts  describeViolations()  hm()|preferenceText.ts / describeViolations() / hm()]]
-- [[_COMMUNITY_Sidebar.tsx  isGroup()  label()|Sidebar.tsx / isGroup() / label()]]
-- [[_COMMUNITY_shiftTemplates.ts  createShiftTemplate()  deleteShiftTempl|shiftTemplates.ts / createShiftTemplate() / deleteShiftTempl]]
-- [[_COMMUNITY_managerInvites.ts  acceptManagerInvite()  createManagerInv|managerInvites.ts / acceptManagerInvite() / createManagerInv]]
-- [[_COMMUNITY_specialHours.ts  createSpecialHoursDay()  deleteSpecialHou|specialHours.ts / createSpecialHoursDay() / deleteSpecialHou]]
-- [[_COMMUNITY_Login.tsx  handleGoogleCallback()  handleGoogleLink()|Login.tsx / handleGoogleCallback() / handleGoogleLink()]]
-- [[_COMMUNITY_ExportSchedules.tsx  toDateStr()  buildMonthGrid()|ExportSchedules.tsx / toDateStr() / buildMonthGrid()]]
-- [[_COMMUNITY_email_verification_email.py  send_email_verification_email(|email_verification_email.py / send_email_verification_email(]]
-- [[_COMMUNITY_EmployeeSearchBox.tsx  handleFocus()  handleInputChange()|EmployeeSearchBox.tsx / handleFocus() / handleInputChange()]]
-- [[_COMMUNITY_exportSchedules.ts  exportTo7Shifts()  getJsonlDownloadUrl|exportSchedules.ts / exportTo7Shifts() / getJsonlDownloadUrl]]
-- [[_COMMUNITY_affinities.ts  createAffinity()  deleteAffinity()|affinities.ts / createAffinity() / deleteAffinity()]]
-- [[_COMMUNITY_condensedRoles.ts  createCondensedRole()  deleteCondensedR|condensedRoles.ts / createCondensedRole() / deleteCondensedR]]
-- [[_COMMUNITY_regions.ts  createRegion()  deleteRegion()|regions.ts / createRegion() / deleteRegion()]]
-- [[_COMMUNITY_LanguageContext.tsx  detectBrowserLang()  getInitialLang()|LanguageContext.tsx / detectBrowserLang() / getInitialLang()]]
-- [[_COMMUNITY_Roles.tsx  handleCreate()  handleDelete()|Roles.tsx / handleCreate() / handleDelete()]]
-- [[_COMMUNITY_regions.py  create_region()  delete_region()|regions.py / create_region() / delete_region()]]
-- [[_COMMUNITY_affinities.py  create_affinity()  delete_affinity()|affinities.py / create_affinity() / delete_affinity()]]
-- [[_COMMUNITY_Operator Alerts Service|Operator Alerts Service]]
-- [[_COMMUNITY_shiftTime.ts  extractTime()  formatTime()|shiftTime.ts / extractTime() / formatTime()]]
-- [[_COMMUNITY_SpecialHoursModal.tsx  handleSubmit()  locationName()|SpecialHoursModal.tsx / handleSubmit() / locationName()]]
-- [[_COMMUNITY_useScheduleStream.ts  ScheduleLockedError  .constructor()|useScheduleStream.ts / ScheduleLockedError / .constructor()]]
-- [[_COMMUNITY_checkIns.ts  getCheckInQr()  getCheckInReport()|checkIns.ts / getCheckInQr() / getCheckInReport()]]
-- [[_COMMUNITY_approvedSchedules.ts  editApprovedShifts()  getApprovedWee|approvedSchedules.ts / editApprovedShifts() / getApprovedWee]]
-- [[_COMMUNITY_googleAuth.ts  googleAuth()  googleLink()|googleAuth.ts / googleAuth() / googleLink()]]
-- [[_COMMUNITY_handleDelete()  handleExport()  DataPrivacy.tsx|handleDelete() / handleExport() / DataPrivacy.tsx]]
-- [[_COMMUNITY_config.py  Settings  BaseSettings|config.py / Settings / BaseSettings]]
-- [[_COMMUNITY_email_normalize.py  normalize_email()  Canonical form of a|email_normalize.py / normalize_email() / Canonical form of a]]
-- [[_COMMUNITY_pagination.py  clamp_limit()  Pagination helpers — keeps c|pagination.py / clamp_limit() / Pagination helpers — keeps c]]
-- [[_COMMUNITY_0030_add_employee_check_ins.py  downgrade()  add employee_|0030_add_employee_check_ins.py / downgrade() / add employee_]]
-- [[_COMMUNITY_0034_add_preference_violations.py  downgrade()  add prefer|0034_add_preference_violations.py / downgrade() / add prefer]]
-- [[_COMMUNITY_0031_add_scheduling_preferences.py  downgrade()  add sched|0031_add_scheduling_preferences.py / downgrade() / add sched]]
-- [[_COMMUNITY_0025_add_special_hours_days_and_shift_template_specific_date|0025_add_special_hours_days_and_shift_template_specific_date]]
-- [[_COMMUNITY_0033_add_signup_signals.py  downgrade()  add observe-only|0033_add_signup_signals.py / downgrade() / add observe-only ]]
-- [[_COMMUNITY_0021_add_billing_overage_columns.py  downgrade()  Add auto|0021_add_billing_overage_columns.py / downgrade() / Add auto]]
-- [[_COMMUNITY_0023_add_manager_invites_and_schedule_locks.py  downgrade()|0023_add_manager_invites_and_schedule_locks.py / downgrade()]]
-- [[_COMMUNITY_0028_add_location_min_rest_hours.py  downgrade()  Add min_|0028_add_location_min_rest_hours.py / downgrade() / Add min_]]
-- [[_COMMUNITY_0022_add_cancellation_columns.py  downgrade()  Add cancell|0022_add_cancellation_columns.py / downgrade() / Add cancell]]
-- [[_COMMUNITY_0032_add_email_verification.py  downgrade()  add email ver|0032_add_email_verification.py / downgrade() / add email ver]]
-- [[_COMMUNITY_0027_add_quota_audit_tables.py  downgrade()  add og_email_|0027_add_quota_audit_tables.py / downgrade() / add og_email_]]
-- [[_COMMUNITY_0029_add_unique_stripe_id_indexes.py  downgrade()  Add par|0029_add_unique_stripe_id_indexes.py / downgrade() / Add par]]
-- [[_COMMUNITY_manager_invite_email.py  send_manager_invite_email()  Rese|manager_invite_email.py / send_manager_invite_email() / Rese]]
-- [[_COMMUNITY_WizScheduler Platform Overview  Roles Are Data, Never Strin|WizScheduler Platform Overview / Roles Are Data, Never Strin]]
-- [[_COMMUNITY_nyc_leads.py Lead Generation Script  CLAUDE.md Project Over|nyc_leads.py Lead Generation Script / CLAUDE.md Project Over]]
-- [[_COMMUNITY_company.ts  getCompany()  listGroupCompanies()|company.ts / getCompany() / listGroupCompanies()]]
-- [[_COMMUNITY_EmployeeOnboarding.tsx  handleInvite()  inviteStatusFor()|EmployeeOnboarding.tsx / handleInvite() / inviteStatusFor()]]
-- [[_COMMUNITY_Regions.tsx  handleCreate()  handleDelete()|Regions.tsx / handleCreate() / handleDelete()]]
-- [[_COMMUNITY_id_gen.py  generate_short_id()  Short alphanumeric ID gene|id_gen.py / generate_short_id() / Short alphanumeric ID gene]]
-- [[_COMMUNITY_0004_add_affinity_dates.py  downgrade()  Add entry_date an|0004_add_affinity_dates.py / downgrade() / Add entry_date an]]
-- [[_COMMUNITY_0001_initial_schema.py  downgrade()  Initial schema  Revis|0001_initial_schema.py / downgrade() / Initial schema  Revis]]
-- [[_COMMUNITY_bfbb0671ec23_replace_uuid_with_8char_alphanumeric_ids.py  d|bfbb0671ec23_replace_uuid_with_8char_alphanumeric_ids.py / d]]
-- [[_COMMUNITY_0007_add_failure_logs.py  downgrade()  add failure_logs ta|0007_add_failure_logs.py / downgrade() / add failure_logs ta]]
-- [[_COMMUNITY_0013_add_user_consents.py  downgrade()  Add user_consents|0013_add_user_consents.py / downgrade() / Add user_consents ]]
-- [[_COMMUNITY_0005_add_shift_exported_at.py  downgrade()  Add exported_a|0005_add_shift_exported_at.py / downgrade() / Add exported_a]]
-- [[_COMMUNITY_0019_add_storage_snapshots.py  downgrade()  Add storage_sn|0019_add_storage_snapshots.py / downgrade() / Add storage_sn]]
-- [[_COMMUNITY_0015_add_google_id_to_users.py  downgrade()  Add google_id|0015_add_google_id_to_users.py / downgrade() / Add google_id]]
-- [[_COMMUNITY_0020_add_api_integration_to_ownership_groups.py  downgrade(|0020_add_api_integration_to_ownership_groups.py / downgrade(]]
-- [[_COMMUNITY_0009_unique_email_per_company.py  downgrade()  change user|0009_unique_email_per_company.py / downgrade() / change user]]
-- [[_COMMUNITY_0002_add_external_ids_and_departments.py  downgrade()  Add|0002_add_external_ids_and_departments.py / downgrade() / Add]]
-- [[_COMMUNITY_54ebeacf0286_add_ai_credits_usd_to_ownership_groups.py  dow|54ebeacf0286_add_ai_credits_usd_to_ownership_groups.py / dow]]
-- [[_COMMUNITY_0017_add_employee_max_hours.py  downgrade()  Add max_hours|0017_add_employee_max_hours.py / downgrade() / Add max_hours]]
-- [[_COMMUNITY_0008_add_employee_invites.py  downgrade()  add employee_in|0008_add_employee_invites.py / downgrade() / add employee_in]]
-- [[_COMMUNITY_0010_add_condensed_roles.py  downgrade()  Add condensed_ro|0010_add_condensed_roles.py / downgrade() / Add condensed_ro]]
-- [[_COMMUNITY_0012_add_strategy_param2.py  downgrade()  Add strategy_par|0012_add_strategy_param2.py / downgrade() / Add strategy_par]]
-- [[_COMMUNITY_0011_add_strategy_and_role_minutes.py  downgrade()  Add st|0011_add_strategy_and_role_minutes.py / downgrade() / Add st]]
-- [[_COMMUNITY_0014_add_billing_columns.py  downgrade()  Add cost_usd and|0014_add_billing_columns.py / downgrade() / Add cost_usd and]]
-- [[_COMMUNITY_0018_add_employee_day_blackouts.py  downgrade()  Add emplo|0018_add_employee_day_blackouts.py / downgrade() / Add emplo]]
-- [[_COMMUNITY_0016_restore_cascade_deletes.py  downgrade()  Restore ON D|0016_restore_cascade_deletes.py / downgrade() / Restore ON D]]
-- [[_COMMUNITY_0003_add_ownership_groups.py  downgrade()  Add ownership g|0003_add_ownership_groups.py / downgrade() / Add ownership g]]
-- [[_COMMUNITY_Migration 0035 Paid Credits|Migration 0035 Paid Credits]]
-- [[_COMMUNITY_getDeviceId()  randomId()  deviceId.ts|getDeviceId() / randomId() / deviceId.ts]]
-- [[_COMMUNITY_DuplicateSpecialHoursModal.tsx  handleConfirm()  toggle()|DuplicateSpecialHoursModal.tsx / handleConfirm() / toggle()]]
-- [[_COMMUNITY_ImportDeputyModal.tsx  handleImport()  SyncRow()|ImportDeputyModal.tsx / handleImport() / SyncRow()]]
-- [[_COMMUNITY_Import7ShiftsModal.tsx  handleImport()  SyncRow()|Import7ShiftsModal.tsx / handleImport() / SyncRow()]]
-- [[_COMMUNITY_ScheduleGrid.tsx  fmtHM()  getDayLabel()|ScheduleGrid.tsx / fmtHM() / getDayLabel()]]
-- [[_COMMUNITY_useAuth.tsx  AuthProvider()  useAuth()|useAuth.tsx / AuthProvider() / useAuth()]]
-- [[_COMMUNITY_CheckInReport.tsx  parseLocalDate()  statusLabel()|CheckInReport.tsx / parseLocalDate() / statusLabel()]]
-- [[_COMMUNITY_SpecialHours.tsx  SpecialHours()  trimSeconds()|SpecialHours.tsx / SpecialHours() / trimSeconds()]]
-- [[_COMMUNITY_DayBlackouts.tsx  handleCreate()  handleDelete()|DayBlackouts.tsx / handleCreate() / handleDelete()]]
-- [[_COMMUNITY_Availability.tsx  handleAdd()  handleDelete()|Availability.tsx / handleAdd() / handleDelete()]]
-- [[_COMMUNITY_OwnershipGroup  BillingCharge  test_billing.py|OwnershipGroup / BillingCharge / test_billing.py]]
-- [[_COMMUNITY_run_abuse_report.py  main()  Weekly suspected-account repo|run_abuse_report.py / main() / Weekly suspected-account repo]]
-- [[_COMMUNITY_WeekPicker.tsx  getNextMonday()  WeekPicker()|WeekPicker.tsx / getNextMonday() / WeekPicker()]]
-- [[_COMMUNITY_importDeputy.ts  importAvailabilitiesFromDeputy()  importF|importDeputy.ts / importAvailabilitiesFromDeputy() / importF]]
-- [[_COMMUNITY_import7shifts.ts  importAvailabilitiesFrom7Shifts()  impor|import7shifts.ts / importAvailabilitiesFrom7Shifts() / impor]]
-- [[_COMMUNITY_ownershipGroup.ts  addCompanyToGroup()  getOwnershipGroup(|ownershipGroup.ts / addCompanyToGroup() / getOwnershipGroup(]]
-- [[_COMMUNITY_mask_ip()  privacy.py  Mask the last 2 bytes of an IP addr|mask_ip() / privacy.py / Mask the last 2 bytes of an IP addr]]
-- [[_COMMUNITY_run_retention.py  main()  Data retention purge script.  Ru|run_retention.py / main() / Data retention purge script.  Ru]]
-- [[_COMMUNITY_LocationResult  SchedulingState  ShiftAssignment|LocationResult / SchedulingState / ShiftAssignment]]
-- [[_COMMUNITY_Locust Load Tests  faker=25.0  locust=2.20|Locust Load Tests / faker>=25.0 / locust>=2.20]]
-- [[_COMMUNITY_add_dev_user.py  main()  Dev-only add a manager user bypa|add_dev_user.py / main() / Dev-only: add a manager user bypa]]
-- [[_COMMUNITY_Project Overview|Project Overview]]
-- [[_COMMUNITY_VerifyEmailBanner.tsx  handleResend()|VerifyEmailBanner.tsx / handleResend()]]
-- [[_COMMUNITY_PlanBanner.tsx  PlanBanner()|PlanBanner.tsx / PlanBanner()]]
-- [[_COMMUNITY_if()  DataTable.tsx|if() / DataTable.tsx]]
-- [[_COMMUNITY_CancellationBanner()  CancellationBanner.tsx|CancellationBanner() / CancellationBanner.tsx]]
-- [[_COMMUNITY_RosterThinBanner.tsx  RosterThinBanner()|RosterThinBanner.tsx / RosterThinBanner()]]
-- [[_COMMUNITY_RotaHero.tsx  RotaHero()|RotaHero.tsx / RotaHero()]]
-- [[_COMMUNITY_SectionRule.tsx  SectionRule()|SectionRule.tsx / SectionRule()]]
-- [[_COMMUNITY_useMarketingGround.ts  useMarketingGround()|useMarketingGround.ts / useMarketingGround()]]
-- [[_COMMUNITY_usePlan.ts  usePlan()|usePlan.ts / usePlan()]]
-- [[_COMMUNITY_ordinal()  Features.tsx|ordinal() / Features.tsx]]
-- [[_COMMUNITY_handleSubmit()  AcceptManagerInvite.tsx|handleSubmit() / AcceptManagerInvite.tsx]]
-- [[_COMMUNITY_Register.tsx  handleSubmit()|Register.tsx / handleSubmit()]]
-- [[_COMMUNITY_handleSubmit()  AcceptInvite.tsx|handleSubmit() / AcceptInvite.tsx]]
-- [[_COMMUNITY_VerifyEmail.tsx  VerifyEmail()|VerifyEmail.tsx / VerifyEmail()]]
-- [[_COMMUNITY_handleCallback()  Dashboard.tsx|handleCallback() / Dashboard.tsx]]
-- [[_COMMUNITY_EmployeeAvailability()  EmployeeAvailability.tsx|EmployeeAvailability() / EmployeeAvailability.tsx]]
-- [[_COMMUNITY_EmployeeAssociation()  EmployeeAssociation.tsx|EmployeeAssociation() / EmployeeAssociation.tsx]]
-- [[_COMMUNITY_CheckInQr()  CheckInQr.tsx|CheckInQr() / CheckInQr.tsx]]
-- [[_COMMUNITY_CheckIn()  CheckIn.tsx|CheckIn() / CheckIn.tsx]]
-- [[_COMMUNITY_Rolling Back a Version Bump  Terraform Version Upper-Bound|Rolling Back a Version Bump / Terraform Version Upper-Bound ]]
-- [[_COMMUNITY_features Route Wiring  Landing Page CTA + Footer Link|/features Route Wiring / Landing Page CTA + Footer Link]]
-- [[_COMMUNITY_Frontend Pending Monthly Charges Panel  pending_invoice_ite|Frontend Pending Monthly Charges Panel / pending_invoice_ite]]
-- [[_COMMUNITY_Frontend Reactivation Redirect Handler  Sitewide Cancellati|Frontend Reactivation Redirect Handler / Sitewide Cancellati]]
-- [[_COMMUNITY_Goal Public Manager Dashboard Tour  Scope Boundaries (InO|Goal: Public Manager Dashboard Tour / Scope Boundaries (In/O]]
-- [[_COMMUNITY_Goal Per-Day Template Overrides  Non-Goal Google Business|Goal: Per-Day Template Overrides / Non-Goal: Google Business]]
-- [[_COMMUNITY_DemoGuard()  DemoGuard.tsx|DemoGuard() / DemoGuard.tsx]]
-- [[_COMMUNITY_StatusBadge.tsx  StatusBadge()|StatusBadge.tsx / StatusBadge()]]
-- [[_COMMUNITY_ImportModal.tsx  handleFileSelect()|ImportModal.tsx / handleFileSelect()]]
-- [[_COMMUNITY_useDocumentTitle.ts  useDocumentTitle()|useDocumentTitle.ts / useDocumentTitle()]]
-- [[_COMMUNITY_failure_logs.py  list_failure_logs()|failure_logs.py / list_failure_logs()]]
-- [[_COMMUNITY_OG Image  Schedule Page|OG Image / Schedule Page]]
-- [[_COMMUNITY_Docker Compose  Multi-stage Dockerfile|Docker Compose / Multi-stage Dockerfile]]
-- [[_COMMUNITY_Knowledge Graph & Hooks|Knowledge Graph & Hooks]]
-- [[_COMMUNITY_Abuse & Signup Conventions|Abuse & Signup Conventions]]
-- [[_COMMUNITY_Preference & Role Conventions|Preference & Role Conventions]]
-- [[_COMMUNITY_tailwind.config.ts|tailwind.config.ts]]
-- [[_COMMUNITY_App.tsx|App.tsx]]
-- [[_COMMUNITY_vite-env.d.ts|vite-env.d.ts]]
-- [[_COMMUNITY_theme.ts|theme.ts]]
-- [[_COMMUNITY_index.ts|index.ts]]
-- [[_COMMUNITY_preferenceText.test.ts|preferenceText.test.ts]]
-- [[_COMMUNITY_shiftTime.test.ts|shiftTime.test.ts]]
-- [[_COMMUNITY_logicalDirection.test.ts|logicalDirection.test.ts]]
-- [[_COMMUNITY_LanguageSelector.tsx|LanguageSelector.tsx]]
-- [[_COMMUNITY_WeightSlider.tsx|WeightSlider.tsx]]
-- [[_COMMUNITY_MarketingNav.tsx|MarketingNav.tsx]]
-- [[_COMMUNITY_AuthLayout.tsx|AuthLayout.tsx]]
-- [[_COMMUNITY_MarketingFooter.tsx|MarketingFooter.tsx]]
-- [[_COMMUNITY_rotaData.ts|rotaData.ts]]
-- [[_COMMUNITY_de.ts|de.ts]]
-- [[_COMMUNITY_ta.ts|ta.ts]]
-- [[_COMMUNITY_te.ts|te.ts]]
-- [[_COMMUNITY_ar.ts|ar.ts]]
-- [[_COMMUNITY_bn.ts|bn.ts]]
-- [[_COMMUNITY_es.ts|es.ts]]
-- [[_COMMUNITY_ur.ts|ur.ts]]
-- [[_COMMUNITY_tr.ts|tr.ts]]
-- [[_COMMUNITY_en.ts|en.ts]]
-- [[_COMMUNITY_zh.ts|zh.ts]]
-- [[_COMMUNITY_hi.ts|hi.ts]]
-- [[_COMMUNITY_fr.ts|fr.ts]]
-- [[_COMMUNITY_ru.ts|ru.ts]]
-- [[_COMMUNITY_pt.ts|pt.ts]]
-- [[_COMMUNITY_vi.ts|vi.ts]]
-- [[_COMMUNITY_mr.ts|mr.ts]]
-- [[_COMMUNITY_pcm.ts|pcm.ts]]
-- [[_COMMUNITY_id.ts|id.ts]]
-- [[_COMMUNITY_ja.ts|ja.ts]]
-- [[_COMMUNITY_PrivacyPolicy.tsx|PrivacyPolicy.tsx]]
-- [[_COMMUNITY_DataProcessingAgreement.tsx|DataProcessingAgreement.tsx]]
-- [[_COMMUNITY_TermsOfService.tsx|TermsOfService.tsx]]
-- [[_COMMUNITY_Landing.tsx|Landing.tsx]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY_billing_charges Table (new)|billing_charges Table (new)]]
-- [[_COMMUNITY_OwnershipGroup Column Additions (autorel|OwnershipGroup Column Additions (autorel]]
-- [[_COMMUNITY_Removed Purchase-Credits Endpoints|Removed Purchase-Credits Endpoints]]
-- [[_COMMUNITY_Favicon SVG|Favicon SVG]]
-- [[_COMMUNITY_Checked-in Knowledge Graph (graphify-out|Checked-in Knowledge Graph (graphify-out]]
-- [[_COMMUNITY_Scaling Up Guidance|Scaling Up Guidance]]
-- [[_COMMUNITY_Cost Estimate|Cost Estimate]]
-- [[_COMMUNITY_FastAPI + Pydantic Stack|FastAPI + Pydantic Stack]]
-- [[_COMMUNITY_SQLAlchemy Async + Alembic|SQLAlchemy Async + Alembic]]
-- [[_COMMUNITY_JWT + Bcrypt Auth Libs|JWT + Bcrypt Auth Libs]]
-- [[_COMMUNITY_Stripe + Resend Deps|Stripe + Resend Deps]]
-- [[_COMMUNITY_Self-Review No Placeholders Rationale|Self-Review: No Placeholders Rationale]]
-- [[_COMMUNITY_UI Banners + Cancellation Card|UI: Banners + Cancellation Card]]
-- [[_COMMUNITY_Goal Three Independent Improvements|Goal: Three Independent Improvements]]
-- [[_COMMUNITY_Deferred, deliberately (favicon, logged-|Deferred, deliberately (favicon, logged-]]
-- [[_COMMUNITY_vite.config.ts|vite.config.ts]]
-- [[_COMMUNITY_postcss.config.js|postcss.config.js]]
-- [[_COMMUNITY_main.tsx|main.tsx]]
-- [[_COMMUNITY_TopBar.tsx|TopBar.tsx]]
-- [[_COMMUNITY_types.ts|types.ts]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY___init__.py|__init__.py]]
-- [[_COMMUNITY_Generate a schedule for a|Generate a schedule for a]]
-- [[_COMMUNITY_Simulate viewing the employee list.|Simulate viewing the employee list.]]
-- [[_COMMUNITY_Simulate viewing schedules for the|Simulate viewing schedules for the]]
-- [[_COMMUNITY_Simulate viewing all employee availabili|Simulate viewing all employee availabili]]
-- [[_COMMUNITY_Simulate viewing shift templates.|Simulate viewing shift templates.]]
-- [[_COMMUNITY_Simulate loading the dashboard (company|Simulate loading the dashboard (company]]
-- [[_COMMUNITY_JWT Authentication|JWT Authentication]]
-- [[_COMMUNITY_Bulk CSV Upload|Bulk CSV Upload]]
-- [[_COMMUNITY_Single Retry on Conflict|Single Retry on Conflict]]
-- [[_COMMUNITY_JWT in localStorage|JWT in localStorage]]
-- [[_COMMUNITY_GitHub Actions CICD|GitHub Actions CI/CD]]
-- [[_COMMUNITY_Seed Script|Seed Script]]
-- [[_COMMUNITY_robots.txt|robots.txt]]
-- [[_COMMUNITY_Health Check Endpoint|Health Check Endpoint]]
-- [[_COMMUNITY_Security Headers Middleware|Security Headers Middleware]]
-- [[_COMMUNITY_Welcome Email|Welcome Email]]
-- [[_COMMUNITY_teststest_regions.py|tests/test_regions.py]]
-- [[_COMMUNITY_backendadd_dev_user.py (dev seed script|backend/add_dev_user.py (dev seed script]]
-- [[_COMMUNITY_backendrequirements-dev.txt|backend/requirements-dev.txt]]
-- [[_COMMUNITY_Check-In QR Flow|Check-In QR Flow]]
+- [[_COMMUNITY_Scheduling Pipeline|Scheduling Pipeline]]
+- [[_COMMUNITY_Billing & Auto-reload|Billing & Auto-reload]]
+- [[_COMMUNITY_Billing Tests|Billing Tests]]
+- [[_COMMUNITY_Data Models|Data Models]]
+- [[_COMMUNITY_API Routes & Schemas|API Routes & Schemas]]
+- [[_COMMUNITY_Core Infrastructure|Core Infrastructure]]
+- [[_COMMUNITY_Activation Events|Activation Events]]
+- [[_COMMUNITY_Test Fixtures|Test Fixtures]]
+- [[_COMMUNITY_Community 8|Community 8]]
+- [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 11|Community 11]]
+- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 13|Community 13]]
+- [[_COMMUNITY_Community 14|Community 14]]
+- [[_COMMUNITY_Community 15|Community 15]]
+- [[_COMMUNITY_Community 16|Community 16]]
+- [[_COMMUNITY_Community 17|Community 17]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 19|Community 19]]
+- [[_COMMUNITY_Community 20|Community 20]]
+- [[_COMMUNITY_Community 21|Community 21]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Community 27|Community 27]]
+- [[_COMMUNITY_Community 28|Community 28]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 30|Community 30]]
+- [[_COMMUNITY_Community 31|Community 31]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 33|Community 33]]
+- [[_COMMUNITY_Community 34|Community 34]]
+- [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 36|Community 36]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 39|Community 39]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 47|Community 47]]
+- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Community 49|Community 49]]
+- [[_COMMUNITY_Community 50|Community 50]]
+- [[_COMMUNITY_Community 51|Community 51]]
+- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
+- [[_COMMUNITY_Community 55|Community 55]]
+- [[_COMMUNITY_Community 56|Community 56]]
+- [[_COMMUNITY_Community 57|Community 57]]
+- [[_COMMUNITY_Community 58|Community 58]]
+- [[_COMMUNITY_Community 59|Community 59]]
+- [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Community 61|Community 61]]
+- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 67|Community 67]]
+- [[_COMMUNITY_Community 68|Community 68]]
+- [[_COMMUNITY_Community 69|Community 69]]
+- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Community 74|Community 74]]
+- [[_COMMUNITY_Community 75|Community 75]]
+- [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Community 79|Community 79]]
+- [[_COMMUNITY_Community 80|Community 80]]
+- [[_COMMUNITY_Community 81|Community 81]]
+- [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Community 85|Community 85]]
+- [[_COMMUNITY_Community 86|Community 86]]
+- [[_COMMUNITY_Community 87|Community 87]]
+- [[_COMMUNITY_Community 88|Community 88]]
+- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Community 90|Community 90]]
+- [[_COMMUNITY_Community 91|Community 91]]
+- [[_COMMUNITY_Community 92|Community 92]]
+- [[_COMMUNITY_Community 93|Community 93]]
+- [[_COMMUNITY_Community 94|Community 94]]
+- [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_Community 96|Community 96]]
+- [[_COMMUNITY_Community 97|Community 97]]
+- [[_COMMUNITY_Community 98|Community 98]]
+- [[_COMMUNITY_Community 99|Community 99]]
+- [[_COMMUNITY_Community 100|Community 100]]
+- [[_COMMUNITY_Community 101|Community 101]]
+- [[_COMMUNITY_Community 102|Community 102]]
+- [[_COMMUNITY_Community 103|Community 103]]
+- [[_COMMUNITY_Community 104|Community 104]]
+- [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Community 106|Community 106]]
+- [[_COMMUNITY_Community 107|Community 107]]
+- [[_COMMUNITY_Community 108|Community 108]]
+- [[_COMMUNITY_Community 109|Community 109]]
+- [[_COMMUNITY_Community 110|Community 110]]
+- [[_COMMUNITY_Community 111|Community 111]]
+- [[_COMMUNITY_Community 112|Community 112]]
+- [[_COMMUNITY_Community 113|Community 113]]
+- [[_COMMUNITY_Community 114|Community 114]]
+- [[_COMMUNITY_Community 115|Community 115]]
+- [[_COMMUNITY_Community 116|Community 116]]
+- [[_COMMUNITY_Community 117|Community 117]]
+- [[_COMMUNITY_Community 118|Community 118]]
+- [[_COMMUNITY_Community 119|Community 119]]
+- [[_COMMUNITY_Community 120|Community 120]]
+- [[_COMMUNITY_Community 121|Community 121]]
+- [[_COMMUNITY_Community 122|Community 122]]
+- [[_COMMUNITY_Community 123|Community 123]]
+- [[_COMMUNITY_Community 124|Community 124]]
+- [[_COMMUNITY_Community 125|Community 125]]
+- [[_COMMUNITY_Community 126|Community 126]]
+- [[_COMMUNITY_Community 127|Community 127]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `OwnershipGroup` - 303 edges
-2. `BillingCharge` - 139 edges
-3. `AutoReloadError` - 108 edges
-4. `AutoReloadBlocked` - 107 edges
-5. `AutoReloadDisabled` - 85 edges
-6. `SchedulingState` - 82 edges
-7. `ShiftSchedule` - 80 edges
-8. `LocationResult` - 51 edges
-9. `ShiftAssignment` - 43 edges
-10. `Base` - 31 edges
+1. `OwnershipGroup` - 172 edges
+2. `TimeEntry` - 154 edges
+3. `BillingCharge` - 138 edges
+4. `PayrollExport` - 119 edges
+5. `AutoReloadError` - 108 edges
+6. `AutoReloadBlocked` - 107 edges
+7. `SchedulingState` - 104 edges
+8. `AutoReloadDisabled` - 86 edges
+9. `ShiftSchedule` - 80 edges
+10. `LocationResult` - 40 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `deduct_credits_for_overage()` --references--> `Auto-Reload Buffer (AI + Schedules)`  [INFERRED]
-  backend/services/billing.py → docs/superpowers/specs/2026-05-11-usage-overage-billing-design.md
-- `Shared test fixtures for WizScheduler.  Uses SQLite + aiosqlite as the test data` --uses--> `Base`  [INFERRED]
-  tests/conftest.py → backend/database.py
-- `Tests for backend/services/plan.py and free-plan counting helpers.` --uses--> `OwnershipGroup`  [INFERRED]
-  tests/test_plan.py → backend/models/ownership_group.py
-- `An OG spanning two companies — the shape most likely to hide an     off-by-one t` --uses--> `OwnershipGroup`  [INFERRED]
-  tests/test_plan.py → backend/models/ownership_group.py
-- `A naive implementation that counted every location in the database     would pas` --uses--> `OwnershipGroup`  [INFERRED]
-  tests/test_plan.py → backend/models/ownership_group.py
-
-## Hyperedges (group relationships)
-- **Credit Purchase Flow: Gate -> Purchase Endpoint -> Charge Helper -> Operator Alert** — design_pregen_gate, design_purchase_endpoint, design_charge_saved_card, design_operator_alert [EXTRACTED 0.95]
-- **Post-Generation Billing Never Raises on a Payment Outcome** — plan_task4_no_raise_postgen, plan_check_and_record_usage, plan_reload_after_debit, plan_deduct_credits_for_schedule_overage [EXTRACTED 0.90]
-- **Zero Grant Config Drives Full-Markup Billing Math** — plan_task1_zero_grant, plan_INCLUDED_LLM_USD, design_billing_math, design_INCLUDED_LLM_USD [INFERRED 0.80]
-- **Two-Track Billing Flow (auto-reload + monthly InvoiceItem + audit)** — billing_spec_autoreload_buffer, billing_spec_monthly_invoice_items, billing_spec_payment_intent_charge, billing_spec_billing_charges_table, billing_spec_og_column_additions, ownership_group_model [EXTRACTED 0.95]
-- **In-Process Periodic Background Loop Pattern** — invoice_pr2_weekly_background_loop, cancel_beta_daily_background_loop, claude_abuse_report_weekly [INFERRED 0.65]
-- **End-to-End Subscription Cancellation Lifecycle** — cancel_design_state_machine, cancel_alpha_webhook_subscription_deleted, cancel_beta_process_cancellation_lifecycle, cancel_alpha_reactivation_endpoints [EXTRACTED 0.90]
-- **Special Hours Clone-and-Resolve Template Flow** — special_design_entry_flow_clone, special_plan_template_clone_helper, special_design_template_resolver_spec, special_plan_pipeline_wiring [EXTRACTED 0.85]
-- **assert_paid_plan gating pattern across free-tier, check-in, and (contrasted by) preferences** — free_tier_assert_paid_plan, checkin_qr_design_gating, sched_prefs_design_not_plan_gated_rationale [INFERRED 0.75]
-- **Database-enforced correctness guards over application-level locks** — free_tier_design_row_lock_concurrency, checkin_qr_design_unique_constraint_rationale, ai_credits_design_partial_unique_index [INFERRED 0.85]
-- **Sequential scheduling-feature plan chain: preferences -> availability holds -> editing approved schedules -> preference asterisks** — sched_prefs_plan, avail_holds_plan, edit_approved_plan, pref_asterisks_plan [EXTRACTED 0.90]
+- `Operator alert on credit charges (#64).  The operator tops up the Anthropic Cons` --uses--> `OwnershipGroup`  [INFERRED]
+  tests/test_operator_alerts.py → backend/models/ownership_group.py
+- `Pay rate and overtime fields are paid-plan gated at the write layer; hire_date/s` --uses--> `OwnershipGroup`  [INFERRED]
+  tests/test_cost_seniority_api.py → backend/models/ownership_group.py
+- `The frontend omits (never nulls) gated fields from update payloads on     a free` --uses--> `OwnershipGroup`  [INFERRED]
+  tests/test_cost_seniority_api.py → backend/models/ownership_group.py
+- `Editing an approved schedule (#84 stage 2).  Two hard refusals guard the data: a` --uses--> `TimeEntry`  [INFERRED]
+  tests/test_edit_approved_schedule.py → backend/models/time_entry.py
+- `Patched in for backend.routers.schedules's `datetime` name so     `datetime.now(` --uses--> `TimeEntry`  [INFERRED]
+  tests/test_edit_approved_schedule.py → backend/models/time_entry.py
 
 ## Communities
 
-### Community 0 - "OwnershipGroup / BillingCharge / test_billing.py"
+### Community 0 - "Scheduling Pipeline"
 Cohesion: 0.02
-Nodes (265): auto_reload_if_needed(), _autoreload_status(), AutoReloadBlocked, AutoReloadDisabled, AutoReloadError, AutoReloadStatus, AutoReloadUpdate, bill_monthly_overages_all() (+257 more)
+Nodes (157): build_scheduling_graph(), _committed_shifts_by_employee(), _hhmm(), _load_employee_availability(), _load_initial_state(), _load_role_history_minutes(), _normalize_template_slots_for_dow(), After validate_and_update_availability, decide next step.      If there are conf (+149 more)
 
-### Community 1 - "datetime / Base / Base"
-Cohesion: 0.01
-Nodes (144): Base, Company, CondensedRole, CondensedRoleMapping, UserConsent, Execute data retention policies. Returns a summary of deleted records., run_data_retention(), Base (+136 more)
+### Community 1 - "Billing & Auto-reload"
+Cohesion: 0.06
+Nodes (160): auto_reload_if_needed(), _autoreload_status(), AutoReloadBlocked, AutoReloadDisabled, AutoReloadError, AutoReloadStatus, AutoReloadUpdate, BillingChargeRow (+152 more)
 
-### Community 2 - "SchedulingState / LocationResult / ShiftAssignment"
+### Community 2 - "Billing Tests"
 Cohesion: 0.02
-Nodes (187): _account(), build_suspected_accounts_report(), normalize_company_name(), Weekly report of ownership groups that look like the same operator.  Companion t, Cluster free ownership groups that share signup signals.      *window_days* boun, Canonical form for comparing company names.      Lowercased, punctuation-strippe, SuspectAccount, SuspectCluster (+179 more)
+Nodes (73): og_with_card(), seed_og(), test_auto_reload_charges_card_and_adds_to_balance(), test_auto_reload_disabled_raises_blocked_error(), test_auto_reload_failed_state_raises_blocked_error(), test_auto_reload_failure_sets_failed_at_and_raises(), test_auto_reload_skipped_when_balance_sufficient(), test_bill_monthly_overages_all_iterates_subscribed_ogs() (+65 more)
 
-### Community 3 - "BaseModel / employee.py / employees.py"
+### Community 3 - "Data Models"
 Cohesion: 0.03
-Nodes (139): BaseModel, CompanyResponse, CompanyUpdate, list_group_companies(), List all companies in the current user's ownership group., CondensedRoleCreate, CondensedRoleMappingResponse, CondensedRoleResponse (+131 more)
+Nodes (70): Execute data retention policies. Returns a summary of deleted records., run_data_retention(), datetime, _min_rest_violation(), Fair Workweek minimum-rest ("clopening") rule.  Shared by:   - `backend.scheduli, Hours of rest between two shifts given as ISO datetime strings.      Returns the, True if a shift would leave less than *min_rest_hours* of rest before     or aft, _rest_gap_hours() (+62 more)
 
-### Community 4 - "Marketing & Auth Restyle Implementation Plan / get_plan_stat"
-Cohesion: 0.02
-Nodes (139): Rationale: idempotent crediting via partial unique index, Rationale: INCLUDED_LLM_USD kept at 0.00 as a knob, not deleted, Rationale: internal ledger, not an Anthropic-account transfer, CREDIT_PACKS_USD ($10/$25/$50), Partial unique index on billing_charges.stripe_object_id, Rationale: disabled control with reason is a price, not a bug, Scope boundary: landing page and Anthropic reconciliation out of scope, AI Credits Purchased Separately Design Spec (+131 more)
-
-### Community 5 - "Paid AI Credits & Conventions"
-Cohesion: 0.04
-Nodes (73): INCLUDED_LLM_USD, AI Spend Always Debits Purchased Credits, charge_saved_card, email_verified_at Convention, Free-Plan Limits Convention, AI_CREDIT_PACKS_USD, BillingCharge, INCLUDED_LLM_USD (+65 more)
-
-### Community 6 - "BaseModel / employee.py / employees.py"
-Cohesion: 0.06
-Nodes (52): ApprovedShiftEdit, EditApprovedResponse, EditApprovedShiftsRequest, EditWarning, GenerateRequest, acquire(), _as_utc(), _holder_full_name() (+44 more)
-
-### Community 7 - "test_check_in_service.py / CheckInRejected / _scan()"
-Cohesion: 0.06
-Nodes (55): _as_utc(), CheckInQrResponse, CheckInRejected, CheckInReportResponse, CheckInReportRow, CheckInRequest, CheckInResponse, current_counter() (+47 more)
-
-### Community 8 - "SchedulingState / LocationResult / ShiftAssignment"
-Cohesion: 0.05
-Nodes (38): _make_employee(), _make_state(), Tests for the local (non-LLM) schedule generator., One slot, one employee — should produce exactly one shift., Two different role slots, two employees with matching roles., Headcount of 2 should assign two different employees., If no employee has the required role, no shift is created (vacancy handled downs, Employee without availability window for the day is skipped. (+30 more)
-
-### Community 9 - "Abuse Report Clustering"
-Cohesion: 0.04
-Nodes (54): approved_schedule_id(), approved_shift(), checked_in_shift(), draft_schedule_id(), _FrozenDatetime, held_lock(), now(), old_approved_schedule_id() (+46 more)
-
-### Community 10 - "auth.py / ForgotPasswordRequest / GoogleAuthResponse"
-Cohesion: 0.14
-Nodes (46): _create_access_token(), forgot_password(), ForgotPasswordRequest, google_auth(), google_link(), google_link_current(), GoogleAuthRequest, GoogleAuthResponse (+38 more)
-
-### Community 11 - "Migration: canceled_at + Notification Columns / process_canc"
-Cohesion: 0.05
-Nodes (51): auto_reload_if_needed Core Helper, autoreload_failed_at Blocks Generation, One-Shot Backfill Script, Billing Autoreload API Endpoints, cache_default_payment_method Helper, Frontend Auto-Reload Card, Migration + BillingCharge Model, Remove Purchase-Credits Endpoints (+43 more)
-
-### Community 12 - "test_gdpr.py / GdprExportLog / gdpr.py"
-Cohesion: 0.05
-Nodes (21): GdprExportLog, Per-export audit row for /gdpr/export calls.      Source of truth for the per-us, Revoke a previously granted consent., Manually trigger data retention purge. Manager only., revoke_consent(), trigger_retention_purge(), Tests for /api/v1/gdpr endpoints and data retention service., Link employee user to an employee record and verify export includes it. (+13 more)
-
-### Community 13 - "test_auth.py / Tests for the /api/v1/auth endpoints. / Emplo"
-Cohesion: 0.04
-Nodes (35): Tests for the /api/v1/auth endpoints., Employee token should be rejected by manager-only endpoints., Registering with a verified Google id_token creates a user with     google_id se, The Google verified email must match the registration email., JWT-authenticated user links Google by id_token; google_id is persisted., Google account email must match the logged-in user's email., If the google_id is already linked to a different person, return 409., GET /me must include has_google so the Dashboard can hide the card after linking (+27 more)
-
-### Community 14 - "preferences.py / violations_for_slot() / matches_range()"
+### Community 4 - "API Routes & Schemas"
 Cohesion: 0.07
-Nodes (40): annotate_preference_violations(), blocked_by_hard_preference(), _cap_count(), _caps_exceeded(), _day_violated(), matches_range(), _minutes(), overlap_fraction() (+32 more)
+Nodes (72): BaseModel, CompanyResponse, CompanyUpdate, list_group_companies(), List all companies in the current user's ownership group., AcceptInviteRequest, AcceptInviteResponse, AvailabilityCreate (+64 more)
 
-### Community 15 - "test_plan_generation_gate.py / _add_schedules() / _make_over"
-Cohesion: 0.08
-Nodes (31): _add_schedules(), _make_over_limit(), The five rows of the generation decision table., The downgraded over-limit state — today's 90-day read-only grace., Paid keeps INCLUDED_SCHEDULES_PER_MONTH=50-then-metered; the free cap must not a, A downgraded, over-limit tenant is told about the seat limit, not the cap., A free tenant with the two locations the free plan allows.      Real Location ro, Usage is now reported in LOCATIONS: how many hold a schedule this     month, out (+23 more)
+### Community 5 - "Core Infrastructure"
+Cohesion: 0.04
+Nodes (56): Base, BaseHTTPMiddleware, Company, Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout (+48 more)
 
-### Community 16 - "test_location_quota.py / _quota() / _schedule()"
-Cohesion: 0.11
-Nodes (31): _quota(), Free plan: one week per location per calendar month, two attempts.  The rules un, Monthly reset: the allowance is per calendar month., Without this the free tier is one-shot, and a first run against a     half-enter, Rejected once, then produced a schedule they kept — slot is held and     attempt, The second attempt exists to redo a bad week, not to buy a second     one — othe, Passing no week asks "what is the state of this location?" — used by     the ban, Every visitor generates against the demo. A one-per-location cap     would spend (+23 more)
-
-### Community 17 - "test_email_verification.py / Email verification: minting, re"
+### Community 6 - "Activation Events"
 Cohesion: 0.06
-Nodes (19): Email verification: minting, redeeming, and the generation gate.  The gate's sha, One mailbox can own several companies (see /auth/login's     multiple_ownership_, Otherwise a user who verified one of two accounts could never get a     link for, The link doubles as a login — signed up on the laptop, opened the     email on t, No leak about which addresses have accounts, same as forgot-password., Google already asserted email_verified and the address was matched     against t, A fresh password signup that hasn't clicked the link yet., The whole point of gating generation rather than login: setup stays     open, so (+11 more)
+Nodes (61): ActivationEvent, One row per (ownership_group, milestone) reached in the activation     funnel: s, Activation funnel milestones, recorded once per ownership group.      signup ->, Record *event* for *ownership_group_id*, once.      Safe to call every time the, record_milestone(), build_activation_report(), CohortReport, _hours_between() (+53 more)
 
-### Community 18 - "conftest.py / _make_token() / _id()"
-Cohesion: 0.07
-Nodes (23): client(), employee_token(), _id(), _make_token(), manager_token(), other_company_employee_id(), pytest_sessionfinish(), Shared test fixtures for WizScheduler.  Uses SQLite + aiosqlite as the test data (+15 more)
+### Community 7 - "Test Fixtures"
+Cohesion: 0.06
+Nodes (33): client(), db(), employee_token(), _id(), _make_token(), manager_token(), other_company_employee_id(), pytest_sessionfinish() (+25 more)
 
-### Community 19 - "LangGraph Scheduling Pipeline (Why) / Entry Flow + Template "
-Cohesion: 0.08
-Nodes (30): Chain Detection Heuristic (min-chain-count), Fair Workweek Segmentation, availability_draft State, Deterministic Local Scheduler, Four-Layer Validator Gate, LangGraph Scheduling Pipeline (Why), Timezone Correctness Invariant, Anthropic + LangGraph Deps (+22 more)
+### Community 8 - "Community 8"
+Cohesion: 0.09
+Nodes (39): _count_already_exported(), export_approved(), _local_iso(), _neutralize(), PayrollCsvRow, Rendering approved hours as CSV, and recording that it happened.  CSV is the one, Select, render, stamp and log — in one commit.      One commit so the audit row, So "nothing happened" is never mysterious. (+31 more)
 
-### Community 20 - "test_demo_roster_lock.py / _login() / test_an_ordinary_free_"
-Cohesion: 0.1
-Nodes (26): demo_company(), _login(), plain_company(), The public demo tenant's fixed roster.  The demo is one tenant shown to every vi, A manager token for *company_id*., The check this replaced only fired when employee.user_id was set, which     left, The lock is scoped to add and remove. Editing is the demo's whole point., Guarding against the lock leaking onto every free tenant. (+18 more)
-
-### Community 21 - "test_seed_prune.py / _count() / test_prune_deletes_generated"
-Cohesion: 0.08
-Nodes (20): _count(), old_shape_ids(), seed.py's prune of pre-free-plan demo data.  A database seeded before the free p, The bug this file was written for is gone — the CAPS grew past it.      The old, The prune must not touch a single seeded employee or their dependents.      It r, Employees seeded by an older run carry that run's location list, and     ON CONF, Shifts reference schedules, locations and employees at once, so they     must be, The prune is scoped to the demo company's deterministic ids. A real     tenant t (+12 more)
-
-### Community 22 - "_win() / test_min_rest_clopening.py / _emp_with_windows()"
-Cohesion: 0.17
-Nodes (11): _emp_with_windows(), _local_state(), Tests for the Fair Workweek minimum-rest ("clopening") constraint.  Covers the p, _shift(), TestLocalSchedulerAvoidsClopening, TestMinRestViolation, TestRestGapHours, TestValidateScheduleClopening (+3 more)
-
-### Community 23 - "test_preferences_ai_path.py / _shift() / test_cap_seeds_from"
-Cohesion: 0.11
-Nodes (26): Preferences reach the AI path two ways.  Hard weights are already handled: promp, A cap-trimmed shift must look exactly like a natively-VACANT shift --     employ, Guarantee-by-construction for the AI path: eligible_for_slot keeps a     hard-bl, The same violation at weight 0.9 (soft) must never be vacated -- only     a weig, Same guarantee as the day-preference case above, for hour ranges: the     shift, An employee absent from employee_preferences entirely -- the state of     every, Four 16:00-22:00 shifts against a cap of 3 -> the fourth is VACANT.      `employ, A soft (weight < 1.0) preference reorders the prompt's Eligible list.      e_sof (+18 more)
-
-### Community 24 - "ManagerUser / locustfile.py / .on_start()"
+### Community 9 - "Community 9"
 Cohesion: 0.12
-Nodes (13): HttpUser, current_week_monday(), generate_schedule(), list_schedules(), ManagerUser, random_email(), WizScheduler load test — simulates 10,000 managers going through the full workfl, Upload 10-50 employees per location via CSV bulk-upload. (+5 more)
+Nodes (38): _approve_all(), _derive(), _entry_ids(), free(), paid(), _range_body(), The payroll endpoints: gating, range validation, and the read paths.  Paid-plan, 62 days is two monthly pay periods — far beyond any real cadence, and     it bou (+30 more)
 
-### Community 25 - "test_plan.py / free_og() / og_with_two_companies()"
+### Community 10 - "Community 10"
+Cohesion: 0.17
+Nodes (28): approve(), attest(), attestedTitle(), derive_entries(), export_csv(), formatAuditDate(), formatLateness(), get_entries() (+20 more)
+
+### Community 11 - "Community 11"
+Cohesion: 0.09
+Nodes (34): approve_entries(), ApproveResult, _as_utc(), attest_shift(), attestation_rates(), AttestationRate, _Candidate, _candidate_shifts() (+26 more)
+
+### Community 12 - "Community 12"
+Cohesion: 0.1
+Nodes (30): Tests for the public, unauthenticated compliance-check API.  POST /api/v1/public, Same short-notice shift, but published_at is omitted -> no finding., The response echoes windows as aware ISO-8601 strings carrying the     request t, A trailing-Z aware ISO datetime (UTC) is used as-is for the     underlying insta, The same-day exemption must compare LOCAL calendar days, not the     input's ori, Two shifts of the same employee on different calendar days with less     than mi, Conversely, two shifts that share a UTC calendar day but fall on     different L, Naive times in America/New_York either side of the 2027-03-14     spring-forward (+22 more)
+
+### Community 13 - "Community 13"
+Cohesion: 0.18
+Nodes (30): _check_in(), Derivation: approved shift + the arrival that gates it -> one payable row.  Shif, `duplicate` answers a punctuality question, not an attendance one. On a     spli, A matched row always wins over a later duplicate for the same shift, so     the, _match_shift leaves shift_id NULL on those rows, so the join cannot see     them, The page calls derive on every load; it has to be free the second     time., 22:00 local Sunday -> 06:00 Monday is paid ENTIRELY on Sunday: included     in f, 22:00 Sat -> 06:00 Sun local New York, spanning the 2026-03-08 spring     forwar (+22 more)
+
+### Community 14 - "Community 14"
+Cohesion: 0.2
+Nodes (26): ApprovedShiftEdit, EditApprovedResponse, EditApprovedShiftsRequest, EditWarning, GenerateRequest, One edit to an approved schedule.      shift_id is None for a new shift. deleted, ShiftResponse, ShiftScheduleResponse (+18 more)
+
+### Community 15 - "Community 15"
+Cohesion: 0.14
+Nodes (30): bill_monthly_overages_all(), bill_monthly_overages_for_og(), cache_default_payment_method(), calculate_cost(), calculate_employee_charge(), calculate_schedule_charge(), calculate_storage_charge(), calculate_storage_gb() (+22 more)
+
+### Community 16 - "Community 16"
+Cohesion: 0.12
+Nodes (28): browser(), generate_schedule(), get_scheduled_shifts(), login(), navigate_to_schedule_page(), page(), Playwright browser integration tests for WizScheduler.  Tests the full schedulin, Generate a schedule and return the result.      Args:         page: Playwright p (+20 more)
+
+### Community 17 - "Community 17"
+Cohesion: 0.12
+Nodes (27): _create_access_token(), forgot_password(), google_auth(), google_link(), google_link_current(), _hash_password(), login(), _mask_email() (+19 more)
+
+### Community 18 - "Community 18"
+Cohesion: 0.07
+Nodes (11): Test schema compatibility for 7shifts imports.  Verifies that the database schem, Test conversions of import data types to database types., Verify all import-required columns exist with correct types., Test realistic 7shifts import scenarios., Test schema-level constraints that imports must respect., Test that nullable columns accept and preserve NULL values., TestImportDataFlow, TestNullableColumnHandling (+3 more)
+
+### Community 19 - "Community 19"
+Cohesion: 0.12
+Nodes (23): _generate_employee_names(), _generate_signal_distributions(), get_db_credentials(), get_db_session(), lambda_handler(), main(), Integration test seeding script for WizScheduler.  Idempotent seeding of a dedic, Create async SQLAlchemy session. (+15 more)
+
+### Community 20 - "Community 20"
 Cohesion: 0.08
-Nodes (13): free_og(), og_with_two_companies(), Tests for backend/services/plan.py and free-plan counting helpers., Only reachable by a paid OG that grew past the limits then canceled., An upload larger than the whole cap is refused whole., An OG spanning two companies — the shape most likely to hide an     off-by-one t, A naive implementation that counted every location in the database     would pas, Returns (og_id, company_id) for a free OG with no Stripe subscription. (+5 more)
+Nodes (11): Test schema compatibility for Deputy imports.  Verifies that the database schema, Test Deputy unavailability/recurring blackout patterns., Test that Deputy import handles NULL fields correctly., Verify columns required for Deputy imports., Test complete Deputy import workflow., Test creating records as Deputy imports would., TestDeputyDataCreation, TestDeputyImportWorkflow (+3 more)
 
-### Community 26 - "test_abuse_report.py / _og() / _signals()"
-Cohesion: 0.13
-Nodes (23): _og(), The weekly suspected-account report clusters, and only clusters.  The load-beari, A customer is not a suspected account. This report is headed "might     be up fo, Paid-then-canceled is back on the free tier, so it is in scope., Signals are absent for API clients, for anyone with storage disabled,     and fo, The caveat rides in the payload, not just the docstring — the payload     is wha, An operator minting accounts varies the legal suffix; the suffix     distinguish, mask_ip zeroes the last TWO bytes, so a shared value is a /16 — an     ISP regio (+15 more)
-
-### Community 27 - "import_7shifts.py / import_availabilities_from_7shifts() / i"
+### Community 21 - "Community 21"
 Cohesion: 0.12
 Nodes (23): _expand_7shifts_availability(), _fetch_all_pages(), _get_or_create_import_region(), _get_or_create_ownership_group(), _get_or_create_wiz_company(), import_availabilities_from_7shifts(), import_from_7shifts(), _import_single_company() (+15 more)
 
-### Community 28 - "test_seed_availability.py / _windows() / test_date_columns_a"
-Cohesion: 0.1
-Nodes (23): demo_roster(), The demo roster's seeded availability.  employee_availability stores one row per, year/month/day is what the manager availability view filters on., A visitor generating for the current week must find availability., Seeding is run repeatedly; a second run must not double the windows., The old seed used a different id format, so ON CONFLICT would have left     thos, Ids are packed into an 8-char column; a collision silently drops a row., Keyed on the date ordinal, not an offset from today, so a later re-seed     rewr (+15 more)
-
-### Community 29 - "test_edit_approved_warnings.py / codes() / _busy_employee()"
-Cohesion: 0.12
-Nodes (20): approved_shift(), _busy_employee(), codes(), employee_busy_0600_to_1300(), employee_busy_1200_to_2000(), fully_available_employee(), Three overridable warnings on an approved-schedule edit (#84 stage 2).  All thre, An employee, fully available all day, who already has one committed     shift at (+12 more)
-
-### Community 30 - "test_plan_enforcement.py / _add_employees() / _employee_csv("
-Cohesion: 0.12
-Nodes (20): _add_employees(), _current_week_monday(), _employee_csv(), free_tenant(), _import_bodies(), Free-plan enforcement across employee/location write paths., The cap rose to 2, so a free tenant's SECOND location must go through —     this, An upload larger than the cap: refused, and ZERO rows written. (+12 more)
-
-### Community 31 - "Schedule.tsx / daysBetween() / handleConfirmGenerate()"
+### Community 22 - "Community 22"
 Cohesion: 0.1
 Nodes (5): daysBetween(), handleConfirmGenerate(), handleDeleteShift(), handleSaveShift(), persistDraft()
 
-### Community 32 - "test_email_link_origin.py / _FakeRequest / test_a_subdomain_"
-Cohesion: 0.13
-Nodes (18): _FakeRequest, Emailed links must never point at a caller-controlled host.  Every one of these, The unauthenticated resend endpoint is the sharpest edge: an attacker     who kn, Minimal stand-in — trusted_base_url only reads two headers., Referer is checked when Origin is absent, and is just as forgeable., Staging and preview frontends keep working — once an operator has     named them, CORS_ORIGINS="*" is the DEFAULT. A wildcard means something coherent     for COR, Exact match only. Suffix matching is how allowlists get bypassed. (+10 more)
-
-### Community 33 - "test_rate_limit.py / SlidingWindowLimiter / rate_limit.py"
+### Community 23 - "Community 23"
 Cohesion: 0.1
-Nodes (11): In-memory sliding-window rate limiter.  Sized for protecting low-volume sensitiv, Sliding-window counter per arbitrary string key.      Trade-offs:       - In-mem, Record a hit for ``key``; return True if within the limit.          ``now`` is i, Extract the client source IP from a Starlette/FastAPI Request.      Trusts the l, SlidingWindowLimiter, source_ip_from_request(), Unit tests for the sliding-window rate limiter., If we recorded blocked hits, a continuously-pinging attacker would     extend th (+3 more)
+Nodes (6): free(), paid(), Pay rate and overtime fields are paid-plan gated at the write layer; hire_date/s, The frontend omits (never nulls) gated fields from update payloads on     a free, _tenant(), test_free_plan_employee_update_omitting_pay_rate_succeeds()
 
-### Community 34 - "test_locations.py / test_bulk_upload_rejects_oversize_body()"
+### Community 24 - "Community 24"
 Cohesion: 0.1
-Nodes (3): Tests for /api/v1/locations endpoints., A body larger than 5 MB returns 413 before any parsing or the     free-plan asse, test_bulk_upload_rejects_oversize_body()
+Nodes (11): Attestation: a pay-affecting action one person takes on another's behalf.  Every, The employee DID scan, and derivation has simply not run yet.     Attesting over, 22:00 EST Mar 7 -> 06:00 EDT Mar 8 in America/New_York spans the     2026-03-08, Equal start/end faces would make paid_minutes pay a full 24 hours;     attest_sh, Build a shift from explicit UTC start/end instants, for cases     _worked_shift', There is no scan to report, and inventing a lateness of zero would put     a fac, _shift_with_times(), test_a_shift_with_a_check_in_cannot_be_attested() (+3 more)
 
-### Community 35 - "test_availability_holds.py / approved_schedule_fixture() / s"
+### Community 25 - "Community 25"
 Cohesion: 0.1
-Nodes (19): approved_schedule_fixture(), Availability holds: approving must not destroy availability (#84 stage 1).  The, The point of the whole change.      Before: approve deleted the covering window, Consumption still happens — it is just computed at read time now., Releasing a hold and deleting a shift are the same act., There is no unique constraint on (location_id, week_start_date), so a     manage, Postgres-shaped regression (round-1 review, Critical 1).      Shift.start_time/e, The scheduling graph degrades; it never throws.      A row this code cannot safe (+11 more)
+Nodes (5): Pure scoring functions for cost, seniority, and overtime (#134).  Lower score =, Regression for the Decimal/float TypeError: Employee.pay_rate loads as     decim, A manual seniority_rank=5 means '5th most senior' -- it must not     outrank eve, test_cost_score_handles_decimal_pay_rates_without_raising(), test_resolve_seniority_ranks_manual_rank_above_one_leaves_room_below()
 
-### Community 36 - "test_preference_overlap.py / test_short_shift_inside_a_long_"
-Cohesion: 0.1
-Nodes (3): The 50% overlap rule, shared by the hour-range preference and the cap.  Fraction, The denominator is the shift, not the range., test_short_shift_inside_a_long_range_is_one()
-
-### Community 37 - "test_quota_matches_plan.py / _make_og() / test_credits_still"
-Cohesion: 0.15
-Nodes (19): _add_schedules(), _make_og(), The quota strip and the plan banner must report the same number.  The Schedule p, Credits are a paid-plan overage mechanism. check_can_generate raises     schedul, The paid overage path must be untouched by the fix above., Both figures still agree once the demo's allowance is spent., The demo exception keys off DEMO_OWNERSHIP_GROUP_ID, not a company     slug. A c, The reported bug, for an ordinary free tenant: strip said 50, banner     said 5. (+11 more)
-
-### Community 38 - "test_plan_demo_exception.py / _add_schedules() / test_demo_g"
-Cohesion: 0.11
-Nodes (17): _add_schedules(), demo_tenant(), plain_tenant(), The public demo tenant's raised generation cap.  The demo group is a free-plan g, The raised cap covers local runs only — AI stays paid-only., Only the generation cap is lifted. Going over the employee cap must     still se, Empty DEMO_OWNERSHIP_GROUP_ID turns the exception off, so the demo     group fal, An OG whose id matches settings.DEMO_OWNERSHIP_GROUP_ID. (+9 more)
-
-### Community 39 - "test_plan_billing_api.py / Plan + upgrade endpoints on the b"
-Cohesion: 0.11
-Nodes (15): Plan + upgrade endpoints on the billing router., confirm-upgrade with a paid session attaches the SPECIFIC mocked     customer/su, A canceled group that upgrades must have canceled_at AND all three     deletion-, An unpaid session is rejected with 400 and does not mutate the group's     Strip, When the group already has a stripe_customer_id (e.g. previously     canceled),, The hijack scenario: a paid session created for a DIFFERENT ownership     group, A paid session with no client_reference_id at all is rejected — it     cannot be, A never-touched-Stripe free group has no stripe_customer_id, so Checkout     mus (+7 more)
-
-### Community 40 - "employees.ts / acceptInvite() / bulkUploadEmployees()"
+### Community 26 - "Community 26"
 Cohesion: 0.11
 Nodes (0): 
 
-### Community 41 - "SecurityHeadersMiddleware / MetricsMiddleware / metrics.py"
-Cohesion: 0.13
-Nodes (12): BaseHTTPMiddleware, _extract_company_id(), FailureLoggingMiddleware, Best-effort extraction of company_id from the Authorization header., SecurityHeadersMiddleware, get_metrics(), MetricsMiddleware, _normalize_path() (+4 more)
-
-### Community 42 - "_emp()"
+### Community 27 - "Community 27"
 Cohesion: 0.39
 Nodes (10): _emp(), Tests for validate_schedule's hard-negative affinity enforcement (check 8).  A -, Windows need not match exactly — e1 09:00-13:00 and e2 12:00-17:00         overl, Back-to-back windows (e1 ends exactly when e2 starts) do not         overlap — _, _shift(), TestAffinityHardNegative, _valid_ids(), _validate_state() (+2 more)
 
-### Community 43 - "test_fairness_history.py / _history() / _schedule()"
-Cohesion: 0.29
-Nodes (16): _history(), Fairness history is derived from approved Shift rows, not a stored aggregate.  #, A draft is a proposal and a rejected schedule was thrown away.     Neither is ti, employee_role_minutes is still written at approval but is no longer     what sch, Keyed via the roles table, not Shift.role_name, which is denormalized     at wri, _schedule(), _shift(), test_a_renamed_role_keeps_its_history() (+8 more)
+### Community 28 - "Community 28"
+Cohesion: 0.15
+Nodes (18): _blackout_blocks(), _build_date_map(), build_schedule_prompt(), eligible_for_slot(), _format_avail_str(), _parse_avail_by_day(), Return True if any blackout for *day_name* overlaps [slot_start, slot_end)., Employees eligible for one (day, role, time) slot.      THE single eligibility g (+10 more)
 
-### Community 44 - "test_check_in_api.py / _tenant() / free()"
-Cohesion: 0.13
-Nodes (5): free(), paid(), The check-in endpoints.  Paid gating is asserted on the EMPLOYEE endpoint as wel, _tenant(), test_qr_refuses_another_tenants_location()
+### Community 29 - "Community 29"
+Cohesion: 0.3
+Nodes (17): AttestationRateRow, CheckInQrResponse, CheckInReportResponse, CheckInReportRow, CheckInRequest, CheckInResponse, What the manager's screen renders. Deliberately no token field — the     payload, _company_slug() (+9 more)
 
-### Community 45 - "seed.py / main() / _prune_over_limit_demo_data()"
-Cohesion: 0.18
-Nodes (17): _availability_id(), _b36(), _employee_location_ids(), _hash(), main(), _prune_over_limit_demo_data(), Idempotent seed script for WizScheduler.  Usage:     cd backend && python seed.p, A demo location's weekly shift template.      *floor_headcount* Floor Associates (+9 more)
+### Community 30 - "Community 30"
+Cohesion: 0.11
+Nodes (10): Tests for signal weight resolution hierarchy (request > location > company > def, When no weights provided, should return all zeros., Null location config should not break resolution., Empty dicts should not override defaults., Company defaults should be used when provided., Location defaults should override company defaults., Request weights should override both location and company defaults., Test signal weight resolution following the hierarchy. (+2 more)
 
-### Community 46 - "test_signup_signals.py / _og_for() / _register()"
-Cohesion: 0.24
-Nodes (16): _og_for(), Signup signals are written at registration and enforced on by nothing.  The "enf, The value is caller-controlled. Bound it, but never fail a signup     over a sig, OBSERVE-ONLY. Same device, same normalized mailbox, second account —     and it, The whole point: `me+2@gmail.com` must land on the same key as     `m.e@gmail.co, API clients and anyone with storage disabled send nothing. That is an     expect, _register(), test_an_oversized_device_id_is_truncated_not_rejected() (+8 more)
-
-### Community 47 - "test_preference_scoring.py / _emp() / test_a_cap_does_not_ap"
-Cohesion: 0.23
-Nodes (15): _emp(), Hard filtering and soft scoring for the three preference parameters.  Score conv, test_a_cap_does_not_apply_to_a_shift_outside_its_range(), test_cap_penalises_only_once_the_allowance_is_used(), test_hard_cap_blocks_once_the_allowance_is_used(), test_hard_day_preference_blocks_other_days(), test_hard_hour_range_preference_blocks_a_non_matching_shift(), test_hour_range_preference_penalises_a_non_matching_shift() (+7 more)
-
-### Community 48 - "test_db_connection_budget.py / _per_process() / _peak_connec"
-Cohesion: 0.17
-Nodes (14): _peak_connections(), _per_process(), The connection pool must fit inside the database's connection limit.  The pool i, Guards the guard: prove the arithmetic actually catches over-commitment     rath, The remainder covers superuser_reserved_connections, alembic on task     start,, Even before scaling out, one task must not exhaust the database —     this is th, UVICORN_WORKERS is only meaningful if it matches what actually runs.      The Do, POST /schedules/generate holds its session for the whole streamed     generation (+6 more)
-
-### Community 49 - "test_roles.py / test_bulk_upload_rejects_oversize_body() / T"
-Cohesion: 0.12
-Nodes (3): Tests for /api/v1/roles endpoints., A body larger than 5 MB returns 413 before any parsing happens., test_bulk_upload_rejects_oversize_body()
-
-### Community 50 - "test_preference_annotations.py / _shift() / _prefs()"
-Cohesion: 0.28
-Nodes (15): _emp(), _prefs(), The asterisk feature (#99): one evaluator, reported instead of discarded., _shift(), test_a_malformed_shift_is_skipped_and_the_rest_annotated(), test_cap_count_is_seeded_from_earlier_locations(), test_cap_marks_the_fourth_shift_not_the_first_three(), test_day_violation_reports_the_whole_preferred_set() (+7 more)
-
-### Community 51 - "plan.py / get_plan_state() / LimitCount"
-Cohesion: 0.19
-Nodes (15): assert_can_add(), assert_paid_plan(), assert_roster_editable(), check_can_generate(), get_plan_state(), _limit_error(), LimitCount, PlanState (+7 more)
-
-### Community 52 - "billing.ts / confirmReactivation() / confirmUpgrade()"
+### Community 31 - "Community 31"
 Cohesion: 0.13
 Nodes (0): 
 
-### Community 53 - "test_employees.py / test_bulk_upload_accepts_under_size_cap("
+### Community 32 - "Community 32"
 Cohesion: 0.13
-Nodes (9): Tests for /api/v1/employees endpoints., A body larger than 5 MB returns 413 before any parsing happens., An under-5MB CSV still processes normally., A small-bytes CSV with >10,000 rows returns 400., A second company's manager should not see the first company's employees., test_bulk_upload_accepts_under_size_cap(), test_bulk_upload_rejects_over_10k_rows(), test_bulk_upload_rejects_oversize_body() (+1 more)
+Nodes (11): The two rules payroll turns on, tested without a database.  These call the funct, The generator may write the end date as the start date; the faces are     what c, Clocks go forward at 02:00 on 2026-03-08 in America/New_York, so the     elapsed, _shift_duration_hours returns 24 here. Silently paying someone for a     full da, The UTC instant is 2026-01-05T03:00Z. A naive .date() on a UTC value     returns, Tokyo rolls over nine hours before UTC: an 08:00 local start on the     11th is, test_a_late_start_west_of_utc_pays_on_the_local_start_date(), test_a_midnight_crossing_written_with_the_same_date() (+3 more)
 
-### Community 54 - "location_quota.py / resolve_location_quota() / LocationQuota"
-Cohesion: 0.21
-Nodes (14): all_locations_for_company(), _allow(), any_location_available(), free_plan_usage(), _is_unlimited(), LocationQuota, _month_start(), Free-plan generation allowance, counted per LOCATION per calendar month.  The ol (+6 more)
-
-### Community 55 - "nyc_leads.py / main() / build_rows()"
-Cohesion: 0.22
-Nodes (14): build_rows(), build_where(), dedupe_by_camis(), fetch_page(), main(), normalize_name(), parse_args(), print_summary() (+6 more)
-
-### Community 56 - "Auto-Reload Buffer (AI + Schedules) / Monthly InvoiceItems T"
-Cohesion: 0.13
-Nodes (15): Auto-Reload Buffer (AI + Schedules), AUTORELOAD_DEFAULT_* config, Auto-Reload Invariant (ai_credits_usd >= 0), Blocked-Account State (autoreload_failed_at), Usage Overage Billing Design Spec, Monthly Cron Idempotency Rationale, bill_monthly_overages_for_og Cron Function, Monthly InvoiceItems Track (Employees + Storage) (+7 more)
-
-### Community 57 - "Employees.tsx / countCsvRows() / handleImportUpload()"
+### Community 33 - "Community 33"
 Cohesion: 0.15
 Nodes (2): countCsvRows(), handleImportUpload()
 
-### Community 58 - "test_integration_import_quota.py / _make_og() / test_burst_a"
-Cohesion: 0.2
-Nodes (13): _make_og(), Tests for the per-OG integration-import cooldown (#44)., Without an OG (dev/single-Company state) no cooldown applies., The first INTEGRATION_IMPORT_BURST calls succeed; the next is gated., A single follow-up import no longer trips the cooldown (burst > 1)., Cooldown is per (og, integration). A 7shifts import doesn't gate     a Deputy im, A row older than the cooldown window doesn't gate., test_burst_allows_n_calls_then_429() (+5 more)
+### Community 34 - "Community 34"
+Cohesion: 0.14
+Nodes (13): cost_score(), overtime_score(), Cost and seniority scoring for scheduling (#134).  Both scheduling paths — local, 0-1 min-max normalized resolved rank among *resolved_ranks*.      0.0 = most sen, Penalty proportional to how far past *threshold* this shift would push     the e, Location override beats company default. Returns None when neither     level set, Location override beats company default beats the 1.5x constant., 0-1 min-max normalized pay_rate among *pool* members with pay_rate set.      0.0 (+5 more)
 
-### Community 59 - "scheduling_preferences.py / _get_owned_employee() / create_d"
-Cohesion: 0.18
-Nodes (4): create_day_preference(), create_hour_range_cap(), create_hour_range_preference(), _get_owned_employee()
+### Community 35 - "Community 35"
+Cohesion: 0.21
+Nodes (12): Retention cuts the audit log, never the pay record.  Deleting an audit log must, exported_at survives. Deleting an audit log must never un-export a pay     perio, checked_in_at and lateness_minutes are denormalised precisely so the     pay rec, Callers read the summary by key; a missing key is a KeyError, not a     zero., Matching RETENTION_REVOKED_CONSENTS_DAYS: an export is a pay-affecting     actio, _seed(), test_a_recent_export_log_row_survives(), test_an_old_export_log_row_is_deleted_and_counted() (+4 more)
 
-### Community 60 - "schedulingPreferences.ts / createDayPreference() / createHou"
-Cohesion: 0.15
-Nodes (0): 
+### Community 36 - "Community 36"
+Cohesion: 0.21
+Nodes (11): compliance_check(), ComplianceCheckRequest, ComplianceShiftIn, _consume_compliance_check_rate_limit(), _parse_published_at(), _parse_shift_dt(), Public, unauthenticated endpoints.  `POST /public/compliance-check` scores an up, Router-level dependency, resolved before the request body is parsed     and vali (+3 more)
 
-### Community 61 - "test_annotate_preferences_node.py / _emp() / _shift()"
-Cohesion: 0.46
-Nodes (12): _emp(), annotate_preferences (#99): the post-pass that explains the schedule.  Runs afte, _shift(), _state(), test_a_broken_state_degrades_instead_of_raising(), test_a_violating_shift_is_annotated_and_counted(), test_an_alternative_already_booked_does_not_count_as_free(), test_an_alternative_without_the_role_does_not_count() (+4 more)
-
-### Community 62 - "test_email_quota.py / _make_og() / test_at_cap_blocks_and_do"
-Cohesion: 0.19
-Nodes (11): _make_og(), Tests for the per-OG daily email cap (#42)., Sends before an OG exists (registration welcome) must succeed and     not write, Above the cap: returns False AND does not write a new audit row     (otherwise t, Rows older than 24h don't count toward the cap., Capping OG A doesn't affect OG B., test_at_cap_blocks_and_does_not_log(), test_no_og_returns_true_and_skips_log() (+3 more)
-
-### Community 63 - "email_verification.py / send_verification() / assert_email_v"
-Cohesion: 0.19
-Nodes (12): assert_email_verified(), has_fresh_token(), is_verified(), mint_token(), Email-ownership proof: minting, redeeming, and the generation gate.  Separate fr, Mint a token and mail it. Returns True only if Resend accepted it.      Respects, Raise 403 if *user* has not proven their email address.      403 and not 402: 40, Create and return an unused verification token for *user*.      Does not commit (+4 more)
-
-### Community 64 - "Abuse Report Clustering"
-Cohesion: 0.17
-Nodes (3): Tests for /api/v1/special-hours endpoints., Changing the date to one that already has a SHD for the same location     must r, test_put_409_on_duplicate_date()
-
-### Community 65 - "employees table / companies table / locations table"
-Cohesion: 0.24
-Nodes (12): companies table, employee_affinities table, employee_availability table, employee_roles table, employees table, locations table, regions table, roles table (+4 more)
-
-### Community 66 - "test_scheduling_preferences_api.py / test_free_plan_is_not_b"
-Cohesion: 0.18
-Nodes (3): API surface for the three preference types.  The gating assertions are the point, Explicitly NOT 402 — these are ungated., test_free_plan_is_not_blocked()
-
-### Community 67 - "test_check_in_model.py / _row() / _tenant()"
-Cohesion: 0.33
-Nodes (9): The employee_check_ins table.  The unique constraint is the interesting part: it, Single use, enforced by the database.      Two employees scanning the same displ, The counter restarts each local day, so it only has to be unique     within one., _row(), _tenant(), test_a_check_in_persists(), test_the_next_counter_is_free(), test_the_same_counter_on_another_day_is_free() (+1 more)
-
-### Community 68 - "Abuse Report Clustering"
-Cohesion: 0.18
-Nodes (3): Tests for /api/v1/manager-invites endpoints., A token that's already been accepted cannot be used again., test_accept_404_after_already_accepted()
-
-### Community 69 - "Abuse Report Clustering"
-Cohesion: 0.25
-Nodes (10): clone_template_for_date(), _flat_entries_for_dow(), _flat_from_dow_role(), _flat_from_legacy(), _format_hhmm(), Convert a dow-grouped role dict into the legacy flat-shape entry., Clone ``source`` into a single-day variant for ``target_date``.      - The clone, Render as HH:MM to match the format used by the seed / production     weekly_sch (+2 more)
-
-### Community 70 - "Employee Availability & Association Management Page / Employ"
-Cohesion: 0.24
-Nodes (11): Employee Affinity/Association (domain concept), Employee Availability (domain concept), Add Availability Button, Affinity Value Scale Explanation (1=must work, 0.5=nice, -1=cannot, -0.5/-0.7=prefer not), Employee Name Filter Input, Import Controls (7shifts, Deputy), Manager Navigation Sidebar, Employee Availability & Association Management Page (+3 more)
-
-### Community 71 - "Manager Dashboard / Company Management Card / Employees Mana"
-Cohesion: 0.18
-Nodes (11): Company Management Card, Employees Management Card, Top Header Bar, Import Integration Buttons, Locations Management Card, Manager Dashboard, Regions Management Card, Roles Management Card (+3 more)
-
-### Community 72 - "Data table with employee hour restrictions / Hour Restrictio"
-Cohesion: 0.24
-Nodes (11): Employee (domain entity), Max hours per week constraint, ACTIONS table column with Save buttons, Data table with employee hour restrictions, Feature description text explaining hour caps, EMPLOYEE table column, MAX HOURS / WEEK table column, Hour Restrictions Management Page (+3 more)
-
-### Community 73 - "test_regions.py / Tests for /api/v1/regions endpoints. / tes"
-Cohesion: 0.18
-Nodes (1): Tests for /api/v1/regions endpoints.
-
-### Community 74 - "ShiftCalendar.tsx / blocksToScheduleJson() / deleteEditBlock"
-Cohesion: 0.2
-Nodes (0): 
-
-### Community 75 - "test_pagination.py / test_no_exception_on_absurd_input() / U"
-Cohesion: 0.2
-Nodes (3): Unit tests for backend.utils.pagination.clamp_limit (#48)., clamp_limit must never raise — DB queries should not 500 on     pathological cal, test_no_exception_on_absurd_input()
-
-### Community 76 - "test_scheduling_preferences_model.py / test_weight_defaults_"
-Cohesion: 0.2
-Nodes (3): Schema guarantees for the three preference tables.  The weight column is the loa, 0.7 is the create-time value, not a per-employee default., test_weight_defaults_to_seven_tenths()
-
-### Community 77 - "_Visitor / test_utc_today.py / _offenders()"
-Cohesion: 0.27
-Nodes (7): _offenders(), In this codebase "today" is always UTC — in application code and in tests.  `dat, Collects `date.today()`, `datetime.today()` and bare `datetime.now()`.      `dat, #87 fixed four tests that compared local dates against UTC-derived     productio, test_backend_never_reads_the_local_clock(), test_tests_never_read_the_local_clock(), _Visitor
-
-### Community 78 - "Abuse Report Clustering"
-Cohesion: 0.22
-Nodes (8): _by_role(), Unit tests for the clone_template_for_date helper., No entries for target dow → fall back to the day with the most entries;     rewr, The seed / production shape: each role+day is a flat entry. The clone     should, If the source happens to be in the dow-grouped shape (older clones or     extern, test_clone_falls_back_to_busiest_day_when_target_dow_missing(), test_clone_from_dow_grouped_shape_unrolls_into_flat(), test_clone_from_legacy_flat_shape_extracts_target_day()
-
-### Community 79 - "Schedule Generation Page / Location Schedule Section (Downto"
-Cohesion: 0.22
-Nodes (10): Approve/Reject Location Schedule Controls, Date Range Picker Controls (Start/End), Employee Shift Assignment Card (name, time slot), Generation Action Buttons (Normal Generate, AI Generate, Reset), Location Schedule Section (Downtown Store, Uptown Store), Role Classification (Floor Associate, Team Lead), Schedule Generation Page, Shift Assignment Grid by Role and Day (+2 more)
-
-### Community 80 - "Delete Your Account section / Data & Privacy page / Export Y"
-Cohesion: 0.22
-Nodes (10): Account deletion capability, Delete My Account button (pink/red), Delete Your Account section, Confirmation text input field (expects 'DELETE'), Download My Data button (tan/beige), Export Your Data section, Data & Privacy page, Left sidebar navigation menu (+2 more)
-
-### Community 81 - "FrequencyCaps.tsx / parseMaxPerWeek() / handleCreate()"
-Cohesion: 0.28
-Nodes (3): handleCreate(), handleSave(), parseMaxPerWeek()
-
-### Community 82 - "RoleEquivalents.tsx / resetForm() / handleSubmit()"
-Cohesion: 0.28
-Nodes (3): handleSubmit(), resetForm(), startCreate()
-
-### Community 83 - "ShiftTemplates.tsx / handleSubmit() / nextId()"
-Cohesion: 0.25
-Nodes (2): handleSubmit(), nextId()
-
-### Community 84 - "test_sidebar_routes.py / test_the_parser_still_finds_both_si"
-Cohesion: 0.33
-Nodes (8): _nav_targets(), Every sidebar link resolves to a real route.  A nav refactor's characteristic fa, Guard the guard: a refactor that changes the shape of either file     could sile, Sidebar.tsx does `t.nav[key as keyof typeof t.nav]`, which bypasses     key vali, _routes(), test_every_label_key_exists_in_en_translations(), test_every_sidebar_link_has_a_route(), test_the_parser_still_finds_both_sides()
-
-### Community 85 - "Day Rules Manager Page / Add Rule Form / Day Rules Feature"
-Cohesion: 0.25
-Nodes (9): Day Rules Manager Page, Add Rule Form, Day of Week Selector, Day Rules Feature, Day Rules Data Table, Employee Selector Field, Scheduling Constraint Concept, Manager Sidebar Navigation (+1 more)
-
-### Community 86 - "Location Entity / Locations DataTable / Locations Manager Pa"
-Cohesion: 0.25
-Nodes (9): Edit/Delete Actions, Add Row Button, Import Data Button, Location Entity, Locations DataTable, Locations Manager Page, Region Entity, Manager Sidebar Navigation (+1 more)
-
-### Community 87 - "Shift Templates Manager Page / Shift Template Card (Weekday "
-Cohesion: 0.22
-Nodes (9): Add Template Button, Day Schedule with Multiple Shifts, Edit/Delete Template Controls, Page Header with Company/User Context, Location Association (Downtown Store, Uptown Store), Shift Templates Manager Page, Shift Role Entry (Floor Associate, Team Lead), Left Sidebar Navigation Menu (+1 more)
-
-### Community 88 - "Employee Onboarding page / Employee onboarding workflow - se"
-Cohesion: 0.25
-Nodes (9): Invite status tracking - needs invite, pending, onboarded, Employee onboarding workflow - sending invites and tracking status, How onboarding works info box with 3-step process, Invite Sent (Pending) (0) section empty state, Top navigation bar with company name and manager user info, Needs Invite (16) section with employee list and Send Invite buttons, Onboarded (1) section with active employees, Employee Onboarding page (+1 more)
-
-### Community 89 - "Export Approved Schedules page / Approved Schedule domain en"
-Cohesion: 0.28
-Nodes (9): Approved Schedule domain entity, Descriptive text explaining export feature and 7Shifts/JSON formats, Empty state message: No approved schedules for this week, Export functionality to 7Shifts or JSON formats, Export Approved Schedules page, Page header: Export Approved Schedules, Left sidebar navigation menu with manager routes, Today button for current week navigation (+1 more)
-
-### Community 90 - "EditShiftModal.tsx / submit() / handleDelete()"
+### Community 37 - "Community 37"
 Cohesion: 0.36
-Nodes (4): handleDelete(), handleError(), handleSave(), submit()
+Nodes (10): _entry(), The database, not the application, is what keeps payroll honest.  Every constrai, An attested row without an attester is an audit trail with a hole., A company with one approved 09:00-17:00 UTC shift yesterday.      Shift timestam, _seed(), test_an_attested_entry_needs_an_attester(), test_an_attested_entry_with_an_attester_is_accepted(), test_an_unknown_source_is_rejected() (+2 more)
 
-### Community 91 - "Team.tsx / closeModal() / handleSubmitInvite()"
-Cohesion: 0.29
-Nodes (2): closeModal(), handleSubmitInvite()
+### Community 38 - "Community 38"
+Cohesion: 0.31
+Nodes (9): _prepared(), eligible_for_slot attaches _cost_score/_seniority_score identically for both sch, A third, ineligible candidate (wrong role) must not affect normalization., Regression test for #134: manual seniority_rank should not tie with     derived, test_cost_score_normalized_across_eligible_pool(), test_cost_score_normalized_within_this_slot_only(), test_no_data_configured_scores_are_neutral(), test_seniority_score_derived_from_hire_date() (+1 more)
 
-### Community 92 - "Abuse Report Clustering"
-Cohesion: 0.32
-Nodes (6): Check-ins are swept like every other retained record.  Issue #63 asks for six mo, Callers read the summary by key; a missing key is a KeyError, not a     zero., _seed(), test_check_ins_inside_the_window_survive(), test_check_ins_past_the_cutoff_are_deleted(), test_the_sweep_reports_zero_rather_than_omitting_the_key()
+### Community 39 - "Community 39"
+Cohesion: 0.2
+Nodes (6): In-memory sliding-window rate limiter.  Sized for protecting low-volume sensitiv, Sliding-window counter per arbitrary string key.      Trade-offs:       - In-mem, Record a hit for ``key``; return True if within the limit.          ``now`` is i, Extract the client source IP from a Starlette/FastAPI Request.      Trusts the l, SlidingWindowLimiter, source_ip_from_request()
 
-### Community 93 - "Abuse Report Clustering"
-Cohesion: 0.32
-Nodes (7): _postgres_shaped_shift(), Critical fix: the week-schedule response must emit a genuine location-local face, A `Shift` as Postgres would hand it back after commit: start_time/     end_time, A shift stored 09:00-04:00 (New York, August -> EDT) is normalised by     Postgr, The two ways `collect_edit_warnings` can arrive at a shift's span must     land, test_response_face_and_the_warnings_fallback_face_agree(), test_shift_to_response_emits_the_location_local_face_not_the_utc_instant()
-
-### Community 94 - "test_scheduling_model.py / test_model_id_carries_no_date_suf"
-Cohesion: 0.25
-Nodes (7): The scheduling model is a config knob, and its price constants match it.  Two fa, nodes.py must read the knob, never a literal model ID., Current Claude IDs are bare; a date suffix is the retired-model shape., Billing rates must track the model actually being called., test_model_id_carries_no_date_suffix(), test_model_is_not_hardcoded_in_the_pipeline(), test_price_constants_match_the_configured_model()
-
-### Community 95 - "test_avail_tz.py / test_parse_avail_keeps_window_on_its_own_"
-Cohesion: 0.25
-Nodes (5): Contract for _parse_avail_by_day: availability is stored as *local wall-clock ta, A window stored 09:00–17:00 (tagged +00:00) is read as 09:00–17:00 —     the +00, The window's date must not shift (no astimezone roll-back to the     previous da, test_parse_avail_keeps_window_on_its_own_date(), test_parse_avail_reads_wallclock_without_conversion()
-
-### Community 96 - "test_email_normalize.py / test_malformed_falls_back_to_clean"
-Cohesion: 0.25
-Nodes (5): normalize_email is a grouping signal, not a validator., Never raise. A malformed address is still a usable grouping key., Stripping would leave a bare "@gmail.com", which groups unrelated     signups to, test_malformed_falls_back_to_cleaned_copy(), test_plus_only_local_keeps_the_cleaned_original()
-
-### Community 97 - "test_eligibility_shared.py / test_no_path_reimplements_the_b"
-Cohesion: 0.25
-Nodes (3): Both scheduling paths share one eligibility builder.  They used to hold two inde, _blackout_blocks should be called in exactly one place: the shared     builder., test_no_path_reimplements_the_blackout_filter()
-
-### Community 98 - "base_url.py / _allowed_origins() / _origin_of()"
+### Community 40 - "Community 40"
 Cohesion: 0.36
-Nodes (7): _allowed_origins(), _origin_of(), The origin emailed links are built against.  Every link we mail — password reset, scheme://host[:port], lowercased, or None if *url* isn't absolute., Origins an operator has explicitly named.      CORS_ORIGINS defaults to "*". A w, Return the origin to build an emailed link against.      Falls back to FRONTEND_, trusted_base_url()
+Nodes (7): approveTimeEntries(), deriveTimeEntries(), downloadPayrollCsv(), listPayrollExceptions(), listTimeEntries(), rangeBody(), rangeQuery()
 
-### Community 99 - "Abuse Report Clustering"
-Cohesion: 0.32
-Nodes (7): _already_exported_warning(), collect_edit_warnings(), _overlaps(), Warnings raised by an approved-schedule edit.  All three are advisory: the edit, Strict overlap. Touching intervals do not overlap: a shift ending at     13:00 d, The `already_exported` warning dict -- 7shifts now disagrees with the     schedu, Advisory warnings for a set of edits. Never raises.      Must be called BEFORE t
+### Community 41 - "Community 41"
+Cohesion: 0.22
+Nodes (3): The attestation rate is REPORTING, not blocking.  A location attesting most of i, Attest, approve and export all still succeed. Same posture as the     weekly abu, test_a_hundred_percent_attestation_rate_blocks_nothing()
 
-### Community 100 - "Page List: 15 Manager Screens / Features.tsx Page Component "
-Cohesion: 0.29
-Nodes (8): Error Handling: Missing-Screenshot Fallback, i18n Plan (English + 18 Placeholder Locales), Page List: 15 Manager Screens, Route + Page Architecture, Screenshot Capture Script Spec, Features.tsx Page Component, Features i18n Keys (19 locales), Playwright Screenshot Capture Script
-
-### Community 101 - "Employee Entity / Employee Data Table / Employees Manager Pa"
-Cohesion: 0.29
-Nodes (8): Edit/Delete Actions, Add Employee Action, Employee Data Table, Employee Entity, Import Data Action, Location Assignment, Employees Manager Page, Employee Role with Skill Level
-
-### Community 102 - "Roles Management Page / Roles DataTable / Edit Delete Action"
-Cohesion: 0.25
-Nodes (8): Edit Delete Actions, Add Row Button, Roles DataTable, Application Header, Import Data Button, Roles Management Page, Role Domain Entity, Navigation Sidebar Menu
-
-### Community 103 - "Role Equivalents Manager Page / Role Equivalents (Grouping S"
-Cohesion: 0.29
-Nodes (8): Main Content Area with Empty State, Left Navigation Sidebar, New Group Action Button, Role Equivalents Manager Page, Role (Employee Role Classification), Role Equivalents (Grouping Similar Roles), Shift (Scheduling Unit), Top Navigation Bar
-
-### Community 104 - "Company Settings Page / Company Settings Form / Manager User"
-Cohesion: 0.29
-Nodes (8): Company Name Input Field, Manager User Role and Logout, Company Settings Page, Save Button, Company Settings Form, Manager Settings Navigation Sidebar, Slug Input Field, Top Navigation Bar with User Context
-
-### Community 105 - "Regions Data Table / Regions Management Page / Add Row Butto"
-Cohesion: 0.25
-Nodes (8): Add Row Button, Regions Data Table, Edit and Delete Action Links, Manager Region Management Workflow, Regions Management Page, Region Domain Entity, List of Regions (East Coast), Sidebar Navigation Menu
-
-### Community 106 - "_employeesShared.ts / formatDate() / formatTime()"
-Cohesion: 0.29
-Nodes (0): 
-
-### Community 107 - "Locations.tsx / parseMinRest() / countCsvRows()"
-Cohesion: 0.43
+### Community 42 - "Community 42"
+Cohesion: 0.36
 Nodes (5): countCsvRows(), handleCreate(), handleImportUpload(), handleSave(), parseMinRest()
 
-### Community 108 - "HourRestrictions.tsx / parseValue() / handleSave()"
-Cohesion: 0.38
-Nodes (3): handleSave(), isDirty(), parseValue()
+### Community 43 - "Community 43"
+Cohesion: 0.32
+Nodes (7): get_migrations_directory(), Tests for Alembic migrations., Get the migrations directory path., Verify all migration revisions reference valid down_revisions., Verify no two migration files have the same numeric prefix., test_migration_chain_integrity(), test_no_duplicate_filenames()
 
-### Community 109 - "_state_for_toronto_all_day_monday() / test_avail_local_wallc"
-Cohesion: 0.38
-Nodes (6): Regression for the non-UTC zero-shifts bug.  Availability is persisted as *local, One employee available all day Monday (stored local-tagged-UTC), one     Monday, The second-pass validator must not drop the assigned shift as     'not available, _state_for_toronto_all_day_monday(), test_local_schedule_assigns_all_day_employee_at_non_utc_location(), test_validate_schedule_keeps_all_day_employee_shift_non_utc()
-
-### Community 110 - "Abuse Report Clustering"
-Cohesion: 0.38
-Nodes (4): accept_manager_invite(), _create_access_token(), create_manager_invite(), _invite_url_for()
-
-### Community 111 - "CHECKIN_QR_SECRET Fail-Closed Design / FRONTEND_URL Trusted "
+### Community 44 - "Community 44"
 Cohesion: 0.29
-Nodes (7): CHECKIN_QR_SECRET Fail-Closed Design, FRONTEND_URL Trusted Base for Links, segno QR Code Dep, CHECKIN_QR_SECRET Must Be Replaced, Deploy Steps, FRONTEND_URL Terraform Variable, Secrets Manager Injection
+Nodes (6): add_company_to_group(), get_ownership_group(), Get the current user's ownership group and all companies in it., Update the ownership group name., Create a new company and add it to the current ownership group., update_ownership_group()
 
-### Community 112 - "gdpr.ts / deleteMyAccount() / exportMyData()"
-Cohesion: 0.29
-Nodes (0): 
-
-### Community 113 - "test_shift_templates.py / Tests for /api/v1/shift-templates "
-Cohesion: 0.29
-Nodes (1): Tests for /api/v1/shift-templates endpoints.
-
-### Community 114 - "schedules.ts / approveSchedule() / getSchedule()"
+### Community 45 - "Community 45"
 Cohesion: 0.33
 Nodes (0): 
 
-### Community 115 - "locations.ts / bulkUploadLocations() / createLocation()"
-Cohesion: 0.33
-Nodes (0): 
-
-### Community 116 - "client.ts / ApiError / .constructor()"
-Cohesion: 0.33
-Nodes (1): ApiError
-
-### Community 117 - "HourRangePreferences.tsx / handleCreate() / handleDelete()"
-Cohesion: 0.33
-Nodes (0): 
-
-### Community 118 - "ApprovedSchedules.tsx / toDateStr() / buildMonthGrid()"
-Cohesion: 0.47
-Nodes (3): buildMonthGrid(), mondayOf(), toDateStr()
-
-### Community 119 - "DayPreferences.tsx / handleCreate() / handleDelete()"
-Cohesion: 0.33
-Nodes (0): 
-
-### Community 120 - "signup_signals.py / record_signup_signals() / _user_agent_ha"
-Cohesion: 0.4
-Nodes (5): Signup signals: recorded at registration, enforced on by nothing.  Serial free-t, Hash rather than store the raw UA string.      The raw value is a fingerprinting, Stamp *og* with the signals from this registration request.      Mutates in plac, record_signup_signals(), _user_agent_hash()
-
-### Community 121 - "roles.ts / bulkUploadRoles() / createRole()"
-Cohesion: 0.33
-Nodes (0): 
-
-### Community 122 - "JSONFormatter / setup_logging() / logging_config.py"
-Cohesion: 0.4
-Nodes (4): JSONFormatter, Structured JSON log formatter for CloudWatch compatibility., Configure root logger. JSON format in production, standard format in development, setup_logging()
-
-### Community 123 - "condensed_roles.py / _build_response() / create_condensed_ro"
-Cohesion: 0.53
-Nodes (4): _build_response(), create_condensed_role(), list_condensed_roles(), update_condensed_role()
-
-### Community 124 - "Operator Alert Tests"
+### Community 46 - "Community 46"
 Cohesion: 0.33
 Nodes (1): Operator alert on credit charges (#64).  The operator tops up the Anthropic Cons
 
-### Community 125 - "preferenceText.ts / describeViolations() / hm()"
-Cohesion: 0.5
-Nodes (2): fill(), rosterThinMessage()
+### Community 47 - "Community 47"
+Cohesion: 0.33
+Nodes (3): One week, scan to CSV, through the HTTP surface only.  Every earlier test file p, The page calls derive on every load, including after an export. It must     not, test_re_deriving_after_the_whole_flow_changes_nothing()
 
-### Community 126 - "Sidebar.tsx / isGroup() / label()"
+### Community 48 - "Community 48"
+Cohesion: 0.33
+Nodes (5): generate_company_slug(), generate_short_id(), Short alphanumeric ID generator for all database primary keys., Generate an 8-character alphanumeric ID., Generate a unique company slug, excluding reserved test namespace.      Regenera
+
+### Community 49 - "Community 49"
 Cohesion: 0.4
 Nodes (0): 
 
-### Community 127 - "shiftTemplates.ts / createShiftTemplate() / deleteShiftTempl"
+### Community 50 - "Community 50"
 Cohesion: 0.4
 Nodes (0): 
 
-### Community 128 - "managerInvites.ts / acceptManagerInvite() / createManagerInv"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 129 - "specialHours.ts / createSpecialHoursDay() / deleteSpecialHou"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 130 - "Login.tsx / handleGoogleCallback() / handleGoogleLink()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 131 - "ExportSchedules.tsx / toDateStr() / buildMonthGrid()"
-Cohesion: 0.6
-Nodes (3): buildMonthGrid(), ExportSchedules(), toDateStr()
-
-### Community 132 - "email_verification_email.py / send_email_verification_email("
-Cohesion: 0.5
-Nodes (4): _mask(), Resend-backed email helper for the email-verification flow.  Mirrors services/pa, Send the verification email. No-op when RESEND_API_KEY is unset.      Returns Tr, send_email_verification_email()
-
-### Community 133 - "EmployeeSearchBox.tsx / handleFocus() / handleInputChange()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 134 - "exportSchedules.ts / exportTo7Shifts() / getJsonlDownloadUrl"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 135 - "affinities.ts / createAffinity() / deleteAffinity()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 136 - "condensedRoles.ts / createCondensedRole() / deleteCondensedR"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 137 - "regions.ts / createRegion() / deleteRegion()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 138 - "LanguageContext.tsx / detectBrowserLang() / getInitialLang()"
-Cohesion: 0.5
-Nodes (2): detectBrowserLang(), getInitialLang()
-
-### Community 139 - "Roles.tsx / handleCreate() / handleDelete()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 140 - "regions.py / create_region() / delete_region()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 141 - "affinities.py / create_affinity() / delete_affinity()"
-Cohesion: 0.4
-Nodes (0): 
-
-### Community 142 - "Operator Alerts Service"
+### Community 51 - "Community 51"
 Cohesion: 0.5
 Nodes (4): Emails to the site operator, not to customers.  Nothing here counts against a te, Tell the operator a customer paid for credits and what to buy upstream.      Cus, send_credit_purchase_alert(), _total_prepaid_usd()
 
-### Community 143 - "shiftTime.ts / extractTime() / formatTime()"
-Cohesion: 0.67
-Nodes (2): extractTime(), formatTime()
-
-### Community 144 - "SpecialHoursModal.tsx / handleSubmit() / locationName()"
-Cohesion: 0.67
-Nodes (2): handleSubmit(), locationName()
-
-### Community 145 - "useScheduleStream.ts / ScheduleLockedError / .constructor()"
+### Community 52 - "Community 52"
 Cohesion: 0.5
 Nodes (1): ScheduleLockedError
 
-### Community 146 - "checkIns.ts / getCheckInQr() / getCheckInReport()"
+### Community 53 - "Community 53"
 Cohesion: 0.5
 Nodes (0): 
 
-### Community 147 - "approvedSchedules.ts / editApprovedShifts() / getApprovedWee"
+### Community 54 - "Community 54"
 Cohesion: 0.5
 Nodes (0): 
 
-### Community 148 - "googleAuth.ts / googleAuth() / googleLink()"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 149 - "handleDelete() / handleExport() / DataPrivacy.tsx"
-Cohesion: 0.67
-Nodes (2): handleDelete(), handleExport()
-
-### Community 150 - "config.py / Settings / BaseSettings"
+### Community 55 - "Community 55"
 Cohesion: 0.5
 Nodes (2): BaseSettings, Settings
 
-### Community 151 - "email_normalize.py / normalize_email() / Canonical form of a"
-Cohesion: 0.5
-Nodes (3): normalize_email(), Canonical form of an email address, for grouping signups that are the same mailb, Return the canonical form of *email*.      Falls back to a lowercased, stripped
-
-### Community 152 - "pagination.py / clamp_limit() / Pagination helpers — keeps c"
-Cohesion: 0.5
-Nodes (3): clamp_limit(), Pagination helpers — keeps caller-supplied ?limit values inside a safe band befo, Return a safe pagination limit.      - ``limit is None`` -> use ``default``.
-
-### Community 153 - "0030_add_employee_check_ins.py / downgrade() / add employee_"
-Cohesion: 0.5
-Nodes (1): add employee_check_ins  Revision ID: 0030 Revises: 0029
-
-### Community 154 - "0034_add_preference_violations.py / downgrade() / add prefer"
-Cohesion: 0.5
-Nodes (1): add preference_violations to shifts and preference_summary to shift_schedules  R
-
-### Community 155 - "0031_add_scheduling_preferences.py / downgrade() / add sched"
-Cohesion: 0.5
-Nodes (1): add scheduling preference tables  Revision ID: 0031 Revises: 0030
-
-### Community 156 - "0025_add_special_hours_days_and_shift_template_specific_date"
-Cohesion: 0.5
-Nodes (1): add special_hours_days and shift_templates.specific_date  Revision ID: 0025 Revi
-
-### Community 157 - "0033_add_signup_signals.py / downgrade() / add observe-only "
-Cohesion: 0.5
-Nodes (1): add observe-only signup signals to ownership_groups  Revision ID: 0033 Revises:
-
-### Community 158 - "0021_add_billing_overage_columns.py / downgrade() / Add auto"
-Cohesion: 0.5
-Nodes (1): Add auto-reload columns to ownership_groups and create billing_charges table.  A
-
-### Community 159 - "0023_add_manager_invites_and_schedule_locks.py / downgrade()"
-Cohesion: 0.5
-Nodes (1): add manager_invites and schedule_locks  Revision ID: 0023 Revises: 0022 Create D
-
-### Community 160 - "0028_add_location_min_rest_hours.py / downgrade() / Add min_"
-Cohesion: 0.5
-Nodes (1): Add min_rest_hours to locations  Adds a nullable float column setting the minimu
-
-### Community 161 - "0022_add_cancellation_columns.py / downgrade() / Add cancell"
-Cohesion: 0.5
-Nodes (1): Add cancellation lifecycle columns to ownership_groups.  - canceled_at: set by c
-
-### Community 162 - "0032_add_email_verification.py / downgrade() / add email ver"
-Cohesion: 0.5
-Nodes (1): add email verification tokens and user verification columns  Revision ID: 0032 R
-
-### Community 163 - "0027_add_quota_audit_tables.py / downgrade() / add og_email_"
-Cohesion: 0.5
-Nodes (1): add og_email_send_log, integration_imports, gdpr_export_log  Three audit tables
-
-### Community 164 - "0029_add_unique_stripe_id_indexes.py / downgrade() / Add par"
-Cohesion: 0.5
-Nodes (1): Add partial unique indexes on ownership_groups Stripe id columns  Prevents the s
-
-### Community 165 - "manager_invite_email.py / send_manager_invite_email() / Rese"
-Cohesion: 0.5
-Nodes (3): Resend-backed email helper for manager invites., Send the manager-invite email. No-op when RESEND_API_KEY is unset.      Mirrors, send_manager_invite_email()
-
-### Community 166 - "WizScheduler Platform Overview / Roles Are Data, Never Strin"
-Cohesion: 0.5
-Nodes (4): Roles Are Data, Never String Literals, WizScheduler Platform Overview, google-auth Dep, prometheus_client Dep
-
-### Community 167 - "nyc_leads.py Lead Generation Script / CLAUDE.md Project Over"
-Cohesion: 0.5
-Nodes (4): nyc_leads.py Lead Generation Script, Output CSV Schema + Enrichment Placeholders, NYC DOHMH Socrata Data Source, Standard-Library-Only Constraint (Rationale)
-
-### Community 168 - "company.ts / getCompany() / listGroupCompanies()"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 169 - "EmployeeOnboarding.tsx / handleInvite() / inviteStatusFor()"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 170 - "Regions.tsx / handleCreate() / handleDelete()"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 171 - "id_gen.py / generate_short_id() / Short alphanumeric ID gene"
-Cohesion: 0.5
-Nodes (3): generate_short_id(), Short alphanumeric ID generator for all database primary keys., Generate an 8-character alphanumeric ID.
-
-### Community 172 - "0004_add_affinity_dates.py / downgrade() / Add entry_date an"
-Cohesion: 0.5
-Nodes (1): Add entry_date and expiration_date to employee_affinities  Revision ID: 0004 Rev
-
-### Community 173 - "0001_initial_schema.py / downgrade() / Initial schema  Revis"
-Cohesion: 0.5
-Nodes (1): Initial schema  Revision ID: 0001 Revises: Create Date: 2026-03-19
-
-### Community 174 - "bfbb0671ec23_replace_uuid_with_8char_alphanumeric_ids.py / d"
-Cohesion: 0.5
-Nodes (1): replace uuid with 8char alphanumeric ids  Revision ID: bfbb0671ec23 Revises: 001
-
-### Community 175 - "0007_add_failure_logs.py / downgrade() / add failure_logs ta"
-Cohesion: 0.5
-Nodes (1): add failure_logs table  Revision ID: 0007 Revises: 0006 Create Date: 2026-03-25
-
-### Community 176 - "0013_add_user_consents.py / downgrade() / Add user_consents "
-Cohesion: 0.5
-Nodes (1): Add user_consents table  Revision ID: 0013 Revises: 0012 Create Date: 2026-04-05
-
-### Community 177 - "0005_add_shift_exported_at.py / downgrade() / Add exported_a"
-Cohesion: 0.5
-Nodes (1): Add exported_at to shifts table  Revision ID: 0005 Revises: 0004 Create Date: 20
-
-### Community 178 - "0019_add_storage_snapshots.py / downgrade() / Add storage_sn"
-Cohesion: 0.5
-Nodes (1): Add storage_snapshots table  Records daily storage usage per ownership group so
-
-### Community 179 - "0015_add_google_id_to_users.py / downgrade() / Add google_id"
-Cohesion: 0.5
-Nodes (1): Add google_id to users  Revision ID: 0015 Revises: 0014 Create Date: 2026-04-04
-
-### Community 180 - "0020_add_api_integration_to_ownership_groups.py / downgrade("
-Cohesion: 0.5
-Nodes (1): Add api_integration column to ownership_groups  Nullable string that records whi
-
-### Community 181 - "0009_unique_email_per_company.py / downgrade() / change user"
-Cohesion: 0.5
-Nodes (1): change users unique email to unique (email, company_id)  Revision ID: 0009 Revis
-
-### Community 182 - "0002_add_external_ids_and_departments.py / downgrade() / Add"
-Cohesion: 0.5
-Nodes (1): Add external_id columns and departments table  Revision ID: 0002 Revises: 0001 C
-
-### Community 183 - "54ebeacf0286_add_ai_credits_usd_to_ownership_groups.py / dow"
-Cohesion: 0.5
-Nodes (1): add ai_credits_usd to ownership_groups  Revision ID: 54ebeacf0286 Revises: 0016
-
-### Community 184 - "0017_add_employee_max_hours.py / downgrade() / Add max_hours"
-Cohesion: 0.5
-Nodes (1): Add max_hours_per_week to employees  Adds a nullable float column capping how ma
-
-### Community 185 - "0008_add_employee_invites.py / downgrade() / add employee_in"
-Cohesion: 0.5
-Nodes (1): add employee_invites table  Revision ID: 0008 Revises: 0007 Create Date: 2026-03
-
-### Community 186 - "0010_add_condensed_roles.py / downgrade() / Add condensed_ro"
-Cohesion: 0.5
-Nodes (1): Add condensed_roles and condensed_role_mappings tables  Revision ID: 0010 Revise
-
-### Community 187 - "0012_add_strategy_param2.py / downgrade() / Add strategy_par"
-Cohesion: 0.5
-Nodes (1): Add strategy_param2 to shift_schedules  Revision ID: 0012 Revises: 0011 Create D
-
-### Community 188 - "0011_add_strategy_and_role_minutes.py / downgrade() / Add st"
-Cohesion: 0.5
-Nodes (1): Add strategy tracking to shift_schedules and employee_role_minutes table  Revisi
-
-### Community 189 - "0014_add_billing_columns.py / downgrade() / Add cost_usd and"
-Cohesion: 0.5
-Nodes (1): Add cost_usd and charged_usd to token_usage  Revision ID: 0014 Revises: 0013 Cre
-
-### Community 190 - "0018_add_employee_day_blackouts.py / downgrade() / Add emplo"
-Cohesion: 0.5
-Nodes (1): Add employee_day_blackouts table  Stores recurring per-day-of-week time windows
-
-### Community 191 - "0016_restore_cascade_deletes.py / downgrade() / Restore ON D"
-Cohesion: 0.5
-Nodes (1): Restore ON DELETE CASCADE lost during UUID-to-short-ID migration  The bfbb0671ec
-
-### Community 192 - "0003_add_ownership_groups.py / downgrade() / Add ownership g"
-Cohesion: 0.5
-Nodes (1): Add ownership groups, company.ownership_group_id, and employee_companies junctio
-
-### Community 193 - "Migration 0035 Paid Credits"
+### Community 56 - "Community 56"
 Cohesion: 0.5
 Nodes (1): paid AI credits: auto-reload opt-in, 'purchase' charge kind  Revision ID: 0035 R
 
-### Community 194 - "getDeviceId() / randomId() / deviceId.ts"
-Cohesion: 1.0
-Nodes (2): getDeviceId(), randomId()
+### Community 57 - "Community 57"
+Cohesion: 0.5
+Nodes (1): add activation_events table for the activation funnel (#115)  Revision ID: 0036
 
-### Community 195 - "DuplicateSpecialHoursModal.tsx / handleConfirm() / toggle()"
+### Community 58 - "Community 58"
+Cohesion: 0.5
+Nodes (1): Make optional columns nullable for external imports (7shifts, Deputy)  Revision
+
+### Community 59 - "Community 59"
+Cohesion: 0.5
+Nodes (1): add cost and seniority scheduling fields  Revision ID: 0038 Revises: 0037 Create
+
+### Community 60 - "Community 60"
+Cohesion: 0.5
+Nodes (1): Make employee_roles.skill_level nullable  Revision ID: 0038b_make_employee_roles
+
+### Community 61 - "Community 61"
+Cohesion: 0.5
+Nodes (1): add time_entries and payroll_exports  Revision ID: 0037 Revises: 0036 Create Dat
+
+### Community 62 - "Community 62"
+Cohesion: 0.5
+Nodes (1): Add signal_config to company and location for default signal weight settings  Re
+
+### Community 63 - "Community 63"
+Cohesion: 0.5
+Nodes (1): Add signal_config to shift_schedules for scheduling signal audit trail  Revision
+
+### Community 64 - "Community 64"
+Cohesion: 0.5
+Nodes (3): Signal weight resolution for scheduling.  Signal weights follow a hierarchy: 1., Resolve signal weights following the hierarchy: request > location > company > d, resolve_signal_weights()
+
+### Community 65 - "Community 65"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 196 - "ImportDeputyModal.tsx / handleImport() / SyncRow()"
+### Community 66 - "Community 66"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 197 - "Import7ShiftsModal.tsx / handleImport() / SyncRow()"
+### Community 67 - "Community 67"
 Cohesion: 0.67
-Nodes (0): 
-
-### Community 198 - "ScheduleGrid.tsx / fmtHM() / getDayLabel()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 199 - "useAuth.tsx / AuthProvider() / useAuth()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 200 - "CheckInReport.tsx / parseLocalDate() / statusLabel()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 201 - "SpecialHours.tsx / SpecialHours() / trimSeconds()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 202 - "DayBlackouts.tsx / handleCreate() / handleDelete()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 203 - "Availability.tsx / handleAdd() / handleDelete()"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 204 - "OwnershipGroup / BillingCharge / test_billing.py"
-Cohesion: 0.67
-Nodes (1): One-shot migration: cache default_payment_method_id for every OG with a subscrip
-
-### Community 205 - "run_abuse_report.py / main() / Weekly suspected-account repo"
-Cohesion: 0.67
-Nodes (1): Weekly suspected-account report.  Run manually or via cron:     python -m backen
-
-### Community 206 - "WeekPicker.tsx / getNextMonday() / WeekPicker()"
-Cohesion: 1.0
-Nodes (2): getNextMonday(), WeekPicker()
-
-### Community 207 - "importDeputy.ts / importAvailabilitiesFromDeputy() / importF"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 208 - "import7shifts.ts / importAvailabilitiesFrom7Shifts() / impor"
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 209 - "ownershipGroup.ts / addCompanyToGroup() / getOwnershipGroup("
-Cohesion: 0.67
-Nodes (0): 
-
-### Community 210 - "mask_ip() / privacy.py / Mask the last 2 bytes of an IP addr"
-Cohesion: 0.67
-Nodes (2): mask_ip(), Mask the last 2 bytes of an IP address for GDPR compliance.      IPv4: 192.168.1
-
-### Community 211 - "run_retention.py / main() / Data retention purge script.  Ru"
-Cohesion: 0.67
-Nodes (1): Data retention purge script.  Run manually or via cron:     python -m backend.sc
-
-### Community 212 - "LocationResult / SchedulingState / ShiftAssignment"
-Cohesion: 0.67
-Nodes (3): LocationResult, SchedulingState, ShiftAssignment
-
-### Community 213 - "Locust Load Tests / faker>=25.0 / locust>=2.20"
-Cohesion: 0.67
-Nodes (3): faker>=25.0, locust>=2.20, Locust Load Tests
-
-### Community 214 - "add_dev_user.py / main() / Dev-only: add a manager user bypa"
-Cohesion: 0.67
-Nodes (1): Dev-only: add a manager user bypassing Stripe signup.  Usage:     cd backend &&
-
-### Community 215 - "Project Overview"
-Cohesion: 1.0
-Nodes (3): LangGraph Scheduling Pipeline, Multi-Tenancy, WizScheduler Project Overview
-
-### Community 216 - "VerifyEmailBanner.tsx / handleResend()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 217 - "PlanBanner.tsx / PlanBanner()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 218 - "if() / DataTable.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 219 - "CancellationBanner() / CancellationBanner.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 220 - "RosterThinBanner.tsx / RosterThinBanner()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 221 - "RotaHero.tsx / RotaHero()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 222 - "SectionRule.tsx / SectionRule()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 223 - "useMarketingGround.ts / useMarketingGround()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 224 - "usePlan.ts / usePlan()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 225 - "ordinal() / Features.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 226 - "handleSubmit() / AcceptManagerInvite.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 227 - "Register.tsx / handleSubmit()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 228 - "handleSubmit() / AcceptInvite.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 229 - "VerifyEmail.tsx / VerifyEmail()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 230 - "handleCallback() / Dashboard.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 231 - "EmployeeAvailability() / EmployeeAvailability.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 232 - "EmployeeAssociation() / EmployeeAssociation.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 233 - "CheckInQr() / CheckInQr.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 234 - "CheckIn() / CheckIn.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 235 - "Rolling Back a Version Bump / Terraform Version Upper-Bound "
-Cohesion: 1.0
-Nodes (2): Rolling Back a Version Bump, Terraform Version Upper-Bound Policy
-
-### Community 236 - "/features Route Wiring / Landing Page CTA + Footer Link"
-Cohesion: 1.0
-Nodes (2): /features Route Wiring, Landing Page CTA + Footer Link
-
-### Community 237 - "Frontend Pending Monthly Charges Panel / pending_invoice_ite"
-Cohesion: 1.0
-Nodes (2): Frontend Pending Monthly Charges Panel, pending_invoice_items on /billing/usage
-
-### Community 238 - "Frontend Reactivation Redirect Handler / Sitewide Cancellati"
-Cohesion: 1.0
-Nodes (2): Frontend Reactivation Redirect Handler, Sitewide Cancellation Banner
-
-### Community 239 - "Goal: Public Manager Dashboard Tour / Scope Boundaries (In/O"
-Cohesion: 1.0
-Nodes (2): Goal: Public Manager Dashboard Tour, Scope Boundaries (In/Out of Scope)
-
-### Community 240 - "Goal: Per-Day Template Overrides / Non-Goal: Google Business"
-Cohesion: 1.0
-Nodes (2): Goal: Per-Day Template Overrides, Non-Goal: Google Business Profile Integration
-
-### Community 241 - "DemoGuard() / DemoGuard.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 242 - "StatusBadge.tsx / StatusBadge()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 243 - "ImportModal.tsx / handleFileSelect()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 244 - "useDocumentTitle.ts / useDocumentTitle()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 245 - "failure_logs.py / list_failure_logs()"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 246 - "OG Image / Schedule Page"
-Cohesion: 1.0
-Nodes (2): OG Image, Schedule Page
-
-### Community 247 - "Docker Compose / Multi-stage Dockerfile"
-Cohesion: 1.0
-Nodes (2): Docker Compose, Multi-stage Dockerfile
-
-### Community 248 - "Knowledge Graph & Hooks"
-Cohesion: 1.0
-Nodes (2): Knowledge Graph (RAG), Pre-PR Refresh Hook
-
-### Community 249 - "Abuse & Signup Conventions"
-Cohesion: 1.0
-Nodes (2): Weekly Abuse Report Convention, signup_* Observe-Only Convention
-
-### Community 250 - "Preference & Role Conventions"
-Cohesion: 1.0
-Nodes (2): Preference Asterisks Convention, Roles Never Hardcoded Convention
-
-### Community 251 - "tailwind.config.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 252 - "App.tsx"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 253 - "vite-env.d.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 254 - "theme.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 255 - "index.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 256 - "preferenceText.test.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 257 - "shiftTime.test.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 258 - "logicalDirection.test.ts"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 259 - "LanguageSelector.tsx"
-Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Weekly activation-funnel cohort report.  Run manually or via cron:     python -m
 
-### Community 260 - "WeightSlider.tsx"
+### Community 68 - "Community 68"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 261 - "MarketingNav.tsx"
+### Community 69 - "Community 69"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 262 - "AuthLayout.tsx"
+### Community 70 - "Community 70"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 263 - "MarketingFooter.tsx"
+### Community 71 - "Community 71"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 264 - "rotaData.ts"
+### Community 72 - "Community 72"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 265 - "de.ts"
+### Community 73 - "Community 73"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 266 - "ta.ts"
+### Community 74 - "Community 74"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 267 - "te.ts"
+### Community 75 - "Community 75"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 268 - "ar.ts"
+### Community 76 - "Community 76"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 269 - "bn.ts"
+### Community 77 - "Community 77"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 270 - "es.ts"
+### Community 78 - "Community 78"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 271 - "ur.ts"
+### Community 79 - "Community 79"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 272 - "tr.ts"
+### Community 80 - "Community 80"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 273 - "en.ts"
+### Community 81 - "Community 81"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 274 - "zh.ts"
+### Community 82 - "Community 82"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 275 - "hi.ts"
+### Community 83 - "Community 83"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 276 - "fr.ts"
+### Community 84 - "Community 84"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 277 - "ru.ts"
+### Community 85 - "Community 85"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 278 - "pt.ts"
+### Community 86 - "Community 86"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 279 - "vi.ts"
+### Community 87 - "Community 87"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 280 - "mr.ts"
+### Community 88 - "Community 88"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 281 - "pcm.ts"
+### Community 89 - "Community 89"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 282 - "id.ts"
+### Community 90 - "Community 90"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 283 - "ja.ts"
+### Community 91 - "Community 91"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 284 - "PrivacyPolicy.tsx"
+### Community 92 - "Community 92"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 285 - "DataProcessingAgreement.tsx"
+### Community 93 - "Community 93"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 286 - "TermsOfService.tsx"
+### Community 94 - "Community 94"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 287 - "Landing.tsx"
+### Community 95 - "Community 95"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 288 - "__init__.py"
+### Community 96 - "Community 96"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 289 - "__init__.py"
+### Community 97 - "Community 97"
 Cohesion: 1.0
 Nodes (0): 
-
-### Community 290 - "billing_charges Table (new)"
-Cohesion: 1.0
-Nodes (1): billing_charges Table (new)
-
-### Community 291 - "OwnershipGroup Column Additions (autorel"
-Cohesion: 1.0
-Nodes (1): OwnershipGroup Column Additions (autoreload_enabled, _threshold_usd, _amount_usd, _failed_at, default_payment_method_id)
-
-### Community 292 - "Removed Purchase-Credits Endpoints"
-Cohesion: 1.0
-Nodes (1): Removed Purchase-Credits Endpoints
-
-### Community 293 - "Favicon SVG"
-Cohesion: 1.0
-Nodes (1): Favicon SVG
-
-### Community 294 - "Checked-in Knowledge Graph (graphify-out"
-Cohesion: 1.0
-Nodes (1): Checked-in Knowledge Graph (graphify-out)
-
-### Community 295 - "Scaling Up Guidance"
-Cohesion: 1.0
-Nodes (1): Scaling Up Guidance
-
-### Community 296 - "Cost Estimate"
-Cohesion: 1.0
-Nodes (1): Cost Estimate
-
-### Community 297 - "FastAPI + Pydantic Stack"
-Cohesion: 1.0
-Nodes (1): FastAPI + Pydantic Stack
-
-### Community 298 - "SQLAlchemy Async + Alembic"
-Cohesion: 1.0
-Nodes (1): SQLAlchemy Async + Alembic
-
-### Community 299 - "JWT + Bcrypt Auth Libs"
-Cohesion: 1.0
-Nodes (1): JWT + Bcrypt Auth Libs
 
-### Community 300 - "Stripe + Resend Deps"
+### Community 98 - "Community 98"
 Cohesion: 1.0
-Nodes (1): Stripe + Resend Deps
+Nodes (1): Employee should have nullable external_id, email, location_ids for imports.
 
-### Community 301 - "Self-Review: No Placeholders Rationale"
+### Community 99 - "Community 99"
 Cohesion: 1.0
-Nodes (1): Self-Review: No Placeholders Rationale
+Nodes (1): Location should have nullable columns for optional import data.
 
-### Community 302 - "UI: Banners + Cancellation Card"
+### Community 100 - "Community 100"
 Cohesion: 1.0
-Nodes (1): UI: Banners + Cancellation Card
+Nodes (1): EmployeeRole.skill_level column exists for role assignments.
 
-### Community 303 - "Goal: Three Independent Improvements"
+### Community 101 - "Community 101"
 Cohesion: 1.0
-Nodes (1): Goal: Three Independent Improvements
+Nodes (1): Create employee with all nullable fields as NULL.
 
-### Community 304 - "Deferred, deliberately (favicon, logged-"
+### Community 102 - "Community 102"
 Cohesion: 1.0
-Nodes (1): Deferred, deliberately (favicon, logged-in pages, copy)
+Nodes (1): Create location with optional fields as NULL.
 
-### Community 305 - "vite.config.ts"
+### Community 103 - "Community 103"
 Cohesion: 1.0
-Nodes (0): 
-
-### Community 306 - "postcss.config.js"
-Cohesion: 1.0
-Nodes (0): 
+Nodes (1): location_ids should store and retrieve as JSON list.
 
-### Community 307 - "main.tsx"
+### Community 104 - "Community 104"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): geo_coord should store and retrieve as JSON object.
 
-### Community 308 - "TopBar.tsx"
+### Community 105 - "Community 105"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): hire_date should convert strings to date and store properly.
 
-### Community 309 - "types.ts"
+### Community 106 - "Community 106"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): pay_rate (Numeric) and seniority_rank (SmallInteger) conversions.
 
-### Community 310 - "__init__.py"
+### Community 107 - "Community 107"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Create employee with only required fields (like 7shifts import does).
 
-### Community 311 - "__init__.py"
+### Community 108 - "Community 108"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Create location with minimal fields from 7shifts.
 
-### Community 312 - "__init__.py"
+### Community 109 - "Community 109"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Create EmployeeRole with skill_level (7shifts import skill mapping).
 
-### Community 313 - "__init__.py"
+### Community 110 - "Community 110"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Create Department under Location (7shifts import structure).
 
-### Community 314 - "__init__.py"
+### Community 111 - "Community 111"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Employee with pay_rate/hire_date/seniority_rank from #134.
 
-### Community 315 - "__init__.py"
+### Community 112 - "Community 112"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): seniority_rank must be positive (> 0) per schema constraint.
 
-### Community 316 - "__init__.py"
+### Community 113 - "Community 113"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): overtime_premium_multiplier must be >= 1 or NULL.
 
-### Community 317 - "__init__.py"
+### Community 114 - "Community 114"
 Cohesion: 1.0
-Nodes (0): 
+Nodes (1): Employee should support Deputy import fields: external_id, email, hire_date.
 
-### Community 318 - "Generate a schedule for a"
+### Community 115 - "Community 115"
 Cohesion: 1.0
-Nodes (1): Generate a schedule for a random location using the local scheduler.
+Nodes (1): Location should support Deputy import fields.
 
-### Community 319 - "Simulate viewing the employee list."
+### Community 116 - "Community 116"
 Cohesion: 1.0
-Nodes (1): Simulate viewing the employee list.
+Nodes (1): EmployeeDayBlackout table should exist for Deputy recurring unavailability.
 
-### Community 320 - "Simulate viewing schedules for the"
+### Community 117 - "Community 117"
 Cohesion: 1.0
-Nodes (1): Simulate viewing schedules for the current week.
+Nodes (1): Create location from Deputy 'Company' data.
 
-### Community 321 - "Simulate viewing all employee availabili"
+### Community 118 - "Community 118"
 Cohesion: 1.0
-Nodes (1): Simulate viewing all employee availability.
+Nodes (1): Create employee from Deputy 'Employee' record.
 
-### Community 322 - "Simulate viewing shift templates."
+### Community 119 - "Community 119"
 Cohesion: 1.0
-Nodes (1): Simulate viewing shift templates.
+Nodes (1): Create role from Deputy 'Trade' data.
 
-### Community 323 - "Simulate loading the dashboard (company"
+### Community 120 - "Community 120"
 Cohesion: 1.0
-Nodes (1): Simulate loading the dashboard (company info + billing).
+Nodes (1): Create EmployeeRole from Deputy assignment.
 
-### Community 324 - "JWT Authentication"
+### Community 121 - "Community 121"
 Cohesion: 1.0
-Nodes (1): JWT Authentication
+Nodes (1): EmployeeDayBlackout should have employee_id, day_of_week, start/end times.
 
-### Community 325 - "Bulk CSV Upload"
+### Community 122 - "Community 122"
 Cohesion: 1.0
-Nodes (1): Bulk CSV Upload
+Nodes (1): Create recurring blackout pattern from Deputy data.
 
-### Community 326 - "Single Retry on Conflict"
+### Community 123 - "Community 123"
 Cohesion: 1.0
-Nodes (1): Single Retry on Conflict
+Nodes (1): Deputy employees may not have email.
 
-### Community 327 - "JWT in localStorage"
+### Community 124 - "Community 124"
 Cohesion: 1.0
-Nodes (1): JWT in localStorage
+Nodes (1): Deputy location may not have address.
 
-### Community 328 - "GitHub Actions CI/CD"
+### Community 125 - "Community 125"
 Cohesion: 1.0
-Nodes (1): GitHub Actions CI/CD
+Nodes (1): Deputy employee may not have hire_date in their system.
 
-### Community 329 - "Seed Script"
+### Community 126 - "Community 126"
 Cohesion: 1.0
-Nodes (1): Seed Script
+Nodes (1): End-to-end Deputy import: locations → roles → employees → assignments.
 
-### Community 330 - "robots.txt"
+### Community 127 - "Community 127"
 Cohesion: 1.0
 Nodes (0): 
-
-### Community 331 - "Health Check Endpoint"
-Cohesion: 1.0
-Nodes (1): Health Check Endpoint
-
-### Community 332 - "Security Headers Middleware"
-Cohesion: 1.0
-Nodes (1): Security Headers Middleware
-
-### Community 333 - "Welcome Email"
-Cohesion: 1.0
-Nodes (1): Welcome Email
-
-### Community 334 - "tests/test_regions.py"
-Cohesion: 1.0
-Nodes (1): tests/test_regions.py
-
-### Community 335 - "backend/add_dev_user.py (dev seed script"
-Cohesion: 1.0
-Nodes (1): backend/add_dev_user.py (dev seed script)
-
-### Community 336 - "backend/requirements-dev.txt"
-Cohesion: 1.0
-Nodes (1): backend/requirements-dev.txt
-
-### Community 337 - "Check-In QR Flow"
-Cohesion: 1.0
-Nodes (1): Check-In QR Flow
-
-## Ambiguous Edges - Review These
-- `get_plan_state` → `AI Credits Purchased Separately Implementation Plan`  [AMBIGUOUS]
-  docs/superpowers/plans/2026-08-24-ai-credits-purchased.md · relation: references
-- `Preference Asterisks Convention` → `Roles Never Hardcoded Convention`  [AMBIGUOUS]
-  CLAUDE.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **614 isolated node(s):** `Unit tests for backend.utils.pagination.clamp_limit (#48).`, `clamp_limit must never raise — DB queries should not 500 on     pathological cal`, `Dispose the test engine so aiosqlite's per-connection thread pool     shuts down`, `Make server_default=text("now()") and gen_random_uuid() work on SQLite.`, `Create all tables before each test, drop after.` (+609 more)
+- **241 isolated node(s):** `Playwright browser integration tests for WizScheduler.  Tests the full schedulin`, `Launch Playwright browser for the session.`, `Create a new page for each test.`, `Log in with email and password.`, `Navigate to the schedule generation page for a location.` (+236 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `VerifyEmailBanner.tsx / handleResend()`** (2 nodes): `VerifyEmailBanner.tsx`, `handleResend()`
+- **Thin community `Community 68`** (2 nodes): `registerNudge.ts`, `signInLinkClass()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `PlanBanner.tsx / PlanBanner()`** (2 nodes): `PlanBanner.tsx`, `PlanBanner()`
+- **Thin community `Community 69`** (2 nodes): `ExternalRedirect()`, `ExternalRedirect.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `if() / DataTable.tsx`** (2 nodes): `if()`, `DataTable.tsx`
+- **Thin community `Community 70`** (2 nodes): `SignalWeightConfig.tsx`, `SignalWeightConfig()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `CancellationBanner() / CancellationBanner.tsx`** (2 nodes): `CancellationBanner()`, `CancellationBanner.tsx`
+- **Thin community `Community 71`** (2 nodes): `useSignalWeights.ts`, `useSignalWeights()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `RosterThinBanner.tsx / RosterThinBanner()`** (2 nodes): `RosterThinBanner.tsx`, `RosterThinBanner()`
+- **Thin community `Community 72`** (2 nodes): `Register.tsx`, `handleSubmit()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `RotaHero.tsx / RotaHero()`** (2 nodes): `RotaHero.tsx`, `RotaHero()`
+- **Thin community `Community 73`** (2 nodes): `CheckInQr()`, `CheckInQr.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `SectionRule.tsx / SectionRule()`** (2 nodes): `SectionRule.tsx`, `SectionRule()`
+- **Thin community `Community 74`** (1 nodes): `App.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `useMarketingGround.ts / useMarketingGround()`** (2 nodes): `useMarketingGround.ts`, `useMarketingGround()`
+- **Thin community `Community 75`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `usePlan.ts / usePlan()`** (2 nodes): `usePlan.ts`, `usePlan()`
+- **Thin community `Community 76`** (1 nodes): `payrollHours.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ordinal() / Features.tsx`** (2 nodes): `ordinal()`, `Features.tsx`
+- **Thin community `Community 77`** (1 nodes): `registerNudge.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `handleSubmit() / AcceptManagerInvite.tsx`** (2 nodes): `handleSubmit()`, `AcceptManagerInvite.tsx`
+- **Thin community `Community 78`** (1 nodes): `AuthLayout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Register.tsx / handleSubmit()`** (2 nodes): `Register.tsx`, `handleSubmit()`
+- **Thin community `Community 79`** (1 nodes): `de.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `handleSubmit() / AcceptInvite.tsx`** (2 nodes): `handleSubmit()`, `AcceptInvite.tsx`
+- **Thin community `Community 80`** (1 nodes): `ta.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `VerifyEmail.tsx / VerifyEmail()`** (2 nodes): `VerifyEmail.tsx`, `VerifyEmail()`
+- **Thin community `Community 81`** (1 nodes): `te.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `handleCallback() / Dashboard.tsx`** (2 nodes): `handleCallback()`, `Dashboard.tsx`
+- **Thin community `Community 82`** (1 nodes): `ar.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `EmployeeAvailability() / EmployeeAvailability.tsx`** (2 nodes): `EmployeeAvailability()`, `EmployeeAvailability.tsx`
+- **Thin community `Community 83`** (1 nodes): `bn.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `EmployeeAssociation() / EmployeeAssociation.tsx`** (2 nodes): `EmployeeAssociation()`, `EmployeeAssociation.tsx`
+- **Thin community `Community 84`** (1 nodes): `es.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `CheckInQr() / CheckInQr.tsx`** (2 nodes): `CheckInQr()`, `CheckInQr.tsx`
+- **Thin community `Community 85`** (1 nodes): `ur.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `CheckIn() / CheckIn.tsx`** (2 nodes): `CheckIn()`, `CheckIn.tsx`
+- **Thin community `Community 86`** (1 nodes): `tr.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Rolling Back a Version Bump / Terraform Version Upper-Bound `** (2 nodes): `Rolling Back a Version Bump`, `Terraform Version Upper-Bound Policy`
+- **Thin community `Community 87`** (1 nodes): `en.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `/features Route Wiring / Landing Page CTA + Footer Link`** (2 nodes): `/features Route Wiring`, `Landing Page CTA + Footer Link`
+- **Thin community `Community 88`** (1 nodes): `zh.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Frontend Pending Monthly Charges Panel / pending_invoice_ite`** (2 nodes): `Frontend Pending Monthly Charges Panel`, `pending_invoice_items on /billing/usage`
+- **Thin community `Community 89`** (1 nodes): `hi.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Frontend Reactivation Redirect Handler / Sitewide Cancellati`** (2 nodes): `Frontend Reactivation Redirect Handler`, `Sitewide Cancellation Banner`
+- **Thin community `Community 90`** (1 nodes): `fr.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Goal: Public Manager Dashboard Tour / Scope Boundaries (In/O`** (2 nodes): `Goal: Public Manager Dashboard Tour`, `Scope Boundaries (In/Out of Scope)`
+- **Thin community `Community 91`** (1 nodes): `ru.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Goal: Per-Day Template Overrides / Non-Goal: Google Business`** (2 nodes): `Goal: Per-Day Template Overrides`, `Non-Goal: Google Business Profile Integration`
+- **Thin community `Community 92`** (1 nodes): `pt.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `DemoGuard() / DemoGuard.tsx`** (2 nodes): `DemoGuard()`, `DemoGuard.tsx`
+- **Thin community `Community 93`** (1 nodes): `vi.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `StatusBadge.tsx / StatusBadge()`** (2 nodes): `StatusBadge.tsx`, `StatusBadge()`
+- **Thin community `Community 94`** (1 nodes): `mr.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ImportModal.tsx / handleFileSelect()`** (2 nodes): `ImportModal.tsx`, `handleFileSelect()`
+- **Thin community `Community 95`** (1 nodes): `pcm.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `useDocumentTitle.ts / useDocumentTitle()`** (2 nodes): `useDocumentTitle.ts`, `useDocumentTitle()`
+- **Thin community `Community 96`** (1 nodes): `id.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `failure_logs.py / list_failure_logs()`** (2 nodes): `failure_logs.py`, `list_failure_logs()`
+- **Thin community `Community 97`** (1 nodes): `ja.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `OG Image / Schedule Page`** (2 nodes): `OG Image`, `Schedule Page`
+- **Thin community `Community 98`** (1 nodes): `Employee should have nullable external_id, email, location_ids for imports.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Docker Compose / Multi-stage Dockerfile`** (2 nodes): `Docker Compose`, `Multi-stage Dockerfile`
+- **Thin community `Community 99`** (1 nodes): `Location should have nullable columns for optional import data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Knowledge Graph & Hooks`** (2 nodes): `Knowledge Graph (RAG)`, `Pre-PR Refresh Hook`
+- **Thin community `Community 100`** (1 nodes): `EmployeeRole.skill_level column exists for role assignments.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Abuse & Signup Conventions`** (2 nodes): `Weekly Abuse Report Convention`, `signup_* Observe-Only Convention`
+- **Thin community `Community 101`** (1 nodes): `Create employee with all nullable fields as NULL.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Preference & Role Conventions`** (2 nodes): `Preference Asterisks Convention`, `Roles Never Hardcoded Convention`
+- **Thin community `Community 102`** (1 nodes): `Create location with optional fields as NULL.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `tailwind.config.ts`** (1 nodes): `tailwind.config.ts`
+- **Thin community `Community 103`** (1 nodes): `location_ids should store and retrieve as JSON list.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `App.tsx`** (1 nodes): `App.tsx`
+- **Thin community `Community 104`** (1 nodes): `geo_coord should store and retrieve as JSON object.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `vite-env.d.ts`** (1 nodes): `vite-env.d.ts`
+- **Thin community `Community 105`** (1 nodes): `hire_date should convert strings to date and store properly.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `theme.ts`** (1 nodes): `theme.ts`
+- **Thin community `Community 106`** (1 nodes): `pay_rate (Numeric) and seniority_rank (SmallInteger) conversions.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `index.ts`** (1 nodes): `index.ts`
+- **Thin community `Community 107`** (1 nodes): `Create employee with only required fields (like 7shifts import does).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `preferenceText.test.ts`** (1 nodes): `preferenceText.test.ts`
+- **Thin community `Community 108`** (1 nodes): `Create location with minimal fields from 7shifts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `shiftTime.test.ts`** (1 nodes): `shiftTime.test.ts`
+- **Thin community `Community 109`** (1 nodes): `Create EmployeeRole with skill_level (7shifts import skill mapping).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `logicalDirection.test.ts`** (1 nodes): `logicalDirection.test.ts`
+- **Thin community `Community 110`** (1 nodes): `Create Department under Location (7shifts import structure).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `LanguageSelector.tsx`** (1 nodes): `LanguageSelector.tsx`
+- **Thin community `Community 111`** (1 nodes): `Employee with pay_rate/hire_date/seniority_rank from #134.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `WeightSlider.tsx`** (1 nodes): `WeightSlider.tsx`
+- **Thin community `Community 112`** (1 nodes): `seniority_rank must be positive (> 0) per schema constraint.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `MarketingNav.tsx`** (1 nodes): `MarketingNav.tsx`
+- **Thin community `Community 113`** (1 nodes): `overtime_premium_multiplier must be >= 1 or NULL.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `AuthLayout.tsx`** (1 nodes): `AuthLayout.tsx`
+- **Thin community `Community 114`** (1 nodes): `Employee should support Deputy import fields: external_id, email, hire_date.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `MarketingFooter.tsx`** (1 nodes): `MarketingFooter.tsx`
+- **Thin community `Community 115`** (1 nodes): `Location should support Deputy import fields.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `rotaData.ts`** (1 nodes): `rotaData.ts`
+- **Thin community `Community 116`** (1 nodes): `EmployeeDayBlackout table should exist for Deputy recurring unavailability.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `de.ts`** (1 nodes): `de.ts`
+- **Thin community `Community 117`** (1 nodes): `Create location from Deputy 'Company' data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ta.ts`** (1 nodes): `ta.ts`
+- **Thin community `Community 118`** (1 nodes): `Create employee from Deputy 'Employee' record.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `te.ts`** (1 nodes): `te.ts`
+- **Thin community `Community 119`** (1 nodes): `Create role from Deputy 'Trade' data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ar.ts`** (1 nodes): `ar.ts`
+- **Thin community `Community 120`** (1 nodes): `Create EmployeeRole from Deputy assignment.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `bn.ts`** (1 nodes): `bn.ts`
+- **Thin community `Community 121`** (1 nodes): `EmployeeDayBlackout should have employee_id, day_of_week, start/end times.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `es.ts`** (1 nodes): `es.ts`
+- **Thin community `Community 122`** (1 nodes): `Create recurring blackout pattern from Deputy data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ur.ts`** (1 nodes): `ur.ts`
+- **Thin community `Community 123`** (1 nodes): `Deputy employees may not have email.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `tr.ts`** (1 nodes): `tr.ts`
+- **Thin community `Community 124`** (1 nodes): `Deputy location may not have address.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `en.ts`** (1 nodes): `en.ts`
+- **Thin community `Community 125`** (1 nodes): `Deputy employee may not have hire_date in their system.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `zh.ts`** (1 nodes): `zh.ts`
+- **Thin community `Community 126`** (1 nodes): `End-to-end Deputy import: locations → roles → employees → assignments.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `hi.ts`** (1 nodes): `hi.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `fr.ts`** (1 nodes): `fr.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ru.ts`** (1 nodes): `ru.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `pt.ts`** (1 nodes): `pt.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `vi.ts`** (1 nodes): `vi.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `mr.ts`** (1 nodes): `mr.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `pcm.ts`** (1 nodes): `pcm.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `id.ts`** (1 nodes): `id.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `ja.ts`** (1 nodes): `ja.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `PrivacyPolicy.tsx`** (1 nodes): `PrivacyPolicy.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `DataProcessingAgreement.tsx`** (1 nodes): `DataProcessingAgreement.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `TermsOfService.tsx`** (1 nodes): `TermsOfService.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Landing.tsx`** (1 nodes): `Landing.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `billing_charges Table (new)`** (1 nodes): `billing_charges Table (new)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `OwnershipGroup Column Additions (autorel`** (1 nodes): `OwnershipGroup Column Additions (autoreload_enabled, _threshold_usd, _amount_usd, _failed_at, default_payment_method_id)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Removed Purchase-Credits Endpoints`** (1 nodes): `Removed Purchase-Credits Endpoints`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Favicon SVG`** (1 nodes): `Favicon SVG`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Checked-in Knowledge Graph (graphify-out`** (1 nodes): `Checked-in Knowledge Graph (graphify-out)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Scaling Up Guidance`** (1 nodes): `Scaling Up Guidance`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Cost Estimate`** (1 nodes): `Cost Estimate`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `FastAPI + Pydantic Stack`** (1 nodes): `FastAPI + Pydantic Stack`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `SQLAlchemy Async + Alembic`** (1 nodes): `SQLAlchemy Async + Alembic`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `JWT + Bcrypt Auth Libs`** (1 nodes): `JWT + Bcrypt Auth Libs`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Stripe + Resend Deps`** (1 nodes): `Stripe + Resend Deps`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Self-Review: No Placeholders Rationale`** (1 nodes): `Self-Review: No Placeholders Rationale`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `UI: Banners + Cancellation Card`** (1 nodes): `UI: Banners + Cancellation Card`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Goal: Three Independent Improvements`** (1 nodes): `Goal: Three Independent Improvements`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Deferred, deliberately (favicon, logged-`** (1 nodes): `Deferred, deliberately (favicon, logged-in pages, copy)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `vite.config.ts`** (1 nodes): `vite.config.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `postcss.config.js`** (1 nodes): `postcss.config.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `main.tsx`** (1 nodes): `main.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `TopBar.tsx`** (1 nodes): `TopBar.tsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `types.ts`** (1 nodes): `types.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `__init__.py`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Generate a schedule for a`** (1 nodes): `Generate a schedule for a random location using the local scheduler.`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Simulate viewing the employee list.`** (1 nodes): `Simulate viewing the employee list.`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Simulate viewing schedules for the`** (1 nodes): `Simulate viewing schedules for the current week.`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Simulate viewing all employee availabili`** (1 nodes): `Simulate viewing all employee availability.`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Simulate viewing shift templates.`** (1 nodes): `Simulate viewing shift templates.`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Simulate loading the dashboard (company`** (1 nodes): `Simulate loading the dashboard (company info + billing).`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `JWT Authentication`** (1 nodes): `JWT Authentication`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Bulk CSV Upload`** (1 nodes): `Bulk CSV Upload`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Single Retry on Conflict`** (1 nodes): `Single Retry on Conflict`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `JWT in localStorage`** (1 nodes): `JWT in localStorage`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `GitHub Actions CI/CD`** (1 nodes): `GitHub Actions CI/CD`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Seed Script`** (1 nodes): `Seed Script`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `robots.txt`** (1 nodes): `robots.txt`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Health Check Endpoint`** (1 nodes): `Health Check Endpoint`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Security Headers Middleware`** (1 nodes): `Security Headers Middleware`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Welcome Email`** (1 nodes): `Welcome Email`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `tests/test_regions.py`** (1 nodes): `tests/test_regions.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `backend/add_dev_user.py (dev seed script`** (1 nodes): `backend/add_dev_user.py (dev seed script)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `backend/requirements-dev.txt`** (1 nodes): `backend/requirements-dev.txt`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Check-In QR Flow`** (1 nodes): `Check-In QR Flow`
+- **Thin community `Community 127`** (1 nodes): `__init__.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `get_plan_state` and `AI Credits Purchased Separately Implementation Plan`?**
-  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
-- **What is the exact relationship between `Preference Asterisks Convention` and `Roles Never Hardcoded Convention`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `OwnershipGroup` connect `OwnershipGroup / BillingCharge / test_billing.py` to `datetime / Base / Base`, `SchedulingState / LocationResult / ShiftAssignment`, `test_auth.py / Tests for the /api/v1/auth endpoints. / Emplo`, `Operator Alerts Service`, `test_plan_generation_gate.py / _add_schedules() / _make_over`, `test_location_quota.py / _quota() / _schedule()`, `test_email_verification.py / Email verification: minting, re`, `test_demo_roster_lock.py / _login() / test_an_ordinary_free_`, `test_plan.py / free_og() / og_with_two_companies()`, `test_abuse_report.py / _og() / _signals()`, `test_seed_availability.py / _windows() / test_date_columns_a`, `test_plan_enforcement.py / _add_employees() / _employee_csv(`, `test_email_link_origin.py / _FakeRequest / test_a_subdomain_`, `test_quota_matches_plan.py / _make_og() / test_credits_still`, `test_plan_demo_exception.py / _add_schedules() / test_demo_g`, `test_plan_billing_api.py / Plan + upgrade endpoints on the b`, `test_check_in_api.py / _tenant() / free()`, `test_signup_signals.py / _og_for() / _register()`, `plan.py / get_plan_state() / LimitCount`, `location_quota.py / resolve_location_quota() / LocationQuota`, `OwnershipGroup / BillingCharge / test_billing.py`, `signup_signals.py / record_signup_signals() / _user_agent_ha`, `Operator Alert Tests`?**
-  _High betweenness centrality (0.097) - this node is a cross-community bridge._
-- **Why does `SchedulingState` connect `SchedulingState / LocationResult / ShiftAssignment` to `SchedulingState / LocationResult / ShiftAssignment`, `_win() / test_min_rest_clopening.py / _emp_with_windows()`?**
-  _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **Why does `Base` connect `datetime / Base / Base` to `OwnershipGroup / BillingCharge / test_billing.py`, `conftest.py / _make_token() / _id()`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **Are the 301 inferred relationships involving `OwnershipGroup` (e.g. with `TestCalculateCost` and `TestCalculateStorageCharge`) actually correct?**
-  _`OwnershipGroup` has 301 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 137 inferred relationships involving `BillingCharge` (e.g. with `TestCalculateCost` and `TestCalculateStorageCharge`) actually correct?**
-  _`BillingCharge` has 137 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `SchedulingState` connect `Scheduling Pipeline` to `Community 27`?**
+  _High betweenness centrality (0.099) - this node is a cross-community bridge._
+- **Why does `OwnershipGroup` connect `Billing & Auto-reload` to `Data Models`, `Core Infrastructure`, `Activation Events`, `Community 9`, `Community 46`, `Community 51`, `Community 23`?**
+  _High betweenness centrality (0.091) - this node is a cross-community bridge._
+- **Why does `TimeEntry` connect `Billing & Auto-reload` to `Data Models`, `Core Infrastructure`, `Community 14`?**
+  _High betweenness centrality (0.042) - this node is a cross-community bridge._
+- **Are the 170 inferred relationships involving `OwnershipGroup` (e.g. with `Operator alert on credit charges (#64).  The operator tops up the Anthropic Cons` and `TestCalculateCost`) actually correct?**
+  _`OwnershipGroup` has 170 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 152 inferred relationships involving `TimeEntry` (e.g. with `TestCalculateCost` and `TestCalculateStorageCharge`) actually correct?**
+  _`TimeEntry` has 152 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 136 inferred relationships involving `BillingCharge` (e.g. with `TestCalculateCost` and `TestCalculateStorageCharge`) actually correct?**
+  _`BillingCharge` has 136 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 117 inferred relationships involving `PayrollExport` (e.g. with `TestCalculateCost` and `TestCalculateStorageCharge`) actually correct?**
+  _`PayrollExport` has 117 INFERRED edges - model-reasoned connections that need verification._
