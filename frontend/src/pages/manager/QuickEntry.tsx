@@ -128,7 +128,7 @@ export default function QuickEntry() {
             onClick={() => setWorkflow(wf.id)}
             className={`
               ${wf.color}
-              border rounded-lg p-4 text-left transition-all
+              border rounded-lg p-4 text-start transition-all
               ${workflow === wf.id ? `ring-2 ring-blue-500` : ""}
             `}
           >

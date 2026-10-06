@@ -146,7 +146,7 @@ export default function EmployeeSearchForm({
               <button
                 key={emp.id}
                 onClick={() => handleSelectExisting(emp)}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-sage/10 transition-colors"
+                className="w-full text-start px-4 py-3 rounded-lg hover:bg-sage/10 transition-colors"
               >
                 <div className={`text-sm ${text.body}`}>{emp.full_name}</div>
                 {emp.email && <div className={`text-xs ${text.muted}`}>{emp.email}</div>}

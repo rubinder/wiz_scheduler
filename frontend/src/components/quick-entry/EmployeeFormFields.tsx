@@ -190,7 +190,7 @@ export default function EmployeeFormFields({
                   <span className={`text-sm ${text.body}`}>{role.name}</span>
                 </label>
                 {assignment && (
-                  <div className="mt-3 ml-7">
+                  <div className="mt-3 ms-7">
                     <label className={`text-sm font-medium ${text.body} block mb-2`}>Skill Level</label>
                     <input
                       type="range"
