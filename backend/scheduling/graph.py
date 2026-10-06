@@ -914,7 +914,7 @@ async def run_scheduling_pipeline(
     seniority_weight: float = 0.0,
     pay_weight: float = 0.0,
     overtime_weight: float = 0.0,
-    affinity_weight: float = 0.5,
+    affinity_weight: float = 0.0,
 ) -> AsyncGenerator[LocationResult, None]:
     """Run the scheduling pipeline and yield LocationResult dicts as they're produced.
 
