@@ -72,6 +72,12 @@ export default function EmployeeFormFieldsEnhanced({
   const [hourRangeCaps, setHourRangeCaps] = useState<EmployeeHourRangeCap[]>([]);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
 
+  // Track original preferences for change detection
+  const [originalAffinities, setOriginalAffinities] = useState<EmployeeAffinity[]>([]);
+  const [originalDayPreferences, setOriginalDayPreferences] = useState<EmployeeDayPreference[]>([]);
+  const [originalHourRangePreferences, setOriginalHourRangePreferences] = useState<EmployeeHourRangePreference[]>([]);
+  const [originalHourRangeCaps, setOriginalHourRangeCaps] = useState<EmployeeHourRangeCap[]>([]);
+
   // New preference forms
   const [newAffinity, setNewAffinity] = useState<{ targetEmployeeId: string; level: number }>({
     targetEmployeeId: "",
@@ -103,10 +109,21 @@ export default function EmployeeFormFieldsEnhanced({
           schedulingPreferencesApi.listHourRangeCaps().catch(() => []),
         ]);
 
-        setAffinities(affs.filter((a) => a.employee_id === employeeId));
-        setDayPreferences(dayPrefs.filter((p) => p.employee_id === employeeId));
-        setHourRangePreferences(hourPrefs.filter((p) => p.employee_id === employeeId));
-        setHourRangeCaps(caps.filter((c) => c.employee_id === employeeId));
+        const filteredAffinities = affs.filter((a) => a.employee_id === employeeId);
+        const filteredDayPrefs = dayPrefs.filter((p) => p.employee_id === employeeId);
+        const filteredHourPrefs = hourPrefs.filter((p) => p.employee_id === employeeId);
+        const filteredCaps = caps.filter((c) => c.employee_id === employeeId);
+
+        setAffinities(filteredAffinities);
+        setDayPreferences(filteredDayPrefs);
+        setHourRangePreferences(filteredHourPrefs);
+        setHourRangeCaps(filteredCaps);
+
+        // Store original state for change detection
+        setOriginalAffinities(filteredAffinities);
+        setOriginalDayPreferences(filteredDayPrefs);
+        setOriginalHourRangePreferences(filteredHourPrefs);
+        setOriginalHourRangeCaps(filteredCaps);
       } catch (err) {
         console.error("Failed to load preferences:", err);
       } finally {
@@ -116,6 +133,159 @@ export default function EmployeeFormFieldsEnhanced({
 
     loadPreferences();
   }, [employeeId]);
+
+  const persistPreferences = async (empId: string) => {
+    // Persist affinities
+    for (const aff of affinities) {
+      const isNew = aff.id.startsWith("temp-");
+      try {
+        if (isNew) {
+          await affinitiesApi.createAffinity({
+            employee_id: empId,
+            target_employee_id: aff.target_employee_id,
+            level: aff.level,
+            entry_date: aff.entry_date,
+            expiration_date: aff.expiration_date,
+          });
+        } else {
+          const originalAff = originalAffinities.find((a) => a.id === aff.id);
+          if (originalAff && (originalAff.level !== aff.level || originalAff.expiration_date !== aff.expiration_date)) {
+            await affinitiesApi.updateAffinity(aff.id, {
+              level: aff.level,
+              expiration_date: aff.expiration_date,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to persist affinity:", err);
+        throw new Error(`Failed to save affinity: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+    }
+
+    // Delete removed affinities
+    for (const original of originalAffinities) {
+      if (!affinities.find((a) => a.id === original.id)) {
+        try {
+          await affinitiesApi.deleteAffinity(original.id);
+        } catch (err) {
+          console.error("Failed to delete affinity:", err);
+        }
+      }
+    }
+
+    // Persist day preferences
+    for (const dayPref of dayPreferences) {
+      const isNew = dayPref.id.startsWith("temp-");
+      try {
+        if (isNew) {
+          await schedulingPreferencesApi.createDayPreference({
+            employee_id: empId,
+            day_of_week: dayPref.day_of_week,
+            weight: dayPref.weight,
+          });
+        } else {
+          const originalPref = originalDayPreferences.find((p) => p.id === dayPref.id);
+          if (originalPref && originalPref.weight !== dayPref.weight) {
+            await schedulingPreferencesApi.updateDayPreference(dayPref.id, {
+              weight: dayPref.weight,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to persist day preference:", err);
+        throw new Error(`Failed to save day preference: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+    }
+
+    // Delete removed day preferences
+    for (const original of originalDayPreferences) {
+      if (!dayPreferences.find((p) => p.id === original.id)) {
+        try {
+          await schedulingPreferencesApi.deleteDayPreference(original.id);
+        } catch (err) {
+          console.error("Failed to delete day preference:", err);
+        }
+      }
+    }
+
+    // Persist hour range preferences
+    for (const hourPref of hourRangePreferences) {
+      const isNew = hourPref.id.startsWith("temp-");
+      try {
+        if (isNew) {
+          await schedulingPreferencesApi.createHourRangePreference({
+            employee_id: empId,
+            start_time: hourPref.start_time,
+            end_time: hourPref.end_time,
+            weight: hourPref.weight,
+          });
+        } else {
+          const originalPref = originalHourRangePreferences.find((p) => p.id === hourPref.id);
+          if (originalPref && (originalPref.weight !== hourPref.weight || originalPref.start_time !== hourPref.start_time || originalPref.end_time !== hourPref.end_time)) {
+            await schedulingPreferencesApi.updateHourRangePreference(hourPref.id, {
+              start_time: hourPref.start_time,
+              end_time: hourPref.end_time,
+              weight: hourPref.weight,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to persist hour range preference:", err);
+        throw new Error(`Failed to save hour range preference: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+    }
+
+    // Delete removed hour range preferences
+    for (const original of originalHourRangePreferences) {
+      if (!hourRangePreferences.find((p) => p.id === original.id)) {
+        try {
+          await schedulingPreferencesApi.deleteHourRangePreference(original.id);
+        } catch (err) {
+          console.error("Failed to delete hour range preference:", err);
+        }
+      }
+    }
+
+    // Persist hour range caps
+    for (const cap of hourRangeCaps) {
+      const isNew = cap.id.startsWith("temp-");
+      try {
+        if (isNew) {
+          await schedulingPreferencesApi.createHourRangeCap({
+            employee_id: empId,
+            start_time: cap.start_time,
+            end_time: cap.end_time,
+            max_per_week: cap.max_per_week,
+            weight: cap.weight,
+          });
+        } else {
+          const originalCap = originalHourRangeCaps.find((c) => c.id === cap.id);
+          if (originalCap && (originalCap.weight !== cap.weight || originalCap.start_time !== cap.start_time || originalCap.end_time !== cap.end_time || originalCap.max_per_week !== cap.max_per_week)) {
+            await schedulingPreferencesApi.updateHourRangeCap(cap.id, {
+              start_time: cap.start_time,
+              end_time: cap.end_time,
+              max_per_week: cap.max_per_week,
+              weight: cap.weight,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to persist hour range cap:", err);
+        throw new Error(`Failed to save hour range cap: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+    }
+
+    // Delete removed hour range caps
+    for (const original of originalHourRangeCaps) {
+      if (!hourRangeCaps.find((c) => c.id === original.id)) {
+        try {
+          await schedulingPreferencesApi.deleteHourRangeCap(original.id);
+        } catch (err) {
+          console.error("Failed to delete hour range cap:", err);
+        }
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +297,13 @@ export default function EmployeeFormFieldsEnhanced({
     }
 
     try {
+      // Save employee info first
       await onSubmit(formData);
+
+      // Then persist preferences if employeeId exists
+      if (employeeId) {
+        await persistPreferences(employeeId);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save");
     }
@@ -175,7 +351,10 @@ export default function EmployeeFormFieldsEnhanced({
   const addAffinity = () => {
     if (!newAffinity.targetEmployeeId || !employeeId) return;
     const existing = affinities.find((a) => a.target_employee_id === newAffinity.targetEmployeeId);
-    if (existing) return;
+    if (existing) {
+      setError("This affinity already exists for this employee");
+      return;
+    }
 
     setAffinities([
       ...affinities,
@@ -188,7 +367,8 @@ export default function EmployeeFormFieldsEnhanced({
         expiration_date: null,
       },
     ]);
-    setNewAffinity({ targetEmployeeId: "", level: 1 });
+    setError("");
+    setNewAffinity({ targetEmployeeId: "", level: 0 });
   };
 
   const removeAffinity = (targetEmployeeId: string) => {
