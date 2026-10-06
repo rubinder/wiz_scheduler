@@ -474,7 +474,10 @@ export default function Employees() {
                 {t.employeesPage.hireDate}
               </th>
               <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
-                {t.employeesPage.seniorityRank}
+                <div className="leading-tight">
+                  <div>Seniority Rank</div>
+                  <div className="text-xs font-normal lowercase">(1 = most senior)</div>
+                </div>
               </th>
               <th className={`px-4 py-3 text-start text-xs font-medium ${text.muted} uppercase tracking-wider`}>
                 {t.common.locations}
