@@ -78,11 +78,20 @@ jobs:
           uv pip install --system -r backend/requirements.txt -r backend/requirements-dev.txt
           pip install --upgrade pip setuptools
 
-      - name: Run unit & integration tests
-        if: matrix.test-category != 'migration'
+      - name: Run unit tests
+        if: matrix.test-category == 'unit'
         run: |
           pytest tests/ \
             --ignore=tests/test_migrations.py \
+            -m "not integration" \
+            -v --tb=short
+
+      - name: Run integration tests
+        if: matrix.test-category == 'integration'
+        run: |
+          pytest tests/ \
+            --ignore=tests/test_migrations.py \
+            -m "integration" \
             -v --tb=short
 
       - name: Run migration chain integrity tests

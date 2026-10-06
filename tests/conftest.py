@@ -4,6 +4,17 @@ Shared test fixtures for WizScheduler.
 Uses SQLite + aiosqlite as the test database so no Postgres is required.
 """
 
+import pytest
+
+def pytest_configure(config):
+    """Register custom pytest markers."""
+    config.addinivalue_line(
+        "markers", "integration: mark test as an integration test (requires HTTP client/database)"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as a unit test (pure logic, no database/HTTP)"
+    )
+
 # `backend.main` imports `backend.middleware.metrics`, which initializes
 # prometheus_client in multiprocess mode using PROMETHEUS_MULTIPROC_DIR.
 # Production creates that directory in the Docker entrypoint; the test
