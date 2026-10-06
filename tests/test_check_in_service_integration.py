@@ -7,7 +7,7 @@ locations proves nothing about local_date, and the same blind spot let a
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timedelta, timezone
 

@@ -8,7 +8,7 @@ happened without blocking any of it.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import csv
 import io

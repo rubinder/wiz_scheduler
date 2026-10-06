@@ -6,7 +6,7 @@ what gates the feature is the tenant's plan, not the caller's role.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timedelta, timezone
 

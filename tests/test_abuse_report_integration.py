@@ -6,7 +6,7 @@ account must never be flagged for having an IP.
 """
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 

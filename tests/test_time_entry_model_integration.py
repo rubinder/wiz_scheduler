@@ -7,7 +7,7 @@ uq_employee_check_ins_location_date_counter.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace

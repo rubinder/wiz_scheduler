@@ -8,7 +8,7 @@ call sites, and the cohort report in backend/services/activation_report.py.
 """
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock

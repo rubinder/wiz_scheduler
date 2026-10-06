@@ -6,7 +6,7 @@ should be a deliberate change with its own tests, not a drift.
 """
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import hashlib
 

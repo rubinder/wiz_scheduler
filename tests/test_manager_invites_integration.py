@@ -1,7 +1,7 @@
 """Tests for /api/v1/manager-invites endpoints."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 

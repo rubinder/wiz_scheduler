@@ -7,7 +7,7 @@ was based on. Both directions are asserted here.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace

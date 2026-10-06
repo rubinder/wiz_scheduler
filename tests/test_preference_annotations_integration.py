@@ -2,7 +2,7 @@
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from backend.scheduling.preferences import (
     blocked_by_hard_preference,

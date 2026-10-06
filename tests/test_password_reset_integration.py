@@ -1,7 +1,7 @@
 """Tests for /auth/forgot-password + /auth/reset-password."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 

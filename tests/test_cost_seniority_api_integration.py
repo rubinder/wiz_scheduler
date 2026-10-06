@@ -2,7 +2,7 @@
 hire_date/seniority_rank are free (#134)."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from types import SimpleNamespace
 

@@ -1,7 +1,7 @@
 """Tests for resolve_templates_for_week."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, timedelta
 

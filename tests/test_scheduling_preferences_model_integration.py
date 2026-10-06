@@ -15,7 +15,7 @@ by a Pydantic validator added in a later task.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import pytest
 from sqlalchemy import select

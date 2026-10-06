@@ -5,7 +5,7 @@ POST /schedules/generate and nothing else.
 """
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import datetime, timedelta, timezone
 

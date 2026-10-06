@@ -6,7 +6,7 @@ covers $10 / 1.30 = $7.69 of Anthropic usage.
 """
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import logging
 

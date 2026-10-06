@@ -9,7 +9,7 @@ the exact request/response shape this is built against.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import pytest
 from httpx import AsyncClient

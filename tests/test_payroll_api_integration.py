@@ -7,7 +7,7 @@ the request.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace

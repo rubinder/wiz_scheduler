@@ -16,7 +16,7 @@ transaction, so anything listed there is deleted after being created.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timezone
 

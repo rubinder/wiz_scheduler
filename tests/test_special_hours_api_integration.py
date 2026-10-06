@@ -1,7 +1,7 @@
 """Tests for /api/v1/special-hours endpoints."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, time
 

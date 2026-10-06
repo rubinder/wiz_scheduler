@@ -24,7 +24,7 @@ so SQLite's leniency has no opportunity to mask the bug.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, datetime, timezone
 

@@ -8,7 +8,7 @@ help. A future refactor that adds a paid gate should fail here.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import pytest
 from httpx import AsyncClient

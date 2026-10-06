@@ -1,7 +1,7 @@
 """Tests for the per-OG daily email cap (#42)."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 from datetime import datetime, timedelta, timezone

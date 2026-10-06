@@ -1,7 +1,7 @@
 """Verify the new ORM model + ShiftTemplate.specific_date column."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, time, datetime, timezone
 

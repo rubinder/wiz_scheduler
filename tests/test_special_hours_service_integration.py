@@ -1,7 +1,7 @@
 """Unit tests for the clone_template_for_date helper."""
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 from datetime import date, time
 

@@ -8,7 +8,7 @@ enforcement onto a reporting number.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import pytest
 import pytest_asyncio

@@ -8,7 +8,7 @@ scheduling behaviour rather than relocating where consumption is computed.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import json
 from datetime import date, datetime, timedelta, timezone
