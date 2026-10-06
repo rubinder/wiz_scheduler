@@ -93,6 +93,7 @@ const te = {
     dayPreferences: "రోజు ప్రాధాన్యతలు",
     hourRangePreferences: "సమయ పరిధి ప్రాధాన్యతలు",
     frequencyCaps: "ఫ్రీక్వెన్సీ పరిమితులు",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const te = {
     importDisabledFreePlan: "పెయిడ్ ప్లాన్‌లలో మాత్రమే అందుబాటులో ఉంది — ఆటోమెటిక్‌గా దిగుమతి చేయడానికి అప్‌గ్రేడ్ చేయండి.",
     upgradeConfirmFailed: "మీ అప్‌గ్రేడ్‌ను నిర్ధారించలేకపోయాము. మీ నుండి రుసుము వసూలు చేయబడితే, మద్దతును సంప్రదించండి, మేము దాన్ని పరిష్కరిస్తాము.",
     subtitle: "దిగువ డాష్‌బోర్డ్ నుండి మీ షెడ్యూలింగ్‌ను నిర్వహించండి.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "సంస్థ సెట్టింగ్‌లను చూడండి మరియు మార్చండి",
     regionsDesc: "భౌగోళిక ప్రాంతాలను నిర్వహించండి",
     locationsDesc: "స్టోర్ స్థానాలను నిర్వహించండి",
@@ -595,6 +598,7 @@ const te = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "ఫ్రీక్వెన్సీ పరిమితులు",
     description:
       "ఇచ్చిన సమయ పరిధిలో ఒక ఉద్యోగిని వారానికి ఎన్నిసార్లు షెడ్యూల్ చేయవచ్చో 0 నుండి 1 వెయిట్‌తో పరిమితం చేయండి. 1.0 కంటే తక్కువ ఏ విలువైనా ఒక మృదువైన పరిమితి, వేరే ఎవరూ అందుబాటులో లేనప్పుడు దీన్ని విస్మరించవచ్చు.",

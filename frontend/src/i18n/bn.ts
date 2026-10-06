@@ -93,6 +93,7 @@ const bn = {
     dayPreferences: "দিনের পছন্দ",
     hourRangePreferences: "সময়সীমা পছন্দ",
     frequencyCaps: "পুনরাবৃত্তি সীমা",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const bn = {
     importDisabledFreePlan: "কেবলমাত্র পেইড প্ল্যানে উপলব্ধ — স্বয়ংক্রিয়ভাবে আমদানি করতে আপগ্রেড করুন।",
     upgradeConfirmFailed: "আপনার আপগ্রেড নিশ্চিত করা যায়নি। যদি আপনার কার্ড থেকে টাকা কাটা হয়ে থাকে, তাহলে সহায়তার সাথে যোগাযোগ করুন, আমরা তা ঠিক করে দেব।",
     subtitle: "নিচের ড্যাশবোর্ড থেকে আপনার সময়সূচি পরিচালনা করুন।",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "কোম্পানির সেটিংস দেখুন ও সম্পাদনা করুন",
     regionsDesc: "ভৌগোলিক অঞ্চলসমূহ পরিচালনা করুন",
     locationsDesc: "দোকানের অবস্থানসমূহ পরিচালনা করুন",
@@ -595,6 +598,7 @@ const bn = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "পুনরাবৃত্তি সীমা",
     description:
       "একজন কর্মীকে সপ্তাহে কতবার একটি নির্দিষ্ট সময়সীমার মধ্যে শিডিউল করা যাবে তা সীমিত করুন, 0 থেকে 1 পর্যন্ত ওজনসহ। 1.0-এর নিচে যেকোনো মান একটি নমনীয় সীমা, যা অন্য কেউ উপলব্ধ না থাকলে উপেক্ষা করা যেতে পারে।",

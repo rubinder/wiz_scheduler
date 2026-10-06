@@ -93,6 +93,7 @@ const pcm = {
     dayPreferences: "Day Wey E Like",
     hourRangePreferences: "Time Range Wey E Like",
     frequencyCaps: "How-Many-Time Limit",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const pcm = {
     importDisabledFreePlan: "E dey available for paid plan only — upgrade make you fit import am automatic.",
     upgradeConfirmFailed: "We no fit confirm your upgrade. If dem don charge you, contact support make we sort am.",
     subtitle: "Manage your scheduling from this dashboard.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "See and edit company settings",
     regionsDesc: "Manage geographic regions",
     locationsDesc: "Manage store locations",
@@ -595,6 +598,7 @@ const pcm = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "How-Many-Time Limit",
     description:
       "Limit how many time for week dem fit schedule worker inside one particular time range, wit weight from 0 to 1. Anything wey dey under 1.0 na soft limit wey fit still change if no other worker dey available.",

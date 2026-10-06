@@ -93,6 +93,7 @@ const es = {
     dayPreferences: "Preferencias de Día",
     hourRangePreferences: "Preferencias de Horario",
     frequencyCaps: "Límites de Frecuencia",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const es = {
     importDisabledFreePlan: "Disponible en planes de pago — mejora tu plan para importar automáticamente.",
     upgradeConfirmFailed: "No se pudo confirmar tu actualización. Si se te cobró, contacta con soporte y lo solucionaremos.",
     subtitle: "Administra tu programación desde el panel a continuación.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Ver y editar la configuración de la empresa",
     regionsDesc: "Administrar regiones geográficas",
     locationsDesc: "Administrar ubicaciones de tiendas",
@@ -595,6 +598,7 @@ const es = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Límites de Frecuencia",
     description:
       "Limite cuántas veces por semana se puede programar a un empleado dentro de un rango horario determinado, con un peso de 0 a 1. Cualquier valor inferior a 1.0 es un límite flexible que puede ignorarse si nadie más está disponible.",

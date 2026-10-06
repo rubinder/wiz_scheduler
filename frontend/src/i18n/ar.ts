@@ -93,6 +93,7 @@ const ar = {
     dayPreferences: "تفضيلات الأيام",
     hourRangePreferences: "تفضيلات النطاق الزمني",
     frequencyCaps: "حدود التكرار",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ar = {
     importDisabledFreePlan: "متاح فقط في الخطط المدفوعة — قم بالترقية للاستيراد التلقائي.",
     upgradeConfirmFailed: "تعذّر تأكيد الترقية الخاصة بك. إذا تم خصم المبلغ من بطاقتك، تواصل مع الدعم وسنقوم بحل الأمر.",
     subtitle: "أدِر جداولك من لوحة التحكم أدناه.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "عرض وتعديل إعدادات الشركة",
     regionsDesc: "إدارة المناطق الجغرافية",
     locationsDesc: "إدارة مواقع الفروع",
@@ -595,6 +598,7 @@ const ar = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "حدود التكرار",
     description:
       "حدّد عدد المرات المسموح بها أسبوعيًا لجدولة موظف ضمن نطاق زمني معيّن، بوزن من 0 إلى 1. أي قيمة أقل من 1.0 تُعامل كحد مرن يمكن تجاوزه إذا تعذّر إيجاد بديل.",

@@ -93,6 +93,7 @@ const ind = {
     dayPreferences: "Preferensi Hari",
     hourRangePreferences: "Preferensi Rentang Jam",
     frequencyCaps: "Batas Frekuensi",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ind = {
     importDisabledFreePlan: "Tersedia di paket berbayar — upgrade untuk mengimpor secara otomatis.",
     upgradeConfirmFailed: "Tidak dapat mengonfirmasi peningkatan Anda. Jika Anda telah dikenakan biaya, hubungi dukungan dan kami akan menyelesaikannya.",
     subtitle: "Kelola penjadwalan Anda dari dasbor di bawah.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Lihat dan edit pengaturan perusahaan",
     regionsDesc: "Kelola wilayah geografis",
     locationsDesc: "Kelola lokasi toko",
@@ -595,6 +598,7 @@ const ind = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Batas Frekuensi",
     description:
       "Batasi berapa kali per minggu seorang karyawan dapat dijadwalkan dalam rentang jam tertentu, dengan bobot 0 hingga 1. Nilai di bawah 1,0 adalah batas lunak yang masih dapat diabaikan jika tidak ada karyawan lain yang tersedia.",

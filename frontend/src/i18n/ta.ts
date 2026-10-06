@@ -93,6 +93,7 @@ const ta = {
     dayPreferences: "நாள் விருப்பங்கள்",
     hourRangePreferences: "நேர வரம்பு விருப்பங்கள்",
     frequencyCaps: "அதிர்வெண் வரம்புகள்",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ta = {
     importDisabledFreePlan: "பணம் செலுத்தும் திட்டங்களில் மட்டுமே கிடைக்கும் — தானாக இறக்குமதி செய்ய மேம்படுத்தவும்.",
     upgradeConfirmFailed: "உங்கள் அப்கிரேடை உறுதிப்படுத்த முடியவில்லை. உங்களிடம் கட்டணம் வசூலிக்கப்பட்டிருந்தால், ஆதரவைத் தொடர்பு கொள்ளுங்கள், நாங்கள் சரிசெய்வோம்.",
     subtitle: "கீழே உள்ள முகப்புப்பலகையிலிருந்து உங்கள் அட்டவணையை நிர்வகிக்கவும்.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "நிறுவன அமைப்புகளைப் பார்க்கவும் திருத்தவும்",
     regionsDesc: "புவியியல் பிராந்தியங்களை நிர்வகிக்கவும்",
     locationsDesc: "கடை இடங்களை நிர்வகிக்கவும்",
@@ -595,6 +598,7 @@ const ta = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "அதிர்வெண் வரம்புகள்",
     description:
       "ஒரு குறிப்பிட்ட நேர வரம்பிற்குள் ஒரு பணியாளரை வாரத்திற்கு எத்தனை முறை அட்டவணைப்படுத்தலாம் என்பதை 0 முதல் 1 வரை எடையுடன் வரம்பிடவும். 1.0க்கு கீழே உள்ள எந்த மதிப்பும் மென்மையான வரம்பாகும், வேறு யாரும் கிடைக்காவிட்டால் அது புறக்கணிக்கப்படலாம்.",

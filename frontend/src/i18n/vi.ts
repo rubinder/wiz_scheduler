@@ -93,6 +93,7 @@ const vi = {
     dayPreferences: "Ưu Tiên Ngày",
     hourRangePreferences: "Ưu Tiên Khung Giờ",
     frequencyCaps: "Giới Hạn Tần Suất",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const vi = {
     importDisabledFreePlan: "Chỉ khả dụng trên gói trả phí — nâng cấp để nhập tự động.",
     upgradeConfirmFailed: "Không thể xác nhận nâng cấp của bạn. Nếu bạn đã bị tính phí, hãy liên hệ hỗ trợ và chúng tôi sẽ khắc phục.",
     subtitle: "Quản lý lịch làm việc từ bảng điều khiển bên dưới.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Xem và chỉnh sửa cài đặt công ty",
     regionsDesc: "Quản lý các khu vực địa lý",
     locationsDesc: "Quản lý các địa điểm cửa hàng",
@@ -595,6 +598,7 @@ const vi = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Giới Hạn Tần Suất",
     description:
       "Giới hạn số lần trong tuần một nhân viên có thể được xếp lịch trong một khung giờ nhất định, với trọng số từ 0 đến 1. Bất kỳ giá trị nào dưới 1,0 là giới hạn mềm, vẫn có thể bị bỏ qua nếu không còn ai khác sẵn sàng.",

@@ -143,6 +143,11 @@ export default function Dashboard() {
 
   const navCards = [
     {
+      to: "/manager/quick-entry",
+      title: t.nav.quickEntry,
+      desc: t.dashboard.quickEntryDesc,
+    },
+    {
       to: "/manager/company",
       title: t.nav.company,
       desc: t.dashboard.companyDesc,
@@ -172,6 +177,11 @@ export default function Dashboard() {
       to: "/manager/schedule",
       title: t.nav.schedule,
       desc: t.dashboard.scheduleDesc,
+    },
+    {
+      to: "/manager/check-in-qr",
+      title: t.nav.checkInQr,
+      desc: t.dashboard.checkInDesc,
     },
   ];
 

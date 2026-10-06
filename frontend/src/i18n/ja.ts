@@ -93,6 +93,7 @@ const ja = {
     dayPreferences: "曜日の希望",
     hourRangePreferences: "時間帯の希望",
     frequencyCaps: "頻度の上限",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ja = {
     importDisabledFreePlan: "有料プランでのみご利用いただけます — 自動インポートするにはアップグレードしてください。",
     upgradeConfirmFailed: "アップグレードを確認できませんでした。カードに請求があった場合はサポートまでご連絡ください。対応いたします。",
     subtitle: "以下のダッシュボードからスケジュール管理を行えます。",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "会社設定の表示・編集",
     regionsDesc: "地域の管理",
     locationsDesc: "店舗拠点の管理",
@@ -595,6 +598,7 @@ const ja = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "頻度の上限",
     description:
       "特定の時間帯内で従業員を週に何回スケジュールできるかを、0から1の重みで制限します。1.0未満の値はソフトな上限であり、他に対応できる従業員がいない場合は無視されることがあります。",

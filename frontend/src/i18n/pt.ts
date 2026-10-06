@@ -93,6 +93,7 @@ const pt = {
     dayPreferences: "Preferências de Dia",
     hourRangePreferences: "Preferências de Horário",
     frequencyCaps: "Limites de Frequência",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const pt = {
     importDisabledFreePlan: "Disponível em planos pagos — faça upgrade para importar automaticamente.",
     upgradeConfirmFailed: "Não foi possível confirmar sua atualização. Se você foi cobrado, entre em contato com o suporte e resolveremos.",
     subtitle: "Gerencie sua programação pelo painel abaixo.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Visualizar e editar configurações da empresa",
     regionsDesc: "Gerenciar regiões geográficas",
     locationsDesc: "Gerenciar locais das lojas",
@@ -595,6 +598,7 @@ const pt = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Limites de Frequência",
     description:
       "Limite quantas vezes por semana um funcionário pode ser escalado dentro de uma faixa de horário específica, com peso de 0 a 1. Qualquer valor abaixo de 1,0 é um limite flexível que ainda pode ser desconsiderado se ninguém mais estiver disponível.",

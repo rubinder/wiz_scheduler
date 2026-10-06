@@ -93,6 +93,7 @@ const hi = {
     dayPreferences: "दिन प्राथमिकताएं",
     hourRangePreferences: "समय-सीमा प्राथमिकताएं",
     frequencyCaps: "आवृत्ति सीमाएं",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const hi = {
     importDisabledFreePlan: "केवल पेड प्लान पर उपलब्ध — स्वतः आयात करने के लिए अपग्रेड करें।",
     upgradeConfirmFailed: "आपका अपग्रेड की पुष्टि नहीं हो सकी। यदि आपसे शुल्क लिया गया है, तो सहायता से संपर्क करें, हम इसे ठीक कर देंगे।",
     subtitle: "नीचे दिए गए डैशबोर्ड से अपनी शेड्यूलिंग प्रबंधित करें।",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "कंपनी सेटिंग देखें और संपादित करें",
     regionsDesc: "भौगोलिक क्षेत्र प्रबंधित करें",
     locationsDesc: "स्टोर स्थान प्रबंधित करें",
@@ -595,6 +598,7 @@ const hi = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "आवृत्ति सीमाएं",
     description:
       "किसी कर्मचारी को किसी दिए गए समय-सीमा के भीतर सप्ताह में कितनी बार शेड्यूल किया जा सकता है, इसे 0 से 1 तक भार के साथ सीमित करें। 1.0 से कम कोई भी मान एक नरम सीमा है जिसे किसी और के उपलब्ध न होने पर अनदेखा किया जा सकता है।",

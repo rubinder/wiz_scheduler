@@ -93,6 +93,7 @@ const de = {
     dayPreferences: "Tagespräferenzen",
     hourRangePreferences: "Zeitraum-Präferenzen",
     frequencyCaps: "Häufigkeitsgrenzen",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const de = {
     importDisabledFreePlan: "Nur in kostenpflichtigen Plänen verfügbar — upgraden, um automatisch zu importieren.",
     upgradeConfirmFailed: "Ihr Upgrade konnte nicht bestätigt werden. Falls Ihnen ein Betrag berechnet wurde, wenden Sie sich an den Support — wir kümmern uns darum.",
     subtitle: "Verwalten Sie Ihre Dienstplanung über das Dashboard.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Unternehmenseinstellungen ansehen und bearbeiten",
     regionsDesc: "Geografische Regionen verwalten",
     locationsDesc: "Filialstandorte verwalten",
@@ -595,6 +598,7 @@ const de = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Häufigkeitsgrenzen",
     description:
       "Begrenzen Sie, wie oft pro Woche ein Mitarbeiter innerhalb eines bestimmten Zeitraums eingeplant werden kann, gewichtet von 0 bis 1. Alles unter 1,0 ist eine weiche Grenze, die bei Bedarf übergangen werden kann, wenn niemand sonst verfügbar ist.",

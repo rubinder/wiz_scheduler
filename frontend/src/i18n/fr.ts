@@ -93,6 +93,7 @@ const fr = {
     dayPreferences: "Préférences de Jour",
     hourRangePreferences: "Préférences d'Horaire",
     frequencyCaps: "Limites de Fréquence",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const fr = {
     importDisabledFreePlan: "Disponible sur les forfaits payants — passez à un forfait supérieur pour importer automatiquement.",
     upgradeConfirmFailed: "Impossible de confirmer votre mise à niveau. Si vous avez été facturé, contactez le support et nous réglerons le problème.",
     subtitle: "Gérez vos horaires depuis le tableau de bord ci-dessous.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Afficher et modifier les paramètres de l'entreprise",
     regionsDesc: "Gérer les régions géographiques",
     locationsDesc: "Gérer les emplacements",
@@ -595,6 +598,7 @@ const fr = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Limites de Fréquence",
     description:
       "Limitez le nombre de fois par semaine qu'un employé peut être programmé dans une plage horaire donnée, avec un poids de 0 à 1. Toute valeur inférieure à 1,0 est une limite souple qui peut être contournée si personne d'autre n'est disponible.",

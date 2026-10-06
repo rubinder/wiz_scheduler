@@ -93,6 +93,7 @@ const en = {
     dayPreferences: "Day Preferences",
     hourRangePreferences: "Hour Range Preferences",
     frequencyCaps: "Frequency Caps",
+    quickEntry: "Quick Entry",
   },
 
   // ── Approved Schedules ──
@@ -286,6 +287,8 @@ const en = {
     importDisabledFreePlan: "Available on paid plans — upgrade to import automatically.",
     subtitle: "Manage your scheduling from the dashboard below.",
     upgradeConfirmFailed: "Couldn't confirm your upgrade. If you were charged, contact support and we'll sort it out.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "View and edit company settings",
     regionsDesc: "Manage geographic regions",
     locationsDesc: "Manage store locations",
@@ -395,7 +398,7 @@ const en = {
   // ── Role Equivalents ──
   roleEquivalents: {
     title: "Role Equivalents",
-    description: "Group roles that serve the same scheduling purpose. Employees with any role in a group can fill shifts for any other role in that group.",
+    description: "Group roles that serve the same scheduling purpose. Employees with any role in a group can fill shifts for any other role in that group. This is to handle data import issues from other systems where there are multiple role names for the same role.",
     newGroup: "+ New Group",
     editGroup: "Edit Group",
     createGroup: "Create Group",

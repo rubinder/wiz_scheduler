@@ -93,6 +93,7 @@ const ru = {
     dayPreferences: "Предпочтения по дням",
     hourRangePreferences: "Предпочтения по времени",
     frequencyCaps: "Лимиты частоты",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ru = {
     importDisabledFreePlan: "Доступно только на платных планах — перейдите на платный план для автоматического импорта.",
     upgradeConfirmFailed: "Не удалось подтвердить обновление тарифа. Если с вас списали деньги, обратитесь в поддержку — мы всё уладим.",
     subtitle: "Управляйте расписанием с помощью панели ниже.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Просмотр и редактирование настроек компании",
     regionsDesc: "Управление географическими регионами",
     locationsDesc: "Управление локациями",
@@ -595,6 +598,7 @@ const ru = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Лимиты частоты",
     description:
       "Ограничьте, сколько раз в неделю сотрудник может быть назначен в заданный временной диапазон, с весом от 0 до 1. Любое значение ниже 1,0 — это мягкий лимит, которым можно пренебречь, если больше никто не доступен.",

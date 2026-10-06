@@ -30,6 +30,7 @@ import HourRestrictions from "./pages/manager/HourRestrictions";
 import ShiftTemplates from "./pages/manager/ShiftTemplates";
 import SpecialHours from "./pages/manager/SpecialHours";
 import Team from "./pages/manager/Team";
+import QuickEntry from "./pages/manager/QuickEntry";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
 import CancellationBanner from "./components/shared/CancellationBanner";
@@ -120,6 +121,7 @@ export default function App() {
             <Route path="roles" element={<Roles />} />
             <Route path="role-equivalents" element={<RoleEquivalents />} />
             <Route path="employees" element={<Employees />} />
+            <Route path="quick-entry" element={<QuickEntry />} />
             <Route path="team" element={<Team />} />
             <Route path="hour-restrictions" element={<HourRestrictions />} />
             <Route path="day-blackouts" element={<DayBlackouts />} />

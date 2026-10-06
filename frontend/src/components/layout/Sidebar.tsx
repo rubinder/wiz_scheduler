@@ -45,6 +45,7 @@ const managerNav: NavEntry[] = [
   {
     labelKey: "groupPeople",
     children: [
+      { to: "/manager/quick-entry", labelKey: "quickEntry" },
       { to: "/manager/employees", labelKey: "employees" },
       { to: "/manager/employee-onboarding", labelKey: "employeeOnboarding" },
       {

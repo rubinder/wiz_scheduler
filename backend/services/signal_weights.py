@@ -23,14 +23,14 @@ def resolve_signal_weights(
         company_config: Company default signal config
 
     Returns:
-        Resolved signal weights {seniority_weight, pay_weight, overtime_weight, affinity_weight}
+        Resolved signal weights {seniority_weight, pay_weight, overtime_weight}
+        Note: Affinity is not tunable; it's always applied like preferences
     """
-    # Start with company defaults
+    # Start with defaults
     resolved = {
         "seniority_weight": 0.0,
         "pay_weight": 0.0,
         "overtime_weight": 0.0,
-        "affinity_weight": 0.0,
     }
 
     # Apply company defaults if set
@@ -39,7 +39,6 @@ def resolve_signal_weights(
             "seniority_weight": company_config.get("seniority_weight", 0.0),
             "pay_weight": company_config.get("pay_weight", 0.0),
             "overtime_weight": company_config.get("overtime_weight", 0.0),
-            "affinity_weight": company_config.get("affinity_weight", 0.0),
         })
 
     # Override with location defaults if set
@@ -50,8 +49,6 @@ def resolve_signal_weights(
             resolved["pay_weight"] = location_config["pay_weight"]
         if "overtime_weight" in location_config:
             resolved["overtime_weight"] = location_config["overtime_weight"]
-        if "affinity_weight" in location_config:
-            resolved["affinity_weight"] = location_config["affinity_weight"]
 
     # Override with request weights if set (highest priority)
     if request_weights:
@@ -61,7 +58,5 @@ def resolve_signal_weights(
             resolved["pay_weight"] = request_weights["pay_weight"]
         if "overtime_weight" in request_weights:
             resolved["overtime_weight"] = request_weights["overtime_weight"]
-        if "affinity_weight" in request_weights:
-            resolved["affinity_weight"] = request_weights["affinity_weight"]
 
     return resolved

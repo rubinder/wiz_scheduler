@@ -93,6 +93,7 @@ const zh = {
     dayPreferences: "日期偏好",
     hourRangePreferences: "时段偏好",
     frequencyCaps: "频率上限",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const zh = {
     importDisabledFreePlan: "仅限付费计划 — 升级以自动导入。",
     upgradeConfirmFailed: "无法确认您的升级。如果您已被扣款，请联系支持人员，我们会为您处理。",
     subtitle: "通过下方仪表盘管理您的排班。",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "查看和编辑公司设置",
     regionsDesc: "管理地理区域",
     locationsDesc: "管理门店",
@@ -595,6 +598,7 @@ const zh = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "频率上限",
     description:
       "限制一名员工每周在指定时间段内可被安排的次数，权重为0到1。低于1.0的任何值都是软性上限，在没有其他人可用时仍可被覆盖。",

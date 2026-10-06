@@ -93,6 +93,7 @@ const ur = {
     dayPreferences: "دن کی ترجیحات",
     hourRangePreferences: "وقت کی حد کی ترجیحات",
     frequencyCaps: "تعدد کی حدود",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const ur = {
     importDisabledFreePlan: "صرف پیڈ پلان میں دستیاب ہے — خودکار درآمد کے لیے اپ گریڈ کریں۔",
     upgradeConfirmFailed: "آپ کے اپ گریڈ کی تصدیق نہیں ہو سکی۔ اگر آپ سے چارج کیا گیا ہے تو سپورٹ سے رابطہ کریں، ہم اسے حل کر دیں گے۔",
     subtitle: "نیچے ڈیش بورڈ سے اپنی شیڈولنگ کا انتظام کریں۔",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "کمپنی کی ترتیبات دیکھیں اور ترمیم کریں",
     regionsDesc: "جغرافیائی علاقوں کا انتظام کریں",
     locationsDesc: "اسٹور مقامات کا انتظام کریں",
@@ -595,6 +598,7 @@ const ur = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "تعدد کی حدود",
     description:
       "کسی ملازم کو ایک مخصوص وقت کی حد کے اندر ہفتے میں کتنی بار شیڈول کیا جا سکتا ہے، اسے 0 سے 1 وزن کے ساتھ محدود کریں۔ 1.0 سے کم کوئی بھی قدر ایک نرم حد ہے جسے کوئی اور دستیاب نہ ہونے پر نظر انداز کیا جا سکتا ہے۔",

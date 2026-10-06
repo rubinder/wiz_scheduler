@@ -93,6 +93,7 @@ const mr = {
     dayPreferences: "दिवसाची प्राधान्ये",
     hourRangePreferences: "वेळ-श्रेणी प्राधान्ये",
     frequencyCaps: "वारंवारता मर्यादा",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const mr = {
     importDisabledFreePlan: "फक्त पेड प्लॅनवर उपलब्ध — आपोआप आयात करण्यासाठी अपग्रेड करा.",
     upgradeConfirmFailed: "तुमचे अपग्रेड निश्चित करता आले नाही. जर तुमच्याकडून शुल्क आकारले गेले असेल, तर सपोर्टशी संपर्क साधा, आम्ही ते सोडवू.",
     subtitle: "खालील डॅशबोर्डवरून तुमचे वेळापत्रक व्यवस्थापन करा.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "कंपनी सेटिंग्ज पहा आणि संपादित करा",
     regionsDesc: "भौगोलिक प्रदेश व्यवस्थापित करा",
     locationsDesc: "स्टोअर स्थाने व्यवस्थापित करा",
@@ -595,6 +598,7 @@ const mr = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "वारंवारता मर्यादा",
     description:
       "एखाद्या ठराविक वेळ-श्रेणीत कर्मचाऱ्याला आठवड्यातून किती वेळा शेड्युल करता येईल हे 0 ते 1 वजनासह मर्यादित करा. 1.0 पेक्षा कमी कोणतेही मूल्य ही एक सौम्य मर्यादा आहे, जी दुसरा कोणी उपलब्ध नसल्यास डावलली जाऊ शकते.",

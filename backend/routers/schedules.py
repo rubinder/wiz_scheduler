@@ -215,7 +215,6 @@ async def generate_schedule(
                     seniority_weight=body.seniority_weight,
                     pay_weight=body.pay_weight,
                     overtime_weight=body.overtime_weight,
-                    affinity_weight=body.affinity_weight,
                 ):
                     # Persist a ShiftSchedule row so approve/reject have a record to find
                     loc_id = chunk.get("location_id", "")
@@ -224,7 +223,6 @@ async def generate_schedule(
                             "seniority_weight": body.seniority_weight,
                             "pay_weight": body.pay_weight,
                             "overtime_weight": body.overtime_weight,
-                            "affinity_weight": body.affinity_weight,
                             "strategy": body.strategy,
                             "strategy_param": body.strategy_param,
                             "strategy_param2": body.strategy_param2,
@@ -249,7 +247,6 @@ async def generate_schedule(
                             "seniority_weight": body.seniority_weight,
                             "pay_weight": body.pay_weight,
                             "overtime_weight": body.overtime_weight,
-                            "affinity_weight": body.affinity_weight,
                         }
 
                         # Deduct credits if over schedule free tier

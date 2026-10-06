@@ -93,6 +93,7 @@ const trLang = {
     dayPreferences: "Gün Tercihleri",
     hourRangePreferences: "Saat Aralığı Tercihleri",
     frequencyCaps: "Sıklık Sınırları",
+    quickEntry: "Quick Entry",
   },
 
   // ── Team ──
@@ -285,6 +286,8 @@ const trLang = {
     importDisabledFreePlan: "Yalnızca ücretli planlarda kullanılabilir — otomatik içe aktarmak için yükseltin.",
     upgradeConfirmFailed: "Yükseltmeniz onaylanamadı. Kartınızdan ücret alındıysa destek ile iletişime geçin, sorunu çözeceğiz.",
     subtitle: "Aşağıdaki kontrol panelinden programlamalarınızı yönetin.",
+    quickEntryDesc: "Quickly add employees, record conflicts, set up mentoring, and update preferences",
+    checkInDesc: "Generate QR codes for employee check-in and view check-in reports",
     companyDesc: "Şirket ayarlarını görüntüle ve düzenle",
     regionsDesc: "Coğrafi bölgeleri yönet",
     locationsDesc: "Mağaza konumlarını yönet",
@@ -595,6 +598,7 @@ const trLang = {
 
   // ── Frequency Caps ──
   frequencyCaps: {
+    quickEntry: "Quick Entry",
     title: "Sıklık Sınırları",
     description:
       "Bir çalışanın belirli bir saat aralığında haftada kaç kez planlanabileceğini, 0 ile 1 arasında bir ağırlıkla sınırlayın. 1,0'ın altındaki herhangi bir değer, başka kimse müsait değilse yine de göz ardı edilebilecek esnek bir sınırdır.",
