@@ -779,7 +779,7 @@ export default function EmployeeFormFieldsEnhanced({
                   <div key={pref.id} className="border border-sage/20 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className={`text-sm font-medium ${text.body}`}>
-                        {pref.start_time} - {pref.end_time} (weight: {pref.weight})
+                        {pref.start_time} - {pref.end_time}
                       </span>
                       <button
                         type="button"
@@ -788,6 +788,57 @@ export default function EmployeeFormFieldsEnhanced({
                       >
                         Remove
                       </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={`text-xs font-medium ${text.body} block mb-1`}>Start Time</label>
+                          <input
+                            type="time"
+                            value={pref.start_time}
+                            onChange={(e) => {
+                              const updated = hourRangePreferences.map((p) =>
+                                p.id === pref.id ? { ...p, start_time: e.target.value } : p
+                              );
+                              setHourRangePreferences(updated);
+                            }}
+                            className="glass-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className={`text-xs font-medium ${text.body} block mb-1`}>End Time</label>
+                          <input
+                            type="time"
+                            value={pref.end_time}
+                            onChange={(e) => {
+                              const updated = hourRangePreferences.map((p) =>
+                                p.id === pref.id ? { ...p, end_time: e.target.value } : p
+                              );
+                              setHourRangePreferences(updated);
+                            }}
+                            className="glass-input w-full"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`text-xs font-medium ${text.body} block mb-1`}>
+                          Weight: {pref.weight}
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.5"
+                          value={pref.weight}
+                          onChange={(e) => {
+                            const updated = hourRangePreferences.map((p) =>
+                              p.id === pref.id ? { ...p, weight: parseFloat(e.target.value) } : p
+                            );
+                            setHourRangePreferences(updated);
+                          }}
+                          className="w-full"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -870,7 +921,7 @@ export default function EmployeeFormFieldsEnhanced({
                   <div key={cap.id} className="border border-sage/20 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className={`text-sm font-medium ${text.body}`}>
-                        {cap.start_time} - {cap.end_time}: max {cap.max_per_week}/week
+                        {cap.start_time} - {cap.end_time}
                       </span>
                       <button
                         type="button"
@@ -879,6 +930,72 @@ export default function EmployeeFormFieldsEnhanced({
                       >
                         Remove
                       </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={`text-xs font-medium ${text.body} block mb-1`}>Start Time</label>
+                          <input
+                            type="time"
+                            value={cap.start_time}
+                            onChange={(e) => {
+                              const updated = hourRangeCaps.map((c) =>
+                                c.id === cap.id ? { ...c, start_time: e.target.value } : c
+                              );
+                              setHourRangeCaps(updated);
+                            }}
+                            className="glass-input w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className={`text-xs font-medium ${text.body} block mb-1`}>End Time</label>
+                          <input
+                            type="time"
+                            value={cap.end_time}
+                            onChange={(e) => {
+                              const updated = hourRangeCaps.map((c) =>
+                                c.id === cap.id ? { ...c, end_time: e.target.value } : c
+                              );
+                              setHourRangeCaps(updated);
+                            }}
+                            className="glass-input w-full"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`text-xs font-medium ${text.body} block mb-1`}>Max Per Week</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={cap.max_per_week}
+                          onChange={(e) => {
+                            const updated = hourRangeCaps.map((c) =>
+                              c.id === cap.id ? { ...c, max_per_week: parseInt(e.target.value) || 5 } : c
+                            );
+                            setHourRangeCaps(updated);
+                          }}
+                          className="glass-input w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-xs font-medium ${text.body} block mb-1`}>
+                          Weight: {cap.weight}
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.5"
+                          value={cap.weight}
+                          onChange={(e) => {
+                            const updated = hourRangeCaps.map((c) =>
+                              c.id === cap.id ? { ...c, weight: parseFloat(e.target.value) } : c
+                            );
+                            setHourRangeCaps(updated);
+                          }}
+                          className="w-full"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
