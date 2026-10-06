@@ -569,6 +569,7 @@ export default function Employees() {
                         type="number"
                         min="1"
                         step="1"
+                        placeholder="1, 2, 3..."
                         className="glass-input-sm w-full"
                         title={t.employeesPage.seniorityRankHint}
                         value={editValues.seniority_rank}
@@ -699,7 +700,7 @@ export default function Employees() {
                     min="1"
                     step="1"
                     className="glass-input-sm w-full"
-                    placeholder={t.employeesPage.seniorityRank}
+                    placeholder="1, 2, 3..."
                     title={t.employeesPage.seniorityRankHint}
                     value={addValues.seniority_rank}
                     onChange={(e) => setAddValues((v) => ({ ...v, seniority_rank: e.target.value }))}
