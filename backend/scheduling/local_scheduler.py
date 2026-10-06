@@ -520,9 +520,9 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0])
+        # Note: affinity is always applied (not a tunable signal weight), like preferences
 
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
@@ -542,7 +542,7 @@ def _pick_employee(
                     overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
                     if overtime_threshold is not None and overtime_weight > 0 else 0.0
                 )
-                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
+                # affinity always applies (not a tunable weight, like preferences)
             else:
                 # Backward-compatible mode: all signals active at base weights
                 cost = e.get("_cost_score", 0.0) * COST_WEIGHT
@@ -565,9 +565,9 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0])
+        # Note: affinity is always applied (not a tunable signal weight), like preferences
 
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
@@ -588,7 +588,6 @@ def _pick_employee(
                     overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
                     if overtime_threshold is not None and overtime_weight > 0 else 0.0
                 )
-                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
             else:
                 # Backward-compatible mode: all signals active at base weights
                 cost = e.get("_cost_score", 0.0) * COST_WEIGHT
@@ -612,9 +611,9 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.5)
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0])
+        # Note: affinity is always applied (not a tunable signal weight), like preferences
 
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
@@ -639,7 +638,6 @@ def _pick_employee(
                     overtime_score((employee_hours or {}).get(eid, 0.0), shift_duration_hrs, overtime_threshold) * overtime_weight
                     if overtime_threshold is not None and overtime_weight > 0 else 0.0
                 )
-                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
             else:
                 # Backward-compatible mode: all signals active at base weights
                 cost = e.get("_cost_score", 0.0) * COST_WEIGHT
@@ -671,7 +669,6 @@ def _pick_employee(
         seniority_weight = signal_config.get("seniority_weight", 0.0)
         pay_weight = signal_config.get("pay_weight", 0.0)
         overtime_weight = signal_config.get("overtime_weight", 0.0)
-        affinity_weight = signal_config.get("affinity_weight", 0.5)
 
         max_hrs = strategy_param if strategy_param > 0 else 40.0
         strictness = strategy_param2
@@ -689,6 +686,7 @@ def _pick_employee(
 
         # Check if any signal weights are explicitly set (non-zero)
         any_signal_specified = any([seniority_weight > 0, pay_weight > 0, overtime_weight > 0])
+        # Note: affinity is always applied (not a tunable signal weight), like preferences
 
         scored: List[Tuple[float, Dict[str, Any]]] = []
         for e in available:
@@ -710,7 +708,6 @@ def _pick_employee(
                     overtime_score(current_hrs, shift_duration_hrs, overtime_threshold) * overtime_weight
                     if overtime_threshold is not None and overtime_weight > 0 else 0.0
                 )
-                aff = aff * affinity_weight if affinity_weight > 0 else 0.0
             else:
                 # Backward-compatible mode: all signals active at base weights
                 cost = e.get("_cost_score", 0.0) * COST_WEIGHT

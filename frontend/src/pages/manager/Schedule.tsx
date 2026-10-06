@@ -609,7 +609,6 @@ export default function Schedule() {
         seniorityWeight: signalWeightOverrides.seniority_weight,
         payWeight: signalWeightOverrides.pay_weight,
         overtimeWeight: signalWeightOverrides.overtime_weight,
-        affinityWeight: signalWeightOverrides.affinity_weight,
       } : {}),
       numDays,
     });
@@ -1514,14 +1513,13 @@ export default function Schedule() {
                   <p className={`text-xs font-semibold ${text.secondary} mb-2`}>
                     ⚙️ Signal Weights Used
                   </p>
-                  <div className="grid grid-cols-4 gap-3 text-xs">
-                    {(["seniority_weight", "pay_weight", "overtime_weight", "affinity_weight"] as const).map((key) => {
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    {(["seniority_weight", "pay_weight", "overtime_weight"] as const).map((key) => {
                       const val = locationResult.signal_config![key];
                       const labels: Record<string, string> = {
                         seniority_weight: "Seniority",
                         pay_weight: "Pay",
                         overtime_weight: "Overtime",
-                        affinity_weight: "Affinity",
                       };
                       return (
                         <div key={key}>

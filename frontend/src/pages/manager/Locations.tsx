@@ -247,7 +247,6 @@ export default function Locations() {
                       seniority_weight: 0,
                       pay_weight: 0,
                       overtime_weight: 0,
-                      affinity_weight: 0,
                     });
                   }}
                   className="text-sm glass-btn-secondary"

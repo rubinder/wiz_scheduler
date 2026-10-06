@@ -8,21 +8,22 @@ interface Props {
 }
 
 /**
- * Signal weight configuration display with sliders for all four signals.
+ * Signal weight configuration display with sliders for tunable signals.
  * Allows managers to set default weights at company or location level.
  *
  * Signals:
  * - Seniority: Favor senior employees (hire_date or manual rank)
  * - Pay: Favor lower-wage employees (cost optimization)
  * - Overtime: Minimize overtime hours
- * - Affinity: Consider team preferences
+ *
+ * Note: Affinity (team preferences) is always applied and not tunable,
+ * similar to other hard preferences (day preferences, hour ranges, etc).
  */
 export default function SignalWeightConfig({ config, onChange, readOnly = false }: Props) {
   const weights = config || {
     seniority_weight: 0.0,
     pay_weight: 0.0,
     overtime_weight: 0.0,
-    affinity_weight: 0.0,
   };
 
   const handleChange = (key: keyof SignalConfig, value: number) => {
@@ -62,13 +63,6 @@ export default function SignalWeightConfig({ config, onChange, readOnly = false 
           value={weights.overtime_weight}
           onChange={(v) => handleChange("overtime_weight", v)}
           hardWarning="At 1.0, no employee over the overtime threshold will be scheduled."
-        />
-
-        <WeightSlider
-          label="Affinity"
-          value={weights.affinity_weight}
-          onChange={(v) => handleChange("affinity_weight", v)}
-          hardWarning="At 1.0, team preferences become hard constraints."
         />
       </div>
 

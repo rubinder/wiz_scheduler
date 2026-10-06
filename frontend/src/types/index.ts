@@ -45,7 +45,6 @@ export interface SignalConfig {
   seniority_weight: number;
   pay_weight: number;
   overtime_weight: number;
-  affinity_weight: number;
 }
 
 export interface Company {
