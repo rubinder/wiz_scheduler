@@ -112,6 +112,8 @@ export default function UpdatePreferencesForm({
           }}
           roles={roles}
           locations={locations}
+          employees={employees}
+          employeeId={selectedEmployee.id}
           onSubmit={handleFormSubmit}
           isLoading={isUpdating}
           isNewEmployee={false}
