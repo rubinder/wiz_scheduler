@@ -931,7 +931,6 @@ async def run_scheduling_pipeline(
         seniority_weight: Signal weight for seniority preference (0.0-1.0).
         pay_weight: Signal weight for cost optimization (0.0-1.0).
         overtime_weight: Signal weight for overtime minimization (0.0-1.0).
-        affinity_weight: Signal weight for team affinities (0.0-1.0).
 
     Yields:
         LocationResult dicts, one per location, as each location completes.
@@ -977,7 +976,6 @@ async def run_scheduling_pipeline(
                 "seniority_weight": seniority_weight,
                 "pay_weight": pay_weight,
                 "overtime_weight": overtime_weight,
-                "affinity_weight": affinity_weight,
             },
         )
 
@@ -990,7 +988,6 @@ async def run_scheduling_pipeline(
         "seniority_weight": seniority_weight,
         "pay_weight": pay_weight,
         "overtime_weight": overtime_weight,
-        "affinity_weight": affinity_weight,
     }
 
     # For rotation_history strategy, load 3-month role minutes from DB
