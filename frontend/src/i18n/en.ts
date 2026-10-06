@@ -986,7 +986,7 @@ const en = {
     inputFreqCapsTitle: "Frequency Caps",
     inputFreqCapsDesc: "How many times a week an employee works inside a given hour range.",
     inputsTemplatesNote: "Shift templates and specific-date overrides define what needs filling. Every draft is re-validated after generation, and any shift that went against a soft preference is flagged for review.",
-    inputsNotYet: "Not yet considered: pay rates, overtime premiums, seniority. Minimum rest is the only labor-law rule built in.",
+    inputsNotYet: "Labor-law rule built in: minimum rest. Scheduling signals considered: seniority (hire date or manual rank), pay rates, overtime thresholds.",
     // Compliance
     compDataExportTitle: "Data Export",
     compDataExportDesc: "Download all your data as JSON anytime.",
