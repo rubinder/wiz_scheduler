@@ -33,6 +33,7 @@ from backend.models.gdpr_export_log import GdprExportLog
 from backend.models.payroll_export import PayrollExport
 from backend.models.time_entry import TimeEntry
 from backend.models.activation_event import ActivationEvent
+from backend.models.manager_location import ManagerLocation
 
 __all__ = [
     "OwnershipGroup",
@@ -76,4 +77,5 @@ __all__ = [
     "PayrollExport",
     "TimeEntry",
     "ActivationEvent",
+    "ManagerLocation",
 ]

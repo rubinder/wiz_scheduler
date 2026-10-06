@@ -2,7 +2,8 @@ from datetime import datetime
 
 import sqlalchemy as sa
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
 from backend.utils.id_gen import generate_short_id
@@ -19,6 +20,9 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     user_role: Mapped[str] = mapped_column(String, nullable=False)  # 'manager' | 'employee'
+    # Manager type: 'admin' (full access) | 'regular' (location-scoped access)
+    # Only applies if user_role == 'manager'. NULL for employees.
+    manager_type: Mapped[str | None] = mapped_column(String, nullable=True)  # 'admin' | 'regular'
     google_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Set once the address is proven: the user clicked a link we mailed to it,
@@ -33,6 +37,11 @@ class User(Base):
     # so serial signups from one mailbox cluster when we look.
     email_normalized: Mapped[str | None] = mapped_column(
         String, nullable=True, index=True
+    )
+
+    # Relationship to manager locations (only populated for regular managers)
+    manager_locations: Mapped[list["ManagerLocation"]] = relationship(
+        "ManagerLocation", back_populates="manager", cascade="all, delete-orphan", lazy="select"
     )
 
     __table_args__ = (
