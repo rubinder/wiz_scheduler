@@ -107,6 +107,8 @@ export default function EmployeeSearchForm({
           }
           roles={roles}
           locations={locations}
+          employees={employees}
+          employeeId={selectedEmployee?.id}
           onSubmit={handleFormSubmit}
           isLoading={isCreating}
           isNewEmployee={!selectedEmployee}
