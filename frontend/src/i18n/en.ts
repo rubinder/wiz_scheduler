@@ -426,7 +426,7 @@ const en = {
     payRate: "Pay Rate ($/hr)",
     payRateGatedHint: "Upgrade to a paid plan to set pay rate for cost-aware scheduling.",
     hireDate: "Hire Date",
-    seniorityRank: "Seniority Rank",
+    seniorityRank: "Seniority Rank (1 = most senior)",
     seniorityRankHint: "Positive integer (1 = most senior). Leave blank to auto-rank by hire date.",
   },
 
