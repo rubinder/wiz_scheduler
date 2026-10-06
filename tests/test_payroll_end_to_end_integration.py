@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import PayrollExport, TimeEntry
 from backend.services.payroll_export import CSV_HEADER
-from tests.test_payroll_api import (
+from tests.test_payroll_api_integration import (
     TODAY, WEEK_AGO, _range_body, _tenant, _worked_shift,
 )
 

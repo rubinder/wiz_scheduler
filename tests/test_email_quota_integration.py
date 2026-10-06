@@ -3,7 +3,6 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
@@ -43,6 +42,7 @@ async def test_under_cap_logs_and_returns_true(db_session: AsyncSession, og_id: 
 
 async def test_no_og_returns_true_and_skips_log(db_session: AsyncSession):
     """Sends before an OG exists (registration welcome) must succeed and
+from __future__ import annotations
     not write an audit row."""
     assert await check_and_log_email(db_session, None, "welcome") is True
     rows = (await db_session.execute(select(OgEmailSendLog))).scalars().all()

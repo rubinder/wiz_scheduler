@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Shift, ShiftSchedule, TimeEntry
 from tests.conftest import _id
-from tests.test_payroll_api import TODAY, WEEK_AGO, _tenant, _worked_shift
+from tests.test_payroll_api_integration import TODAY, WEEK_AGO, _tenant, _worked_shift
 
 
 

@@ -14,7 +14,6 @@ class TestSignalWeightResolution:
             "seniority_weight": 0.0,
             "pay_weight": 0.0,
             "overtime_weight": 0.0,
-            "affinity_weight": 0.0,
         }
 
     def test_company_defaults_applied(self):
@@ -23,7 +22,6 @@ class TestSignalWeightResolution:
             "seniority_weight": 0.3,
             "pay_weight": 0.5,
             "overtime_weight": 0.1,
-            "affinity_weight": 0.0,
         }
 
         result = resolve_signal_weights(company_config=company_config)
@@ -36,12 +34,11 @@ class TestSignalWeightResolution:
             "seniority_weight": 0.3,
             "pay_weight": 0.5,
             "overtime_weight": 0.1,
-            "affinity_weight": 0.0,
         }
         location_config = {
             "seniority_weight": 0.7,  # Override
             "pay_weight": 0.2,  # Override
-            # No overtime or affinity set, should inherit from company
+            # No overtime set, should inherit from company
         }
 
         result = resolve_signal_weights(
@@ -52,7 +49,6 @@ class TestSignalWeightResolution:
         assert result["seniority_weight"] == 0.7  # From location
         assert result["pay_weight"] == 0.2  # From location
         assert result["overtime_weight"] == 0.1  # From company
-        assert result["affinity_weight"] == 0.0  # From company
 
     def test_request_overrides_all(self):
         """Request weights should override both location and company defaults."""
@@ -72,7 +68,6 @@ class TestSignalWeightResolution:
         assert result["seniority_weight"] == 1.0  # From request
         assert result["pay_weight"] == 0.0  # From request
         assert result["overtime_weight"] == 0.0  # Default (not in any config)
-        assert result["affinity_weight"] == 0.0  # Default (not in any config)
 
     def test_partial_location_config(self):
         """Location config can partially override company defaults."""
@@ -80,7 +75,6 @@ class TestSignalWeightResolution:
             "seniority_weight": 0.1,
             "pay_weight": 0.2,
             "overtime_weight": 0.3,
-            "affinity_weight": 0.4,
         }
         location_config = {
             "seniority_weight": 0.9,  # Override just this
@@ -94,7 +88,6 @@ class TestSignalWeightResolution:
         assert result["seniority_weight"] == 0.9  # From location override
         assert result["pay_weight"] == 0.2  # From company
         assert result["overtime_weight"] == 0.3  # From company
-        assert result["affinity_weight"] == 0.4  # From company
 
     def test_null_location_config_skipped(self):
         """Null location config should not break resolution."""
@@ -118,5 +111,4 @@ class TestSignalWeightResolution:
             "seniority_weight": 0.0,
             "pay_weight": 0.0,
             "overtime_weight": 0.0,
-            "affinity_weight": 0.0,
         }

@@ -15,7 +15,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.test_payroll_api import _range_body, _tenant, _worked_shift
+from tests.test_payroll_api_integration import _range_body, _tenant, _worked_shift
 
 
 
