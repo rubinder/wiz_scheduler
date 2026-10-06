@@ -32,6 +32,9 @@ export interface User {
   email: string;
   full_name: string | null;
   user_role: string;
+  // Manager type: 'admin' (full access) | 'regular' (location-scoped)
+  // Only populated for managers, null for employees
+  manager_type: string | null;
   ownership_group_id: string | null;
   is_demo: boolean;
   has_google: boolean;

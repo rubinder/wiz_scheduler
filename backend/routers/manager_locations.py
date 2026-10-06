@@ -45,6 +45,29 @@ class ManagerResponse(BaseModel):
         from_attributes = True
 
 
+@router.get("/me/locations", response_model=list[LocationResponse])
+async def get_current_manager_locations(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> list[LocationResponse]:
+    """Get all locations accessible to the current manager."""
+    from backend.services.manager_permissions import get_accessible_location_ids
+
+    # Get accessible location IDs
+    location_ids = await get_accessible_location_ids(db, current_user)
+
+    if not location_ids:
+        return []
+
+    # Fetch the locations
+    result = await db.execute(
+        select(Location).where(Location.id.in_(location_ids))
+    )
+    locations = result.scalars().all()
+
+    return [LocationResponse.model_validate(loc) for loc in locations]
+
+
 @router.get("/{manager_id}/locations", response_model=list[LocationResponse])
 async def get_manager_location_assignments(
     manager_id: str,
