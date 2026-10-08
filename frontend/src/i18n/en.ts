@@ -807,7 +807,7 @@ const en = {
     featGDPRTitle: "GDPR Compliant",
     featGDPRDesc: "Data export, account deletion, consent tracking, log redaction, and automatic data retention policies.",
     featAffinitiesTitle: "Team Affinities",
-    featAffinitiesDesc: "Set preferences for who should (or shouldn't) work together. Hard and soft constraints supported.",
+    featAffinitiesDesc: "Set team preferences with a weight of -1 (never schedule together) to 1 (always prefer together). Hard constraints (-1) are enforced; soft preferences influence scheduling in both Normal and AI modes.",
     featRoleEquivTitle: "Role Equivalents",
     featRoleEquivDesc: "Group similar roles so employees can fill shifts across equivalent positions automatically.",
     featLangsTitle: "19 Languages",
@@ -815,16 +815,16 @@ const en = {
     // Strategies
     stratRotation: "Rotation",
     stratRotationTag: "FREE",
-    stratRotationDesc: "Evenly distributes shifts across employees within the current schedule. Penalizes repeat assignments to the same role. Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
+    stratRotationDesc: "Evenly distributes shifts across employees within the current schedule. Penalizes repeat assignments to the same role. Respects employee affinities and Signal Weights: hard constraints (-1) are enforced, soft preferences influence scoring.",
     stratRotationHistory: "Rotation (3-Month History)",
     stratRotationHistoryTag: "FREE",
-    stratRotationHistoryDesc: "Considers total hours worked per role over the past 3 months. Adjustable fairness weight from random (0) to strictly fair (1). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
+    stratRotationHistoryDesc: "Considers total hours worked per role over the past 3 months. Adjustable fairness weight from random (0) to strictly fair (1). Respects employee affinities and Signal Weights: hard constraints (-1) are enforced, soft preferences influence scoring.",
     stratMaxHours: "Max Hours Per Employee",
     stratMaxHoursTag: "FREE",
-    stratMaxHoursDesc: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
+    stratMaxHoursDesc: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities and Signal Weights: hard constraints (-1) are enforced, soft preferences influence scoring.",
     stratAI: "AI Generate",
     stratAITag: "$2 FREE / MONTH",
-    stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios.",
+    stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, Signal Weights, shift requirements) and produces an optimized schedule. Does not use algorithmic strategies; instead considers all factors holistically. Best for complex scenarios.",
     // Compliance
     compDataExportTitle: "Data Export",
     compDataExportDesc: "Download all your data as JSON anytime.",
@@ -888,7 +888,7 @@ const en = {
       },
       "employee-association": {
         title: "Employee Association",
-        desc: "Mark which employees work well together (or shouldn't be paired). The AI uses these affinities and anti-affinities as soft preferences when assigning shifts.",
+        desc: "Mark team preferences with weights: -1 means never schedule together (hard constraint), 1 means prefer together (soft preference). Both Normal and AI modes respect these constraints.",
       },
       "shift-templates": {
         title: "Shift Templates",
@@ -896,7 +896,7 @@ const en = {
       },
       schedule: {
         title: "Schedule",
-        desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish.",
+        desc: "Generate optimized weekly schedules with one click. Choose Normal Generation (Rotation, Rotation 3-Month, Max Hours, Random) or AI Generation. Both respect Signal Weights, employee affinities, and all constraints. Review per-location results, edit inline, and publish.",
       },
       "export-schedules": {
         title: "Export Schedules",

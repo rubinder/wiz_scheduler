@@ -36,6 +36,9 @@ const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const DataProcessingAgreement = lazy(() => import("./pages/DataProcessingAgreement"));
 const Landing = lazy(() => import("./pages/Landing"));
 const Features = lazy(() => import("./pages/Features"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const About = lazy(() => import("./pages/About"));
+const Contact = lazy(() => import("./pages/Contact"));
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -99,6 +102,9 @@ export default function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/dpa" element={<DataProcessingAgreement />} />
         <Route path="/features" element={<Features />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>

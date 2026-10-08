@@ -85,21 +85,34 @@ export default function Login() {
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId || !window.google?.accounts?.id) return;
+    if (!clientId) return;
 
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: handleGoogleCallback,
-    });
+    // Wait for Google library to load, with timeout to prevent infinite wait
+    let attempts = 0;
+    const maxAttempts = 50; // ~5 seconds with 100ms intervals
 
-    if (googleBtnRef.current) {
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: "filled_black",
-        size: "large",
-        width: "100%",
-        text: "signin_with",
-      });
-    }
+    const initGoogle = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCallback,
+        });
+
+        if (googleBtnRef.current) {
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: "filled_black",
+            size: "large",
+            width: "100%",
+            text: "signin_with",
+          });
+        }
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(initGoogle, 100);
+      }
+    };
+
+    initGoogle();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -60,17 +60,85 @@ export default function Landing() {
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "Wiz Scheduler",
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-    description:
-      "AI-powered employee scheduling that automatically respects availability, roles, skill levels, and team preferences.",
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://wizscheduler.com/#organization",
+        name: "Wiz Scheduler",
+        alternateName: "WizScheduler",
+        url: "https://wizscheduler.com",
+        logo: "https://wizscheduler.com/favicon.svg",
+        description:
+          "AI-powered employee scheduling for restaurants and retail teams.",
+        foundingDate: "2024",
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "Customer Service",
+          email: "hello@wizscheduler.com",
+        },
+        sameAs: [
+          "https://www.linkedin.com/company/wiz-scheduler",
+          "https://www.youtube.com/@WizScheduler",
+          "https://twitter.com/wizscheduler",
+        ],
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://wizscheduler.com/#website",
+        name: "Wiz Scheduler",
+        url: "https://wizscheduler.com",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: "https://wizscheduler.com/?q={search_term_string}",
+          },
+          query_input: "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://wizscheduler.com/#software",
+        name: "Wiz Scheduler",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        description:
+          "AI-powered employee scheduling that automatically respects availability, roles, skill levels, and team preferences.",
+        url: "https://wizscheduler.com",
+        publisher: {
+          "@id": "https://wizscheduler.com/#organization",
+        },
+        offers: {
+          "@type": "AggregateOffer",
+          priceCurrency: "USD",
+          lowPrice: "0",
+          highPrice: "18",
+          offerDetails: [
+            {
+              "@type": "Offer",
+              name: "Free Plan",
+              price: "0",
+              priceCurrency: "USD",
+              description: "Up to 2 locations, 25 employees, 1 schedule per location per month",
+            },
+            {
+              "@type": "Offer",
+              name: "Pro Plan",
+              price: "18",
+              priceCurrency: "USD",
+              priceSpecification: {
+                "@type": "PriceSpecification",
+                priceCurrency: "USD",
+                price: "18",
+                billingDuration: "P1M",
+                unitCode: "C62",
+              },
+              description: "Unlimited locations, employees, generations",
+            },
+          ],
+        },
+      },
+    ],
   };
 
   return (
