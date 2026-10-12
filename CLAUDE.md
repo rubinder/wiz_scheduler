@@ -111,6 +111,31 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 
 **Personal overrides** live in `.claude/settings.local.json` (gitignored). The committed `.claude/settings.json` is shared across contributors.
 
+## Git Workflow
+
+**All code changes must follow this workflow:**
+
+1. **Create a feature branch** — Never commit directly to `main`
+   - Branch naming: `feat/`, `fix/`, `chore/`, `docs/` prefix
+   - Example: `feat/manager-billing`, `fix/payment-race-condition`
+
+2. **Push the feature branch** — Push to origin for CI visibility
+   - `git push -u origin <branch-name>`
+
+3. **Create a GitHub PR** — Do not merge without review
+   - Use `gh pr create --base main --head <branch-name>`
+   - Include summary, changes, and test plan in PR description
+
+4. **Wait for CI to pass** — All automated checks must succeed
+   - GitHub Actions must pass
+   - No merge if CI fails
+
+5. **Merge only after CI passes** — Use the PR to merge
+   - Review the CI results before merging
+   - Merge via GitHub PR interface, not `git merge` directly
+
+**Exception:** Emergency hotfixes to production may skip PR review with explicit user confirmation, but must still wait for CI to pass before merging to main.
+
 ## Conventions
 
 - **Roles are never hardcoded.** No role name string literal may appear outside `seed.py`. Every role reference must come from the `roles` table.
