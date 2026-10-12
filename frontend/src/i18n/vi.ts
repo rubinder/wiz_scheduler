@@ -528,6 +528,10 @@ const vi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "Đặt nhanh (9–17):",
+    quickWeekdays: "Ngày thường 9–17",
+    quickWeekend: "Cuối tuần 9–17",
+    quickWeek: "Cả tuần 9–17",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

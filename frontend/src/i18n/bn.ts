@@ -528,6 +528,10 @@ const bn = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "দ্রুত সেট (৯–৫):",
+    quickWeekdays: "সপ্তাহের কর্মদিবস ৯–৫",
+    quickWeekend: "সপ্তাহান্ত ৯–৫",
+    quickWeek: "পুরো সপ্তাহ ৯–৫",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

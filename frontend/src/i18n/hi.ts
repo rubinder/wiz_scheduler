@@ -528,6 +528,10 @@ const hi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "त्वरित सेट (9–5):",
+    quickWeekdays: "सप्ताह के दिन 9–5",
+    quickWeekend: "सप्ताहांत 9–5",
+    quickWeek: "पूरा सप्ताह 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

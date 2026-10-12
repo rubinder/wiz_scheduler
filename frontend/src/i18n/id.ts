@@ -528,6 +528,10 @@ const ind = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "Atur cepat (9–17):",
+    quickWeekdays: "Hari kerja 9–17",
+    quickWeekend: "Akhir pekan 9–17",
+    quickWeek: "Seluruh minggu 9–17",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

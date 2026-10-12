@@ -528,6 +528,10 @@ const ja = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "クイック設定 (9–5):",
+    quickWeekdays: "平日 9–5",
+    quickWeekend: "週末 9–5",
+    quickWeek: "1週間すべて 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

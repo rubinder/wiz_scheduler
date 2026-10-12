@@ -528,6 +528,10 @@ const trLang = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "Hızlı ayar (9–17):",
+    quickWeekdays: "Hafta içi 9–17",
+    quickWeekend: "Hafta sonu 9–17",
+    quickWeek: "Tüm hafta 9–17",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

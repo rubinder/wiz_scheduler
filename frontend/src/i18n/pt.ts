@@ -528,6 +528,10 @@ const pt = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "Atalho (9–17h):",
+    quickWeekdays: "Dias úteis 9–17h",
+    quickWeekend: "Fim de semana 9–17h",
+    quickWeek: "Semana inteira 9–17h",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

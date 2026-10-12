@@ -528,6 +528,10 @@ const te = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "త్వరిత సెట్ (9–5):",
+    quickWeekdays: "వారపు రోజులు 9–5",
+    quickWeekend: "వారాంతం 9–5",
+    quickWeek: "మొత్తం వారం 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

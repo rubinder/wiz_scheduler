@@ -528,6 +528,10 @@ const es = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "Ajuste rápido (9–5):",
+    quickWeekdays: "Días laborables 9–5",
+    quickWeekend: "Fin de semana 9–5",
+    quickWeek: "Toda la semana 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

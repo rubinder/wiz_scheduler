@@ -28,6 +28,19 @@ import {
   isAllDay,
 } from "./_employeesShared";
 
+// ── Quick-set shortcuts (9–5 blocks across the selected week) ──
+
+type QuickSetKind = "weekdays" | "weekend" | "week";
+
+// Day offsets from the week's Monday (0 = Mon … 6 = Sun)
+const QUICK_SET_OFFSETS: Record<QuickSetKind, number[]> = {
+  weekdays: [0, 1, 2, 3, 4],
+  weekend: [5, 6],
+  week: [0, 1, 2, 3, 4, 5, 6],
+};
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
 // ── Main component ──
 
 export default function EmployeeAvailability() {
@@ -158,6 +171,39 @@ export default function EmployeeAvailability() {
   }, [selectedWeek]);
 
   // ── Availability handlers ──
+
+  const handleQuickSet = async (kind: QuickSetKind) => {
+    if (!availForm.employee_id) return;
+    setError(null);
+    setSaving(true);
+    // selectedWeek is the Monday (YYYY-MM-DD) of the week shown in the list
+    const [y, m, d] = selectedWeek.split("-").map(Number);
+    const monday = new Date(y, m - 1, d);
+    try {
+      await Promise.all(
+        QUICK_SET_OFFSETS[kind].map((offset) => {
+          const day = new Date(monday);
+          day.setDate(monday.getDate() + offset);
+          const date = `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
+          return createAvailability({
+            employee_id: availForm.employee_id,
+            year: day.getFullYear(),
+            month: day.getMonth() + 1,
+            day: day.getDate(),
+            start_time: `${date}T09:00:00`,
+            end_time: `${date}T17:00:00`,
+          });
+        })
+      );
+      setAddingAvail(false);
+      setAvailForm({ employee_id: "", date: "", start_time: "00:00", end_time: "23:59" });
+      await loadAvailability(selectedWeek);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to add");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAddAvailability = async () => {
     if (!availForm.employee_id || !availForm.date) return;
@@ -665,6 +711,29 @@ export default function EmployeeAvailability() {
                 {t.common.cancel}
               </button>
             </div>
+            <DemoGuard>
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className={`text-xs font-medium ${text.muted}`}>
+                  {t.employeeAvailability.quickSetLabel}
+                </span>
+                {(
+                  [
+                    ["weekdays", t.employeeAvailability.quickWeekdays],
+                    ["weekend", t.employeeAvailability.quickWeekend],
+                    ["week", t.employeeAvailability.quickWeek],
+                  ] as const
+                ).map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    onClick={() => handleQuickSet(kind)}
+                    disabled={saving || !availForm.employee_id}
+                    className="glass-btn-secondary text-xs disabled:opacity-50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </DemoGuard>
           </div>
         )}
 

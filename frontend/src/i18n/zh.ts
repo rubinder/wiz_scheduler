@@ -528,6 +528,10 @@ const zh = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "快速设置 (9–5):",
+    quickWeekdays: "工作日 9–5",
+    quickWeekend: "周末 9–5",
+    quickWeek: "整周 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

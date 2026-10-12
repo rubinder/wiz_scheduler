@@ -528,6 +528,10 @@ const ta = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    quickSetLabel: "விரைவு அமைப்பு (9–5):",
+    quickWeekdays: "வார நாட்கள் 9–5",
+    quickWeekend: "வார இறுதி 9–5",
+    quickWeek: "முழு வாரம் 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",
