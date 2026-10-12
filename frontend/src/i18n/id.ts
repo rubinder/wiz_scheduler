@@ -528,6 +528,8 @@ const ind = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Tidak mengimpor ketersediaan dari sistem lain? Kirim tautan undangan kepada karyawan yang diimpor di halaman {link} agar mereka bisa membuat login dan mengelola ketersediaan mereka sendiri.",
+    onboardingLink: "Orientasi Karyawan",
     quickSetLabel: "Atur cepat (9–17):",
     quickWeekdays: "Hari kerja 9–17",
     quickWeekend: "Akhir pekan 9–17",

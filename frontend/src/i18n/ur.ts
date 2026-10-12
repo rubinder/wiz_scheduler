@@ -528,6 +528,8 @@ const ur = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "کسی دوسرے سسٹم سے دستیابی درآمد نہیں کر رہے؟ {link} صفحے پر درآمد شدہ ملازمین کو دعوتی لنک بھیجیں تاکہ وہ لاگ اِن بنا کر اپنی دستیابی خود منظم کر سکیں۔",
+    onboardingLink: "ملازم آن بورڈنگ",
     quickSetLabel: "فوری سیٹ (9–5):",
     quickWeekdays: "ہفتے کے دن 9–5",
     quickWeekend: "ہفتے کا آخر 9–5",

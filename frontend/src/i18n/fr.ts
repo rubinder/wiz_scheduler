@@ -528,6 +528,8 @@ const fr = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Vous n'importez pas les disponibilités depuis un autre système ? Envoyez des liens d'invitation à vos employés importés depuis la page {link} afin qu'ils créent un compte et gèrent eux-mêmes leurs disponibilités.",
+    onboardingLink: "Intégration des employés",
     quickSetLabel: "Raccourci (9h–17h) :",
     quickWeekdays: "Jours ouvrés 9h–17h",
     quickWeekend: "Week-end 9h–17h",

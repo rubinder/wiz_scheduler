@@ -528,6 +528,8 @@ const mr = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "दुसऱ्या सिस्टीममधून उपलब्धता आयात करत नाही? {link} पृष्ठावर आयात केलेल्या कर्मचाऱ्यांना आमंत्रण लिंक पाठवा, जेणेकरून ते लॉगिन तयार करून स्वतःची उपलब्धता व्यवस्थापित करू शकतील.",
+    onboardingLink: "कर्मचारी ऑनबोर्डिंग",
     quickSetLabel: "जलद सेट (9–5):",
     quickWeekdays: "आठवड्याचे कामकाजी दिवस 9–5",
     quickWeekend: "शनिवार-रविवार 9–5",

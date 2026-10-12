@@ -528,6 +528,8 @@ const zh = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "没有从其他系统导入可用时间？请在{link}页面向已导入的员工发送邀请链接，让他们创建登录账号并自行管理可用时间。",
+    onboardingLink: "员工入职",
     quickSetLabel: "快速设置 (9–5):",
     quickWeekdays: "工作日 9–5",
     quickWeekend: "周末 9–5",

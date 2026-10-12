@@ -528,6 +528,8 @@ const pt = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Não está importando disponibilidade de outro sistema? Envie links de convite aos funcionários importados na página {link} para que criem um login e gerenciem a própria disponibilidade.",
+    onboardingLink: "Integração de funcionários",
     quickSetLabel: "Atalho (9–17h):",
     quickWeekdays: "Dias úteis 9–17h",
     quickWeekend: "Fim de semana 9–17h",

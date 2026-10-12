@@ -21,7 +21,7 @@ import type {
   Employee,
   EmployeeAvailability,
 } from "../../types";
-import { text, bg, border, spinner as spinnerClass } from "../../theme";
+import { action, text, bg, border, spinner as spinnerClass } from "../../theme";
 import {
   formatDate,
   formatTime,
@@ -41,10 +41,14 @@ const QUICK_SET_OFFSETS: Record<QuickSetKind, number[]> = {
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
+const ONBOARDING_URL = "https://app.wizscheduler.com/manager/employee-onboarding";
+
 // ── Main component ──
 
 export default function EmployeeAvailability() {
   const { t } = useLanguage();
+  // onboardingHint contains a "{link}" placeholder for the onboarding link text
+  const [hintBefore, hintAfter] = t.employeeAvailability.onboardingHint.split("{link}");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -353,6 +357,18 @@ export default function EmployeeAvailability() {
         <h1 className={`text-2xl font-bold ${text.heading}`}>
           {t.employeeAvailability.title}
         </h1>
+        <p className={`mt-2 text-sm ${text.muted}`}>
+          {hintBefore}
+          <a
+            href={ONBOARDING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`font-medium underline ${action.link}`}
+          >
+            {t.employeeAvailability.onboardingLink}
+          </a>
+          {hintAfter}
+        </p>
       </div>
 
       {error && (

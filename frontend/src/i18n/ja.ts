@@ -528,6 +528,8 @@ const ja = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "他のシステムから空き状況をインポートしていない場合は、{link}ページからインポートした従業員に招待リンクを送信してください。従業員はログインを作成し、自分で空き状況を管理できます。",
+    onboardingLink: "従業員オンボーディング",
     quickSetLabel: "クイック設定 (9–5):",
     quickWeekdays: "平日 9–5",
     quickWeekend: "週末 9–5",
