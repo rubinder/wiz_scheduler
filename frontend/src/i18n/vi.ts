@@ -528,6 +528,12 @@ const vi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Không nhập lịch rảnh từ hệ thống khác? Gửi liên kết mời cho các nhân viên đã nhập tại trang {link} để họ tạo tài khoản và tự quản lý lịch rảnh của mình.",
+    onboardingLink: "Đưa nhân viên vào làm",
+    quickSetLabel: "Đặt nhanh (9–17):",
+    quickWeekdays: "Ngày thường 9–17",
+    quickWeekend: "Cuối tuần 9–17",
+    quickWeek: "Cả tuần 9–17",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

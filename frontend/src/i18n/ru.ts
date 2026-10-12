@@ -528,6 +528,12 @@ const ru = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Не импортируете доступность из другой системы? Отправьте пригласительные ссылки импортированным сотрудникам на странице {link}, чтобы они могли создать логин и самостоятельно управлять своей доступностью.",
+    onboardingLink: "Онбординг сотрудников",
+    quickSetLabel: "Быстрый выбор (9–17):",
+    quickWeekdays: "Будни 9–17",
+    quickWeekend: "Выходные 9–17",
+    quickWeek: "Вся неделя 9–17",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

@@ -528,6 +528,12 @@ const te = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "మరో సిస్టమ్ నుండి అందుబాటును దిగుమతి చేయడం లేదా? {link} పేజీలో దిగుమతి చేసిన ఉద్యోగులకు ఆహ్వాన లింక్‌లను పంపండి, తద్వారా వారు లాగిన్ సృష్టించి తమ అందుబాటును తామే నిర్వహించుకోవచ్చు.",
+    onboardingLink: "ఉద్యోగి ఆన్‌బోర్డింగ్",
+    quickSetLabel: "త్వరిత సెట్ (9–5):",
+    quickWeekdays: "వారపు రోజులు 9–5",
+    quickWeekend: "వారాంతం 9–5",
+    quickWeek: "మొత్తం వారం 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

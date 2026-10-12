@@ -528,6 +528,12 @@ const hi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "किसी दूसरे सिस्टम से उपलब्धता आयात नहीं कर रहे? {link} पेज पर आयात किए गए कर्मचारियों को आमंत्रण लिंक भेजें, ताकि वे लॉगिन बनाकर अपनी उपलब्धता खुद प्रबंधित कर सकें।",
+    onboardingLink: "कर्मचारी ऑनबोर्डिंग",
+    quickSetLabel: "त्वरित सेट (9–5):",
+    quickWeekdays: "सप्ताह के दिन 9–5",
+    quickWeekend: "सप्ताहांत 9–5",
+    quickWeek: "पूरा सप्ताह 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

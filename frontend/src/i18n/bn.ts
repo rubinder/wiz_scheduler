@@ -528,6 +528,12 @@ const bn = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "অন্য সিস্টেম থেকে প্রাপ্যতা আমদানি করছেন না? {link} পৃষ্ঠায় আমদানি করা কর্মীদের আমন্ত্রণ লিংক পাঠান, যাতে তারা লগইন তৈরি করে নিজেদের প্রাপ্যতা নিজেরাই পরিচালনা করতে পারে।",
+    onboardingLink: "কর্মী অনবোর্ডিং",
+    quickSetLabel: "দ্রুত সেট (৯–৫):",
+    quickWeekdays: "সপ্তাহের কর্মদিবস ৯–৫",
+    quickWeekend: "সপ্তাহান্ত ৯–৫",
+    quickWeek: "পুরো সপ্তাহ ৯–৫",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

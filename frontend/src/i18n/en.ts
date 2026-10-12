@@ -530,6 +530,12 @@ const en = {
 
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Not importing availability from another system? Send invite links to your imported employees on the {link} page so they can create a login and manage their own availability.",
+    onboardingLink: "Employee Onboarding",
+    quickSetLabel: "Quick set (9–5):",
+    quickWeekdays: "Weekdays 9–5",
+    quickWeekend: "Weekend 9–5",
+    quickWeek: "Whole week 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

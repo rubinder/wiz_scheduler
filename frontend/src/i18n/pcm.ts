@@ -528,6 +528,12 @@ const pcm = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "No dey import availability from another system? Send invite links to di employees wey you import for di {link} page so dem fit create login and manage dem own availability.",
+    onboardingLink: "Employee Onboarding",
+    quickSetLabel: "Quick set (9–5):",
+    quickWeekdays: "Weekdays 9–5",
+    quickWeekend: "Weekend 9–5",
+    quickWeek: "Whole week 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",

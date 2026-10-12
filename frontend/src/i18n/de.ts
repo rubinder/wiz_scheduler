@@ -528,6 +528,12 @@ const de = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    onboardingHint: "Verfügbarkeiten nicht aus einem anderen System importiert? Sende den importierten Mitarbeitenden auf der Seite {link} Einladungslinks, damit sie sich anmelden und ihre Verfügbarkeit selbst verwalten können.",
+    onboardingLink: "Mitarbeiter-Onboarding",
+    quickSetLabel: "Schnellauswahl (9–5):",
+    quickWeekdays: "Werktage 9–5",
+    quickWeekend: "Wochenende 9–5",
+    quickWeek: "Ganze Woche 9–5",
     title: "Employee Availability",
     noEmployees: "No employees yet.",
     addEmployeesFirst: "Add employees first before recording their availability.",
