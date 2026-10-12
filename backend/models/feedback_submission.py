@@ -1,12 +1,11 @@
 """Feedback submission tracking for rate limiting (free plan only)."""
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import DateTime, String, Text, UUID, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
-from backend.models.base import Base
+from backend.database import Base
 
 
 class FeedbackSubmission(Base):
