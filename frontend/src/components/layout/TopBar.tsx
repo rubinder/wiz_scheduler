@@ -4,6 +4,7 @@ import { useLanguage } from "../../i18n/LanguageContext";
 import * as companyApi from "../../api/company";
 import type { Company } from "../../types";
 import LanguageSelector from "../shared/LanguageSelector";
+import FeedbackForm from "../FeedbackForm";
 import { text, bg, border } from "../../theme";
 
 export default function TopBar() {
@@ -11,6 +12,7 @@ export default function TopBar() {
   const { t } = useLanguage();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [switching, setSwitching] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   useEffect(() => {
     if (user?.ownership_group_id && user.user_role === "manager") {
@@ -64,6 +66,15 @@ export default function TopBar() {
           </span>
         )}
         <LanguageSelector />
+        {user?.user_role === "manager" && (
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
+            title="Send feedback or feature request"
+          >
+            Feedback
+          </button>
+        )}
         <button
           onClick={logout}
           className="text-sm text-red-400 hover:text-red-300 font-medium transition-colors"
@@ -71,6 +82,7 @@ export default function TopBar() {
           {t.common.logout}
         </button>
       </div>
+      {showFeedback && <FeedbackForm onClose={() => setShowFeedback(false)} />}
     </header>
   );
 }

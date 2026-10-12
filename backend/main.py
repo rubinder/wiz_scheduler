@@ -17,6 +17,7 @@ from backend.routers import (
     employees,
     export_schedules,
     failure_logs,
+    feedback,
     gdpr,
     import_7shifts,
     import_deputy,
@@ -120,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(manager_locations.router, prefix=api_prefix)
     app.include_router(gdpr.router, prefix=api_prefix)
     app.include_router(billing.router, prefix=api_prefix)
+    app.include_router(feedback.router, prefix=api_prefix)
     app.include_router(webhooks.router, prefix=api_prefix)
     app.include_router(public.router, prefix=api_prefix)
 

@@ -34,6 +34,7 @@ from backend.models.payroll_export import PayrollExport
 from backend.models.time_entry import TimeEntry
 from backend.models.activation_event import ActivationEvent
 from backend.models.manager_location import ManagerLocation
+from backend.models.feedback_submission import FeedbackSubmission
 
 __all__ = [
     "OwnershipGroup",
@@ -78,4 +79,5 @@ __all__ = [
     "TimeEntry",
     "ActivationEvent",
     "ManagerLocation",
+    "FeedbackSubmission",
 ]
