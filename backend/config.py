@@ -211,6 +211,11 @@ class Settings(BaseSettings):
     SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 25 schedules after free tier
     SCHEDULE_BLOCK_SIZE: int = 25            # schedules per billing block
 
+    # Manager billing
+    INCLUDED_MANAGERS: int = 50              # manager seats included in the subscription
+    MANAGER_COST_PER_BLOCK: float = 5.00     # $ per 50 managers beyond the included count
+    MANAGER_BLOCK_SIZE: int = 50             # managers per billing block
+
     # Base subscription
     BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
 
