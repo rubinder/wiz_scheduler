@@ -1033,13 +1033,13 @@ async def test_compute_monthly_overage_employees_zero(db_session: AsyncSession, 
 
 
 async def test_compute_monthly_overage_employees_over_free_tier(db_session: AsyncSession, seed_og):
-    """1500 employees → 1 block × $1.00 (500 over free tier of 1000)."""
+    """1500 employees → 2 blocks × $1.00 (1000 over free tier of 500)."""
     from backend.services.billing import compute_monthly_overage
     for _ in range(1500):
         db_session.add(Employee(id=_id(), company_id=COMPANY_ID, full_name="X"))
     await db_session.commit()
     charge = await compute_monthly_overage(db_session, OG_ID, "invoice_item_employees", "2026-05")
-    assert charge == 1.0
+    assert charge == 2.0
 
 
 async def test_compute_monthly_overage_unknown_kind_raises(db_session: AsyncSession, seed_og):

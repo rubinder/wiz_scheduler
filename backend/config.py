@@ -142,9 +142,9 @@ class Settings(BaseSettings):
     STORAGE_COST_PER_GB: float = 0.50        # $/GB/month beyond the included storage
 
     # Employee billing
-    INCLUDED_EMPLOYEES: int = 1_000          # employees included in the subscription
-    EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 1k employees beyond the included count
-    EMPLOYEE_BLOCK_SIZE: int = 1_000         # employees per billing block
+    INCLUDED_EMPLOYEES: int = 500            # employees included in the subscription
+    EMPLOYEE_COST_PER_BLOCK: float = 1.00    # $ per 500 employees beyond the included count
+    EMPLOYEE_BLOCK_SIZE: int = 500           # employees per billing block
 
     # Free plan hard limits (distinct from INCLUDED_EMPLOYEES above, which is
     # a metered-overage threshold for PAID customers). These are the caps that
@@ -207,9 +207,9 @@ class Settings(BaseSettings):
     DEMO_PLAN_MAX_SCHEDULES_PER_MONTH: int = 50
 
     # Schedule generation billing
-    INCLUDED_SCHEDULES_PER_MONTH: int = 50   # generations included per month
-    SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 50 schedules after free tier
-    SCHEDULE_BLOCK_SIZE: int = 50            # schedules per billing block
+    INCLUDED_SCHEDULES_PER_MONTH: int = 25   # generations included per month
+    SCHEDULE_COST_PER_BLOCK: float = 0.10    # $ per 25 schedules after free tier
+    SCHEDULE_BLOCK_SIZE: int = 25            # schedules per billing block
 
     # Base subscription
     BASE_MONTHLY_USD: float = 18.00          # baseline monthly charge
