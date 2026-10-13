@@ -128,12 +128,16 @@ def create_app() -> FastAPI:
     # ── Daily background task: storage snapshots ──
     async def _daily_storage_snapshot_loop() -> None:
         """Run storage snapshots once per day. First run happens shortly
-        after startup, then repeats every 24 hours. Idempotent per day."""
+        after startup, then repeats every 24 hours. Idempotent per day.
+
+        Operates cross-tenant via tenant_scope_disabled.
+        """
         import asyncio
         import logging
 
         from backend.database import async_session_factory
         from backend.services.billing import record_storage_snapshots
+        from backend.tenant import tenant_scope_disabled
 
         log = logging.getLogger("wizscheduler.storage_snapshot")
 
@@ -143,7 +147,8 @@ def create_app() -> FastAPI:
         while True:
             try:
                 async with async_session_factory() as db:
-                    summary = await record_storage_snapshots(db)
+                    with tenant_scope_disabled():
+                        summary = await record_storage_snapshots(db)
                 log.info("Daily storage snapshot completed: %s", summary)
             except Exception as e:
                 log.error("Storage snapshot failed: %s", e)
@@ -157,12 +162,15 @@ def create_app() -> FastAPI:
 
         Runs every 7 days. Idempotent — re-runs in the same period either
         no-op or update the InvoiceItem amount to match latest usage.
+
+        Operates cross-tenant via tenant_scope_disabled.
         """
         import asyncio
         import logging
 
         from backend.database import async_session_factory
         from backend.services.billing import bill_monthly_overages_all
+        from backend.tenant import tenant_scope_disabled
 
         log = logging.getLogger("wizscheduler.monthly_billing")
 
@@ -172,7 +180,8 @@ def create_app() -> FastAPI:
         while True:
             try:
                 async with async_session_factory() as db:
-                    summary = await bill_monthly_overages_all(db)
+                    with tenant_scope_disabled():
+                        summary = await bill_monthly_overages_all(db)
                 log.info("Weekly monthly billing run: %s", summary)
             except Exception as e:
                 log.error("Weekly monthly billing failed: %s", e)
@@ -181,12 +190,16 @@ def create_app() -> FastAPI:
 
     # ── Daily background task: cancellation lifecycle (PR β) ──
     async def _daily_cancellation_lifecycle_loop() -> None:
-        """Walk canceled OGs daily. Send reminder at day 76, hard-delete at day 90."""
+        """Walk canceled OGs daily. Send reminder at day 76, hard-delete at day 90.
+
+        Operates cross-tenant via tenant_scope_disabled.
+        """
         import asyncio
         import logging
 
         from backend.database import async_session_factory
         from backend.services.billing import process_cancellation_lifecycle
+        from backend.tenant import tenant_scope_disabled
 
         log = logging.getLogger("wizscheduler.cancellation_lifecycle")
 
@@ -196,7 +209,8 @@ def create_app() -> FastAPI:
         while True:
             try:
                 async with async_session_factory() as db:
-                    result = await process_cancellation_lifecycle(db)
+                    with tenant_scope_disabled():
+                        result = await process_cancellation_lifecycle(db)
                 log.info(
                     "Cancellation lifecycle pass: reminders=%s deletions=%s",
                     result.get("reminders_sent"),

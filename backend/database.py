@@ -1,6 +1,6 @@
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Session
 
 from backend.config import settings
 from backend.tenant import get_tenant_context
@@ -42,7 +42,8 @@ def _add_tenant_filter(orm_execute_state):
 
 
 # Attach the tenant filter listener to all sessions
-event.listen(AsyncSession, "do_orm_execute", _add_tenant_filter)
+# do_orm_execute is a Session event, but AsyncSession uses Session internally
+event.listen(Session, "do_orm_execute", _add_tenant_filter)
 
 
 class Base(DeclarativeBase):
