@@ -93,7 +93,7 @@ def test_foreign_key_column_type_compatibility():
 
     for mapper in Base.registry.mappers:
         model_class = mapper.class_
-        table = mapper.mapped_table
+        table = mapper.persist_selectable
 
         # Check each column for foreign key constraints
         for column in table.columns:
