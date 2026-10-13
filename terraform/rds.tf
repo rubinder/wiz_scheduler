@@ -38,7 +38,68 @@ resource "aws_security_group" "rds" {
 
 # -----------------------------------------------------------------------------
 # RDS PostgreSQL Instance
-# -----------------------------------------------------------------------------
+#
+# Note: Master user connects as var.db_username (typically "postgres").
+# Application roles (app_role, analytics_role, admin_role) are created via
+# Alembic migration running as the master user, not via Terraform. This keeps
+# role lifecycle under code control and tracks them in version control.
+# See backend/alembic/versions/0044_add_rls_policies.py
+#
+# Roles created by migration:
+#  - app_role: SELECT, INSERT, UPDATE, DELETE (RLS enforced)
+#  - analytics_role: SELECT only (full access to all data)
+#  - admin_role: SELECT, UPDATE (full access to all data)
+#
+# Credentials:
+#  - Master user: stored in AWS Secrets Manager as DATABASE_URL
+#  - app_role: stored as APP_DATABASE_URL (created by this Terraform)
+#  - analytics_role & admin_role: created manually as needed
+#
+# ECS tasks use app_role (via APP_DATABASE_URL environment variable).
+# Background jobs use app_role or admin_role depending on requirements.
+# Alembic migrations use master user (DATABASE_URL).
+#
+# To generate passwords for roles, use:
+#  openssl rand -base64 32
+# Then manually UPDATE postgres roles or use psql.
+#
+# RLS policies are created by Alembic migration that runs as master user,
+# ensuring they're version-controlled and can be rolled back.
+#
+# See terraform/variables.tf for app_db_username and app_db_password inputs.
+# These default to placeholders and should be set via TF_VAR_ environment
+# variables or terraform.tfvars in production.
+#
+# After Alembic migration creates roles, the role passwords can be rotated
+# by updating terraform variables and re-applying:
+#  terraform apply -var=app_db_password="new_password"
+# which updates APP_DATABASE_URL in Secrets Manager and triggers ECS
+# task redeploys via CI/CD.
+#
+# Historical note (Part 1): Application-level tenant filtering via
+# ContextVar in backend/dependencies.py sets company_ids per request.
+# This Terraform change (Part 2) adds Postgres RLS for defense-in-depth.
+# Both layers together catch missing WHERE clauses, raw SQL, and bypasses.
+#
+# RFC: https://github.com/rubinder/wiz_scheduler/issues/125
+# PR #164: Part 1 (ORM filtering)
+# PR TBD: Part 2 (Postgres RLS, this change + Alembic migration)
+#
+# MANUAL STEP REQUIRED BEFORE TERRAFORM APPLY:
+#  1. In your environment, set TF_VAR_app_db_username and TF_VAR_app_db_password
+#  2. Run terraform plan and review
+#  3. Apply terraform (creates APP_DATABASE_URL secret)
+#  4. Deploy code with Alembic migration (creates roles + RLS policies)
+#  5. Update ECS task definition to use APP_DATABASE_URL from Secrets Manager
+#     (this file already does that; just run terraform apply)
+#  6. Blue-green deploy the new task definition
+#
+# Rollback (if needed):
+#  1. Revert ECS to old task definition (use DATABASE_URL again)
+#  2. Drop RLS policies: ALEMBIC DOWN or manual DROP POLICY commands
+#  3. Revert to master user connection in config
+#
+# ---------------------------------------------------------------------------
 
 resource "aws_db_instance" "main" {
   identifier = "${var.app_name}-db"
