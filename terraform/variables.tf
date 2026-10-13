@@ -127,6 +127,20 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "app_db_username" {
+  description = "Application role username for RDS (Part 2: Postgres RLS). Used to connect as app_role with row-level security enforced."
+  type        = string
+  default     = "app_role"
+  sensitive   = true
+}
+
+variable "app_db_password" {
+  description = "Application role password for RDS (Part 2: Postgres RLS). Set via TF_VAR_app_db_password or terraform.tfvars. Required for APP_DATABASE_URL secret."
+  type        = string
+  default     = "CHANGE_ME_AFTER_CREATING_APP_ROLE"
+  sensitive   = true
+}
+
 variable "db_allocated_storage" {
   description = "Allocated storage in GB for the RDS instance"
   type        = number
