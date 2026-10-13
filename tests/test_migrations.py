@@ -7,7 +7,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.operations import Operations
 import pytest
 import sqlalchemy as sa
-from sqlalchemy import inspect
+from sqlalchemy import inspect, create_engine
 
 
 def get_migrations_directory():
@@ -73,3 +73,53 @@ def test_no_duplicate_filenames():
 
     duplicates = [p for p in prefixes if prefixes.count(p) > 1]
     assert not duplicates, f"Duplicate migration prefixes: {duplicates}. {filenames}"
+
+
+def test_foreign_key_column_type_compatibility():
+    """Validate that all foreign key columns have compatible types with their target columns.
+
+    This test catches schema mismatches like UUID referencing String(8) by analyzing the
+    SQLAlchemy models directly — it doesn't require a database, just Python introspection.
+
+    This approach:
+    - Runs fast (no container startup)
+    - Works in all environments (dev, CI, prod)
+    - Validates before any database operations
+    """
+    from backend.database import Base
+
+    # Extract all ForeignKey constraints from the models
+    mismatches = []
+
+    for mapper in Base.registry.mappers:
+        model_class = mapper.class_
+        table = mapper.mapped_table
+
+        # Check each column for foreign key constraints
+        for column in table.columns:
+            for fk in column.foreign_keys:
+                ref_table = fk.column.table
+                ref_column = fk.column
+
+                # Get the column types as SQLAlchemy sees them
+                source_type = str(column.type).upper()
+                target_type = str(ref_column.type).upper()
+
+                # Normalize for comparison (VARCHAR(8) → VARCHAR, STRING → VARCHAR, etc.)
+                def normalize_type(type_str):
+                    return type_str.split('(')[0].strip()
+
+                source_normalized = normalize_type(source_type)
+                target_normalized = normalize_type(target_type)
+
+                # Special case: UUID ≠ STRING is a mismatch we care about
+                if source_normalized != target_normalized:
+                    mismatches.append(
+                        f"{table.name}.{column.name} ({source_type}) → "
+                        f"{ref_table.name}.{ref_column.name} ({target_type})"
+                    )
+
+    assert not mismatches, (
+        f"Foreign key column type mismatches found (these will cause constraint violations):\n"
+        + "\n".join(f"  • {m}" for m in mismatches)
+    )
