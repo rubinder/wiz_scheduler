@@ -1,13 +1,12 @@
 """Add feedback_submissions table for quota tracking.
 
-Revision ID: 0043_add_feedback_submissions
-Revises: 0042_add_manager_type_and_locations
+Revision ID: 0043
+Revises: 0042
 Create Date: 2026-10-12 16:55:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
 revision = "0043"
@@ -19,7 +18,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "feedback_submissions",
-        sa.Column("id", UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), primary_key=True, nullable=False),
+        sa.Column("id", sa.String(8), primary_key=True, nullable=False),
         sa.Column("user_id", sa.String(8), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("company_id", sa.String(8), sa.ForeignKey("companies.id"), nullable=False),
         sa.Column("subject", sa.String(length=200), nullable=False),
