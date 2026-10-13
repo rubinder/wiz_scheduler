@@ -97,15 +97,24 @@ async def _set_rls_context(db: AsyncSession, company_ids: list[str]) -> None:
         company_ids: List of company IDs this session is allowed to access
     """
     try:
-        # Convert company_ids list to PostgreSQL array format for RLS policies
+        # Convert company_ids list to PostgreSQL array format
+        # company_ids are UUIDs from the database, but we use set_config()
+        # for safety (parameterized, not string interpolation)
         company_ids_json = json.dumps(company_ids)
 
-        # Set the session variable that RLS policies will read
-        # Using SET LOCAL would be transaction-scoped, but we use regular SET
-        # so the setting persists for the entire session
+        # Use set_config() function (parameterized) instead of raw SET to avoid injection
+        # set_config(name, value, is_local) returns the old value
+        # is_local=false means the setting persists for the session (not just transaction)
         await db.execute(
-            text(f"SET app.company_ids = '{company_ids_json}'")
+            text("SELECT set_config(:name, :val, false)"),
+            {"name": "app.company_ids", "val": company_ids_json}
         )
+    except (ValueError, TypeError) as e:
+        # Invalid company_ids format (shouldn't happen if from database)
+        import logging
+        log = logging.getLogger("wizscheduler.rls")
+        log.error(f"Invalid company_ids for RLS context: {e}")
+        raise
     except Exception as e:
         # If RLS is not set up (migration not applied), log and continue
         # The application-level filtering in Part 1 still protects the data
