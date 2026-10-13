@@ -10,6 +10,7 @@ from backend.config import settings
 from backend.database import async_session_factory
 from backend.models.company import Company
 from backend.models.user import User
+from backend.tenant import set_tenant_context
 
 security = HTTPBearer()
 
@@ -36,6 +37,11 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    # Set tenant context for automatic ORM filtering
+    company_ids = await _get_company_ids_for_user(user, db)
+    set_tenant_context(company_ids)
+
     return user
 
 
@@ -47,6 +53,22 @@ async def require_manager(
     return current_user
 
 
+async def _get_company_ids_for_user(user: User, db: AsyncSession) -> list[str]:
+    """Helper to get all company IDs for a user's ownership group."""
+    result = await db.execute(
+        select(Company.ownership_group_id).where(Company.id == user.company_id)
+    )
+    ownership_group_id = result.scalar_one_or_none()
+
+    if ownership_group_id is None:
+        return [user.company_id]
+
+    result = await db.execute(
+        select(Company.id).where(Company.ownership_group_id == ownership_group_id)
+    )
+    return list(result.scalars().all())
+
+
 async def get_ownership_group_company_ids(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -55,17 +77,4 @@ async def get_ownership_group_company_ids(
 
     If the user's company has no ownership group, returns only their own company_id.
     """
-    # First get the user's company to find its ownership_group_id
-    result = await db.execute(
-        select(Company.ownership_group_id).where(Company.id == current_user.company_id)
-    )
-    ownership_group_id = result.scalar_one_or_none()
-
-    if ownership_group_id is None:
-        return [current_user.company_id]
-
-    # Get all companies in the same ownership group
-    result = await db.execute(
-        select(Company.id).where(Company.ownership_group_id == ownership_group_id)
-    )
-    return list(result.scalars().all())
+    return await _get_company_ids_for_user(current_user, db)

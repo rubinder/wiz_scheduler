@@ -22,12 +22,14 @@ logger = logging.getLogger(__name__)
 async def main(window_days: int) -> None:
     from backend.database import async_session_factory
     from backend.services.abuse_report import build_suspected_accounts_report
+    from backend.tenant import tenant_scope_disabled
 
     async with async_session_factory() as db:
-        report = await build_suspected_accounts_report(
-            db, window_days=window_days
-        )
-        print(json.dumps(report, indent=2))
+        with tenant_scope_disabled():
+            report = await build_suspected_accounts_report(
+                db, window_days=window_days
+            )
+            print(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":
