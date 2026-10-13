@@ -12,8 +12,8 @@ class FeedbackSubmission(Base):
     __tablename__ = "feedback_submissions"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True, server_default=func.gen_random_uuid())
-    user_id: Mapped[str] = mapped_column(UUID, ForeignKey("user.id"), nullable=False)
-    company_id: Mapped[str] = mapped_column(UUID, ForeignKey("company.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(UUID, ForeignKey("users.id"), nullable=False)
+    company_id: Mapped[str] = mapped_column(UUID, ForeignKey("companies.id"), nullable=False)
     subject: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     feedback_type: Mapped[str] = mapped_column(String(20), nullable=False)
