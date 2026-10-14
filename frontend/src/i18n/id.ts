@@ -2,6 +2,7 @@ const ind = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Waktu dalam {zone}",
     loading: "Memuat...",
     save: "Simpan",
     saving: "Menyimpan...",
@@ -381,6 +382,7 @@ const ind = {
     importTitle: "Impor Lokasi",
     address: "Alamat",
     timezone: "Zona Waktu",
+    utcHint: "Lokasi ini diatur ke UTC. Jika tidak sesuai, pilih zona waktunya: {names}",
     region: "Wilayah",
     limitReached: "Paket gratis mengizinkan {limit} lokasi — upgrade untuk menambah lebih banyak.",
     csvLimitError: "File ini berisi {rows} lokasi, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
@@ -427,6 +429,8 @@ const ind = {
     csvLimitError: "File ini berisi {rows} karyawan, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
     payRate: "Tarif Gaji ($/jam)",
     payRateGatedHint: "Upgrade ke paket berbayar untuk mengatur tarif gaji demi penjadwalan yang memperhitungkan biaya.",
+    availabilityTimezone: "Zona waktu ketersediaan",
+    availabilityTimezoneNone: "Tidak ada (waktu lokal lokasi)",
     hireDate: "Tanggal Perekrutan",
     seniorityRank: "Peringkat Senioritas",
     seniorityRankHint: "Penggantian manual — biarkan kosong untuk mengurutkan berdasarkan tanggal perekrutan.",

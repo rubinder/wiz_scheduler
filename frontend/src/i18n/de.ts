@@ -2,6 +2,7 @@ const de = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Zeiten in {zone}",
     loading: "Wird geladen...",
     save: "Speichern",
     saving: "Speichern...",
@@ -381,6 +382,7 @@ const de = {
     importTitle: "Standorte importieren",
     address: "Adresse",
     timezone: "Zeitzone",
+    utcHint: "Diese Standorte sind auf UTC eingestellt. Falls das nicht stimmt, wähle ihre Zeitzone: {names}",
     region: "Region",
     limitReached: "Der kostenlose Plan erlaubt {limit} Standorte — upgraden, um weitere hinzuzufügen.",
     csvLimitError: "Diese Datei enthält {rows} Standorte, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
@@ -427,6 +429,8 @@ const de = {
     csvLimitError: "Diese Datei enthält {rows} Mitarbeiter, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
     payRate: "Stundenlohn ($/Std.)",
     payRateGatedHint: "Führen Sie ein Upgrade auf einen kostenpflichtigen Plan durch, um den Stundenlohn für kostenbewusste Planung festzulegen.",
+    availabilityTimezone: "Zeitzone der Verfügbarkeit",
+    availabilityTimezoneNone: "Keine (Ortszeit des Standorts)",
     hireDate: "Einstellungsdatum",
     seniorityRank: "Dienstalter-Rang",
     seniorityRankHint: "Manuelle Überschreibung — leer lassen, um nach Einstellungsdatum zu ranken.",

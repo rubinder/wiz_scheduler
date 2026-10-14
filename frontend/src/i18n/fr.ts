@@ -2,6 +2,7 @@ const fr = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Heures exprimées en {zone}",
     loading: "Chargement...",
     save: "Enregistrer",
     saving: "Enregistrement...",
@@ -381,6 +382,7 @@ const fr = {
     importTitle: "Importer des emplacements",
     address: "Adresse",
     timezone: "Fuseau horaire",
+    utcHint: "Ces sites sont réglés sur UTC. Si ce n'est pas correct, choisissez leur fuseau horaire : {names}",
     region: "Région",
     limitReached: "Le plan gratuit autorise {limit} emplacements — passez à un forfait supérieur pour en ajouter davantage.",
     csvLimitError: "Ce fichier contient {rows} emplacements, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
@@ -427,6 +429,8 @@ const fr = {
     csvLimitError: "Ce fichier contient {rows} employés, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
     payRate: "Taux horaire ($/h)",
     payRateGatedHint: "Passez à un forfait payant pour définir le taux horaire pour une planification tenant compte des coûts.",
+    availabilityTimezone: "Fuseau horaire des disponibilités",
+    availabilityTimezoneNone: "Aucun (heure locale du site)",
     hireDate: "Date d'embauche",
     seniorityRank: "Rang d'ancienneté",
     seniorityRankHint: "Remplacement manuel — laissez vide pour classer par date d'embauche.",

@@ -2,6 +2,7 @@ const zh = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "时间为 {zone} 时区",
     loading: "加载中...",
     save: "保存",
     saving: "保存中...",
@@ -381,6 +382,7 @@ const zh = {
     importTitle: "导入门店",
     address: "地址",
     timezone: "时区",
+    utcHint: "这些地点设置为 UTC。如果不正确，请选择它们的时区：{names}",
     region: "区域",
     limitReached: "免费版最多允许 {limit} 个门店——升级以添加更多。",
     csvLimitError: "此文件包含 {rows} 个门店，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
@@ -427,6 +429,8 @@ const zh = {
     csvLimitError: "此文件包含 {rows} 名员工，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
     payRate: "薪资 ($/小时)",
     payRateGatedHint: "升级到付费计划以设置薪资，用于成本感知排班。",
+    availabilityTimezone: "可用时间的时区",
+    availabilityTimezoneNone: "无（地点当地时间）",
     hireDate: "入职日期",
     seniorityRank: "资历排名",
     seniorityRankHint: "手动覆盖 — 留空则按入职日期排名。",

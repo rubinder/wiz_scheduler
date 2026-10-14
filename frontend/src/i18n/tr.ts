@@ -2,6 +2,7 @@ const trLang = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Saatler {zone} saat diliminde",
     loading: "Yükleniyor...",
     save: "Kaydet",
     saving: "Kaydediliyor...",
@@ -381,6 +382,7 @@ const trLang = {
     importTitle: "Konumları İçe Aktar",
     address: "Adres",
     timezone: "Saat Dilimi",
+    utcHint: "Bu konumlar UTC olarak ayarlı. Doğru değilse saat dilimlerini seçin: {names}",
     region: "Bölge",
     limitReached: "Ücretsiz plan {limit} konuma izin verir — daha fazla eklemek için yükseltin.",
     csvLimitError: "Bu dosyada {rows} konum var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
@@ -427,6 +429,8 @@ const trLang = {
     csvLimitError: "Bu dosyada {rows} çalışan var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
     payRate: "Ücret Oranı ($/sa)",
     payRateGatedHint: "Maliyet bilincine sahip planlama için ücret oranını belirlemek üzere ücretli plana yükseltin.",
+    availabilityTimezone: "Müsaitlik saat dilimi",
+    availabilityTimezoneNone: "Yok (konumun yerel saati)",
     hireDate: "İşe Alım Tarihi",
     seniorityRank: "Kıdem Sırası",
     seniorityRankHint: "Manuel geçersiz kılma — işe alım tarihine göre sıralamak için boş bırakın.",
