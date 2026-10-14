@@ -100,3 +100,15 @@ async def test_no_timezone_employee_drops_window_just_after_the_week(
     await _seed_next_monday_window(db_session)
     avail = await _load_employee_availability(db_session, COMPANY_ID, DAY.isoformat(), 7)
     assert avail.get(EMPLOYEE1_ID, []) == []
+
+
+async def test_invalid_employee_timezone_degrades_to_no_timezone(
+    db_session: AsyncSession, seed_employees, seed_location, seed_roles,
+):
+    await _seed(db_session)
+    baseline = await _load_employee_availability(db_session, COMPANY_ID, DAY.isoformat(), 7)
+    bad = await _load_employee_availability(
+        db_session, COMPANY_ID, DAY.isoformat(), 7,
+        employee_timezones={EMPLOYEE1_ID: "Not/AZone"},
+    )
+    assert bad == baseline

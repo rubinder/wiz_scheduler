@@ -22,6 +22,7 @@ from backend.models import (
     ShiftTemplate,
 )
 from backend.scheduling.employee_time import instant_to_employee_face
+from backend.utils.tz import is_valid_timezone
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.cost_seniority import resolve_overtime_threshold
 from backend.scheduling.nodes import (
@@ -344,7 +345,7 @@ def _shift_employee_face(shift: Shift, emp_tz: str) -> Tuple[datetime, datetime]
             instant_to_employee_face(shift.start_time, emp_tz),
             instant_to_employee_face(shift.end_time, emp_tz),
         )
-    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError):
+    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError, OSError):
         return None
 
 
@@ -467,7 +468,11 @@ async def _load_employee_availability(
             EmployeeAvailability.start_time < week_end + timedelta(days=1),
         )
     )
-    employee_timezones = employee_timezones or {}
+    # A bad zone degrades to the no-timezone path everywhere below.
+    employee_timezones = {
+        k: (v if is_valid_timezone(v) else None)
+        for k, v in (employee_timezones or {}).items()
+    }
     emp_avail_map: Dict[str, List[Dict[str, str]]] = {}
     for av in avail_result.scalars().all():
         eid = str(av.employee_id)
@@ -750,10 +755,14 @@ async def _load_initial_state(
 
     # Load employee availability for the relevant week, minus hours already
     # committed to a Shift row (see _load_employee_availability).
+    employee_tz_map: Dict[str, str | None] = {
+        str(emp.id): emp.timezone if is_valid_timezone(emp.timezone) else None
+        for emp in employees_orm
+    }
     emp_avail_map = await _load_employee_availability(
         db, company_id, week_start_date, num_days,
         all_employee_ids={str(emp.id) for emp in employees_orm},
-        employee_timezones={str(emp.id): emp.timezone for emp in employees_orm},
+        employee_timezones=employee_tz_map,
     )
 
     # Load day blackouts (recurring per-day-of-week time ranges during which
@@ -812,7 +821,7 @@ async def _load_initial_state(
             "pay_rate": float(emp.pay_rate) if emp.pay_rate is not None else None,
             "hire_date": emp.hire_date,
             "seniority_rank": emp.seniority_rank,
-            "timezone": emp.timezone,
+            "timezone": employee_tz_map[str(emp.id)],
             "day_blackouts": emp_blackout_map.get(eid, []),
             "day_preferences": loaded_prefs.get(eid, {}).get("day_preferences", []),
             "hour_range_preferences": loaded_prefs.get(eid, {}).get("hour_range_preferences", []),

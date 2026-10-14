@@ -25,7 +25,7 @@ def _zone(name: str | None) -> ZoneInfo | None:
         return None
     try:
         return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError):
+    except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError, OSError):
         return None
 
 

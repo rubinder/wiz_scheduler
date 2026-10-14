@@ -29,6 +29,7 @@ from backend.scheduling.prompts import (
     eligible_for_slot,
 )
 from backend.scheduling.rest_rules import _min_rest_violation
+from backend.utils.tz import is_valid_timezone
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,8 @@ def _filter_availability_against_draft(
         return windows
 
     emp_tz = employee.get("timezone")
+    if not is_valid_timezone(emp_tz):
+        emp_tz = None  # a bad zone degrades to the no-timezone path
     consumed: List[Tuple[datetime, datetime]] = []
     for c in consumed_raw:
         try:
@@ -131,7 +134,7 @@ def _filter_availability_against_draft(
                 ))
             else:
                 consumed.append((_wall_clock(c["start"]), _wall_clock(c["end"])))
-        except (KeyError, ValueError, TypeError, ZoneInfoNotFoundError):
+        except (KeyError, ValueError, TypeError, ZoneInfoNotFoundError, OSError):
             # A window we cannot parse is skipped rather than raised on: the
             # scheduling graph degrades, it never throws.
             continue

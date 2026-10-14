@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 
+from backend.scheduling.employee_time import needs_conversion
 from backend.scheduling.local_scheduler import local_schedule
 from backend.scheduling.nodes import (
     _filter_availability_against_draft,
@@ -137,3 +138,21 @@ def test_local_scheduler_output_identical_for_none_and_same_zone():
         return local_schedule(deepcopy(state), strategy="random")["current_parsed_shifts"]
 
     assert run(None) == run(NY)
+
+
+def test_draft_with_invalid_timezone_matches_no_timezone():
+    draft = {"e001": [{"start": f"{MON}T06:00:00-08:00", "end": f"{MON}T10:00:00-08:00"}]}
+    assert _filter_availability_against_draft(
+        _emp("Not/AZone", [NY_9_17]), draft
+    ) == _filter_availability_against_draft(_emp(None, [NY_9_17]), draft)
+
+
+def test_tzdata_directory_name_does_not_raise(monkeypatch):
+    def boom(name):
+        raise IsADirectoryError(name)
+
+    monkeypatch.setattr("backend.scheduling.employee_time.ZoneInfo", boom)
+    assert needs_conversion("America", LA) is False
+    emp = _emp("America", [NY_9_17])
+    ctx = load_location_context(_state(emp, 1, {"locla001": _template("locla001", "06:00", "14:00")}))
+    assert ctx["current_employees"][0]["available_windows"] == [NY_9_17]
