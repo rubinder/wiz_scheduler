@@ -316,7 +316,7 @@ async def test_prune_leaves_other_tenants_alone(
 ):
     """The prune is scoped to the demo company's deterministic ids. A real
     tenant that happens to have many employees must be untouched."""
-    other_og, other_co = "othergrp", "othercomp"
+    other_og, other_co = "othergrp", "otherco"
     db_session.add(OwnershipGroup(id=other_og, name="Other"))
     await db_session.flush()
     db_session.add(Company(id=other_co, name="Other Co", slug="other-co",
