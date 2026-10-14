@@ -351,25 +351,28 @@ async def test_prune_leaves_other_tenants_alone(
 
 
 async def test_prune_delete_order_satisfies_foreign_keys():
-    from sqlalchemy import event
+    """Test that the deletion order respects foreign key constraints on Postgres.
+
+    Postgres has FKs on by default, so this validates that delete_og_and_dependents
+    and _prune_over_limit_demo_data won't violate constraints.
+    """
+    from testcontainers.community.postgres import PostgresContainer
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-    from sqlalchemy.pool import StaticPool
 
     from backend.database import Base
 
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///", poolclass=StaticPool, echo=False
-    )
+    # Start a dedicated Postgres container for this test
+    container = PostgresContainer("postgres:16-alpine")
+    container.start()
 
-    @event.listens_for(engine.sync_engine, "connect")
-    def _enforce_fks(dbapi_connection, _record):
-        cur = dbapi_connection.cursor()
-        cur.execute("PRAGMA foreign_keys=ON")
-        cur.close()
-        # Same shim conftest installs: server_default=text("now()") needs it.
-        dbapi_connection.create_function(
-            "now", 0, lambda: datetime.now(timezone.utc).isoformat()
-        )
+    host = container.get_container_host_ip()
+    port = container.get_exposed_port(5432)
+    db_name = container.dbname
+    user = container.username
+    password = container.password
+
+    DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db_name}"
+    engine = create_async_engine(DATABASE_URL, echo=False)
 
     try:
         async with engine.begin() as conn:
@@ -377,12 +380,9 @@ async def test_prune_delete_order_satisfies_foreign_keys():
 
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
         async with session_factory() as db:
-            # Confirm the pragma really is on — otherwise this test would
-            # pass vacuously and prove nothing.
-            enforced = (
-                await db.execute(text("PRAGMA foreign_keys"))
-            ).scalar_one()
-            assert enforced == 1, "foreign key enforcement is not active"
+            # Postgres has foreign keys on by default; no pragma check needed.
+            # If the prune violates FK constraints, the test will fail with an
+            # IntegrityError, which is what we're testing for.
 
             employees = EMPLOYEE_IDS + LEGACY_EMPLOYEE_IDS
             locations = [LOCATION_ID] + LEGACY_LOCATION_IDS
@@ -457,6 +457,7 @@ async def test_prune_delete_order_satisfies_foreign_keys():
             assert sorted(kept) == sorted(EMPLOYEE_IDS)
     finally:
         await engine.dispose()
+        container.stop()
 
 
 def test_seeded_roster_fits_the_free_plan():
