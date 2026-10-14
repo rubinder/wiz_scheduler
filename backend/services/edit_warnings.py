@@ -13,8 +13,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import EmployeeAvailability, Location, Shift
+from backend.models import Employee, EmployeeAvailability, Location, Shift
 from backend.scheduling.graph import _shift_local_face
+from backend.scheduling.employee_time import availability_to_location, needs_conversion
 from backend.scheduling.nodes import _subtract_consumed, _wall_clock
 
 
@@ -124,6 +125,32 @@ async def collect_edit_warnings(
                     span_start, span_end = face
 
         if emp_id is not None and span_start is not None and span_end is not None:
+            emp_tz = (await db.execute(
+                select(Employee.timezone).where(
+                    Employee.id == emp_id, Employee.company_id == company_id,
+                )
+            )).scalar_one_or_none()
+            # An employee with a timezone is compared in the edited shift's
+            # location zone: availability converted emp->loc, other shifts read
+            # in that zone. Without one (or with no known location), today's
+            # per-location faces are used unchanged.
+            #
+            # A new shift (no shift_id) has no row to join, but it is created
+            # at the schedule's own location, so that is the zone it is read
+            # in. `zone_location` serves only the conversion path; `location`
+            # keeps its existing meaning, so the no-timezone path is untouched.
+            zone_location = location
+            if zone_location is None and emp_tz is not None:
+                zone_location = (await db.execute(
+                    select(Location).where(
+                        Location.id == schedule.location_id,
+                        Location.company_id == company_id,
+                    )
+                )).scalar_one_or_none()
+            convert = zone_location is not None and needs_conversion(
+                emp_tz, zone_location.timezone
+            )
+
             # 1. no_availability -- the employee's windows, minus their other
             #    shifts, must cover the span. Same definition the pipeline
             #    uses.
@@ -150,7 +177,7 @@ async def collect_edit_warnings(
             )).all()
             other_spans: list[tuple[datetime, datetime]] = []
             for s, loc in other_rows:
-                face = _shift_local_face(s, loc)
+                face = _shift_local_face(s, zone_location if convert else loc)
                 if face is None:
                     # Bad/missing location.timezone: degrade rather than
                     # raise, same convention as graph.py. This drops the
@@ -161,11 +188,19 @@ async def collect_edit_warnings(
 
             covered = False
             for w in windows:
-                w_start = _wall_clock(w.start_time.isoformat())
-                w_end = _wall_clock(w.end_time.isoformat())
-                for free_start, free_end in _subtract_consumed(w_start, w_end, other_spans):
-                    if free_start <= span_start and free_end >= span_end:
-                        covered = True
+                raw = [{"start": w.start_time.isoformat(), "end": w.end_time.isoformat()}]
+                pieces = (
+                    availability_to_location(raw, emp_tz, zone_location.timezone)
+                    if convert else raw
+                )
+                for piece in pieces:
+                    w_start = _wall_clock(piece["start"])
+                    w_end = _wall_clock(piece["end"])
+                    for free_start, free_end in _subtract_consumed(w_start, w_end, other_spans):
+                        if free_start <= span_start and free_end >= span_end:
+                            covered = True
+                            break
+                    if covered:
                         break
                 if covered:
                     break

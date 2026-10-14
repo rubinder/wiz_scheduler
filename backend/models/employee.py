@@ -25,6 +25,10 @@ class Employee(Base):
     location_ids: Mapped[list[str] | None] = mapped_column(
         JSON, nullable=True
     )
+    # IANA zone the employee's availability and blackouts are written in.
+    # NULL (the default) = no zone: they are each location's local time and
+    # nothing is converted. Set only by a manager; nothing infers it.
+    timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     external_id: Mapped[str | None] = mapped_column(String, nullable=True)
 

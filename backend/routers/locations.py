@@ -2,7 +2,7 @@ import csv
 import io
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
 from backend.services.plan import assert_can_add, assert_paid_plan
+from backend.utils.tz import is_valid_timezone
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -120,6 +121,7 @@ async def update_location(
 @router.post("/bulk-upload", response_model=LocationBulkUploadResponse)
 async def bulk_upload_locations(
     file: UploadFile,
+    default_timezone: str | None = Form(None),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> LocationBulkUploadResponse:
@@ -130,6 +132,8 @@ async def bulk_upload_locations(
     JSON format: [{"name": "...", "region_name": "...", "address": "...", "timezone": "..."}]
 
     Region names are matched case-insensitively against the regions table.
+    Blank timezone cells use the multipart field default_timezone
+    (the caller's browser zone), else UTC.
     """
     # Body size + row-count caps (#46, matching employees.py::bulk_upload).
     # Free registration removed the paywall that used to sit in front of
@@ -181,6 +185,10 @@ async def bulk_upload_locations(
             ),
         )
 
+    fallback_tz = (default_timezone or "").strip()
+    if not is_valid_timezone(fallback_tz):
+        fallback_tz = "UTC"
+
     # Pre-fetch regions for case-insensitive matching
     region_result = await db.execute(
         select(Region).where(Region.company_id == current_user.company_id)
@@ -209,7 +217,7 @@ async def bulk_upload_locations(
         name = (row.get("name") or "").strip()
         region_name = (row.get("region_name") or "").strip()
         address = (row.get("address") or "").strip() or None
-        timezone = (row.get("timezone") or "").strip() or "UTC"
+        row_tz = (row.get("timezone") or "").strip() or fallback_tz
 
         if not name:
             errors.append(f"Row {row_num}: missing name, skipped")
@@ -232,12 +240,19 @@ async def bulk_upload_locations(
             skipped += 1
             continue
 
+        if not is_valid_timezone(row_tz):
+            errors.append(
+                f"Row {row_num}: timezone '{row_tz}' is not a valid IANA timezone, skipped"
+            )
+            skipped += 1
+            continue
+
         location = Location(
             company_id=current_user.company_id,
             region_id=region.id,
             name=name,
             address=address,
-            timezone=timezone,
+            timezone=row_tz,
         )
         db.add(location)
         existing_names.add(name.lower())

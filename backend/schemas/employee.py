@@ -3,10 +3,20 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from backend.utils.tz import is_valid_timezone
+
 
 class EmployeeRoleSchema(BaseModel):
     role_id: str
     skill_level: int
+
+
+def _check_employee_timezone(value: str | None) -> str | None:
+    if value is not None and not is_valid_timezone(value):
+        raise ValueError(
+            f"'{value}' is not a valid IANA timezone (for example America/New_York)"
+        )
+    return value
 
 
 class EmployeeCreate(BaseModel):
@@ -20,6 +30,13 @@ class EmployeeCreate(BaseModel):
     pay_rate: float | None = Field(default=None, ge=0)  # paid-plan gated in the router
     hire_date: date | None = None
     seniority_rank: int | None = Field(default=None, gt=0)
+    # Optional; NULL = no zone (availability is each location's local time).
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_timezone(cls, v: str | None) -> str | None:
+        return _check_employee_timezone(v)
 
 
 class EmployeeUpdate(BaseModel):
@@ -36,6 +53,13 @@ class EmployeeUpdate(BaseModel):
     pay_rate: float | None = Field(default=None, ge=0)  # paid-plan gated in the router
     hire_date: date | None = None
     seniority_rank: int | None = Field(default=None, gt=0)
+    # Optional; NULL = no zone (availability is each location's local time).
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_timezone(cls, v: str | None) -> str | None:
+        return _check_employee_timezone(v)
 
 
 class EmployeeRoleResponse(BaseModel):
@@ -83,6 +107,7 @@ class EmployeeResponse(BaseModel):
     pay_rate: float | None = None
     hire_date: date | None = None
     seniority_rank: int | None = None
+    timezone: str | None = None
     roles: list[EmployeeRoleResponse] = []
     company_ids: list[str] = []
 
@@ -99,6 +124,7 @@ class EmployeeMeRoleResponse(BaseModel):
 class EmployeeMeLocationResponse(BaseModel):
     location_id: str
     location_name: str
+    timezone: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -107,6 +133,7 @@ class EmployeeMeResponse(BaseModel):
     id: str
     full_name: str
     email: str | None
+    timezone: str | None = None
     roles: list[EmployeeMeRoleResponse] = []
     locations: list[EmployeeMeLocationResponse] = []
 

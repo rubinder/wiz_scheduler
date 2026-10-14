@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import * as rolesApi from "../../api/roles";
 import * as locationsApi from "../../api/locations";
@@ -13,6 +13,7 @@ import type {
   Role,
 } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { timeZoneOptions } from "../../utils/timezones";
 import { text, bg, border, action, badge } from "../../theme";
 
 interface RoleAssignment {
@@ -42,9 +43,10 @@ export default function Employees() {
     pay_rate: string;
     hire_date: string;
     seniority_rank: string;
+    timezone: string;
   }>({
     full_name: "", email: "", roles: [], location_ids: [], company_ids: [],
-    pay_rate: "", hire_date: "", seniority_rank: "",
+    pay_rate: "", hire_date: "", seniority_rank: "", timezone: "",
   });
 
   // Add-row state
@@ -58,10 +60,13 @@ export default function Employees() {
     pay_rate: string;
     hire_date: string;
     seniority_rank: string;
+    timezone: string;
   }>({
     full_name: "", email: "", roles: [], location_ids: [], company_ids: [],
-    pay_rate: "", hire_date: "", seniority_rank: "",
+    pay_rate: "", hire_date: "", seniority_rank: "", timezone: "",
   });
+
+  const tzOptions = useMemo(() => timeZoneOptions(), []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -115,6 +120,7 @@ export default function Employees() {
       pay_rate: emp.pay_rate != null ? String(emp.pay_rate) : "",
       hire_date: emp.hire_date ?? "",
       seniority_rank: emp.seniority_rank != null ? String(emp.seniority_rank) : "",
+      timezone: emp.timezone ?? "",
     });
   };
 
@@ -129,6 +135,7 @@ export default function Employees() {
       pay_rate: "",
       hire_date: "",
       seniority_rank: "",
+      timezone: "",
     });
   };
 
@@ -153,6 +160,7 @@ export default function Employees() {
             : (editValues.pay_rate === "" ? null : Number(editValues.pay_rate)),
         hire_date: editValues.hire_date === "" ? null : editValues.hire_date,
         seniority_rank: editValues.seniority_rank === "" ? null : Number(editValues.seniority_rank),
+        timezone: editValues.timezone || null,
       });
       setEditingId(null);
       await fetchData();
@@ -188,6 +196,7 @@ export default function Employees() {
         pay_rate: addValues.pay_rate === "" ? null : Number(addValues.pay_rate),
         hire_date: addValues.hire_date === "" ? null : addValues.hire_date,
         seniority_rank: addValues.seniority_rank === "" ? null : Number(addValues.seniority_rank),
+        timezone: addValues.timezone || null,
       });
       setAddValues({
         full_name: "",
@@ -198,6 +207,7 @@ export default function Employees() {
         pay_rate: "",
         hire_date: "",
         seniority_rank: "",
+        timezone: "",
       });
       setShowAddRow(false);
       await fetchData();
@@ -585,11 +595,33 @@ export default function Employees() {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    {isEditing
-                      ? renderLocationEditor(editValues.location_ids, (ids) =>
+                    {isEditing ? (
+                      <>
+                        {renderLocationEditor(editValues.location_ids, (ids) =>
                           setEditValues((v) => ({ ...v, location_ids: ids }))
-                        )
-                      : renderLocationBadges(emp.location_ids)}
+                        )}
+                        <label className={`mt-2 block text-xs ${text.muted}`}>
+                          {t.employeesPage.availabilityTimezone}
+                          <select
+                            className="glass-input-sm mt-1 w-full"
+                            value={editValues.timezone}
+                            onChange={(e) => setEditValues((x) => ({ ...x, timezone: e.target.value }))}
+                          >
+                            <option value="">{t.employeesPage.availabilityTimezoneNone}</option>
+                            {timeZoneOptions(editValues.timezone).map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        {renderLocationBadges(emp.location_ids)}
+                        {emp.timezone && (
+                          <span className={`mt-1 block text-xs ${text.muted}`}>{emp.timezone}</span>
+                        )}
+                      </>
+                    )}
                   </td>
                   {hasMultipleCompanies && (
                     <td className="px-4 py-2">
@@ -713,6 +745,19 @@ export default function Employees() {
                   {renderLocationEditor(addValues.location_ids, (ids) =>
                     setAddValues((v) => ({ ...v, location_ids: ids }))
                   )}
+                  <label className={`mt-2 block text-xs ${text.muted}`}>
+                          {t.employeesPage.availabilityTimezone}
+                          <select
+                            className="glass-input-sm mt-1 w-full"
+                            value={addValues.timezone}
+                            onChange={(e) => setAddValues((x) => ({ ...x, timezone: e.target.value }))}
+                          >
+                            <option value="">{t.employeesPage.availabilityTimezoneNone}</option>
+                            {tzOptions.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </label>
                 </td>
                 {hasMultipleCompanies && (
                   <td className="px-4 py-2">
@@ -745,6 +790,7 @@ export default function Employees() {
                         pay_rate: "",
                         hire_date: "",
                         seniority_rank: "",
+                        timezone: "",
                       });
                     }}
                     className={action.cancel}

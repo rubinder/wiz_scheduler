@@ -10,6 +10,7 @@ from backend.scheduling.cost_seniority import (
     seniority_score,
 )
 from backend.scheduling.preferences import blocked_by_hard_preference, preference_score
+from backend.utils.tz import utc_offset_on
 
 # Same day-name to weekday-index mapping as local_scheduler._DAY_INDEX,
 # duplicated here rather than imported: local_scheduler already imports from
@@ -218,7 +219,7 @@ def build_schedule_prompt(
     """Build the full scheduling prompt for a single location."""
     date_map = _build_date_map(week_start_date, num_days)
     date_to_day = {date: day for day, date in date_map.items()}
-    tz_offset = _tz_offset_example(location["timezone"])
+    tz_offset = utc_offset_on(location["timezone"], date_map.get("Monday", week_start_date))
 
     overtime_threshold = location.get("overtime_threshold_hours")
     hours_committed_map = employee_hours_committed or {}
@@ -444,12 +445,3 @@ def build_schedule_prompt(
     return prompt
 
 
-def _tz_offset_example(timezone_str: str) -> str:
-    """Return a representative UTC offset string for the given timezone."""
-    try:
-        from zoneinfo import ZoneInfo
-        tz = ZoneInfo(timezone_str)
-        offset = datetime(2026, 3, 30, 12, 0, tzinfo=tz).strftime("%z")
-        return f"{offset[:3]}:{offset[3:]}"
-    except Exception:
-        return "+00:00"

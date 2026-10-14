@@ -2,6 +2,7 @@ const vi = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Thời gian theo {zone}",
     loading: "Đang tải...",
     save: "Lưu",
     saving: "Đang lưu...",
@@ -381,6 +382,7 @@ const vi = {
     importTitle: "Nhập địa điểm",
     address: "Địa chỉ",
     timezone: "Múi giờ",
+    utcHint: "Các địa điểm này đang đặt múi giờ UTC. Nếu chưa đúng, hãy chọn múi giờ của chúng: {names}",
     region: "Khu vực",
     limitReached: "Gói miễn phí cho phép {limit} địa điểm — nâng cấp để thêm nhiều hơn.",
     csvLimitError: "Tệp này có {rows} địa điểm, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
@@ -427,6 +429,8 @@ const vi = {
     csvLimitError: "Tệp này có {rows} nhân viên, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
     payRate: "Mức lương ($/giờ)",
     payRateGatedHint: "Nâng cấp lên gói trả phí để đặt mức lương cho việc lập lịch có cân nhắc chi phí.",
+    availabilityTimezone: "Múi giờ của lịch rảnh",
+    availabilityTimezoneNone: "Không có (giờ địa phương của địa điểm)",
     hireDate: "Ngày tuyển dụng",
     seniorityRank: "Thứ hạng thâm niên",
     seniorityRankHint: "Ghi đè thủ công — để trống để xếp hạng theo ngày tuyển dụng.",

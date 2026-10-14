@@ -1,5 +1,6 @@
 import type { BulkUploadResponse, Location } from "../types";
 import { apiFetch } from "./client";
+import { browserTimeZone } from "../utils/timezones";
 
 export function listLocations(): Promise<Location[]> {
   return apiFetch<Location[]>("/locations/");
@@ -51,6 +52,7 @@ export async function bulkUploadLocations(
 ): Promise<BulkUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("default_timezone", browserTimeZone());
   return apiFetch<BulkUploadResponse>("/locations/bulk-upload", {
     method: "POST",
     body: formData as unknown as BodyInit,

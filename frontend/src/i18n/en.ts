@@ -2,6 +2,7 @@ const en = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "Times are in {zone}",
     loading: "Loading...",
     save: "Save",
     saving: "Saving...",
@@ -382,6 +383,7 @@ const en = {
     importTitle: "Import Locations",
     address: "Address",
     timezone: "Timezone",
+    utcHint: "These locations are set to UTC. If that isn't right, pick their timezone: {names}",
     region: "Region",
     limitReached: "Free plan allows {limit} locations — upgrade to add more.",
     csvLimitError: "This file has {rows} locations but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
@@ -428,6 +430,8 @@ const en = {
     csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
     payRate: "Pay Rate ($/hr)",
     payRateGatedHint: "Upgrade to a paid plan to set pay rate for cost-aware scheduling.",
+    availabilityTimezone: "Availability timezone",
+    availabilityTimezoneNone: "None (location's local time)",
     hireDate: "Hire Date",
     seniorityRank: "Seniority Rank (1 = most senior)",
     seniorityRankHint: "Positive integer (1 = most senior). Leave blank to auto-rank by hire date.",

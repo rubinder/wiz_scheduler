@@ -2,6 +2,7 @@ const ja = {
   // ── Common ──
   common: {
     appName: "Wiz Scheduler",
+    timesInZone: "時刻は{zone}です",
     loading: "読み込み中...",
     save: "保存",
     saving: "保存中...",
@@ -381,6 +382,7 @@ const ja = {
     importTitle: "拠点のインポート",
     address: "住所",
     timezone: "タイムゾーン",
+    utcHint: "これらの店舗はUTCに設定されています。正しくない場合はタイムゾーンを選択してください：{names}",
     region: "地域",
     limitReached: "無料プランでは拠点は{limit}件までです。追加するにはアップグレードしてください。",
     csvLimitError: "このファイルには{rows}件の拠点が含まれていますが、無料プランの残り枠は{remaining}件分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
@@ -427,6 +429,8 @@ const ja = {
     csvLimitError: "このファイルには{rows}人の従業員が含まれていますが、無料プランの残り枠は{remaining}人分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
     payRate: "時給 ($/時)",
     payRateGatedHint: "コストを考慮したスケジューリングのために時給を設定するには、有料プランにアップグレードしてください。",
+    availabilityTimezone: "勤務可能時間のタイムゾーン",
+    availabilityTimezoneNone: "なし（店舗の現地時間）",
     hireDate: "採用日",
     seniorityRank: "勤続順位",
     seniorityRankHint: "手動上書き — 空欄のままにすると採用日順にランク付けされます。",

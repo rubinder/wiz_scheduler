@@ -9,6 +9,7 @@ import { usePlan } from "../../hooks/usePlan";
 import type { Location, Region, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
+import { browserTimeZone, timeZoneOptions } from "../../utils/timezones";
 
 export default function Locations() {
   const { t } = useLanguage();
@@ -57,7 +58,7 @@ export default function Locations() {
         options: regions.map((r) => ({ value: r.id, label: r.name })),
       },
       { key: "address", label: "Address", type: "text" },
-      { key: "timezone", label: "Timezone", type: "text" },
+      { key: "timezone", label: "Timezone", type: "select", options: timeZoneOptions() },
       {
         key: "min_rest_hours",
         label: "Min rest (h)",
@@ -168,7 +169,7 @@ export default function Locations() {
         name: row.name as string,
         region_id: row.region_id as string,
         address: (row.address as string) || null,
-        timezone: (row.timezone as string) || "UTC",
+        timezone: (row.timezone as string) || browserTimeZone(),
         min_rest_hours: parseMinRest(row.min_rest_hours),
         overtime_threshold_hours: parseMinRest(row.overtime_threshold_hours),
         overtime_premium_multiplier: parseMinRest(row.overtime_premium_multiplier),
@@ -218,6 +219,14 @@ export default function Locations() {
           Upgrade to a paid plan to configure overtime settings for a location.
         </p>
       )}
+      {(() => {
+        const utcNames = locations.filter((l) => l.timezone === "UTC").map((l) => l.name);
+        return utcNames.length > 0 ? (
+          <p className={`mb-3 text-sm ${text.muted}`}>
+            {t.locationsPage.utcHint.replace("{names}", utcNames.join(", "))}
+          </p>
+        ) : null;
+      })()}
       <div className="glass-card">
         <DataTable
           columns={columns}
