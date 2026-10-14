@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
@@ -379,6 +379,11 @@ async def test_a_check_in_removed_after_derivation_leaves_the_entry_alone(
     first = await derive_time_entries(db_session, t.company_id, *window)
     assert first.created == 1
 
+    # Same order as services/data_retention: unlink the entry, then delete.
+    await db_session.execute(
+        update(TimeEntry).where(TimeEntry.shift_id == shift_id)
+        .values(check_in_id=None)
+    )
     await db_session.execute(
         delete(EmployeeCheckIn).where(EmployeeCheckIn.shift_id == shift_id)
     )

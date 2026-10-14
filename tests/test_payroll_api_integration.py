@@ -52,6 +52,7 @@ async def _tenant(db: AsyncSession, *, paid: bool) -> SimpleNamespace:
     db.add(User(id=employee_user_id, company_id=company_id,
                 email=f"{employee_user_id}@example.com", hashed_password="x",
                 full_name="E", user_role="employee"))
+    await db.flush()
     db.add(Employee(id=employee_id, company_id=company_id,
                     full_name="Dana Okafor", email=f"{employee_id}@example.com",
                     location_ids=[location_id], user_id=employee_user_id))
@@ -87,6 +88,7 @@ async def _worked_shift(
                  employee_id=t.employee_id, role_id=t.role_id,
                  role_name=t.role_name, date=start.date(), start_time=start,
                  end_time=start + timedelta(hours=hours)))
+    await db.flush()
     if checked_in:
         db.add(EmployeeCheckIn(
             id=_id(), company_id=t.company_id, location_id=t.location_id,
@@ -257,6 +259,7 @@ async def test_row_timestamps_are_localized_to_the_locations_offset(
                          employee_id=paid.employee_id, role_id=paid.role_id,
                          role_name=paid.role_name, date=start.date(),
                          start_time=start, end_time=start + timedelta(hours=8)))
+    await db_session.flush()
     checked_in_at = start + timedelta(minutes=2)  # 13:02 UTC
     db_session.add(EmployeeCheckIn(
         id=_id(), company_id=paid.company_id, location_id=paid.location_id,

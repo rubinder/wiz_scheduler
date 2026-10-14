@@ -18,7 +18,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift, ShiftSchedule
+from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift, ShiftSchedule, User
 from tests.conftest import (
     COMPANY_ID,
     EMPLOYEE1_ID,
@@ -184,6 +184,7 @@ async def checked_in_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,
@@ -235,6 +236,7 @@ async def approved_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,
@@ -259,9 +261,16 @@ async def held_lock(db_session: AsyncSession, seed_manager) -> None:
     be refused rather than silently racing the other manager's changes."""
     from backend.models import ScheduleLock
 
+    other_manager_id = _id()
+    db_session.add(User(
+        id=other_manager_id, company_id=COMPANY_ID,
+        email=f"{other_manager_id}@example.com", hashed_password="x",
+        full_name="Other Manager", user_role="manager",
+    ))
+    await db_session.flush()
     db_session.add(ScheduleLock(
         company_id=COMPANY_ID,
-        locked_by_user_id=_id(),
+        locked_by_user_id=other_manager_id,
         operation="edit_approved",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
     ))

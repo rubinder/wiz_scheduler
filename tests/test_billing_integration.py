@@ -704,7 +704,7 @@ async def test_check_and_record_usage_survives_unexpected_reload_error(
 
 
 async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise(
-    db_session: AsyncSession, og_with_card, monkeypatch
+    db_session: AsyncSession, og_with_card, seed_location, monkeypatch
 ):
     from backend.models import ShiftSchedule
     from backend.services.billing import deduct_credits_for_schedule_overage
@@ -717,7 +717,7 @@ async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise
     for _ in range(settings.INCLUDED_SCHEDULES_PER_MONTH + 1):
         db_session.add(ShiftSchedule(
             company_id=COMPANY_ID,
-            location_id=_id(),
+            location_id=seed_location.id,
             week_start_date=now.date(),
             status="DRAFT",
             created_at=now,
@@ -732,7 +732,7 @@ async def test_deduct_credits_for_schedule_overage_autoreload_off_does_not_raise
 
 
 async def test_deduct_credits_for_schedule_triggers_reload(
-    db_session: AsyncSession, og_with_card, monkeypatch
+    db_session: AsyncSession, og_with_card, seed_location, monkeypatch
 ):
     """Schedule overage debit triggers auto-reload when balance is insufficient."""
     import stripe
@@ -750,7 +750,7 @@ async def test_deduct_credits_for_schedule_triggers_reload(
     for _ in range(settings.INCLUDED_SCHEDULES_PER_MONTH + 1):
         db_session.add(ShiftSchedule(
             company_id=COMPANY_ID,
-            location_id=_id(),
+            location_id=seed_location.id,
             week_start_date=now.date(),
             status="DRAFT",
             created_at=now,

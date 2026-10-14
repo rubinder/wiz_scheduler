@@ -5,12 +5,12 @@ is what makes "0 to 1 in 0.1 increments" a database guarantee rather than a
 slider convention. The unique constraints matter because a duplicate row
 would contribute its points twice and silently double a preference's effect.
 
-Note: this suite runs on SQLite (see tests/conftest.py:44), which does not
-enforce NUMERIC(2,1) storage precision the way Postgres does, so a stored
-0.75 stays 0.75 under SQLite rather than rounding to one decimal place. That
-guarantee is real in production Postgres but isn't observable from this test
-engine; 0.1-increment enforcement is additionally asserted at the API edge
-by a Pydantic validator added in a later task.
+0.1-increment enforcement is additionally asserted at the API edge by a
+Pydantic validator.
+
+Every row needs a real company and employee: their FKs are enforced, and a
+missing parent would raise the same IntegrityError the rejection tests
+expect from the constraint under test.
 """
 
 import pytest
@@ -18,11 +18,14 @@ import pytest
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
+    Company,
+    Employee,
     EmployeeDayPreference,
     EmployeeHourRangeCap,
     EmployeeHourRangePreference,
@@ -30,6 +33,15 @@ from backend.models import (
 
 COMPANY_ID = "comp0001"
 EMPLOYEE_ID = "empl0001"
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _parents(db_session: AsyncSession) -> None:
+    db_session.add(Company(id=COMPANY_ID, name="C", slug=f"slug-{COMPANY_ID}"))
+    await db_session.flush()
+    db_session.add(Employee(id=EMPLOYEE_ID, company_id=COMPANY_ID, full_name="E",
+                            email=f"{EMPLOYEE_ID}@example.com", location_ids=[]))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
