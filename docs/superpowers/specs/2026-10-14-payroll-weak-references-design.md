@@ -10,7 +10,8 @@
 A pay record (`time_entries` row) must survive whatever happens to the rows it
 mentions: an employee, role, location or shift being deleted, or re-created
 under a new id by a re-import. It must never block those deletes with a
-foreign-key 500. Only GDPR account deletion removes a person's pay records.
+foreign-key 500. Pay records are kept for the legal retention period (up to 7
+years), even through GDPR account deletion.
 
 ### Background
 
@@ -86,9 +87,6 @@ foreign-key 500. Only GDPR account deletion removes a person's pay records.
 
 ## 3. Delete paths
 
-- **Deletes that remove pay records.** None, except GDPR and the existing
-  company/ownership-group wipe in `services/billing.py`, which already
-  deletes `time_entries` first.
 - **Manager employee delete, the 7shifts/Deputy employee removal and the
   7shifts role/location removal.** They work unchanged: payroll no longer
   blocks them, and check-ins cascade. Their pay rows remain with the snapshot
@@ -103,18 +101,34 @@ foreign-key 500. Only GDPR account deletion removes a person's pay records.
   import gets a new id. Old pay rows keep the old id and the snapshot names,
   and new pay rows use the new id. Payroll reports are unaffected, because
   they read snapshots.
+- **Only the existing company/ownership-group wipe** in `services/billing.py`
+  deletes pay records. No other path in this change does.
 
-## 4. GDPR account deletion: full erasure
+## 4. GDPR account deletion: pay records are retained
 
-`delete_account` (`routers/gdpr.py`) also deletes the employee's
-`time_entries` (by `employee_id`) and their check-ins (cascade), before the
-employee and the user.
+Employers must keep pay records for up to 7 years, and that legal obligation
+overrides an erasure request (GDPR Art. 17(3)(b)). WizScheduler processes the
+records on the employer's behalf, so the employer decides when they go, not
+the employee.
 
-Pay rows where the user only appears as a manager (approved_by, attested_by,
-exported_by) are not theirs: the new foreign keys set those columns to NULL.
+`delete_account` (`routers/gdpr.py`):
 
-**Known gap:** a time entry is deleted even when an export already included
-it. The file the employer downloaded is unaffected.
+- **Erases everything else:** the user, consents, invites, availability,
+  blackouts, roles, affinities, preferences, shifts, check-ins (by cascade)
+  and the employee row.
+- **Keeps the person's `time_entries`.** Thanks to the weak references they
+  survive the employee row, and they carry only what payroll needs:
+  - ids
+  - `employee_name`
+  - location and role names
+  - times and minutes
+- **Manager columns.** Rows where the user only appears as a manager
+  (approved_by, attested_by, exported_by) have those columns set to NULL by
+  the new foreign keys.
+
+Deleting retained pay rows after the retention period is a separate issue (a
+`RETENTION_TIME_ENTRIES_DAYS` sweep, a DPA clause and a full-history export).
+It is out of scope here.
 
 ## 5. Testing
 
@@ -136,13 +150,17 @@ Integration tests run on Postgres with foreign keys enforced.
 - **Re-import.** The employee is re-created with a new id. The old pay row
   keeps its snapshot, and new entries use the new id.
 - **GDPR:**
-  - An employee with time entries and check-ins: all gone.
+  - An employee with time entries and check-ins: everything is gone except
+    the time entries, which remain with their snapshot names.
   - A manager who approved, attested or exported: the account is deleted,
     those columns are NULL, and the pay rows remain.
 - **Migration.** The backfill fills the snapshot columns for existing rows,
   and the `migration` CI job runs upgrade and downgrade on Postgres.
 
 ## Out of scope
+
+- The 7-year retention sweep, the DPA clause and a full-history export
+  (separate issue).
 
 - Archiving or soft-delete of any kind.
 - Manager **role/location delete endpoints** (`routers/roles.py`,
