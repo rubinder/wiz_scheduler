@@ -58,6 +58,7 @@ async def approved_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,
@@ -129,6 +130,7 @@ async def _busy_employee(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=_id(),
         company_id=COMPANY_ID,
@@ -173,6 +175,7 @@ async def exported_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,

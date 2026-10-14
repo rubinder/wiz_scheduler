@@ -18,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import (
-    Company, Employee, EmployeeCheckIn, Location, Region, Shift, ShiftSchedule,
+    Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift,
+    ShiftSchedule,
 )
 from backend.models.employee_check_in import (
     CHECK_IN_DUPLICATE, CHECK_IN_MATCHED, CHECK_IN_NO_SHIFT,
@@ -50,12 +51,14 @@ async def tenant(db_session: AsyncSession) -> dict:
     there = Location(id=_id(), company_id=company_id, region_id=region_id,
                      name="There", timezone="America/New_York")
     db_session.add_all([here, there])
+    role_id = _id()
+    db_session.add(Role(id=role_id, company_id=company_id, name="Role A"))
     db_session.add(Employee(id=employee_id, company_id=company_id, full_name="E",
                             email=f"{employee_id}@example.com",
                             location_ids=[here.id, there.id]))
     await db_session.commit()
     return {"company_id": company_id, "slug": slug, "employee_id": employee_id,
-            "here": here, "there": there}
+            "role_id": role_id, "here": here, "there": there}
 
 
 async def _add_shift(db: AsyncSession, t: dict, location: Location,
@@ -67,7 +70,7 @@ async def _add_shift(db: AsyncSession, t: dict, location: Location,
     await db.flush()
     shift = Shift(id=_id(), company_id=t["company_id"], shift_schedule_id=sched_id,
                   location_id=location.id, employee_id=t["employee_id"],
-                  role_id=_id(), role_name="Floor Associate", date=start.date(),
+                  role_id=t["role_id"], role_name="Role A", date=start.date(),
                   start_time=start, end_time=start + timedelta(hours=8))
     db.add(shift)
     await db.commit()

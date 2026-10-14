@@ -380,3 +380,30 @@ async def test_reassigning_moves_the_hold(
     )
     assert avail[emp_id][0]["end"].endswith("T17:00:00+00:00"), "original employee freed"
     assert avail[second_employee_id][0]["end"].endswith("T13:00:00+00:00"), "new employee committed"
+
+
+async def test_a_naive_shift_time_is_read_as_the_locations_wall_clock(
+    db_session: AsyncSession, approved_schedule_fixture,
+):
+    """Approve must not leave a naive timestamp for the driver to interpret.
+
+    asyncpg encodes a naive datetime through .astimezone(), i.e. in the
+    SERVER's local zone, so "T13:00:00" stored as 13:00Z on a UTC host and
+    17:00Z on a US-Eastern one. A naive shift time is the location's wall
+    clock: 13:00 in America/New_York, whatever zone the server runs in.
+    """
+    from zoneinfo import ZoneInfo
+
+    from backend.models import Shift
+
+    emp_id, work_date = approved_schedule_fixture
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.employee_id == emp_id)
+    )).scalar_one()
+
+    expected = datetime(
+        work_date.year, work_date.month, work_date.day, 13, 0,
+        tzinfo=ZoneInfo("America/New_York"),
+    )
+    assert shift.start_time == expected
+    assert shift.end_time == expected + timedelta(hours=8)

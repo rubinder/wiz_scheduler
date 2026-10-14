@@ -63,6 +63,7 @@ async def _seed(
                  employee_id=employee_id, role_id=role_id, role_name=role.name,
                  date=start.date(), start_time=start,
                  end_time=start + timedelta(hours=8)))
+    await db.flush()
     check_in_id = _id()
     db.add(EmployeeCheckIn(
         id=check_in_id, company_id=company_id, location_id=location_id,

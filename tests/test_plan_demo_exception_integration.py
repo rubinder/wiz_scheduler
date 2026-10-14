@@ -51,11 +51,17 @@ async def plain_tenant(db_session: AsyncSession) -> dict:
 
 
 async def _add_schedules(db: AsyncSession, company_id: str, n: int) -> None:
+    region_id, location_id = _id(), _id()
+    db.add(Region(id=region_id, company_id=company_id, name="R"))
+    await db.flush()
+    db.add(Location(id=location_id, company_id=company_id, region_id=region_id,
+                    name="L", timezone="UTC"))
+    await db.flush()
     for _ in range(n):
         db.add(ShiftSchedule(
             id=_id(),
             company_id=company_id,
-            location_id=_id(),
+            location_id=location_id,
             week_start_date=date(2026, 8, 10),
             status="draft",
         ))

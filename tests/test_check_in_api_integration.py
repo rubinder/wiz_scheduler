@@ -52,6 +52,7 @@ async def _tenant(db: AsyncSession, *, paid: bool) -> dict:
     db.add(User(id=employee_user_id, company_id=company_id,
                 email=f"{employee_user_id}@example.com", hashed_password="x",
                 full_name="E", user_role="employee"))
+    await db.flush()
     db.add(Employee(id=employee_id, company_id=company_id, full_name="E",
                     email=f"{employee_id}@example.com",
                     location_ids=[location.id], user_id=employee_user_id))

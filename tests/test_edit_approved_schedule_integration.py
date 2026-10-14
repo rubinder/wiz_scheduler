@@ -18,7 +18,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift, ShiftSchedule
+from backend.models import Company, Employee, EmployeeCheckIn, Location, Region, Role, Shift, ShiftSchedule, User
 from tests.conftest import (
     COMPANY_ID,
     EMPLOYEE1_ID,
@@ -184,6 +184,7 @@ async def checked_in_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,
@@ -235,6 +236,7 @@ async def approved_shift(
         status="approved",
         created_at=datetime.now(timezone.utc),
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=shift_id,
         company_id=COMPANY_ID,
@@ -259,9 +261,16 @@ async def held_lock(db_session: AsyncSession, seed_manager) -> None:
     be refused rather than silently racing the other manager's changes."""
     from backend.models import ScheduleLock
 
+    other_manager_id = _id()
+    db_session.add(User(
+        id=other_manager_id, company_id=COMPANY_ID,
+        email=f"{other_manager_id}@example.com", hashed_password="x",
+        full_name="Other Manager", user_role="manager",
+    ))
+    await db_session.flush()
     db_session.add(ScheduleLock(
         company_id=COMPANY_ID,
-        locked_by_user_id=_id(),
+        locked_by_user_id=other_manager_id,
         operation="edit_approved",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
     ))
@@ -572,6 +581,37 @@ async def test_reassigning_changes_the_employee(
         select(Shift).where(Shift.id == shift_id)
     )).scalar_one()
     assert shift.employee_id == second_employee_id
+
+
+async def test_a_naive_edit_time_is_the_locations_wall_clock(
+    client: AsyncClient, manager_token: str, approved_shift, db_session,
+):
+    """A time with no offset means the location's wall clock (New York for
+    the seeded location), not whatever zone the server process runs in."""
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import select
+    from backend.models import Shift
+
+    schedule_id, shift_id = approved_shift
+    resp = await client.put(
+        f"{BASE}/{schedule_id}/approved-shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"edits": [{
+            "shift_id": shift_id,
+            "start_time": "2026-08-31T10:00:00",
+            "end_time": "2026-08-31T18:00:00",
+        }]},
+    )
+    assert resp.status_code == 200, resp.text
+
+    db_session.expire_all()
+    shift = (await db_session.execute(
+        select(Shift).where(Shift.id == shift_id)
+    )).scalar_one()
+    ny = ZoneInfo("America/New_York")
+    assert shift.start_time == datetime(2026, 8, 31, 10, 0, tzinfo=ny)
+    assert shift.end_time == datetime(2026, 8, 31, 18, 0, tzinfo=ny)
 
 
 async def test_an_edit_is_visible_to_the_week_endpoint(
