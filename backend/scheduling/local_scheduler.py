@@ -16,7 +16,7 @@ Both strategies respect employee affinities:
 import json
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Dict, List, Literal, Set, Tuple
 
 from backend.scheduling.prompts import _build_date_map, _parse_avail_by_day, eligible_for_slot
@@ -32,6 +32,7 @@ from backend.scheduling.cost_seniority import (
 )
 from backend.scheduling.rest_rules import _min_rest_violation, _rest_gap_hours  # noqa: F401
 from backend.scheduling.state import SchedulingState, ShiftAssignment
+from backend.utils.tz import utc_offset_on
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,6 @@ _DAY_INDEX = {
     "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
     "Friday": 4, "Saturday": 5, "Sunday": 6,
 }
-
-
-def _tz_offset_for_location(timezone_str: str) -> str:
-    """Return a representative UTC offset string (e.g. '-04:00')."""
-    try:
-        from zoneinfo import ZoneInfo
-        tz = ZoneInfo(timezone_str)
-        offset = datetime(2026, 3, 30, 12, 0, tzinfo=tz).strftime("%z")
-        return f"{offset[:3]}:{offset[3:]}"
-    except Exception:
-        return "+00:00"
 
 
 def _build_eligible_map(
@@ -119,7 +109,6 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
     location = state["current_location"]
     location_id = str(location.get("id", ""))
     timezone_str = location.get("timezone", "UTC")
-    tz_offset = _tz_offset_for_location(timezone_str)
     shift_template = state["current_shift_template"]
     employees = state["current_employees"]
     week_start_date = state["week_start_date"]
@@ -207,8 +196,8 @@ def local_schedule(state: SchedulingState, strategy: Strategy = "random", strate
             headcount = slot.get("headcount", 1)
             start_hm = slot.get("start_time", "00:00")
             end_hm = slot.get("end_time", "23:59")
-            start_iso = f"{slot_date}T{start_hm}:00{tz_offset}"
-            end_iso = f"{slot_date}T{end_hm}:00{tz_offset}"
+            start_iso = f"{slot_date}T{start_hm}:00{utc_offset_on(timezone_str, slot_date, start_hm)}"
+            end_iso = f"{slot_date}T{end_hm}:00{utc_offset_on(timezone_str, slot_date, end_hm)}"
 
             coworker_key = (slot_date, start_hm, end_hm)
             candidates = list(eligible_map.get((day, role_name), []))
