@@ -28,6 +28,7 @@ from backend.models import (
     User,
 )
 from backend.services.plan import assert_paid_plan
+from backend.utils.tz import is_valid_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,29 @@ DEPUTY_BYDAY_MAP = {
 class DeputyImportRequest(BaseModel):
     access_token: str
     deputy_base_url: str  # e.g. "https://7b309013021026.na.deputy.com"
+    # The importing manager's browser zone, used when Deputy's location
+    # payload carries no usable timezone.
+    default_timezone: str | None = None
+
+
+def _deputy_location_timezone(
+    deputy_location: dict, default_timezone: str | None,
+) -> str:
+    """Deputy's zone for a location if its payload carries one, else the
+    importing manager's browser zone, else the historical America/New_York."""
+    meta = deputy_location.get("_DPMetaData") or {}
+    address = meta.get("AddressObject") or {}
+    for candidate in (
+        deputy_location.get("Timezone"),
+        deputy_location.get("TimeZone"),
+        meta.get("Timezone"),
+        address.get("Timezone"),
+    ):
+        if isinstance(candidate, str) and is_valid_timezone(candidate):
+            return candidate
+    if default_timezone and is_valid_timezone(default_timezone):
+        return default_timezone
+    return "America/New_York"
 
 
 class DeputyImportResult(BaseModel):
@@ -185,8 +209,9 @@ async def import_from_deputy(
             name = dl.get("CompanyName") or f"Location {deputy_id}"
             addr_obj = (dl.get("_DPMetaData") or {}).get("AddressObject") or {}
             address = addr_obj.get("PrintFull") or addr_obj.get("Print") or ""
-            # Deputy doesn't expose timezone on locations; default to America/New_York
-            timezone = "America/New_York"
+            # Only used for NEW locations below: an existing location keeps
+            # whatever zone a manager may have corrected it to.
+            timezone = _deputy_location_timezone(dl, body.default_timezone)
 
             if ext_id in existing_locs:
                 loc = existing_locs[ext_id]

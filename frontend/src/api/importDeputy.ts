@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { browserTimeZone } from "../utils/timezones";
 
 export interface DeputyImportResult {
   locations: { created: number; updated: number; deleted: number };
@@ -17,6 +18,7 @@ export function importFromDeputy(
     body: JSON.stringify({
       access_token: accessToken,
       deputy_base_url: deputyBaseUrl,
+      default_timezone: browserTimeZone(),
     }),
   });
 }
