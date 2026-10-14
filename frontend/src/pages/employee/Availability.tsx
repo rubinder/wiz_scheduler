@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { availabilityZoneNote } from "../../utils/timezones";
 import { text, bg, border, badge } from "../../theme";
 import type { EmployeeAvailability, EmployeeMeProfile } from "../../types";
 
@@ -110,7 +111,18 @@ export default function Availability() {
 
   return (
     <div>
-      <h1 className={`text-2xl font-bold ${text.heading} mb-6`}>{t.availability.title}</h1>
+      <h1 className={`text-2xl font-bold ${text.heading} mb-4`}>{t.availability.title}</h1>
+      {(() => {
+        const zone = availabilityZoneNote(
+          profile.timezone,
+          profile.locations.map((l) => l.timezone).filter((z): z is string => !!z),
+        );
+        return zone ? (
+          <p className={`mb-4 text-sm ${text.muted}`}>
+            {t.common.timesInZone.replace("{zone}", zone)}
+          </p>
+        ) : null;
+      })()}
 
       {error && (
         <div className="glass-alert-error mb-4">
