@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { availabilityZoneNote, browserTimeZone, timeZoneOptions } from "./timezones";
+import {
+  availabilityZoneNote,
+  browserTimeZone,
+  employeeLocationZones,
+  timeZoneOptions,
+} from "./timezones";
 
 describe("browserTimeZone", () => {
   it("reads the runtime zone (the test script pins TZ=Asia/Tokyo)", () => {
@@ -38,5 +43,22 @@ describe("availabilityZoneNote", () => {
   });
   it("names the zone when a location differs", () => {
     expect(availabilityZoneNote("America/New_York", ["America/Los_Angeles"])).toBe("America/New_York");
+  });
+});
+
+describe("employeeLocationZones", () => {
+  const zones = new Map([
+    ["loc-ny", "America/New_York"],
+    ["loc-la", "America/Los_Angeles"],
+  ]);
+  it("maps the employee's location ids to their zones", () => {
+    expect(employeeLocationZones(["loc-la", "loc-ny"], zones)).toEqual([
+      "America/Los_Angeles",
+      "America/New_York",
+    ]);
+  });
+  it("skips unknown locations and handles no locations", () => {
+    expect(employeeLocationZones(["loc-gone"], zones)).toEqual([]);
+    expect(employeeLocationZones(null, zones)).toEqual([]);
   });
 });

@@ -13,6 +13,7 @@ import {
   importAvailabilitiesFromDeputy,
   type DeputyAvailImportResult,
 } from "../../api/importDeputy";
+import { listLocations } from "../../api/locations";
 import { listRoles } from "../../api/roles";
 import DemoGuard from "../../components/shared/DemoGuard";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
@@ -22,6 +23,7 @@ import type {
   EmployeeAvailability,
 } from "../../types";
 import { action, text, bg, border, spinner as spinnerClass } from "../../theme";
+import { availabilityZoneNote, employeeLocationZones } from "../../utils/timezones";
 import {
   formatDate,
   formatTime,
@@ -134,16 +136,21 @@ export default function EmployeeAvailability() {
   });
 
   const [roleMap, setRoleMap] = useState<Map<string, string>>(new Map());
+  const [zoneByLocationId, setZoneByLocationId] = useState<Map<string, string>>(new Map());
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [employeeData, rolesData] = await Promise.all([
+      const [employeeData, rolesData, locationData] = await Promise.all([
         listEmployees(),
         listRoles(),
+        // Only feeds the optional timezone note: a failure here must not
+        // cost the page its employee list.
+        listLocations().catch(() => []),
       ]);
       setEmployees(employeeData);
       setRoleMap(new Map(rolesData.map((r) => [r.id, r.name])));
+      setZoneByLocationId(new Map(locationData.map((l) => [l.id, l.timezone])));
       setError(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -329,6 +336,14 @@ export default function EmployeeAvailability() {
       return e.full_name.toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q);
     });
   }, [employees, availFilter]);
+
+  // The zone an employee's availability is entered in, or null (the default:
+  // no employee timezone, or every location shares it) to say nothing.
+  const zoneNoteFor = (emp: Employee | undefined): string | null =>
+    emp
+      ? availabilityZoneNote(emp.timezone, employeeLocationZones(emp.location_ids, zoneByLocationId))
+      : null;
+  const formZoneNote = zoneNoteFor(employees.find((e) => e.id === availForm.employee_id));
 
   // ── Render ──
 
@@ -727,6 +742,11 @@ export default function EmployeeAvailability() {
                 {t.common.cancel}
               </button>
             </div>
+            {formZoneNote && (
+              <p className={`mt-3 text-sm ${text.muted}`}>
+                {t.common.timesInZone.replace("{zone}", formZoneNote)}
+              </p>
+            )}
             <DemoGuard>
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <span className={`text-xs font-medium ${text.muted}`}>
@@ -770,6 +790,7 @@ export default function EmployeeAvailability() {
             {filteredEmployees.map((emp) => {
               const windows = availByEmployee.get(emp.id) || [];
               if (windows.length === 0) return null;
+              const zoneNote = zoneNoteFor(emp);
 
               return (
                 <div
@@ -791,6 +812,11 @@ export default function EmployeeAvailability() {
                           {emp.roles
                             .map((r) => roleMap.get(r.role_id) ?? r.role_id)
                             .join(", ")}
+                        </span>
+                      )}
+                      {zoneNote && (
+                        <span className={`text-xs ${text.muted}`}>
+                          {t.common.timesInZone.replace("{zone}", zoneNote)}
                         </span>
                       )}
                     </div>

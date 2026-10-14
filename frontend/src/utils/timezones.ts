@@ -34,3 +34,14 @@ export function availabilityZoneNote(
   if (!employeeTz) return null;
   return locationZones.some((z) => z !== employeeTz) ? employeeTz : null;
 }
+
+/** The zones of an employee's locations, for `availabilityZoneNote`.
+ *  Unknown location ids are skipped. */
+export function employeeLocationZones(
+  locationIds: string[] | null | undefined,
+  zoneByLocationId: Map<string, string>,
+): string[] {
+  return (locationIds ?? [])
+    .map((id) => zoneByLocationId.get(id))
+    .filter((z): z is string => !!z);
+}

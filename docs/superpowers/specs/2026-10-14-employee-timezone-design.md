@@ -195,8 +195,8 @@ are only reachable for cross-zone employees and are covered by tests.
 - Preferences, caps and day preferences.
 - The employee availability pages. A small "Times are in America/Los_Angeles"
   note appears **only** for an employee with an explicit timezone that differs
-  from one of their locations' zones. (Implemented on the employee's own
-  Availability page; managers see the zone on the Employees page.)
+  from one of their locations' zones. The note appears on the employee's
+  Availability page and on the manager's Employee Availability page.
 
 ## 5. Testing
 
