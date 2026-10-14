@@ -123,3 +123,102 @@ def test_foreign_key_column_type_compatibility():
         f"Foreign key column type mismatches found (these will cause constraint violations):\n"
         + "\n".join(f"  • {m}" for m in mismatches)
     )
+
+
+# ---------------------------------------------------------------------------
+# Running the chain against real Postgres
+# ---------------------------------------------------------------------------
+# The checks above only read the migration files. 0044 passed all of them and
+# still failed the production deploy on a table that did not exist, so this
+# runs `alembic upgrade head` the way the ECS entrypoint does — as a table
+# owner that, like the RDS master user, is neither SUPERUSER nor BYPASSRLS.
+
+import subprocess
+import sys
+
+
+def _alembic(url: str, *args: str) -> None:
+    repo_root = Path(__file__).parent.parent
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", *args],
+        cwd=repo_root / "backend",
+        env={**os.environ, "DATABASE_URL": url, "PYTHONPATH": str(repo_root)},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"alembic {' '.join(args)} failed:\n{result.stdout}\n{result.stderr}"
+    )
+
+
+@pytest.fixture(scope="module")
+def rds_like_postgres():
+    """A Postgres 15 (production's major version) whose schema owner has the
+    RDS master user's limits: CREATEROLE, but no SUPERUSER and no BYPASSRLS."""
+    from testcontainers.community.postgres import PostgresContainer
+
+    with PostgresContainer("postgres:15-alpine", driver=None) as pg:
+        pg.exec([
+            "psql", "-U", pg.username, "-d", pg.dbname, "-c",
+            "CREATE ROLE owner LOGIN PASSWORD 'owner' CREATEROLE NOSUPERUSER NOBYPASSRLS;"
+            f" ALTER DATABASE {pg.dbname} OWNER TO owner;"
+            " ALTER SCHEMA public OWNER TO owner;",
+        ])
+        host, port = pg.get_container_host_ip(), pg.get_exposed_port(5432)
+        yield (
+            f"postgresql+asyncpg://owner:owner@{host}:{port}/{pg.dbname}",
+            pg,
+        )
+
+
+def _psql(pg, sql: str) -> str:
+    result = pg.exec(["psql", "-U", "owner", "-d", pg.dbname, "-At", "-c", sql])
+    assert result.exit_code == 0, result.output.decode()
+    return result.output.decode().strip()
+
+
+def test_upgrade_head_downgrade_and_upgrade_again(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _alembic(url, "downgrade", "0042")
+    _alembic(url, "upgrade", "head")
+
+
+def test_every_tenant_table_has_rls_enabled_but_not_forced(rds_like_postgres):
+    """ENABLE, never FORCE: the app connects as the table owner, and FORCE
+    with no owner policy makes every tenant table read as empty."""
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+
+    rows = _psql(pg, """
+        SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
+               (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname)
+        FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
+          AND EXISTS (SELECT 1 FROM information_schema.columns ic
+                      WHERE ic.table_schema = 'public' AND ic.table_name = c.relname
+                        AND ic.column_name = 'company_id')
+        ORDER BY 1
+    """).splitlines()
+
+    assert rows, "expected tenant tables"
+    problems = [r for r in rows if r.split("|")[1:] != ["t", "f", "3"]]
+    assert not problems, (
+        "each company_id table needs RLS enabled, not forced, with the "
+        "app/analytics/admin policies (table|rls|force|policies):\n"
+        + "\n".join(problems)
+    )
+
+
+def test_the_table_owner_still_sees_and_writes_rows(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, """
+        INSERT INTO ownership_groups (id, name) VALUES ('ogmig001', 'G')
+            ON CONFLICT DO NOTHING;
+        INSERT INTO companies (id, name, slug, ownership_group_id)
+            VALUES ('comig001', 'C', 'c-mig-1', 'ogmig001') ON CONFLICT DO NOTHING;
+        INSERT INTO regions (id, company_id, name) VALUES ('rgmig001', 'comig001', 'R')
+            ON CONFLICT DO NOTHING;
+    """)
+    assert _psql(pg, "SELECT count(*) FROM regions WHERE id = 'rgmig001'") == "1"
