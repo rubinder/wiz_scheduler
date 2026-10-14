@@ -134,7 +134,22 @@ async def collect_edit_warnings(
             # location zone: availability converted emp->loc, other shifts read
             # in that zone. Without one (or with no known location), today's
             # per-location faces are used unchanged.
-            convert = location is not None and needs_conversion(emp_tz, location.timezone)
+            #
+            # A new shift (no shift_id) has no row to join, but it is created
+            # at the schedule's own location, so that is the zone it is read
+            # in. `zone_location` serves only the conversion path; `location`
+            # keeps its existing meaning, so the no-timezone path is untouched.
+            zone_location = location
+            if zone_location is None and emp_tz is not None:
+                zone_location = (await db.execute(
+                    select(Location).where(
+                        Location.id == schedule.location_id,
+                        Location.company_id == company_id,
+                    )
+                )).scalar_one_or_none()
+            convert = zone_location is not None and needs_conversion(
+                emp_tz, zone_location.timezone
+            )
 
             # 1. no_availability -- the employee's windows, minus their other
             #    shifts, must cover the span. Same definition the pipeline
@@ -162,7 +177,7 @@ async def collect_edit_warnings(
             )).all()
             other_spans: list[tuple[datetime, datetime]] = []
             for s, loc in other_rows:
-                face = _shift_local_face(s, location if convert else loc)
+                face = _shift_local_face(s, zone_location if convert else loc)
                 if face is None:
                     # Bad/missing location.timezone: degrade rather than
                     # raise, same convention as graph.py. This drops the
@@ -175,7 +190,7 @@ async def collect_edit_warnings(
             for w in windows:
                 raw = [{"start": w.start_time.isoformat(), "end": w.end_time.isoformat()}]
                 pieces = (
-                    availability_to_location(raw, emp_tz, location.timezone)
+                    availability_to_location(raw, emp_tz, zone_location.timezone)
                     if convert else raw
                 )
                 for piece in pieces:
