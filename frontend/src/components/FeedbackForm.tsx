@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 interface FeedbackFormProps {
   onClose: () => void;
@@ -49,8 +50,10 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
     }
   };
 
+  // Portal to <body>: rendered in place, the TopBar's backdrop-blur makes it
+  // the containing block for this fixed overlay and the page paints over it.
   if (success) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
           <h2 className="text-xl font-semibold mb-2 text-green-600">
@@ -60,11 +63,12 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
             Your feedback has been submitted. We'll review it shortly.
           </p>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
@@ -146,6 +150,7 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
