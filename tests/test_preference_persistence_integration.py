@@ -30,6 +30,7 @@ async def _approved_with_shift(db, violations):
         created_at=datetime.now(timezone.utc),
         preference_summary={"shifts_against_preference": 1, "unavoidable": 0, "roster_thin": False},
     ))
+    await db.flush()
     db.add(Shift(
         id=shid, company_id=COMPANY_ID, shift_schedule_id=sid, location_id=LOCATION_ID,
         employee_id=EMPLOYEE1_ID, role_id=ROLE_FLOOR_ID, role_name="Floor Associate",
@@ -201,6 +202,7 @@ async def test_approved_reassignment_recomputes_a_different_schedule_in_the_week
         id=other_location_id, company_id=COMPANY_ID, region_id=REGION_ID,
         name="Uptown Store", timezone="America/New_York",
     ))
+    await db_session.flush()
     other_sid = _id()
     other_shid = _id()
     db_session.add(ShiftSchedule(
@@ -209,6 +211,7 @@ async def test_approved_reassignment_recomputes_a_different_schedule_in_the_week
         created_at=datetime.now(timezone.utc),
         preference_summary={"shifts_against_preference": 1, "unavoidable": 0, "roster_thin": False},
     ))
+    await db_session.flush()
     db_session.add(Shift(
         id=other_shid, company_id=COMPANY_ID, shift_schedule_id=other_sid, location_id=other_location_id,
         employee_id=EMPLOYEE2_ID, role_id=ROLE_FLOOR_ID, role_name="Floor Associate",

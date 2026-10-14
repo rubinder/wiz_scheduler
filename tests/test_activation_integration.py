@@ -16,14 +16,15 @@ from unittest.mock import MagicMock
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Company, Employee, Location, Region, User
+from backend.models import Company, Employee, Location, Region, ShiftSchedule, User
 from backend.models.activation_event import ActivationEvent
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.activation import record_milestone
 from backend.services.activation_report import build_activation_report
+from backend.services.location_quota import DISCARDED
 from tests.conftest import _id, _make_token
 
 
@@ -43,7 +44,7 @@ async def og_tenant(db_session: AsyncSession) -> dict:
     each create two locations of their own to prove idempotency, which
     would exceed the cap if one already existed. `location_id` is a bare
     id used only as the LocationResult.location_id in the mocked-pipeline
-    generation tests — nothing there requires a real Location row.
+    generation tests, which request `generation_location` to give it a row.
     """
     og_id, company_id, region_id, location_id, user_id = (
         _id(), _id(), _id(), _id(), _id()
@@ -412,6 +413,17 @@ async def test_bulk_upload_employees_all_skipped_records_nothing(
 # Call site 4: POST /schedules/generate -> first_generation
 # ---------------------------------------------------------------------------
 
+@pytest_asyncio.fixture
+async def generation_location(db_session: AsyncSession, og_tenant: dict) -> None:
+    """A real Location behind og_tenant["location_id"]: generation writes a
+    ShiftSchedule for each LocationResult, and its location_id is a FK."""
+    db_session.add(Location(
+        id=og_tenant["location_id"], company_id=og_tenant["company_id"],
+        region_id=og_tenant["region_id"], name="HQ", timezone="UTC",
+    ))
+    await db_session.commit()
+
+
 def _location_result(status: str, location_id: str) -> dict:
     return {
         "location_id": location_id,
@@ -423,7 +435,8 @@ def _location_result(status: str, location_id: str) -> dict:
 
 
 async def test_generate_does_not_record_on_parse_error(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     async def fake_pipeline(**kwargs):
         yield _location_result("PARSE_ERROR", og_tenant["location_id"])
@@ -446,7 +459,8 @@ async def test_generate_does_not_record_on_parse_error(
 
 
 async def test_generate_does_not_record_on_conflict(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     async def fake_pipeline(**kwargs):
         yield _location_result("CONFLICT", og_tenant["location_id"])
@@ -469,7 +483,8 @@ async def test_generate_does_not_record_on_conflict(
 
 
 async def test_generate_does_not_record_on_quota_exceeded(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     """QUOTA_EXCEEDED means nothing was generated for that location — it's
     exactly the stalled-cohort case the funnel exists to measure, so it
@@ -495,7 +510,8 @@ async def test_generate_does_not_record_on_quota_exceeded(
 
 
 async def test_generate_records_first_generation_on_ok_result(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     async def fake_pipeline(**kwargs):
         yield _location_result("ok", og_tenant["location_id"])
@@ -521,7 +537,8 @@ async def test_generate_records_first_generation_on_ok_result(
 
 
 async def test_generate_error_then_ok_records_exactly_once(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     """A PARSE_ERROR result followed by an ok result in the same run
     records the milestone once, from the ok result."""
@@ -550,7 +567,8 @@ async def test_generate_error_then_ok_records_exactly_once(
 
 
 async def test_generate_twice_records_first_generation_once(
-    client: AsyncClient, db_session: AsyncSession, og_tenant: dict, monkeypatch
+    client: AsyncClient, db_session: AsyncSession, og_tenant: dict,
+    generation_location: None, monkeypatch,
 ):
     async def fake_pipeline(**kwargs):
         yield _location_result("ok", og_tenant["location_id"])
@@ -568,6 +586,14 @@ async def test_generate_twice_records_first_generation_once(
         assert resp.status_code == 200
         async for _ in resp.aiter_lines():
             pass
+        # Discard the draft, as a manager retrying would: the free plan
+        # holds one kept schedule per location per month.
+        await db_session.execute(
+            update(ShiftSchedule)
+            .where(ShiftSchedule.location_id == og_tenant["location_id"])
+            .values(status=DISCARDED)
+        )
+        await db_session.commit()
 
     rows = [
         r for r in await _events(db_session, og_tenant["og_id"])

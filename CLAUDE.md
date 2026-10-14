@@ -100,6 +100,13 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 
 **Keeping it current:** After significant code changes, run `/graphify . --update` to incrementally re-extract only changed files. Code-only changes don't need LLM calls (AST-only rebuild).
 
+### Read `graphify-out/GRAPH_REPORT.md` whenever you:
+- Answer any architecture, cross-module, or "how does X work" questions.
+- Need to trace a deep function call chain or class inheritance path across directories.
+- Need to locate "god nodes" (high-traffic components) or module "communities".
+- Plan to run broad `grep`, `find`, or multi-file text search operations.
+
+
 ## Pre-PR refresh hook
 
 `.claude/settings.json` registers a `PreToolUse` hook on `Bash` that fires whenever a command contains `git push` or `gh pr create`. The hook:

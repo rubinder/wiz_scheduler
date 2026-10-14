@@ -23,7 +23,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Company, ShiftSchedule
+from backend.models import Company, Location, Region, ShiftSchedule
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import check_schedule_quota
 from backend.services.plan import get_plan_state
@@ -46,9 +46,15 @@ async def _make_og(db: AsyncSession, og_id: str, *, paid: bool = False,
 
 
 async def _add_schedules(db: AsyncSession, company_id: str, n: int) -> None:
+    region_id, location_id = _id(), _id()
+    db.add(Region(id=region_id, company_id=company_id, name="R"))
+    await db.flush()
+    db.add(Location(id=location_id, company_id=company_id, region_id=region_id,
+                    name="L", timezone="UTC"))
+    await db.flush()
     for _ in range(n):
         db.add(ShiftSchedule(
-            id=_id(), company_id=company_id, location_id=_id(),
+            id=_id(), company_id=company_id, location_id=location_id,
             week_start_date=date(2026, 8, 10), status="draft",
         ))
     await db.commit()

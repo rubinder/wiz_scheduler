@@ -1,7 +1,7 @@
 """
 Shared test fixtures for WizScheduler.
 
-Uses SQLite + aiosqlite as the test database so no Postgres is required.
+Uses Postgres via testcontainers for all tests to match production environment.
 """
 
 import pytest
@@ -32,6 +32,7 @@ from httpx import ASGITransport, AsyncClient
 from jose import jwt
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.community.postgres import PostgresContainer
 
 from backend.config import settings
 from backend.database import Base
@@ -49,41 +50,78 @@ from backend.models import (
 )
 
 # ---------------------------------------------------------------------------
-# Async SQLite engine for tests
+# Postgres container (session-scoped) — starts once, used for all tests
 # ---------------------------------------------------------------------------
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///"
+_pg_container = None
+_test_engine = None
 
-test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+def pytest_sessionstart():
+    """Called before test collection; start the Postgres container."""
+    global _pg_container, _test_engine
 
+    from sqlalchemy.pool import NullPool
+
+    _pg_container = PostgresContainer("postgres:16-alpine")
+    _pg_container.start()
+
+    # Extract connection details
+    host = _pg_container.get_container_host_ip()
+    port = _pg_container.get_exposed_port(5432)
+    db_name = _pg_container.dbname
+    user = _pg_container.username
+    password = _pg_container.password
+
+    # Build connection string for asyncpg (production dialect)
+    TEST_DATABASE_URL = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db_name}"
+
+    # Create engine with NullPool to avoid connection pool issues across event loops
+    _test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
 
 def pytest_sessionfinish(session, exitstatus):
-    """Dispose the test engine so aiosqlite's per-connection thread pool
-    shuts down. Without this, pytest prints the summary but the Python
-    process hangs because the aiosqlite threads keep the interpreter alive.
-    """
-    import asyncio
-    try:
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(test_engine.dispose())
-        loop.close()
-    except Exception:
-        pass
+    """Called after test run; stop the Postgres container and dispose engine."""
+    global _pg_container, _test_engine
 
+    if _test_engine:
+        import asyncio
+        try:
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(_test_engine.dispose())
+            loop.close()
+        except Exception:
+            pass
 
-# Register SQLite-compatible replacements for PostgreSQL functions
-@event.listens_for(test_engine.sync_engine, "connect")
-def _register_sqlite_functions(dbapi_connection, connection_record):
-    """Make server_default=text("now()") and gen_random_uuid() work on SQLite."""
-    import sqlite3
-    from datetime import datetime, timezone as _tz
+    if _pg_container:
+        _pg_container.stop()
 
-    dbapi_connection.create_function("now", 0, lambda: datetime.now(_tz.utc).isoformat())
+def _get_test_engine():
+    """Get the test engine. Must be called after pytest_sessionstart() has run."""
+    if _test_engine is None:
+        raise RuntimeError("Test engine not initialized. Did pytest_sessionstart() run?")
+    return _test_engine
 
+# Lazy reference for backward compatibility
+class _TestEngineProxy:
+    """Proxy that evaluates test_engine lazily."""
+    def __getattr__(self, name):
+        return getattr(_get_test_engine(), name)
+
+    def begin(self):
+        return _get_test_engine().begin()
+
+    def connect(self):
+        return _get_test_engine().connect()
+
+test_engine = _TestEngineProxy()
+
+def get_test_session_factory():
+    """Get the session factory."""
+    return async_sessionmaker(_get_test_engine(), class_=AsyncSession, expire_on_commit=False)
+
+TestSessionLocal = None  # Will be set during session start
 
 # ---------------------------------------------------------------------------
-# ID helper — SQLite has no gen_random_id(); we supply IDs explicitly.
+# ID helper — we supply IDs explicitly (matches production UUID generation)
 # ---------------------------------------------------------------------------
 
 from backend.utils.id_gen import generate_short_id
@@ -99,10 +137,11 @@ def _id() -> str:
 @pytest_asyncio.fixture(autouse=True)
 async def setup_database():
     """Create all tables before each test, drop after."""
-    async with test_engine.begin() as conn:
+    engine = _get_test_engine()
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with test_engine.begin() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
@@ -141,7 +180,7 @@ def reset_in_process_rate_limiters():
 
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with TestSessionLocal() as session:
+    async with get_test_session_factory()() as session:
         yield session
 
 
