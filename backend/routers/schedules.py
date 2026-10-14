@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -553,10 +554,10 @@ async def edit_approved_shifts(
                     shift.date = edit.date
                     changed = True
                 if edit.start_time is not None:
-                    shift.start_time = edit.start_time
+                    shift.start_time = await _aware_for_shift(db, shift, edit.start_time)
                     changed = True
                 if edit.end_time is not None:
-                    shift.end_time = edit.end_time
+                    shift.end_time = await _aware_for_shift(db, shift, edit.end_time)
                     changed = True
                 if changed:
                     applied += 1
@@ -636,6 +637,32 @@ async def edit_approved_shifts(
     return result
 
 
+def _at_location(value: str | datetime, zone: ZoneInfo | None) -> datetime:
+    """A stored shift time as an aware datetime, reading a naive one as the
+    location's wall clock.
+
+    Generated times carry the location's offset, but nothing enforces that on
+    LLM output. A naive datetime must not reach the driver: asyncpg encodes it
+    via .astimezone(), i.e. in the server's local zone, so the same "13:00"
+    would be stored as a different instant on a UTC host than on any other.
+    """
+    dt = datetime.fromisoformat(value) if isinstance(value, str) else value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=zone or timezone.utc)
+    return dt
+
+
+async def _aware_for_shift(db: AsyncSession, shift: Shift, value: datetime) -> datetime:
+    """_at_location for an edit to an existing shift: only a naive value needs
+    the shift's location zone, so only then is it looked up."""
+    if value.tzinfo is not None:
+        return value
+    tz_name = (await db.execute(
+        select(Location.timezone).where(Location.id == shift.location_id)
+    )).scalar_one_or_none()
+    return _at_location(value, ZoneInfo(tz_name) if tz_name else None)
+
+
 @router.post("/{schedule_id}/approve", response_model=ShiftScheduleResponse)
 async def approve_schedule(
     schedule_id: str,
@@ -700,6 +727,16 @@ async def approve_schedule(
                     if cid not in condensed_to_role:
                         condensed_to_role[cid] = str(crm.role_id)
 
+                loc_tz_result = await db.execute(
+                    select(Location.id, Location.timezone).where(
+                        Location.company_id == current_user.company_id
+                    )
+                )
+                location_zones = {
+                    str(lid): ZoneInfo(tz or "UTC")
+                    for lid, tz in loc_tz_result.all()
+                }
+
                 shifts_data = json.loads(schedule.raw_llm_output)
                 for s in shifts_data:
                     # Skip VACANT placeholders and non-ok shifts
@@ -731,8 +768,8 @@ async def approve_schedule(
                         role_id=role_id,
                         role_name=s.get("role_name", ""),
                         date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
-                        start_time=datetime.fromisoformat(s["start_time"]) if isinstance(s["start_time"], str) else s["start_time"],
-                        end_time=datetime.fromisoformat(s["end_time"]) if isinstance(s["end_time"], str) else s["end_time"],
+                        start_time=_at_location(s["start_time"], location_zones.get(str(loc_id))),
+                        end_time=_at_location(s["end_time"], location_zones.get(str(loc_id))),
                         preference_violations=list(s.get("preference_violations") or []),
                     )
                     db.add(shift)
