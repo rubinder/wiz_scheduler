@@ -5,26 +5,21 @@ Revises: 0044
 Create Date: 2026-10-13 00:00:00.000000
 
 RLS policies filter by company_id (e.g., `WHERE company_id = ANY(...)`).
-Without indexes on company_id, every RLS-filtered query becomes a full table scan.
+Without an index whose leading column is company_id, every RLS-filtered query
+on that table becomes a full table scan.
 
-This migration adds B-tree indexes on company_id for all tenant tables that
-don't already have it in a composite index. Tables like time_entries and
-employee_check_ins already have company_id in composite indexes and are skipped.
+Most tenant tables already have one (models declare `index=True`, or a
+composite index starts with company_id), so the targets are read from the
+catalog at migration time rather than listed by hand: an index is created
+only where none leads with company_id. As of 0044 that is user_consents.
 
-Performance impact:
-- Selective queries on single/few companies → O(log n) instead of O(n)
-- JOINs via company_id → can use indexed lookups
-- Composite indexes still used for their specific queries (unchanged)
-- No breaking changes; existing queries benefit automatically
+Indexes this migration creates are named ix_rls_<table>_company_id, so
+downgrade drops exactly those and never an index a model declares.
 
-Index naming convention: ix_<table>_company_id
-
-Background: Issue #125 Part 2 (Postgres RLS) uses company_id in WHERE clauses.
-Without indexes, RLS filtering would degrade performance significantly for
-large tables (shifts, time_entries, etc).
-
+Background: Issue #125 Part 2 (Postgres RLS).
 """
 from alembic import op
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -35,61 +30,38 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add company_id indexes for RLS performance."""
+    """Add a company_id index to each tenant table that has none leading on it."""
+    tables = op.get_bind().execute(sa.text("""
+        SELECT c.table_name
+        FROM information_schema.columns c
+        JOIN information_schema.tables t
+          ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+        WHERE c.table_schema = 'public'
+          AND c.column_name = 'company_id'
+          AND t.table_type = 'BASE TABLE'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pg_index i
+              JOIN pg_attribute a
+                ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+              WHERE i.indrelid = format('public.%I', c.table_name)::regclass
+                AND a.attname = 'company_id'
+          )
+        ORDER BY c.table_name
+    """)).scalars().all()
 
-    # Tables that need company_id indexes (don't already have one)
-    # Format: (table_name, index_name)
-    tables_needing_indexes = [
-        ("regions", "ix_regions_company_id"),
-        ("locations", "ix_locations_company_id"),
-        ("shift_templates", "ix_shift_templates_company_id"),
-        ("shift_schedules", "ix_shift_schedules_company_id"),
-        ("shifts", "ix_shifts_company_id"),
-        ("employees", "ix_employees_company_id"),
-        ("roles", "ix_roles_company_id"),
-        ("ownership_group_employees", "ix_ownership_group_employees_company_id"),
-        ("employee_invites", "ix_employee_invites_company_id"),
-        ("employee_availability", "ix_employee_availability_company_id"),
-        ("affinities", "ix_affinities_company_id"),
-        ("scheduling_preferences", "ix_scheduling_preferences_company_id"),
-        ("special_hours", "ix_special_hours_company_id"),
-        ("failure_logs", "ix_failure_logs_company_id"),
-        ("storage_snapshots", "ix_storage_snapshots_company_id"),
-        ("invoice_items", "ix_invoice_items_company_id"),
-    ]
-
-    for table, index_name in tables_needing_indexes:
-        op.create_index(index_name, table, ["company_id"])
-
-    # Note: The following tables already have company_id in composite indexes:
-    # - time_entries: ix_time_entries_company_pay_date, etc
-    # - employee_check_ins: ix_employee_check_ins_location_date, etc
-    # - feedback_submissions: ix_feedback_company_id_created_at
-    # - payroll_exports: ix_payroll_exports_company_created
-    # These don't get additional single-column indexes to avoid duplication
+    for table in tables:
+        op.create_index(f"ix_rls_{table}_company_id", table, ["company_id"])
 
 
 def downgrade() -> None:
-    """Remove company_id indexes."""
+    """Remove the company_id indexes this migration created."""
+    indexes = op.get_bind().execute(sa.text("""
+        SELECT indexname, tablename
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname LIKE 'ix\\_rls\\_%\\_company\\_id'
+    """)).all()
 
-    tables_needing_indexes = [
-        ("regions", "ix_regions_company_id"),
-        ("locations", "ix_locations_company_id"),
-        ("shift_templates", "ix_shift_templates_company_id"),
-        ("shift_schedules", "ix_shift_schedules_company_id"),
-        ("shifts", "ix_shifts_company_id"),
-        ("employees", "ix_employees_company_id"),
-        ("roles", "ix_roles_company_id"),
-        ("ownership_group_employees", "ix_ownership_group_employees_company_id"),
-        ("employee_invites", "ix_employee_invites_company_id"),
-        ("employee_availability", "ix_employee_availability_company_id"),
-        ("affinities", "ix_affinities_company_id"),
-        ("scheduling_preferences", "ix_scheduling_preferences_company_id"),
-        ("special_hours", "ix_special_hours_company_id"),
-        ("failure_logs", "ix_failure_logs_company_id"),
-        ("storage_snapshots", "ix_storage_snapshots_company_id"),
-        ("invoice_items", "ix_invoice_items_company_id"),
-    ]
-
-    for table, index_name in tables_needing_indexes:
+    for index_name, table in indexes:
         op.drop_index(index_name, table_name=table)
