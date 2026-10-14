@@ -156,3 +156,18 @@ def test_tzdata_directory_name_does_not_raise(monkeypatch):
     emp = _emp("America", [NY_9_17])
     ctx = load_location_context(_state(emp, 1, {"locla001": _template("locla001", "06:00", "14:00")}))
     assert ctx["current_employees"][0]["available_windows"] == [NY_9_17]
+
+
+def test_next_weeks_window_is_converted_into_this_weeks_sunday():
+    # The ±1-day loading ruling: a window just outside the week is loaded and
+    # converted, so its piece that lands inside the week is usable. Next
+    # Monday 00:00-03:00 New York is this Sunday 21:00-midnight Los Angeles
+    # (2026-03-08 is the DST change in both zones; both are on daylight time
+    # by then, three hours apart).
+    next_mon = "2026-03-09"
+    window = {"start": f"{next_mon}T00:00:00+00:00", "end": f"{next_mon}T03:00:00+00:00"}
+    emp = _emp(NY, [window])
+    ctx = load_location_context(_state(emp, 1, {"locla001": _template("locla001", "06:00", "14:00")}))
+    assert {"start": "2026-03-08T21:00:00+00:00", "end": "2026-03-08T23:59:00+00:00"} in (
+        ctx["current_employees"][0]["available_windows"]
+    )
