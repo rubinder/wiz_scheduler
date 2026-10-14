@@ -1,5 +1,8 @@
 """Timezone helpers, and the per-date offset generated shifts carry."""
 
+import pytest
+
+import backend.utils.tz as tz
 from backend.scheduling.local_scheduler import local_schedule
 from backend.utils.tz import is_valid_timezone, utc_offset_on
 
@@ -22,6 +25,17 @@ def test_offset_follows_the_date_not_a_fixed_one():
 def test_offset_on_bad_input_is_utc():
     assert utc_offset_on("Not/AZone", "2026-01-15") == "+00:00"
     assert utc_offset_on("America/New_York", "not-a-date") == "+00:00"
+
+
+def test_os_error_from_tzdata_degrades_instead_of_raising(monkeypatch: pytest.MonkeyPatch):
+    # A tzdata directory name such as "America" makes ZoneInfo raise
+    # IsADirectoryError on Linux. That must read as invalid, not a 500.
+    def _raise(name: str):
+        raise IsADirectoryError(name)
+
+    monkeypatch.setattr(tz, "ZoneInfo", _raise)
+    assert is_valid_timezone("America") is False
+    assert utc_offset_on("America", "2026-01-15") == "+00:00"
 
 
 def _state(week_start: str) -> dict:

@@ -10,7 +10,7 @@ def is_valid_timezone(name: str | None) -> bool:
         return False
     try:
         ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError, KeyError):
+    except (ZoneInfoNotFoundError, ValueError, KeyError, OSError):
         return False
     return True
 
@@ -24,7 +24,7 @@ def utc_offset_on(tz_name: str, day: str, hm: str = "12:00") -> str:
     """
     try:
         dt = datetime.fromisoformat(f"{day}T{hm}").replace(tzinfo=ZoneInfo(tz_name))
-    except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError):
+    except (ZoneInfoNotFoundError, ValueError, TypeError, KeyError, OSError):
         return "+00:00"
     offset = dt.strftime("%z")
     return f"{offset[:3]}:{offset[3:]}"
