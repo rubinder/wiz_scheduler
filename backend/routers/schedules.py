@@ -455,6 +455,16 @@ async def edit_approved_shifts(
         applied = 0
         touched: set[str] = set()
         for idx, edit in enumerate(body.edits):
+            if edit.open and edit.employee_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "invalid_edit",
+                        "index": idx,
+                        "shift_id": edit.shift_id,
+                        "reason": "open and employee_id are mutually exclusive",
+                    },
+                )
             if edit.employee_id is not None:
                 # Every employee referenced must belong to the caller's
                 # company — otherwise a manager could schedule another
@@ -500,7 +510,8 @@ async def edit_approved_shifts(
                             "reason": "shift not found",
                         },
                     )
-                touched.add(str(shift.employee_id))
+                if shift.employee_id is not None:
+                    touched.add(str(shift.employee_id))
                 if edit.deleted:
                     # A payroll time entry points at this shift (#78). Pay
                     # records are not schedule scratch: deleting the shift
@@ -533,6 +544,12 @@ async def edit_approved_shifts(
                 if edit.employee_id is not None:
                     shift.employee_id = edit.employee_id
                     touched.add(str(edit.employee_id))
+                    changed = True
+                if edit.open:
+                    # Unassign (#174): the slot stays, the person goes, and so
+                    # do their preference asterisks.
+                    shift.employee_id = None
+                    shift.preference_violations = []
                     changed = True
                 if edit.role_id is not None:
                     # Same company check as the employee check above — a
@@ -573,7 +590,7 @@ async def edit_approved_shifts(
                 # commit -- an unhandled 500, where every sibling failure on
                 # this endpoint returns a 400 invalid_edit instead.
                 if (
-                    edit.employee_id is None
+                    (edit.employee_id is None and not edit.open)
                     or edit.date is None
                     or edit.start_time is None
                     or edit.end_time is None
@@ -584,7 +601,7 @@ async def edit_approved_shifts(
                             "code": "invalid_edit",
                             "index": idx,
                             "shift_id": None,
-                            "reason": "employee_id, date, start_time and end_time are required to create a shift",
+                            "reason": "employee_id (or open), date, start_time and end_time are required to create a shift",
                         },
                     )
                 role_name = (await db.execute(
@@ -603,18 +620,25 @@ async def edit_approved_shifts(
                             "reason": "role not found",
                         },
                     )
+                loc_tz = (await db.execute(
+                    select(Location.timezone).where(Location.id == schedule.location_id)
+                )).scalar_one_or_none()
+                zone = ZoneInfo(loc_tz) if loc_tz else None
                 db.add(Shift(
                     company_id=current_user.company_id,
                     shift_schedule_id=schedule.id,
                     location_id=schedule.location_id,
-                    employee_id=edit.employee_id,
+                    employee_id=None if edit.open else edit.employee_id,
                     role_id=edit.role_id,
                     role_name=role_name,
                     date=edit.date,
-                    start_time=edit.start_time,
-                    end_time=edit.end_time,
+                    # A time without an offset is the location's wall clock,
+                    # exactly as for an edit to an existing shift.
+                    start_time=_at_location(edit.start_time, zone),
+                    end_time=_at_location(edit.end_time, zone),
                 ))
-                touched.add(str(edit.employee_id))
+                if not edit.open:
+                    touched.add(str(edit.employee_id))
                 applied += 1
 
         try:

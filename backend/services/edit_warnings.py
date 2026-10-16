@@ -31,10 +31,12 @@ def _already_exported_warning(shift: Shift, employee_id: str | None = None) -> d
     branch (which only ever has the shift's own employee) and the
     modify/add branch (which prefers the edit's employee_id when the edit
     reassigns the shift)."""
+    occupant = employee_id if employee_id is not None else shift.employee_id
     return {
         "code": "already_exported",
         "shift_id": str(shift.id),
-        "employee_id": str(employee_id) if employee_id is not None else str(shift.employee_id),
+        # None when the edit leaves the shift open (#174).
+        "employee_id": str(occupant) if occupant is not None else None,
         "detail": "This shift was exported to 7shifts; the external schedule will now disagree.",
     }
 
@@ -90,9 +92,14 @@ async def collect_edit_warnings(
         # employee (e.g. only the role or time changed), fall back to the
         # shift's current occupant -- a time change can just as easily create
         # a conflict for the employee already on the shift.
-        emp_id = edit.employee_id if edit.employee_id is not None else (
-            shift.employee_id if shift is not None else None
-        )
+        # An edit that leaves the shift open (#174) assigns no one, so there
+        # is no availability or booking to warn about.
+        if getattr(edit, "open", False):
+            emp_id = None
+        else:
+            emp_id = edit.employee_id if edit.employee_id is not None else (
+                shift.employee_id if shift is not None else None
+            )
 
         span_start: datetime | None = None
         span_end: datetime | None = None
@@ -226,6 +233,9 @@ async def collect_edit_warnings(
 
         # 3. already_exported
         if shift is not None and shift.exported_at is not None:
-            warnings.append(_already_exported_warning(shift, emp_id))
+            w = _already_exported_warning(shift, emp_id)
+            if getattr(edit, "open", False):
+                w["employee_id"] = None
+            warnings.append(w)
 
     return warnings
