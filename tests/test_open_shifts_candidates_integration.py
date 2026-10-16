@@ -2,7 +2,7 @@
 
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -108,6 +108,7 @@ async def _rank(db, exclude=None):
     )
 
 
+@pytest.mark.asyncio
 async def test_each_tier_gets_the_right_people_in_order(db_session, roster):
     ranked = await _rank(db_session)
     assert [(c.full_name, c.tier) for c in ranked] == [
@@ -123,12 +124,14 @@ async def test_each_tier_gets_the_right_people_in_order(db_session, roster):
     assert (cara.available, cara.has_role, cara.at_location) == (True, False, True)
 
 
+@pytest.mark.asyncio
 async def test_exclude_shift_id_stops_a_shift_clashing_with_itself(db_session, roster):
     ranked = await _rank(db_session, exclude=roster["finn_shift"])
     finn = next(c for c in ranked if c.full_name == "Finn Booked")
     assert finn.tier == 1
 
 
+@pytest.mark.asyncio
 async def test_employee_timezone_is_converted(db_session, seed_location, seed_roles):
     emp = Employee(
         id=_id(), company_id=COMPANY_ID, full_name="Lou LA",
@@ -147,6 +150,7 @@ async def test_employee_timezone_is_converted(db_session, seed_location, seed_ro
     assert [(c.full_name, c.tier) for c in ranked] == [("Lou LA", 1)]
 
 
+@pytest.mark.asyncio
 async def test_invalid_employee_timezone_degrades_to_no_timezone(
     db_session, seed_location, seed_roles,
 ):
@@ -156,8 +160,120 @@ async def test_invalid_employee_timezone_degrades_to_no_timezone(
     assert [(c.full_name, c.tier) for c in ranked] == [("Zed BadZone", 1)]
 
 
+@pytest.mark.asyncio
 async def test_another_companys_employees_never_appear(
     db_session, roster, other_company_employee_id,
 ):
     ranked = await _rank(db_session)
     assert other_company_employee_id not in {c.employee_id for c in ranked}
+
+
+from datetime import timedelta
+
+from sqlalchemy import event
+
+from tests.conftest import COMPANY2_ID, _get_test_engine
+
+
+async def _post_candidates(client, token, **overrides):
+    body = {
+        "location_id": LOCATION_ID, "role_id": ROLE_FLOOR_ID,
+        "date": DAY.isoformat(), "start_time": "09:00", "end_time": "17:00",
+        **overrides,
+    }
+    return await client.post(
+        "/api/v1/schedules/candidates",
+        headers={"Authorization": f"Bearer {token}"}, json=body,
+    )
+
+
+@pytest.mark.asyncio
+async def test_candidates_endpoint_returns_the_ranking(client, manager_token, roster):
+    resp = await _post_candidates(client, manager_token)
+    assert resp.status_code == 200, resp.text
+    first = resp.json()[0]
+    assert first == {
+        "employee_id": roster["ana"], "full_name": "Ana Best", "tier": 1,
+        "available": True, "has_role": True, "at_location": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_candidates_for_another_companys_location_is_404(
+    client, manager_token, roster, db_session,
+):
+    resp = await _post_candidates(client, manager_token, location_id="nosuchlc")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_candidates_reject_a_malformed_time(client, manager_token, roster):
+    resp = await _post_candidates(client, manager_token, start_time="9am")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_candidates_are_manager_only(client, employee_token, roster):
+    resp = await _post_candidates(client, employee_token)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_query_count_does_not_grow_with_the_roster(
+    client, manager_token, db_session, roster,
+):
+    engine = _get_test_engine()
+    statements: list[str] = []
+
+    def _count(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _count)
+    try:
+        await _post_candidates(client, manager_token)
+        small = len(statements)
+        for i in range(10):
+            await _employee(db_session, f"Extra {i:02d}")
+        await db_session.commit()
+        statements.clear()
+        await _post_candidates(client, manager_token)
+        large = len(statements)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _count)
+    assert large == small
+
+
+async def _open_shift(db, sid, start: datetime, company_id=COMPANY_ID, location_id=LOCATION_ID):
+    db.add(Shift(
+        id=_id(), company_id=company_id, shift_schedule_id=sid,
+        location_id=location_id, employee_id=None, role_id=ROLE_FLOOR_ID,
+        role_name="Floor Associate", date=start.date(),
+        start_time=start, end_time=start + timedelta(hours=8),
+    ))
+
+
+@pytest.mark.asyncio
+async def test_open_shift_count_covers_the_next_14_days_of_approved_schedules(
+    client, manager_token, db_session, seed_location, seed_roles,
+):
+    now = datetime.now(timezone.utc)
+    approved, draft = _id(), _id()
+    for sid, status_ in ((approved, "approved"), (draft, "draft")):
+        db_session.add(ShiftSchedule(
+            id=sid, company_id=COMPANY_ID, location_id=LOCATION_ID,
+            week_start_date=now.date(), status=status_, created_at=now,
+        ))
+    await db_session.flush()
+    await _open_shift(db_session, approved, now + timedelta(days=1))    # counted
+    await _open_shift(db_session, approved, now + timedelta(days=13))   # counted
+    await _open_shift(db_session, approved, now + timedelta(days=20))   # too far
+    await _open_shift(db_session, approved, now - timedelta(days=1))    # past
+    await _open_shift(db_session, draft, now + timedelta(days=1))       # not approved
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/v1/schedules/open-shifts/count",
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"count": 2}
