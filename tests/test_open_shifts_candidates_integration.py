@@ -172,7 +172,7 @@ from datetime import timedelta
 
 from sqlalchemy import event
 
-from tests.conftest import COMPANY2_ID, _get_test_engine
+from tests.conftest import _get_test_engine
 
 
 async def _post_candidates(client, token, **overrides):
@@ -230,16 +230,20 @@ async def test_query_count_does_not_grow_with_the_roster(
 
     event.listen(engine.sync_engine, "before_cursor_execute", _count)
     try:
-        await _post_candidates(client, manager_token)
+        first = await _post_candidates(client, manager_token)
+        assert first.status_code == 200, first.text
         small = len(statements)
+        assert small >= 1
         for i in range(10):
             await _employee(db_session, f"Extra {i:02d}")
         await db_session.commit()
         statements.clear()
-        await _post_candidates(client, manager_token)
+        second = await _post_candidates(client, manager_token)
+        assert second.status_code == 200, second.text
         large = len(statements)
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", _count)
+    assert len(second.json()) == len(first.json()) + 10
     assert large == small
 
 
