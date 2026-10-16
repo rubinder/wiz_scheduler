@@ -13,10 +13,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Employee, EmployeeAvailability, Location, Shift
+from backend.models import Employee, EmployeeAvailability, EmployeeDayBlackout, Location, Shift
 from backend.scheduling.graph import _shift_local_face
-from backend.scheduling.employee_time import availability_to_location, needs_conversion
-from backend.scheduling.nodes import _subtract_consumed, _wall_clock
+from backend.scheduling.employee_time import needs_conversion
+from backend.scheduling.nodes import _wall_clock
+from backend.services.availability_check import blackout_dicts, is_available, window_dict
 
 
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
@@ -159,14 +160,23 @@ async def collect_edit_warnings(
             )
 
             # 1. no_availability -- the employee's windows, minus their other
-            #    shifts, must cover the span. Same definition the pipeline
-            #    uses.
-            windows = (await db.execute(
-                select(EmployeeAvailability).where(
-                    EmployeeAvailability.company_id == company_id,
-                    EmployeeAvailability.employee_id == emp_id,
+            #    shifts, must cover the span, and the span must miss their
+            #    blackouts. The one definition, shared with the scheduler and
+            #    the candidate ranking (services/availability_check.py).
+            windows = [
+                window_dict(w) for w in (await db.execute(
+                    select(EmployeeAvailability).where(
+                        EmployeeAvailability.company_id == company_id,
+                        EmployeeAvailability.employee_id == emp_id,
+                    )
+                )).scalars().all()
+            ]
+            blackouts = blackout_dicts((await db.execute(
+                select(EmployeeDayBlackout).where(
+                    EmployeeDayBlackout.company_id == company_id,
+                    EmployeeDayBlackout.employee_id == emp_id,
                 )
-            )).scalars().all()
+            )).scalars().all())
 
             # `others` are committed `Shift` rows read back from the database
             # (see the note above): join each shift to its Location and
@@ -193,26 +203,17 @@ async def collect_edit_warnings(
                     continue
                 other_spans.append(face)
 
-            covered = False
-            for w in windows:
-                raw = [{"start": w.start_time.isoformat(), "end": w.end_time.isoformat()}]
-                pieces = (
-                    availability_to_location(raw, emp_tz, zone_location.timezone)
-                    if convert else raw
-                )
-                for piece in pieces:
-                    w_start = _wall_clock(piece["start"])
-                    w_end = _wall_clock(piece["end"])
-                    for free_start, free_end in _subtract_consumed(w_start, w_end, other_spans):
-                        if free_start <= span_start and free_end >= span_end:
-                            covered = True
-                            break
-                    if covered:
-                        break
-                if covered:
-                    break
-
-            if not covered:
+            if not is_available(
+                windows=windows,
+                other_spans=other_spans,
+                blackouts=blackouts,
+                span_start=span_start,
+                span_end=span_end,
+                # Without conversion, windows and blackouts are already this
+                # location's wall clock: pass no zones so nothing converts.
+                emp_tz=emp_tz if convert else None,
+                loc_tz=zone_location.timezone if convert else None,
+            ):
                 warnings.append({
                     "code": "no_availability",
                     "shift_id": edit.shift_id,
