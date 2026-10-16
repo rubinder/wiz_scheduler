@@ -10,8 +10,7 @@ import EditShiftModal from "../../components/shared/EditShiftModal";
 import RosterThinBanner from "../../components/shared/RosterThinBanner";
 import OpenShiftBanner from "../../components/shared/OpenShiftBanner";
 import AddOpenShiftModal from "../../components/shared/AddOpenShiftModal";
-import { countOpen } from "../../utils/openShifts";
-import { extractOffset } from "../../utils/shiftTime";
+import { countOpen, openSlotTimes, weekDates } from "../../utils/openShifts";
 import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday, spinner as spinnerClass } from "../../theme";
@@ -308,21 +307,15 @@ export default function ApprovedSchedules() {
       {addingOpenFor && (
         <AddOpenShiftModal
           roles={roles.map((r) => ({ id: r.id, name: r.name }))}
-          dates={Array.from({ length: 7 }, (_, i) => {
-            const d = new Date(addingOpenFor.week_start_date + "T00:00:00");
-            d.setDate(d.getDate() + i);
-            return toDateStr(d);
-          })}
+          dates={weekDates(addingOpenFor.week_start_date)}
           onSubmit={async (v) => {
-            const offset = addingOpenFor.shifts.length
-              ? extractOffset(addingOpenFor.shifts[0].start_time)
-              : "";
+            // Naive wall-clock: the server reads it in the location's zone,
+            // which is right on both sides of a DST change.
             await approvedApi.editApprovedShifts(addingOpenFor.id, [{
               open: true,
               role_id: v.role_id,
               date: v.date,
-              start_time: `${v.date}T${v.start}:00${offset}`,
-              end_time: `${v.date}T${v.end}:00${offset}`,
+              ...openSlotTimes(v.date, v.start, v.end),
             }]);
             notifyOpenShiftsChanged();
             await loadWeek(selectedWeek);

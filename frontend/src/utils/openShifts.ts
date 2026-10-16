@@ -64,3 +64,33 @@ export function missingFlags(c: Candidate): MissingFlag[] {
   if (!c.has_role) out.push("role");
   return out;
 }
+
+/** `YYYY-MM-DD` plus `days`, by calendar arithmetic in UTC so no browser
+ *  timezone or DST change can shift the date. */
+function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** The seven dates of a schedule week starting at `weekStart`. */
+export function weekDates(weekStart: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+}
+
+/** Start/end for a new open shift, as naive location wall-clock times.
+ *
+ *  No offset is appended: both the approved create path and draft approval
+ *  read a naive time in the location's zone, which is right on every day of
+ *  a DST-change week (borrowing another shift's offset is not). An end at or
+ *  before the start is the next day, as the backend's `slot_span` reads it. */
+export function openSlotTimes(
+  date: string,
+  start: string,
+  end: string,
+): { start_time: string; end_time: string } {
+  const endDate = end <= start ? addDays(date, 1) : date;
+  return {
+    start_time: `${date}T${start}:00`,
+    end_time: `${endDate}T${end}:00`,
+  };
+}

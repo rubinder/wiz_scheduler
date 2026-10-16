@@ -4,6 +4,7 @@ import * as schedulesApi from "../../api/schedules";
 import * as shiftTemplatesApi from "../../api/shiftTemplates";
 import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
+import * as rolesApi from "../../api/roles";
 import * as billingApi from "../../api/billing";
 import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } from "../../api/billing";
 import { ApiError, errorMessage } from "../../api/client";
@@ -26,6 +27,7 @@ import type {
   Employee,
   Location,
   LocationResult,
+  Role,
   ShiftAssignment,
   ShiftTemplate,
   SignalConfig,
@@ -33,7 +35,7 @@ import type {
 } from "../../types";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
 import { notifyOpenShiftsChanged } from "../../api/openShifts";
-import { isOpenShift, toOpenAssignment, countOpen } from "../../utils/openShifts";
+import { isOpenShift, toOpenAssignment, countOpen, openSlotTimes, weekDates } from "../../utils/openShifts";
 
 
 // ── EditShiftModal ──
@@ -262,6 +264,15 @@ export default function Schedule() {
   const [startDate, setStartDate] = useState(getNextMonday());
   const [endDate, setEndDate] = useState(addDays(getNextMonday(), 6));
   const weekStart = startDate; // alias for compatibility
+  // The week the current results were generated for (#174): the start
+  // date input can change afterwards without changing the draft's week.
+  const [generatedWeekStart, setGeneratedWeekStart] = useState<string | null>(null);
+  // Company roles for the add-open-shift form, so a location whose draft
+  // has no shifts (or lacks a role) can still add one (#174).
+  const [companyRoles, setCompanyRoles] = useState<Role[]>([]);
+  useEffect(() => {
+    rolesApi.listRoles().then(setCompanyRoles).catch(() => setCompanyRoles([]));
+  }, []);
   const { results, isStreaming, error, lockedError, generate, reset } =
     useScheduleStream();
   const [actionError, setActionError] = useState("");
@@ -624,6 +635,7 @@ export default function Schedule() {
     setActionError("");
     employeesLoaded.current = false;
     const numDays = daysBetween(startDate, endDate);
+    setGeneratedWeekStart(weekStart);
     generate(weekStart, undefined, ids, {
       ...(generateMode === "local" ? {
         useLocal: true,
@@ -801,8 +813,8 @@ export default function Schedule() {
   ) => {
     const result = results.find((r) => r.location_id === locationId);
     const current = editedShifts[locationId] ?? result?.shifts ?? [];
-    // Borrow the location's offset from any existing shift (#92).
-    const offset = current.length ? extractOffset(current[0].start_time) : "";
+    // Naive wall-clock, read in the location's zone at approval: borrowing
+    // another shift's offset is an hour off across a DST change.
     const added: ShiftAssignment = {
       employee_id: null,
       employee_name: null,
@@ -810,8 +822,7 @@ export default function Schedule() {
       role_name: v.role_name,
       location_id: locationId,
       date: v.date,
-      start_time: `${v.date}T${v.start}:00${offset}`,
-      end_time: `${v.date}T${v.end}:00${offset}`,
+      ...openSlotTimes(v.date, v.start, v.end),
       status: "OPEN",
       preference_violations: [],
     };
@@ -1427,14 +1438,8 @@ export default function Schedule() {
 
       {addingOpenFor && (
         <AddOpenShiftModal
-          roles={Object.entries(roleIdByName).map(([name, id]) => ({ id, name }))}
-          dates={Array.from(
-            new Set(
-              (editedShifts[addingOpenFor] ??
-                results.find((r) => r.location_id === addingOpenFor)?.shifts ??
-                []).map((s) => s.date)
-            )
-          ).sort()}
+          roles={companyRoles.map((r) => ({ id: r.id, name: r.name }))}
+          dates={weekDates(generatedWeekStart ?? weekStart)}
           onSubmit={(v) => handleAddOpenShift(addingOpenFor, v)}
           onClose={() => setAddingOpenFor(null)}
         />

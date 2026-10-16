@@ -5,7 +5,9 @@ import {
   groupCandidates,
   isOpenShift,
   missingFlags,
+  openSlotTimes,
   toOpenAssignment,
+  weekDates,
   type Candidate,
 } from "./openShifts";
 
@@ -86,5 +88,51 @@ describe("missingFlags", () => {
     expect(missingFlags(cand("X", 2, { available: false }))).toEqual(["availability"]);
     expect(missingFlags(cand("Z", 3, { has_role: false }))).toEqual(["role"]);
     expect(missingFlags(cand("Y", 1))).toEqual([]);
+  });
+});
+
+describe("openSlotTimes", () => {
+  it("sends naive local wall-clock times, never an offset", () => {
+    expect(openSlotTimes("2026-08-31", "09:00", "17:00")).toEqual({
+      start_time: "2026-08-31T09:00:00",
+      end_time: "2026-08-31T17:00:00",
+    });
+  });
+
+  it("appends no offset on a DST-change Sunday (US fall back)", () => {
+    // 2026-11-01: New York moves from -04:00 to -05:00. Borrowing the
+    // week's first offset would store this shift an hour off.
+    const t = openSlotTimes("2026-11-01", "10:00", "18:00");
+    expect(t).toEqual({
+      start_time: "2026-11-01T10:00:00",
+      end_time: "2026-11-01T18:00:00",
+    });
+    expect(t.start_time).not.toMatch(/(Z|[+-]\d{2}:\d{2})$/);
+    expect(t.end_time).not.toMatch(/(Z|[+-]\d{2}:\d{2})$/);
+  });
+
+  it("rolls an end at or before the start to the next day (overnight)", () => {
+    expect(openSlotTimes("2026-08-31", "22:00", "02:00")).toEqual({
+      start_time: "2026-08-31T22:00:00",
+      end_time: "2026-09-01T02:00:00",
+    });
+    expect(openSlotTimes("2026-12-31", "09:00", "09:00").end_time).toBe(
+      "2027-01-01T09:00:00",
+    );
+  });
+});
+
+describe("weekDates", () => {
+  it("returns the seven dates from the week start", () => {
+    expect(weekDates("2026-10-26")).toEqual([
+      "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29",
+      "2026-10-30", "2026-10-31", "2026-11-01",
+    ]);
+  });
+
+  it("crosses a month and year end", () => {
+    expect(weekDates("2026-12-28").slice(-3)).toEqual([
+      "2027-01-01", "2027-01-02", "2027-01-03",
+    ]);
   });
 });
