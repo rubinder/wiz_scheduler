@@ -174,6 +174,15 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   for the posted location only, so it can drop a cap asterisk that was only
   over-cap because of another location; the approved-schedule edit path
   re-annotates the whole week instead.
+- **An open shift is a `Shift` with `employee_id IS NULL`** (draft JSON:
+  `employee_id: null, status: "OPEN"`; legacy drafts may still say
+  `"VACANT"` — read them through `scheduling/open_shifts.is_open_entry`).
+  Inside the scheduling graph an unfilled slot stays the `VACANT`
+  placeholder; `emit_result` is the only place it becomes open. Any new
+  reader of shifts must decide explicitly whether it includes open shifts.
+  "Available" has one definition, `services/availability_check.is_available`,
+  shared by the candidate ranking and the `no_availability` edit warning;
+  the frontend never evaluates availability itself.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate
