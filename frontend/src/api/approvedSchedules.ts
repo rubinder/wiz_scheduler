@@ -44,9 +44,11 @@ export function getApprovedWeek(weekStartDate: string): Promise<WeekSchedule[]> 
 /** Adapt materialised shifts to what ScheduleGrid renders.
  *
  *  The grid is shared with the post-generation review, which works in
- *  ShiftAssignment. Approved shifts are always "ok" — a CONFLICT or VACANT
- *  shift never becomes a Shift row at approval time. Approved shifts carry
- *  their persisted preference_violations (#99). */
+ *  ShiftAssignment. Status is always "ok": a CONFLICT entry never becomes a
+ *  Shift row at approval time, while an open (or legacy VACANT) entry becomes
+ *  an open Shift row with employee_id null (#174) — isOpenShift reads that
+ *  null as open regardless of status. Approved shifts carry their persisted
+ *  preference_violations (#99). */
 export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
   return shifts.map((s) => ({
     employee_id: s.employee_id,
