@@ -8,7 +8,9 @@ import * as billingApi from "../../api/billing";
 import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } from "../../api/billing";
 import { ApiError, errorMessage } from "../../api/client";
 import { listSpecialHours } from "../../api/specialHours";
-import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
+import CandidatePicker from "../../components/shared/CandidatePicker";
+import OpenShiftBanner from "../../components/shared/OpenShiftBanner";
+import AddOpenShiftModal from "../../components/shared/AddOpenShiftModal";
 import StatusBadge from "../../components/shared/StatusBadge";
 import ScheduleGrid, { fmtHM, getDayLabel } from "../../components/shared/ScheduleGrid";
 import SignalWeightConfig from "../../components/shared/SignalWeightConfig";
@@ -30,6 +32,7 @@ import type {
   SpecialHoursDay,
 } from "../../types";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
+import { isOpenShift, toOpenAssignment, countOpen } from "../../utils/openShifts";
 
 
 // ── EditShiftModal ──
@@ -38,6 +41,7 @@ interface EditShiftModalProps {
   shift: ShiftAssignment;
   employees: Employee[];
   roles: string[];
+  roleIdByName: Record<string, string>;
   onSave: (updated: ShiftAssignment) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -47,30 +51,50 @@ function EditShiftModal({
   shift,
   employees,
   roles,
+  roleIdByName,
   onSave,
   onDelete,
   onClose,
 }: EditShiftModalProps) {
   const { t } = useLanguage();
-  const [employeeId, setEmployeeId] = useState(shift.employee_id);
+  const [employeeId, setEmployeeId] = useState<string | null>(
+    isOpenShift(shift) ? null : shift.employee_id
+  );
   const [roleName, setRoleName] = useState(shift.role_name);
   const [startTime, setStartTime] = useState(extractTime(shift.start_time));
   const [endTime, setEndTime] = useState(extractTime(shift.end_time));
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
 
+  const roleId = roleIdByName[roleName] ?? shift.role_id;
+  const slot = {
+    location_id: shift.location_id,
+    role_id: roleId,
+    date: shift.date,
+    start_time: startTime,
+    end_time: endTime,
+  };
+
   const handleSave = () => {
-    // Rebuild start/end using the shift date
     const datePrefix = shift.date;
-    onSave({
+    const base: ShiftAssignment = {
       ...shift,
-      employee_id: employeeId,
-      employee_name: selectedEmployee?.full_name ?? shift.employee_name,
+      role_id: roleId,
       role_name: roleName,
       // Reattach the offset the shift arrived with: dropping it silently
       // re-anchors the shift to a different instant (issue #92).
       start_time: `${datePrefix}T${startTime}:00${extractOffset(shift.start_time)}`,
       end_time: `${datePrefix}T${endTime}:00${extractOffset(shift.end_time)}`,
+    };
+    if (employeeId === null) {
+      onSave(toOpenAssignment(base));
+      return;
+    }
+    onSave({
+      ...base,
+      employee_id: employeeId,
+      employee_name: selectedEmployee?.full_name ?? shift.employee_name,
+      status: isOpenShift(shift) ? "ok" : shift.status,
     });
   };
 
@@ -92,11 +116,11 @@ function EditShiftModal({
             <label className="glass-label">
               {t.common.employee}
             </label>
-            <EmployeeSearchBox
+            <CandidatePicker
               employees={employees}
+              slot={slot}
               value={employeeId}
               onChange={setEmployeeId}
-              placeholder={t.schedule.searchEmployee}
             />
           </div>
 
@@ -163,7 +187,7 @@ function EditShiftModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={!employeeId}
+              disabled={employeeId === ""}
               className="glass-btn-primary text-sm font-medium"
             >
               {t.common.save}
@@ -360,6 +384,8 @@ export default function Schedule() {
   }, [weekStart, endDate]);
 
   // Editable shifts: keyed by location_id
+  const [highlightOpenFor, setHighlightOpenFor] = useState<string | null>(null);
+  const [addingOpenFor, setAddingOpenFor] = useState<string | null>(null);
   const [editedShifts, setEditedShifts] = useState<
     Record<string, ShiftAssignment[]>
   >({});
@@ -767,6 +793,33 @@ export default function Schedule() {
     }
   };
 
+  const handleAddOpenShift = async (
+    locationId: string,
+    v: { role_id: string; role_name: string; date: string; start: string; end: string },
+  ) => {
+    const result = results.find((r) => r.location_id === locationId);
+    const current = editedShifts[locationId] ?? result?.shifts ?? [];
+    // Borrow the location's offset from any existing shift (#92).
+    const offset = current.length ? extractOffset(current[0].start_time) : "";
+    const added: ShiftAssignment = {
+      employee_id: null,
+      employee_name: null,
+      role_id: v.role_id,
+      role_name: v.role_name,
+      location_id: locationId,
+      date: v.date,
+      start_time: `${v.date}T${v.start}:00${offset}`,
+      end_time: `${v.date}T${v.end}:00${offset}`,
+      status: "OPEN",
+      preference_violations: [],
+    };
+    const next = [...current, added];
+    setEditedShifts((prev) => ({ ...prev, [locationId]: next }));
+    if (result?.schedule_id) {
+      await persistDraft(locationId, result.schedule_id, next);
+    }
+  };
+
   // Collect all role names across all results for the edit modal
   const allRoles = useMemo(() => {
     const set = new Set<string>();
@@ -775,6 +828,19 @@ export default function Schedule() {
       shifts.forEach((s) => set.add(s.role_name));
     }
     return Array.from(set).sort();
+  }, [results, editedShifts]);
+
+  // role name -> role id across all results, so the draft modal can rank
+  // candidates by role id and save the matching id with a renamed role.
+  const roleIdByName = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of results) {
+      const shifts = editedShifts[r.location_id] ?? r.shifts;
+      shifts.forEach((s) => {
+        if (s.role_id) map[s.role_name] = s.role_id;
+      });
+    }
+    return map;
   }, [results, editedShifts]);
 
   // Print state: which location is being printed
@@ -1350,9 +1416,25 @@ export default function Schedule() {
           shift={editModalShift}
           employees={employees}
           roles={allRoles}
+          roleIdByName={roleIdByName}
           onSave={handleSaveShift}
           onDelete={handleDeleteShift}
           onClose={() => setEditingShift(null)}
+        />
+      )}
+
+      {addingOpenFor && (
+        <AddOpenShiftModal
+          roles={Object.entries(roleIdByName).map(([name, id]) => ({ id, name }))}
+          dates={Array.from(
+            new Set(
+              (editedShifts[addingOpenFor] ??
+                results.find((r) => r.location_id === addingOpenFor)?.shifts ??
+                []).map((s) => s.date)
+            )
+          ).sort()}
+          onSubmit={(v) => handleAddOpenShift(addingOpenFor, v)}
+          onClose={() => setAddingOpenFor(null)}
         />
       )}
 
@@ -1547,16 +1629,42 @@ export default function Schedule() {
 
               <RosterThinBanner summary={locationResult.preference_summary} />
 
+              <div className="px-4 pt-3">
+                <OpenShiftBanner
+                  count={countOpen(currentShifts)}
+                  onShow={() => {
+                    setHighlightOpenFor(locationResult.location_id);
+                    requestAnimationFrame(() =>
+                      document
+                        .querySelector(`[data-location="${locationResult.location_id}"] [data-open-shift="true"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                    );
+                  }}
+                />
+                {!decided && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingOpenFor(locationResult.location_id)}
+                    className="glass-btn-secondary text-xs font-medium mb-3"
+                  >
+                    {t.schedule.addOpenShift}
+                  </button>
+                )}
+              </div>
+
               {currentShifts.length > 0 && (
+                <div data-location={locationResult.location_id}>
                 <ScheduleGrid
                   shifts={currentShifts}
                   editable={!decided}
                   employees={employees}
+                  highlightOpen={highlightOpenFor === locationResult.location_id}
                   onEditShift={(idx) =>
                     handleEditShift(locationResult.location_id, idx)
                   }
                   specialHoursByDate={specialHoursByDate}
                 />
+                </div>
               )}
 
               {currentShifts.length === 0 &&
