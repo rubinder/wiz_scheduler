@@ -23,6 +23,7 @@ from backend.schemas.schedule import (
     UpdateShiftsRequest,
     UpdateShiftsResponse,
 )
+from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
@@ -343,7 +344,11 @@ async def update_shifts(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
 
-    shifts = [s.model_dump() for s in body.shifts]
+    # A cleared or null employee is an open shift (#174); store one shape.
+    shifts = [
+        to_open_entry(d) if is_open_entry(d) else d
+        for d in (s.model_dump() for s in body.shifts)
+    ]
     # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
     # or off a preference, and the evaluator lives here, not in the client.
     prefs = await load_employee_preferences(db, str(current_user.company_id))
@@ -739,14 +744,17 @@ async def approve_schedule(
 
                 shifts_data = json.loads(schedule.raw_llm_output)
                 for s in shifts_data:
-                    # Skip VACANT placeholders and non-ok shifts
-                    if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                    # Open entries (and legacy VACANT ones) become open shifts
+                    # (#174); anything else that is not "ok" -- a CONFLICT --
+                    # is still never materialised.
+                    open_entry = is_open_entry(s)
+                    if not open_entry and s.get("status") != "ok":
                         continue
                     # Skip shifts with missing required IDs
                     try:
                         loc_id = s["location_id"]
-                        emp_id = s["employee_id"]
                         role_id = s["role_id"]
+                        emp_id = None if open_entry else s["employee_id"]
                     except KeyError:
                         continue
                     if not role_id:
@@ -770,7 +778,10 @@ async def approve_schedule(
                         date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
                         start_time=_at_location(s["start_time"], location_zones.get(str(loc_id))),
                         end_time=_at_location(s["end_time"], location_zones.get(str(loc_id))),
-                        preference_violations=list(s.get("preference_violations") or []),
+                        preference_violations=(
+                            [] if open_entry
+                            else list(s.get("preference_violations") or [])
+                        ),
                     )
                     db.add(shift)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -796,7 +807,8 @@ async def approve_schedule(
             from backend.models.employee_role_minutes import EmployeeRoleMinutes
 
             for s in shifts_data:
-                if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                # An open shift is worked by no one: it books no minutes.
+                if s.get("status") != "ok" or is_open_entry(s):
                     continue
                 try:
                     emp_id = s["employee_id"]
@@ -1015,7 +1027,11 @@ def _shift_to_response(
     from backend.scheduling.graph import _shift_local_face
 
     resp = ShiftResponse.model_validate(shift)
-    if emp_names:
+    if shift.employee_id is None:
+        # An open shift (#174): the client renders the label, the API never
+        # sends a display string for "no one".
+        resp.employee_name = None
+    elif emp_names:
         resp.employee_name = emp_names.get(shift.employee_id, "")
     if location is not None:
         face = _shift_local_face(shift, location, keep_tzinfo=True)
