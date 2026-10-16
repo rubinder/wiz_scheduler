@@ -117,26 +117,33 @@ They accept `employee_id: null` with `status: "OPEN"`.
   instead of `VACANT`.
 - **Stream.** `LocationResult` gains `open_count: int`. NDJSON lines carry
   `OPEN` entries like any other shift.
-- **Strings.** `"VACANT"` remains only as the legacy value that draft readers
-  accept, and inside existing log lines. The UI never shows it.
+- **Where the shape changes.** Inside the graph, every node's checks are
+  written against the `VACANT` placeholder, so the graph keeps using it.
+  `emit_result`, the last node on both the AI and local paths, converts each
+  placeholder to the open shape. Everything downstream (draft JSON, approval,
+  the API, the UI) only sees open entries, or legacy `VACANT` entries in old
+  drafts.
 
 ## 3. Candidate ranking
 
 ### `POST /schedules/candidates` (manager only)
 
-- **Request:** `location_id`, `role_id`, `date`, `start_time`, `end_time`,
-  and an optional `exclude_shift_id`.
-- **Response:** every employee in the company (#126 later adds an
-  archived filter), each with
-  `employee_id`, `full_name`, `tier` (1–4), and three flags: `available`,
-  `has_role` and `at_location`.
+- **Request:** `location_id`, `role_id`, `date`, `start_time` and
+  `end_time` (local `HH:MM` at the location; an end at or before the start
+  means the next day), and an optional `exclude_shift_id`.
+- **Response:** the company's employees in tiers 1–3 (#126 later adds an
+  archived filter), each with `employee_id`, `full_name`, `tier`, and three
+  flags: `available`, `has_role` and `at_location`.
 
 ### Tiers
 
 1. available, has the role, and assigned to the location
 2. has the role and assigned to the location, but not available
 3. available and assigned to the location, but without the role
-4. everyone else
+
+Everyone else is not offered: people not assigned to the location, and
+people assigned to it with neither the role nor availability. (Decided
+2026-10-16: the picker shows only people who fit the location.)
 
 Within a tier, names sort alphabetically. Picking someone from tier 2 saves
 normally and gets the existing `no_availability` warning after saving.
@@ -148,7 +155,9 @@ normally and gets the existing `no_availability` warning after saving.
 - **`has_role`:** an `employee_roles` row exists for `role_id`.
 - **`available`:** the scheduler's definition. An availability window covers
   the whole span after subtracting the employee's other approved shifts, and
-  the date is not a blackout day. When the employee has a timezone, the
+  the span does not overlap one of the employee's blackouts. A blackout is a
+  recurring weekday time range (for example Monday 20:00–22:00), not a whole
+  day. When the employee has a timezone, the
   employee's zone is converted to the location's zone (`employee_time.py`).
   `exclude_shift_id` is left out of "other shifts".
 
@@ -159,7 +168,9 @@ function used by both the candidates endpoint and the edit warnings.
 Blackouts count in both.
 
 This is an intentional behaviour change: the `no_availability` edit warning
-now also fires on a blackout day.
+now also fires when the span overlaps a blackout. The shared function also
+reads availability windows the way the scheduler does: a window whose end is
+at or before its start means "until 23:59".
 
 ### Queries
 
@@ -176,8 +187,12 @@ cover them.
 
 ### Access
 
-- Everything is scoped to `current_user.company_id`.
-- A location the manager cannot access (`can_access_location`) returns 403.
+- Everything is scoped to `current_user.company_id`, like every other
+  schedule route. A location outside the company returns 404.
+- Per-manager location scoping (`get_accessible_location_ids`) is not used.
+  No schedule route enforces it today, and it returns no locations for a
+  manager whose `manager_type` is unset, so using it here alone would hide
+  the picker and the badge from those managers.
 
 ## 4. UI and alerts
 
@@ -192,21 +207,28 @@ cover them.
 
 - When the modal opens, it calls `/schedules/candidates` for the shift's
   slot. It asks again when the role or times change in the modal.
-- The list is grouped under four translated headings:
+- The list is grouped under three translated headings:
   1. Best fit
   2. Has the role, not available
   3. Available, no role
-  4. Everyone else
 - Each person carries small chips for the flags they are missing.
 - Typing filters by name within the groups.
 - "Leave open" sits at the top. On an approved shift it sends `open: true`;
   in a draft it sets `employee_id: null` with `status: "OPEN"`.
-- `EmployeeSearchBox` gains an optional `candidates` prop. Without it,
-  behaviour is unchanged.
+- If the ranking request fails, the picker falls back to the plain,
+  ungrouped employee list, with a short notice.
+- This is a new `CandidatePicker` component. `EmployeeSearchBox` is
+  unchanged, because other pages use it.
 
-### Adding a shift
+### Adding an open shift
 
-Both add-shift paths can save with "Leave open" selected.
+Neither page has an add-shift control today; the approved-shift API can
+create a shift, but no UI calls it. Each location on both pages gets a
+"+ Add open shift" button. It opens a small form (role, day of the week,
+start and end time) and creates an open shift: a new open entry in the draft,
+or `open: true` with no `shift_id` on an approved schedule. A new approved
+shift's times are read in the location's zone when they arrive without an
+offset, as edits to existing shifts already are.
 
 ### Banner
 
@@ -218,11 +240,12 @@ Both add-shift paths can save with "Leave open" selected.
 ### Navigation badge
 
 - `GET /schedules/open-shifts/count` returns the number of open shifts in
-  approved schedules starting in `[now, now + 14 days)`, at locations from
-  `get_accessible_location_ids`.
+  approved schedules for the company, starting in `[now, now + 14 days)`.
 - The Sidebar's "Approved Schedules" item shows the count when it is above
-  0.
-- It is fetched on app load and refreshed after any approved-shift edit.
+  0, and so does the collapsed "Scheduling" group heading.
+- It is fetched when the Sidebar mounts and on every route change, and
+  refreshed after any approved-shift edit or approval through a
+  `wiz:open-shifts-changed` window event.
 
 ### Conventions
 
@@ -268,6 +291,7 @@ Integration tests run on Postgres. Frontend tests use vitest.
   - fairness minutes ignore open shifts
 - **Editing approved shifts:**
   - `open: true` unassigns; with no `shift_id` it creates an open shift
+  - a new shift sent without an offset is stored in the location's zone
   - `open` with `employee_id` returns 400
   - filling an open shift works and warns as usual
   - unassigning a checked-in shift returns 409
@@ -279,18 +303,19 @@ Integration tests run on Postgres. Frontend tests use vitest.
   - the week view returns `employee_name: null`
   - preference asterisks skip them
 - **Candidates:**
-  - each of the four tiers gets the right people, alphabetical within a tier
+  - each of the three tiers gets the right people, alphabetical within a
+    tier, and nobody outside them is returned
   - a blackout makes someone unavailable, and so does an overlapping
     approved shift
   - employee-timezone conversion is applied
   - `exclude_shift_id` stops a shift clashing with itself
   - another company's employees never appear
-  - an inaccessible location returns 403
+  - another company's location returns 404
   - the query count is constant as the number of employees grows
 - **Shared availability check:** the `no_availability` warning now fires on
   a blackout day.
 - **Open-shift count:** only the 14-day window, only approved schedules, and
-  only accessible locations.
+  only this company.
 
 ### Frontend
 
