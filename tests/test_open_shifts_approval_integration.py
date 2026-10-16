@@ -135,3 +135,30 @@ async def test_draft_save_normalises_an_empty_employee_to_open(
     assert saved["employee_id"] is None and saved["status"] == "OPEN"
     data = await _approve(client, manager_token, sid)
     assert [s["employee_id"] for s in data["shifts"]] == [None]
+
+
+async def test_a_malformed_open_entry_is_skipped_not_a_500(
+    client, manager_token, db_session, seed_employees, seed_location, seed_roles,
+):
+    """Open entries are hand-added in the draft UI; one with an unparseable
+    time or no date is dropped (and logged) rather than failing the whole
+    approval and losing every other shift."""
+    no_date = {**_entry(None, status="OPEN", name=None)}
+    del no_date["date"]
+    sid = await _draft(db_session, [
+        _entry(EMPLOYEE1_ID),
+        {**_entry(None, status="OPEN", name=None), "start_time": ""},
+        no_date,
+    ])
+    data = await _approve(client, manager_token, sid)
+    assert [s["employee_id"] for s in data["shifts"]] == [EMPLOYEE1_ID]
+
+
+async def test_a_malformed_filled_entry_still_fails_the_approval(
+    client, manager_token, db_session, seed_employees, seed_location, seed_roles,
+):
+    sid = await _draft(db_session, [{**_entry(EMPLOYEE1_ID), "start_time": ""}])
+    resp = await client.post(
+        f"{BASE}/{sid}/approve", headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert resp.status_code == 500

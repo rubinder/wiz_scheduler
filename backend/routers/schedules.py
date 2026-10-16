@@ -796,6 +796,27 @@ async def approve_schedule(
                             role_id, s.get("role_name", ""),
                         )
                         continue
+                    zone = location_zones.get(str(loc_id))
+                    try:
+                        shift_date = (
+                            date.fromisoformat(s["date"])
+                            if isinstance(s["date"], str) else s["date"]
+                        )
+                        start_at = _at_location(s["start_time"], zone)
+                        end_at = _at_location(s["end_time"], zone)
+                    except (KeyError, ValueError, TypeError) as exc:
+                        if not open_entry:
+                            # A filled entry still fails the approval: it
+                            # holds someone's time and must not vanish.
+                            raise
+                        # An open entry is hand-added in the draft UI;
+                        # one that cannot be read is dropped, not allowed
+                        # to fail every other shift's approval.
+                        logger.warning(
+                            "Skipping unparseable open entry on schedule %s: %s",
+                            schedule.id, exc,
+                        )
+                        continue
                     shift = Shift(
                         company_id=current_user.company_id,
                         shift_schedule_id=schedule.id,
@@ -803,9 +824,9 @@ async def approve_schedule(
                         employee_id=emp_id,
                         role_id=role_id,
                         role_name=s.get("role_name", ""),
-                        date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
-                        start_time=_at_location(s["start_time"], location_zones.get(str(loc_id))),
-                        end_time=_at_location(s["end_time"], location_zones.get(str(loc_id))),
+                        date=shift_date,
+                        start_time=start_at,
+                        end_time=end_at,
                         preference_violations=(
                             [] if open_entry
                             else list(s.get("preference_violations") or [])
