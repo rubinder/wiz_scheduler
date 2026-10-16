@@ -162,3 +162,30 @@ async def test_a_malformed_filled_entry_still_fails_the_approval(
         f"{BASE}/{sid}/approve", headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert resp.status_code == 500
+
+
+async def test_a_naive_overnight_open_entry_is_read_in_the_location_zone(
+    client, manager_token, db_session, seed_employees, seed_location, seed_roles,
+):
+    """What the add-open-shift form now sends (#174): naive wall-clock, the
+    end rolled to the next day. Draft save keeps it; approval reads it in the
+    location's zone."""
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo(seed_location.timezone or "UTC")
+    entry = {
+        **_entry(None, status="OPEN", name=None),
+        "start_time": "2026-04-13T22:00:00", "end_time": "2026-04-14T02:00:00",
+    }
+    sid = await _draft(db_session, [_entry(EMPLOYEE1_ID)])
+    resp = await client.put(
+        f"{BASE}/{sid}/shifts",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"shifts": [_entry(EMPLOYEE1_ID), entry]},
+    )
+    assert resp.status_code == 200, resp.text
+    await _approve(client, manager_token, sid)
+    row = (await db_session.execute(
+        select(Shift).where(Shift.shift_schedule_id == sid, Shift.employee_id.is_(None))
+    )).scalar_one()
+    assert row.start_time == datetime(2026, 4, 13, 22, tzinfo=zone)
+    assert row.end_time == datetime(2026, 4, 14, 2, tzinfo=zone)
