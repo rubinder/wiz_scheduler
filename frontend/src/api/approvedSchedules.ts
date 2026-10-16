@@ -23,8 +23,8 @@ export interface WeekShift {
   id: string;
   shift_schedule_id: string;
   location_id: string;
-  employee_id: string;
-  employee_name: string;
+  employee_id: string | null;
+  employee_name: string | null;
   role_id: string;
   role_name: string;
   date: string;
@@ -68,7 +68,7 @@ export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
 export interface EditWarning {
   code: "no_availability" | "already_booked" | "already_exported";
   shift_id: string | null;
-  employee_id: string;
+  employee_id: string | null;
   detail: string;
 }
 
@@ -78,6 +78,9 @@ export interface EditWarning {
 export interface ApprovedShiftEdit {
   shift_id?: string | null;
   deleted?: boolean;
+  /** true unassigns `shift_id`, or with no `shift_id` creates an open shift
+   *  (#174). Never sent together with `employee_id`. */
+  open?: boolean;
   employee_id?: string;
   role_id?: string;
   date?: string;
