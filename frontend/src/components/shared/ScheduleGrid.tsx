@@ -1,3 +1,4 @@
+import { isOpenShift } from "../../utils/openShifts";
 import { useMemo, useId } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, roleColorsLight } from "../../theme";
@@ -34,6 +35,7 @@ interface ScheduleGridProps {
   employees: Employee[];
   onEditShift?: (shiftIndex: number) => void;
   specialHoursByDate?: Record<string, SpecialHoursDay>;
+  highlightOpen?: boolean;
 }
 
 export default function ScheduleGrid({
@@ -41,6 +43,7 @@ export default function ScheduleGrid({
   editable,
   onEditShift,
   specialHoursByDate,
+  highlightOpen = false,
 }: ScheduleGridProps) {
   const { t } = useLanguage();
   const { dates, roles, grid, roleColorMap, shiftIndexMap } = useMemo(() => {
@@ -131,35 +134,43 @@ export default function ScheduleGrid({
                       <span className="text-gray-600 text-xs">&mdash;</span>
                     ) : (
                       <div className="space-y-1.5">
-                        {cellShifts.map((s, i) => (
-                          <div
-                            key={i}
-                            onClick={
-                              editable && onEditShift
-                                ? () => onEditShift(cellIndices[i])
-                                : undefined
-                            }
-                            className={`rounded-lg border px-2.5 py-1.5 ${roleColorMap[role]} ${
-                              editable
-                                ? "cursor-pointer hover:ring-2 hover:ring-accent/40 transition-shadow"
-                                : ""
-                            }`}
-                          >
-                            <div className="text-sm font-medium text-inherit">
-                              {s.employee_name}
-                              {(s.preference_violations?.length ?? 0) > 0 && (
-                                <PreferenceMark
-                                  label={t.schedule.prefAsteriskLabel}
-                                  lines={describeViolations(s.preference_violations, t.schedule)}
-                                />
-                              )}
+                        {cellShifts.map((s, i) => {
+                          const open = isOpenShift(s);
+                          return (
+                            <div
+                              key={i}
+                              data-open-shift={open ? "true" : undefined}
+                              onClick={
+                                editable && onEditShift
+                                  ? () => onEditShift(cellIndices[i])
+                                  : undefined
+                              }
+                              className={`rounded-lg border px-2.5 py-1.5 ${
+                                open
+                                  ? "border-dashed border-amber-500/70 bg-amber-500/10 text-amber-900"
+                                  : roleColorMap[role]
+                              } ${open && highlightOpen ? "ring-2 ring-amber-500" : ""} ${
+                                editable
+                                  ? "cursor-pointer hover:ring-2 hover:ring-accent/40 transition-shadow"
+                                  : ""
+                              }`}
+                            >
+                              <div className="text-sm font-medium text-inherit">
+                                {open ? t.schedule.openShift : s.employee_name}
+                                {!open && (s.preference_violations?.length ?? 0) > 0 && (
+                                  <PreferenceMark
+                                    label={t.schedule.prefAsteriskLabel}
+                                    lines={describeViolations(s.preference_violations, t.schedule)}
+                                  />
+                                )}
+                              </div>
+                              <div className="text-xs opacity-75">
+                                {formatTime(s.start_time)} &ndash;{" "}
+                                {formatTime(s.end_time)}
+                              </div>
                             </div>
-                            <div className="text-xs opacity-75">
-                              {formatTime(s.start_time)} &ndash;{" "}
-                              {formatTime(s.end_time)}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </td>
