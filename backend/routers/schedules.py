@@ -512,18 +512,21 @@ async def edit_approved_shifts(
                     )
                 if shift.employee_id is not None:
                     touched.add(str(shift.employee_id))
-                if edit.deleted:
+                if edit.deleted or edit.open:
                     # A payroll time entry points at this shift (#78). Pay
                     # records are not schedule scratch: deleting the shift
                     # would either 500 on the FK or, with a cascade, quietly
-                    # erase hours somebody is owed. Refuse and say why.
+                    # erase hours somebody is owed; unassigning it (#174)
+                    # would leave a pay record on a shift that says no one
+                    # worked it. Refuse and say why.
                     from backend.models.time_entry import TimeEntry
                     has_entry = (await db.execute(
                         select(TimeEntry.id).where(
                             TimeEntry.shift_id == shift.id
-                        )
+                        ).limit(1)
                     )).scalar_one_or_none()
                     if has_entry is not None:
+                        action = "deleting" if edit.deleted else "unassigning"
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
                             detail={
@@ -533,10 +536,11 @@ async def edit_approved_shifts(
                                 "message": (
                                     "Payroll hours have already been "
                                     "recorded for this shift. Remove the "
-                                    "time entry before deleting the shift."
+                                    f"time entry before {action} the shift."
                                 ),
                             },
                         )
+                if edit.deleted:
                     await db.delete(shift)
                     applied += 1
                     continue

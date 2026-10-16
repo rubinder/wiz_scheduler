@@ -149,3 +149,38 @@ async def test_unassigning_an_exported_shift_warns_with_a_null_employee(
         "code": "already_exported", "shift_id": shift_id, "employee_id": None,
         "detail": "This shift was exported to 7shifts; the external schedule will now disagree.",
     }]
+
+
+async def test_open_true_on_a_shift_with_payroll_hours_is_refused(
+    client, manager_token, db_session, approved,
+):
+    """A time entry pays someone for this shift (#78); unassigning it would
+    leave a pay record on a shift that says no one worked it."""
+    from backend.models import User
+    from backend.models.time_entry import TimeEntry, TIME_ENTRY_MANAGER_ATTESTED
+
+    shift_id = await _shift(db_session, approved, EMPLOYEE1_ID)
+    attester = (await db_session.execute(
+        select(User).where(User.company_id == COMPANY_ID)
+    )).scalars().first()
+    db_session.add(TimeEntry(
+        id=_id(), company_id=COMPANY_ID, location_id=LOCATION_ID,
+        employee_id=EMPLOYEE1_ID, shift_id=shift_id, role_id=ROLE_FLOOR_ID,
+        role_name="Floor Associate", pay_date=DAY,
+        start_time=datetime(2026, 8, 31, 13, tzinfo=timezone.utc),
+        end_time=datetime(2026, 8, 31, 21, tzinfo=timezone.utc),
+        paid_minutes=480, source=TIME_ENTRY_MANAGER_ATTESTED,
+        attested_by_user_id=attester.id,
+        attested_at=datetime.now(timezone.utc),
+        attestation_reason="Phone died",
+    ))
+    await db_session.commit()
+
+    resp = await _edit(client, manager_token, approved, [{"shift_id": shift_id, "open": True}])
+    assert resp.status_code == 409, resp.text
+    detail = resp.json()["detail"]
+    assert detail["code"] == "shift_has_time_entry"
+    assert detail["index"] == 0 and detail["shift_id"] == shift_id
+    assert "payroll" in detail["message"].lower()
+    db_session.expire_all()
+    assert (await db_session.get(Shift, shift_id)).employee_id == EMPLOYEE1_ID
