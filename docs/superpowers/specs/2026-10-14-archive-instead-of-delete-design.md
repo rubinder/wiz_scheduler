@@ -1,10 +1,10 @@
 # Archive instead of delete: keep approved schedules and payroll
 
-**Date:** 2026-10-14 (revised 2026-10-15)
+**Date:** 2026-10-14 (revised 2026-10-15, 2026-10-16)
 **Issue:** #126 (deletion vs. foreign keys)
-**Depends on:** #174 (open shifts)
-**Branch:** `fix/shift-delete-fks`
-**Status:** Design agreed in conversation; spec awaiting review
+**Builds on:** #174 (open shifts, PR #175)
+**Branch:** `fix/archive-not-delete`, stacked on `feat/open-shifts`
+**Status:** Design agreed in conversation; revised spec awaiting review
 
 ## Goal
 
@@ -51,7 +51,7 @@ it already deletes the dependent rows in order.
 Because these rows are no longer deleted, their foreign keys can stay. The
 weak-reference design in the earlier draft of this spec is no longer needed.
 
-## 1. Data model (migration 0047)
+## 1. Data model (migration 0048)
 
 ### Archive columns
 
@@ -140,6 +140,12 @@ row.
 - invites, affinities and special hours
 - the employee-facing routes
 - edit warnings
+- the open-shift candidate picker (`services/candidates.py`): an archived
+  employee is never offered, and an archived role gives no tier credit
+- assigning a shift in the approved-schedule edit path: assigning an
+  archived employee returns 409 `employee_archived`
+- approval of a draft: an entry for an employee archived since generation is
+  written as an open shift
 - plan limit counts (`count_employees_for_group`,
   `count_locations_for_group`)
 
@@ -213,14 +219,36 @@ export).
 
 ## 6. Order of work
 
-**Order:** #174 (open shifts) lands first. If this issue has to ship before
-it, future approved shifts of an archived employee or role are deleted
-instead of opened. A follow-up then switches them to open shifts once #174
-merges.
+#174 (open shifts) is built (PR #175). This branch is stacked on
+`feat/open-shifts` and its PR targets that branch until #175 merges, then
+retargets `main`. Open shifts are a `Shift` with `employee_id IS NULL`, so
+"becomes an open shift" means nulling `employee_id` on the row and leaving
+its time, role and location as they were.
 
 ## 7. Testing
 
 Integration tests run on Postgres with foreign keys enforced.
+
+- **Import simulation (written first, failing on today's code):** an
+  end-to-end test drives the real `POST /import/7shifts` and
+  `POST /import/deputy` routes against canned upstream JSON. The router's
+  `httpx.AsyncClient` is replaced, via monkeypatch, with a client on an
+  `httpx.MockTransport` that answers each 7shifts/Deputy URL from a fixture
+  dict (httpx ships `MockTransport`; no new dependency). Scenario:
+  1. First import: one company, two locations, two roles, two employees.
+  2. Attach a past approved shift, a check-in, a time entry, a payroll
+     export and a special-hours day to employee A and location X, plus a
+     future approved shift for A.
+  3. Re-import with A, X and one role missing upstream.
+  4. Assert: 200 (today: 500 on the foreign keys); A, X and the role are
+     archived, not deleted; the past shift and pay rows are unchanged; A's
+     future shift is open; `archived` counts are reported.
+  5. Re-import with A back upstream: A is restored by `external_id`, with no
+     duplicate row, and `restored` is reported.
+
+  A shared fake-upstream helper (`tests/fake_upstream.py`) holds the
+  transport, so later importer tests reuse it instead of creating model
+  rows directly the way `test_schema_*_compat.py` does.
 
 - **Archive paths:** manager employee/location/role archive, 7shifts
   employee/location/role removal, Deputy employee removal. Each runs with a
