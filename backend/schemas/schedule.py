@@ -32,8 +32,9 @@ class GenerateRequest(BaseModel):
 
 
 class ShiftUpdate(BaseModel):
-    employee_id: str
-    employee_name: str
+    # None = an open shift (#174).
+    employee_id: str | None
+    employee_name: str | None
     role_id: str
     role_name: str
     location_id: str
@@ -59,7 +60,7 @@ class ShiftResponse(BaseModel):
     id: str
     shift_schedule_id: str
     location_id: str
-    employee_id: str
+    employee_id: str | None
     role_id: str
     role_name: str
     date: date
@@ -68,7 +69,7 @@ class ShiftResponse(BaseModel):
     # Resolved by the caller, not stored on Shift. The approved-schedule
     # viewer renders names, and export_schedules.py already builds the same
     # employee_id -> full_name map for the same reason.
-    employee_name: str = ""
+    employee_name: str | None = ""
     # NULL on rows older than #99 -> [] so the client has one shape to read.
     preference_violations: list[dict] = []
 
@@ -89,6 +90,10 @@ class ApprovedShiftEdit(BaseModel):
 
     shift_id: str | None = None
     deleted: bool = False
+    # True unassigns an existing shift, or (with no shift_id) creates an open
+    # one (#174). A missing employee_id already means "unchanged", so "no one"
+    # needs its own flag. Mutually exclusive with employee_id.
+    open: bool = False
     employee_id: str | None = None
     role_id: str | None = None
     # Qualified reference, not the bare `date` imported above: an annotated
@@ -108,7 +113,7 @@ class EditApprovedShiftsRequest(BaseModel):
 class EditWarning(BaseModel):
     code: str
     shift_id: str | None
-    employee_id: str
+    employee_id: str | None
     detail: str
 
 

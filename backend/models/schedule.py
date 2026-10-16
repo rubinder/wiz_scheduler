@@ -52,8 +52,9 @@ class Shift(Base):
     location_id: Mapped[str] = mapped_column(
         String(8), ForeignKey("locations.id"), nullable=False
     )
-    employee_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("employees.id"), nullable=False
+    # NULL = an open shift (#174): a real slot with no one on it yet.
+    employee_id: Mapped[str | None] = mapped_column(
+        String(8), ForeignKey("employees.id"), nullable=True
     )
     role_id: Mapped[str] = mapped_column(
         String(8), ForeignKey("roles.id"), nullable=False
