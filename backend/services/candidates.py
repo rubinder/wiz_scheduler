@@ -8,8 +8,14 @@ Alphabetical within a tier. Everyone else (tier 4) is not offered: the
 picker shows only people who fit the location. "Available" is services/availability_check.py --
 the same definition as the scheduler and the no_availability edit warning.
 
-Bulk-loaded in five queries regardless of company size: employees, employee
-roles, availability windows, blackouts, and nearby shifts. Scoring is Python.
+"Has the role" follows the scheduler's condensed-role equivalence
+(scheduling/graph.py role_equivalents + role_to_condensed): a slot carrying a
+condensed role id is filled by any member role, and a slot carrying a member
+role is filled by that role or any group-mate.
+
+Bulk-loaded in six queries regardless of company size: condensed-role
+mappings, employees, employee roles, availability windows, blackouts, and
+nearby shifts. Scoring is Python.
 """
 
 from dataclasses import dataclass
@@ -19,6 +25,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
+    CondensedRole,
+    CondensedRoleMapping,
     Employee,
     EmployeeAvailability,
     EmployeeDayBlackout,
@@ -52,6 +60,21 @@ def tier_for(*, available: bool, has_role: bool, at_location: bool) -> int:
     return 4
 
 
+def role_equivalents(role_id: str, mappings: list[tuple[str, str]]) -> set[str]:
+    """Employee role ids that fill a slot of ``role_id``, given the company's
+    (condensed_role_id, member_role_id) pairs. Mirrors the scheduler: an
+    employee holding member role r is offered r, every group-mate of r, and
+    every condensed role containing r."""
+    groups: dict[str, set[str]] = {}
+    for cid, rid in mappings:
+        groups.setdefault(cid, set()).add(rid)
+    equivalents = {role_id}
+    for cid, members in groups.items():
+        if role_id == cid or role_id in members:
+            equivalents |= members
+    return equivalents
+
+
 def slot_span(day: date, start_hm: str, end_hm: str) -> tuple[datetime, datetime]:
     """A slot's naive wall-clock span at its location. An end at or before
     the start is the next day (an overnight shift)."""
@@ -77,6 +100,15 @@ async def rank_candidates(
     lo = datetime.combine(day - timedelta(days=1), time.min, tzinfo=timezone.utc)
     hi = datetime.combine(day + timedelta(days=2), time.min, tzinfo=timezone.utc)
 
+    mappings = [
+        (str(cid), str(rid)) for cid, rid in (await db.execute(
+            select(CondensedRoleMapping.condensed_role_id, CondensedRoleMapping.role_id)
+            .join(CondensedRole, CondensedRoleMapping.condensed_role_id == CondensedRole.id)
+            .where(CondensedRole.company_id == company_id)
+        )).all()
+    ]
+    equivalent_roles = role_equivalents(role_id, mappings)
+
     employees = (await db.execute(
         select(Employee).where(Employee.company_id == company_id)
     )).scalars().all()
@@ -85,7 +117,7 @@ async def rank_candidates(
         str(eid) for eid in (await db.execute(
             select(EmployeeRole.employee_id).where(
                 EmployeeRole.company_id == company_id,
-                EmployeeRole.role_id == role_id,
+                EmployeeRole.role_id.in_(equivalent_roles),
             )
         )).scalars().all()
     }
