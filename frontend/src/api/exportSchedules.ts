@@ -2,8 +2,8 @@ import { apiFetch } from "./client";
 
 export interface ExportShift {
   id: string;
-  employee_id: string;
-  employee_name: string;
+  employee_id: string | null;
+  employee_name: string | null;
   role_id: string;
   role_name: string;
   date: string;
@@ -26,6 +26,7 @@ export interface Export7ShiftsResult {
   exported: number;
   failed: number;
   errors: string[];
+  open_shifts_skipped: number;
 }
 
 export function listApprovedSchedules(

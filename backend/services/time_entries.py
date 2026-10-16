@@ -542,6 +542,16 @@ async def attest_shift(
             status.HTTP_409_CONFLICT,
         )
 
+    if shift.employee_id is None:
+        # An open shift (#174): there is no one to pay. Without this the
+        # NOT NULL time_entries.employee_id surfaces as a misleading
+        # entry_exists from the IntegrityError handler below.
+        raise _reject(
+            "shift_is_open",
+            "This shift has no one assigned.",
+            status.HTTP_409_CONFLICT,
+        )
+
     start = _as_utc(shift.start_time)
     if start >= datetime.now(timezone.utc):
         raise _reject(

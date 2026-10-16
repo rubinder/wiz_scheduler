@@ -222,3 +222,49 @@ def test_the_table_owner_still_sees_and_writes_rows(rds_like_postgres):
             ON CONFLICT DO NOTHING;
     """)
     assert _psql(pg, "SELECT count(*) FROM regions WHERE id = 'rgmig001'") == "1"
+
+
+def _alembic_fails(url: str, *args: str) -> str:
+    """Run alembic expecting failure; return its combined output."""
+    repo_root = Path(__file__).parent.parent
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", *args],
+        cwd=repo_root / "backend",
+        env={**os.environ, "DATABASE_URL": url, "PYTHONPATH": str(repo_root)},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0, f"alembic {' '.join(args)} unexpectedly succeeded"
+    return result.stdout + result.stderr
+
+
+def test_0047_downgrade_refuses_while_an_open_shift_exists(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, (
+        "INSERT INTO companies (id, name, slug) VALUES ('mgc00001', 'M', 'mig-open-1');"
+        "INSERT INTO regions (id, company_id, name) VALUES ('mgr00001', 'mgc00001', 'R');"
+        "INSERT INTO locations (id, company_id, region_id, name, timezone)"
+        " VALUES ('mgl00001', 'mgc00001', 'mgr00001', 'L', 'UTC');"
+        "INSERT INTO roles (id, company_id, name) VALUES ('mgo00001', 'mgc00001', 'X');"
+        "INSERT INTO shift_schedules (id, company_id, location_id, week_start_date, status)"
+        " VALUES ('mgs00001', 'mgc00001', 'mgl00001', '2026-08-31', 'approved');"
+        "INSERT INTO shifts (id, company_id, shift_schedule_id, location_id, employee_id,"
+        " role_id, role_name, date, start_time, end_time)"
+        " VALUES ('mgf00001', 'mgc00001', 'mgs00001', 'mgl00001', NULL, 'mgo00001', 'X',"
+        " '2026-08-31', '2026-08-31 09:00+00', '2026-08-31 17:00+00');"
+    ))
+    try:
+        out = _alembic_fails(url, "downgrade", "0046")
+        assert "open shift(s) exist" in out
+    finally:
+        _psql(pg, (
+            "DELETE FROM shifts WHERE id = 'mgf00001';"
+            "DELETE FROM shift_schedules WHERE id = 'mgs00001';"
+            "DELETE FROM roles WHERE id = 'mgo00001';"
+            "DELETE FROM locations WHERE id = 'mgl00001';"
+            "DELETE FROM regions WHERE id = 'mgr00001';"
+            "DELETE FROM companies WHERE id = 'mgc00001';"
+        ))
+    _alembic(url, "downgrade", "0046")
+    _alembic(url, "upgrade", "head")

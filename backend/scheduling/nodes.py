@@ -15,6 +15,7 @@ from backend.scheduling.employee_time import (
     needs_conversion,
 )
 from backend.scheduling.local_scheduler import _build_affinity_lookup
+from backend.scheduling.open_shifts import OPEN_STATUS, is_open_entry, to_open_entry
 from backend.scheduling.preferences import (
     annotate_preference_violations,
     blocked_by_hard_preference,
@@ -1444,6 +1445,11 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
     location_id = str(location.get("id", ""))
     location_name = str(location.get("name", ""))
     shifts = state["current_parsed_shifts"]
+    # Unfilled slots leave the graph as open shifts (#174). Inside the graph
+    # they stay the legacy VACANT placeholder that every node's checks are
+    # written against; this is the one place that shape changes.
+    shifts = [to_open_entry(s) if is_open_entry(s) else s for s in shifts]
+    open_count = sum(1 for s in shifts if s["status"] == OPEN_STATUS)
 
     # Determine status
     has_conflict = any(s["status"] == "CONFLICT" for s in shifts)
@@ -1494,6 +1500,7 @@ def emit_result(state: SchedulingState) -> Dict[str, Any]:
         "status": status,
         "preference_summary": state.get("current_preference_summary"),
         "signal_config": state.get("signal_config", {}),
+        "open_count": open_count,
     }
 
     draft_schedules = list(state["draft_schedules"])

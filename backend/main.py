@@ -25,6 +25,7 @@ from backend.routers import (
     locations,
     manager_invites,
     manager_locations,
+    open_shifts,
     ownership_group,
     payroll,
     public,
@@ -110,6 +111,9 @@ def create_app() -> FastAPI:
     app.include_router(special_hours.router, prefix=api_prefix)
     app.include_router(check_ins.router, prefix=api_prefix)
     app.include_router(payroll.router, prefix=api_prefix)
+    # Before schedules.router: its /{schedule_id} routes must not swallow
+    # /candidates or /open-shifts/count.
+    app.include_router(open_shifts.router, prefix=api_prefix)
     app.include_router(schedules.router, prefix=api_prefix)
     app.include_router(scheduling_preferences.router, prefix=api_prefix)
     app.include_router(import_7shifts.router, prefix=api_prefix)

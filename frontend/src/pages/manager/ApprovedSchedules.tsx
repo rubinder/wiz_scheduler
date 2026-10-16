@@ -8,6 +8,10 @@ import * as rolesApi from "../../api/roles";
 import ScheduleGrid from "../../components/shared/ScheduleGrid";
 import EditShiftModal from "../../components/shared/EditShiftModal";
 import RosterThinBanner from "../../components/shared/RosterThinBanner";
+import OpenShiftBanner from "../../components/shared/OpenShiftBanner";
+import AddOpenShiftModal from "../../components/shared/AddOpenShiftModal";
+import { countOpen, openSlotTimes, weekDates } from "../../utils/openShifts";
+import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday, spinner as spinnerClass } from "../../theme";
 
@@ -77,6 +81,8 @@ export default function ApprovedSchedules() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [highlightOpenFor, setHighlightOpenFor] = useState<string | null>(null);
+  const [addingOpenFor, setAddingOpenFor] = useState<WeekSchedule | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [editingShift, setEditingShift] = useState<{
@@ -250,14 +256,37 @@ export default function ApprovedSchedules() {
                     </div>
                   </div>
                   <RosterThinBanner summary={sched.preference_summary} atGeneration />
+                  <OpenShiftBanner
+                    count={countOpen(sched.shifts)}
+                    onShow={() => {
+                      setHighlightOpenFor(sched.id);
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector(`[data-schedule="${sched.id}"] [data-open-shift="true"]`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                      );
+                    }}
+                  />
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingOpenFor(sched)}
+                      className="glass-btn-secondary text-xs font-medium mb-3"
+                    >
+                      {t.schedule.addOpenShift}
+                    </button>
+                  )}
+                  <div data-schedule={sched.id}>
                   <ScheduleGrid
                     shifts={approvedApi.toAssignments(sched.shifts)}
                     editable={editable}
                     employees={[]}
+                    highlightOpen={highlightOpenFor === sched.id}
                     onEditShift={(idx) =>
                       setEditingShift({ scheduleId: sched.id, shift: sched.shifts[idx] })
                     }
                   />
+                  </div>
                 </div>
               );
             })}
@@ -272,6 +301,26 @@ export default function ApprovedSchedules() {
           roles={roles}
           onClose={() => setEditingShift(null)}
           onApplied={() => loadWeek(selectedWeek)}
+        />
+      )}
+
+      {addingOpenFor && (
+        <AddOpenShiftModal
+          roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+          dates={weekDates(addingOpenFor.week_start_date)}
+          onSubmit={async (v) => {
+            // Naive wall-clock: the server reads it in the location's zone,
+            // which is right on both sides of a DST change.
+            await approvedApi.editApprovedShifts(addingOpenFor.id, [{
+              open: true,
+              role_id: v.role_id,
+              date: v.date,
+              ...openSlotTimes(v.date, v.start, v.end),
+            }]);
+            notifyOpenShiftsChanged();
+            await loadWeek(selectedWeek);
+          }}
+          onClose={() => setAddingOpenFor(null)}
         />
       )}
     </div>

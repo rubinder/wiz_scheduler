@@ -25,8 +25,8 @@ SEVEN_SHIFTS_BASE = "https://api.7shifts.com/v2"
 
 class ApprovedScheduleShift(BaseModel):
     id: str
-    employee_id: str
-    employee_name: str
+    employee_id: str | None
+    employee_name: str | None
     role_id: str
     role_name: str
     date: str
@@ -54,6 +54,8 @@ class Export7ShiftsResult(BaseModel):
     exported: int
     failed: int
     errors: list[str]
+    # Open shifts (#174) have no one to send; 7shifts needs a user_id.
+    open_shifts_skipped: int = 0
 
 
 async def _load_condensed_role_resolver(
@@ -216,8 +218,11 @@ async def list_approved_schedules(
             )
             shift_items.append(ApprovedScheduleShift(
                 id=str(s.id),
-                employee_id=str(s.employee_id),
-                employee_name=emp_map.get(s.employee_id, str(s.employee_id)),
+                employee_id=s.employee_id,
+                employee_name=(
+                    None if s.employee_id is None
+                    else emp_map.get(s.employee_id, str(s.employee_id))
+                ),
                 role_id=str(resolved_id),
                 role_name=resolved_name or s.role_name,
                 date=s.date.isoformat(),
@@ -266,6 +271,13 @@ async def export_to_7shifts(
     if not shifts:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No matching shifts found"
+        )
+
+    open_skipped = sum(1 for s in shifts if s.employee_id is None)
+    shifts = [s for s in shifts if s.employee_id is not None]
+    if not shifts:
+        return Export7ShiftsResult(
+            exported=0, failed=0, errors=[], open_shifts_skipped=open_skipped,
         )
 
     # Look up employee external IDs for 7shifts user_id mapping
@@ -377,7 +389,10 @@ async def export_to_7shifts(
                 failed += 1
 
     await db.commit()
-    return Export7ShiftsResult(exported=exported, failed=failed, errors=errors)
+    return Export7ShiftsResult(
+        exported=exported, failed=failed, errors=errors,
+        open_shifts_skipped=open_skipped,
+    )
 
 
 @router.get("/jsonl/{schedule_id}")
@@ -439,8 +454,10 @@ async def export_jsonl(
             "schedule_id": str(s.shift_schedule_id),
             "location_id": str(s.location_id),
             "location_name": loc_name,
-            "employee_id": str(s.employee_id),
-            "employee_name": emp_map.get(s.employee_id, ""),
+            "employee_id": s.employee_id,
+            "employee_name": (
+                None if s.employee_id is None else emp_map.get(s.employee_id, "")
+            ),
             "role_id": str(resolved_id),
             "role_name": resolved_name or s.role_name,
             "role_external_id": resolved_ext,

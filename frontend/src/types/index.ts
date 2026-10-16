@@ -300,8 +300,9 @@ export interface PreferenceSummary {
 }
 
 export interface ShiftAssignment {
-  employee_id: string;
-  employee_name: string;
+  /** null = an open shift (#174). */
+  employee_id: string | null;
+  employee_name: string | null;
   role_id: string;
   role_name: string;
   location_id: string;
@@ -321,6 +322,8 @@ export interface LocationResult {
   schedule_id?: string;
   preference_summary?: PreferenceSummary | null;
   signal_config?: SignalConfig | null;
+  /** Open shifts in this location's result (#174). */
+  open_count?: number;
 }
 
 // ── Invites ──

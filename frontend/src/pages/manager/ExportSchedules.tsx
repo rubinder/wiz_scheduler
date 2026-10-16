@@ -9,6 +9,7 @@ import {
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday } from "../../theme";
 import { formatTime } from "../../utils/shiftTime";
+import { isOpenShift } from "../../utils/openShifts";
 
 function toDateStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -395,6 +396,14 @@ export default function ExportSchedules() {
             {exportResult.failed > 0 &&
               ` ${exportResult.failed} ${t.exportSchedules.failed}`}
           </p>
+          {exportResult.open_shifts_skipped > 0 && (
+            <p className="mt-1 text-xs">
+              {t.exportSchedules.openShiftsSkipped.replace(
+                "{n}",
+                String(exportResult.open_shifts_skipped)
+              )}
+            </p>
+          )}
           {exportResult.errors.length > 0 && (
             <ul className="mt-2 list-disc list-inside text-xs">
               {exportResult.errors.map((e, i) => (
@@ -507,7 +516,7 @@ export default function ExportSchedules() {
                           />
                         </td>
                         <td className={`px-4 py-2 text-sm font-medium ${text.primary}`}>
-                          {shift.employee_name}
+                          {isOpenShift(shift) ? t.schedule.openShift : shift.employee_name}
                         </td>
                         <td className={`px-4 py-2 text-sm ${text.secondary}`}>
                           {shift.role_name}
