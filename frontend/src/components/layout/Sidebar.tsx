@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { listEmployees } from "../../api/employees";
+import { getOpenShiftCount, OPEN_SHIFTS_CHANGED } from "../../api/openShifts";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, nav } from "../../theme";
@@ -111,6 +112,32 @@ export default function Sidebar() {
       .catch(() => setHasEmployees(false));
   }, [isManager]);
 
+  const [openShiftCount, setOpenShiftCount] = useState(0);
+
+  // Open approved shifts in the next 14 days (#174). Refetched on every
+  // navigation and whenever something announces a change.
+  useEffect(() => {
+    if (!isManager) return;
+    let cancelled = false;
+    const load = () =>
+      getOpenShiftCount()
+        .then((n) => !cancelled && setOpenShiftCount(n))
+        .catch(() => !cancelled && setOpenShiftCount(0));
+    load();
+    window.addEventListener(OPEN_SHIFTS_CHANGED, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(OPEN_SHIFTS_CHANGED, load);
+    };
+  }, [isManager, pathname]);
+
+  const badge = (count: number) =>
+    count > 0 ? (
+      <span className="ms-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold">
+        {count}
+      </span>
+    ) : null;
+
   const entries = isManager ? managerNav : employeeNav;
 
   // Auto-expand whichever group owns the active route, so a deep link never
@@ -162,7 +189,12 @@ export default function Sidebar() {
                 }
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${nav.inactive}`}
               >
-                <span>{label(entry.labelKey)}</span>
+                <span>
+                  {label(entry.labelKey)}
+                  {!isOpen &&
+                    entry.children.some((c) => c.to === "/manager/approved-schedules") &&
+                    badge(openShiftCount)}
+                </span>
                 <span aria-hidden="true" className="text-xs">{isOpen ? "▾" : "▸"}</span>
               </button>
               {isOpen && (
@@ -170,6 +202,7 @@ export default function Sidebar() {
                   {children.map((child) => (
                     <NavLink key={child.to} to={child.to} className={linkClass}>
                       {label(child.labelKey)}
+                      {child.to === "/manager/approved-schedules" && badge(openShiftCount)}
                     </NavLink>
                   ))}
                 </div>

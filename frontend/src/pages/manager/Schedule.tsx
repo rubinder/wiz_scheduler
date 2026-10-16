@@ -32,6 +32,7 @@ import type {
   SpecialHoursDay,
 } from "../../types";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
+import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { isOpenShift, toOpenAssignment, countOpen } from "../../utils/openShifts";
 
 
@@ -688,6 +689,7 @@ export default function Schedule() {
         // Persist any edits first
         await saveShifts(locationResult);
         await schedulesApi.approveSchedule(locationResult.schedule_id);
+        notifyOpenShiftsChanged();
         setApprovedLocations((prev) => {
           const next = new Set(prev);
           next.add(locationResult.location_id);
