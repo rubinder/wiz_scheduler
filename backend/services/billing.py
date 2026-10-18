@@ -17,6 +17,7 @@ from backend.config import settings
 from backend.models import Company, Employee, Location, StorageSnapshot, TokenUsage, TokenUsageDaily
 from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
+from backend.services.archive import active
 from backend.services.operator_alerts import send_credit_purchase_alert
 
 logger = logging.getLogger(__name__)
@@ -416,28 +417,34 @@ async def record_storage_snapshots(db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 async def count_employees_for_group(db: AsyncSession, og_id: str) -> int:
-    """Count total employees across all companies in an ownership group."""
+    """Count total employees across all companies in an ownership group.
+
+    Archived rows are neither limited nor billed (#126).
+    """
     company_ids = await _get_company_ids_for_group(db, og_id)
     if not company_ids:
         return 0
 
     result = await db.execute(
         select(func.count(Employee.id)).where(
-            Employee.company_id.in_(company_ids)
+            Employee.company_id.in_(company_ids), active(Employee)
         )
     )
     return result.scalar() or 0
 
 
 async def count_locations_for_group(db: AsyncSession, og_id: str) -> int:
-    """Count total locations across all companies in an ownership group."""
+    """Count total locations across all companies in an ownership group.
+
+    Archived rows are neither limited nor billed (#126).
+    """
     company_ids = await _get_company_ids_for_group(db, og_id)
     if not company_ids:
         return 0
 
     result = await db.execute(
         select(func.count(Location.id)).where(
-            Location.company_id.in_(company_ids)
+            Location.company_id.in_(company_ids), active(Location)
         )
     )
     return result.scalar() or 0

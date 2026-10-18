@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 
 from backend.utils.tz import is_valid_timezone
@@ -59,6 +61,7 @@ class LocationResponse(BaseModel):
     overtime_threshold_hours: float | None = None
     overtime_premium_multiplier: float | None = None
     signal_config: dict | None = None  # Default signal weights for this location
+    archived_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

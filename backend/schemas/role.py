@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -17,6 +19,7 @@ class RoleResponse(BaseModel):
     name: str
     description: str | None
     external_id: str | None = None
+    archived_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

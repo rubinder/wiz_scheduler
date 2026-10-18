@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
 from backend.models import Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, User
+from backend.services.archive import active, archive_employee, restore_employee
 from backend.services.plan import assert_can_add, assert_paid_plan, assert_roster_editable
 from backend.schemas.employee import (
     AvailabilityCreate,
@@ -155,12 +156,14 @@ async def get_my_employee_profile(
 
 @router.get("/", response_model=list[EmployeeResponse])
 async def list_employees(
+    include_archived: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[EmployeeResponse]:
-    result = await db.execute(
-        select(Employee).where(Employee.company_id == current_user.company_id)
-    )
+    query = select(Employee).where(Employee.company_id == current_user.company_id)
+    if not include_archived:
+        query = query.where(active(Employee))
+    result = await db.execute(query)
     employees = result.scalars().all()
     return [await _to_response(db, e) for e in employees]
 
@@ -300,35 +303,34 @@ async def delete_employee(
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-    # Clean up all related records before deleting the employee
-    await db.execute(
-        delete(Shift).where(Shift.employee_id == employee_id)
-    )
-    await db.execute(
-        delete(EmployeeAvailability).where(EmployeeAvailability.employee_id == employee_id)
-    )
-    await db.execute(
-        delete(EmployeeAffinity).where(
-            (EmployeeAffinity.employee_id == employee_id)
-            | (EmployeeAffinity.target_employee_id == employee_id)
-        )
-    )
-    await db.execute(
-        delete(EmployeeRole).where(EmployeeRole.employee_id == employee_id)
-    )
-    await db.execute(
-        delete(EmployeeRoleMinutes).where(
-            EmployeeRoleMinutes.employee_id == employee_id
-        )
-    )
-    await db.execute(
-        delete(EmployeeCompany).where(EmployeeCompany.employee_id == employee_id)
-    )
-    await db.execute(
-        delete(EmployeeDayBlackout).where(EmployeeDayBlackout.employee_id == employee_id)
-    )
-    await db.delete(employee)
+    await archive_employee(db, current_user.company_id, employee)
     await db.commit()
+
+
+@router.post("/{employee_id}/restore", response_model=EmployeeResponse)
+async def restore_employee_endpoint(
+    employee_id: str,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> EmployeeResponse:
+    await assert_roster_editable(db, str(current_user.company_id))
+    employee = (await db.execute(select(Employee).where(
+        Employee.id == employee_id, Employee.company_id == current_user.company_id,
+    ))).scalar_one_or_none()
+    if employee is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    if employee.archived_at is not None:
+        if employee.erased_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "employee_erased",
+                        "message": "An erased employee cannot be restored."},
+            )
+        await assert_can_add(db, str(current_user.company_id), employees=1)
+        await restore_employee(db, current_user.company_id, employee)
+        await db.commit()
+        await db.refresh(employee)
+    return await _to_response(db, employee)
 
 
 @router.post("/bulk-upload", response_model=BulkUploadResponse)
@@ -406,14 +408,14 @@ async def bulk_upload(
 
     # Pre-fetch company roles and locations for case-insensitive matching
     role_result = await db.execute(
-        select(Role).where(Role.company_id == current_user.company_id)
+        select(Role).where(Role.company_id == current_user.company_id, active(Role))
     )
     roles_by_name: dict[str, Role] = {
         r.name.lower(): r for r in role_result.scalars().all()
     }
 
     location_result = await db.execute(
-        select(Location).where(Location.company_id == current_user.company_id)
+        select(Location).where(Location.company_id == current_user.company_id, active(Location))
     )
     locations_by_name: dict[str, Location] = {
         loc.name.lower(): loc for loc in location_result.scalars().all()
@@ -449,8 +451,12 @@ async def bulk_upload(
                     Employee.email == email,
                 )
             )
-            if dup_result.scalar_one_or_none() is not None:
-                errors.append(f"Row {row_num}: employee with email {email} already exists, skipped")
+            dup = dup_result.scalars().first()
+            if dup is not None:
+                if dup.archived_at is not None:
+                    errors.append(f"{email}: exists (archived) — restore it instead")
+                else:
+                    errors.append(f"Row {row_num}: employee with email {email} already exists, skipped")
                 skipped += 1
                 continue
 
