@@ -84,7 +84,9 @@ async def _seed(
     db.add(TimeEntry(
         id=entry_id, company_id=company_id, location_id=location_id,
         employee_id=employee_id, shift_id=shift_id, role_id=role_id,
-        role_name=role.name, pay_date=start.date(), start_time=start,
+        role_name=role.name, employee_name="Test Employee",
+        location_name="Test Location", location_timezone="UTC",
+        pay_date=start.date(), start_time=start,
         end_time=start + timedelta(hours=8), paid_minutes=480,
         source=TIME_ENTRY_CHECKED_IN, check_in_id=check_in_id,
         checked_in_at=start, lateness_minutes=-4,

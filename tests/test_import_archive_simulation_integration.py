@@ -127,7 +127,9 @@ async def _history(db: AsyncSession, tenant: dict, emp: Employee, past_loc: Loca
     db.add(export)
     await db.flush()
     entry = TimeEntry(id=_id(), company_id=cid, location_id=past_loc.id, employee_id=emp.id,
-                      shift_id=past.id, role_id=role.id, role_name=role.name, pay_date=PAST_DAY,
+                      shift_id=past.id, role_id=role.id, role_name=role.name,
+                      employee_name=emp.full_name, location_name=past_loc.name,
+                      location_timezone=past_loc.timezone, pay_date=PAST_DAY,
                       start_time=past.start_time, end_time=past.end_time, paid_minutes=480,
                       source="checked_in", check_in_id=check_in.id, payroll_export_id=export.id)
     db.add(entry)

@@ -2394,7 +2394,9 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
     entry = TimeEntry(
         id=_id(), company_id=COMPANY_ID, location_id=location.id,
         employee_id=employee.id, shift_id=shift.id, role_id=role.id,
-        role_name=role.name, pay_date=date(2026, 5, 4), start_time=start,
+        role_name=role.name, employee_name=employee.full_name,
+        location_name=location.name, location_timezone=location.timezone,
+        pay_date=date(2026, 5, 4), start_time=start,
         end_time=start + timedelta(hours=8), paid_minutes=480,
         source=TIME_ENTRY_CHECKED_IN, check_in_id=check_in.id,
         checked_in_at=start, lateness_minutes=0,

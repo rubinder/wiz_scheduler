@@ -1,4 +1,6 @@
-from sqlalchemy import CheckConstraint, Float, ForeignKey, String
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,6 +38,9 @@ class Location(Base):
     # Overrides company defaults when set. NULL = inherit from company.
     # {"seniority_weight": 0.0, "pay_weight": 0.0, "overtime_weight": 0.0, "affinity_weight": 0.0}
     signal_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # NULL = active. Archived locations keep their history (#126).
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(

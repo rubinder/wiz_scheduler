@@ -19,8 +19,8 @@ class GdprExportLog(Base):
     id: Mapped[str] = mapped_column(
         String(8), primary_key=True, default=generate_short_id
     )
-    user_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=False
+    user_id: Mapped[str | None] = mapped_column(
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     exported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")

@@ -43,9 +43,11 @@ class PayrollExport(Base):
     ownership_group_id: Mapped[str | None] = mapped_column(
         String(8), ForeignKey("ownership_groups.id"), nullable=True
     )
-    exported_by_user_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=False
+    exported_by_user_id: Mapped[str | None] = mapped_column(
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Snapshot, so the export still names its location after an archive (#126).
+    location_name: Mapped[str | None] = mapped_column(String, nullable=True)
     format: Mapped[str] = mapped_column(String(32), nullable=False)
     # NULL = every location in range.
     location_id: Mapped[str | None] = mapped_column(

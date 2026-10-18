@@ -81,6 +81,11 @@ class TimeEntry(Base):
     )
     # Snapshot of Shift.role_name, itself sourced from the roles table.
     role_name: Mapped[str] = mapped_column(String, nullable=False)
+    # Snapshots taken when the entry is written, so a later rename, archive or
+    # GDPR erasure never changes pay history (#126).
+    employee_name: Mapped[str] = mapped_column(String, nullable=False)
+    location_name: Mapped[str] = mapped_column(String, nullable=False)
+    location_timezone: Mapped[str] = mapped_column(String(64), nullable=False)
     # The location-local calendar date the shift STARTED. Whole and unsplit.
     pay_date: Mapped[date] = mapped_column(Date, nullable=False)
     start_time: Mapped[datetime] = mapped_column(
@@ -93,7 +98,7 @@ class TimeEntry(Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     # Nulled by the check-in retention sweep; checked_in_at survives it.
     check_in_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("employee_check_ins.id"), nullable=True
+        String(8), ForeignKey("employee_check_ins.id", ondelete="SET NULL"), nullable=True
     )
     checked_in_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -102,7 +107,7 @@ class TimeEntry(Base):
     # of zero would put a fact in the export that nobody observed.
     lateness_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     attested_by_user_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=True
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     attested_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -114,7 +119,7 @@ class TimeEntry(Base):
         DateTime(timezone=True), nullable=True
     )
     approved_by_user_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=True
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     # One-way idempotency marker, mirroring Shift.exported_at. Outlives the
     # payroll_exports row it points at, deliberately.
@@ -122,7 +127,7 @@ class TimeEntry(Base):
         DateTime(timezone=True), nullable=True
     )
     payroll_export_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("payroll_exports.id"), nullable=True
+        String(8), ForeignKey("payroll_exports.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False

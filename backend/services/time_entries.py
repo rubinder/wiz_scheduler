@@ -336,6 +336,9 @@ async def derive_time_entries(
             shift_id=c.shift.id,
             role_id=c.shift.role_id,
             role_name=c.shift.role_name,
+            employee_name=c.employee_name,
+            location_name=c.location.name,
+            location_timezone=c.location.timezone,
             pay_date=c.pay_date,
             start_time=c.shift.start_time,
             end_time=c.shift.end_time,
@@ -610,6 +613,12 @@ async def attest_shift(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
 
+    employee_name = (await db.execute(
+        select(Employee.full_name).where(
+            Employee.id == shift.employee_id, Employee.company_id == company_id
+        )
+    )).scalar_one()
+
     entry = TimeEntry(
         company_id=company_id,
         location_id=shift.location_id,
@@ -617,6 +626,9 @@ async def attest_shift(
         shift_id=shift.id,
         role_id=shift.role_id,
         role_name=shift.role_name,
+        employee_name=employee_name,
+        location_name=location.name,
+        location_timezone=location.timezone,
         pay_date=pay_date_for(location.timezone, start),
         start_time=shift.start_time,
         end_time=shift.end_time,

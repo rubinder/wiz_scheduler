@@ -268,3 +268,58 @@ def test_0047_downgrade_refuses_while_an_open_shift_exists(rds_like_postgres):
         ))
     _alembic(url, "downgrade", "0046")
     _alembic(url, "upgrade", "head")
+
+
+def test_0048_backfills_time_entry_snapshots(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _alembic(url, "downgrade", "0047")
+    _psql(pg, (
+        "INSERT INTO companies (id, name, slug) VALUES ('mgc00048', 'M', 'mig-48');"
+        "INSERT INTO regions (id, company_id, name) VALUES ('mgr00048', 'mgc00048', 'R');"
+        "INSERT INTO locations (id, company_id, region_id, name, timezone)"
+        " VALUES ('mgl00048', 'mgc00048', 'mgr00048', 'Dock', 'America/Chicago');"
+        "INSERT INTO roles (id, company_id, name) VALUES ('mgo00048', 'mgc00048', 'X');"
+        "INSERT INTO employees (id, company_id, full_name) VALUES ('mge00048', 'mgc00048', 'Ann A');"
+        "INSERT INTO shift_schedules (id, company_id, location_id, week_start_date, status)"
+        " VALUES ('mgs00048', 'mgc00048', 'mgl00048', '2026-08-31', 'approved');"
+        "INSERT INTO shifts (id, company_id, shift_schedule_id, location_id, employee_id,"
+        " role_id, role_name, date, start_time, end_time)"
+        " VALUES ('mgf00048', 'mgc00048', 'mgs00048', 'mgl00048', 'mge00048', 'mgo00048', 'X',"
+        " '2026-08-31', '2026-08-31 09:00+00', '2026-08-31 17:00+00');"
+        "INSERT INTO time_entries (id, company_id, location_id, employee_id, shift_id, role_id,"
+        " role_name, pay_date, start_time, end_time, paid_minutes, source)"
+        " VALUES ('mgt00048', 'mgc00048', 'mgl00048', 'mge00048', 'mgf00048', 'mgo00048', 'X',"
+        " '2026-08-31', '2026-08-31 09:00+00', '2026-08-31 17:00+00', 480, 'checked_in');"
+    ))
+    try:
+        _alembic(url, "upgrade", "head")
+        out = _psql(pg, "SELECT employee_name || '|' || location_name || '|' || location_timezone"
+                        " FROM time_entries WHERE id = 'mgt00048';")
+        assert "Ann A|Dock|America/Chicago" in out
+    finally:
+        _psql(pg, (
+            "DELETE FROM time_entries WHERE id = 'mgt00048';"
+            "DELETE FROM shifts WHERE id = 'mgf00048';"
+            "DELETE FROM shift_schedules WHERE id = 'mgs00048';"
+            "DELETE FROM employees WHERE id = 'mge00048';"
+            "DELETE FROM roles WHERE id = 'mgo00048';"
+            "DELETE FROM locations WHERE id = 'mgl00048';"
+            "DELETE FROM regions WHERE id = 'mgr00048';"
+            "DELETE FROM companies WHERE id = 'mgc00048';"
+        ))
+
+
+def test_0048_downgrade_refuses_while_a_row_is_archived(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, (
+        "INSERT INTO companies (id, name, slug) VALUES ('mgc00148', 'M', 'mig-148');"
+        "INSERT INTO roles (id, company_id, name, archived_at) VALUES ('mgo00148', 'mgc00148', 'X', now());"
+    ))
+    try:
+        assert "archived row(s) exist" in _alembic_fails(url, "downgrade", "0047")
+    finally:
+        _psql(pg, "DELETE FROM roles WHERE id = 'mgo00148'; DELETE FROM companies WHERE id = 'mgc00148';")
+    _alembic(url, "downgrade", "0047")
+    _alembic(url, "upgrade", "head")

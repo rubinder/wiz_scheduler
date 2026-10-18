@@ -15,8 +15,8 @@ class ManagerInvite(Base):
     ownership_group_id: Mapped[str] = mapped_column(
         String(8), ForeignKey("ownership_groups.id"), nullable=False, index=True
     )
-    invited_by_user_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=False
+    invited_by_user_id: Mapped[str | None] = mapped_column(
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
     token: Mapped[str] = mapped_column(
