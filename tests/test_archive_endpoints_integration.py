@@ -138,3 +138,46 @@ async def test_archived_employee_not_counted_for_plan(db_session):
     await db_session.commit()
     assert await count_employees_for_group(db_session, og_id) == 2
     assert await count_locations_for_group(db_session, og_id) == 1
+
+
+async def _group_with_employees(db_session):
+    og_id, company_id = _id(), _id()
+    db_session.add(OwnershipGroup(id=og_id, name="Billable Group"))
+    await db_session.flush()
+    db_session.add(Company(id=company_id, name="Billable Co", slug=_id(), ownership_group_id=og_id))
+    await db_session.flush()
+    emps = [Employee(id=_id(), company_id=company_id, full_name=f"E{i}") for i in range(3)]
+    db_session.add_all(emps)
+    await db_session.commit()
+    return og_id, emps
+
+
+@pytest.mark.asyncio
+async def test_billable_count_includes_archived_since_period_start(db_session):
+    from backend.services.billing import count_billable_employees_for_group
+    og_id, emps = await _group_with_employees(db_session)
+    period_start = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    emps[0].archived_at = period_start + timedelta(days=5)   # archived inside the period
+    emps[1].archived_at = period_start - timedelta(days=5)   # archived before it
+    await db_session.commit()
+    # emps[2] active + emps[0] archived after period_start; emps[1] excluded.
+    assert await count_billable_employees_for_group(db_session, og_id, period_start) == 2
+
+
+@pytest.mark.asyncio
+async def test_archive_before_billing_run_does_not_lower_overage(db_session, monkeypatch):
+    from backend.config import settings
+    from backend.services.billing import compute_monthly_overage
+    monkeypatch.setattr(settings, "INCLUDED_EMPLOYEES", 0)
+    monkeypatch.setattr(settings, "EMPLOYEE_BLOCK_SIZE", 1)
+    monkeypatch.setattr(settings, "EMPLOYEE_COST_PER_BLOCK", 1.0)
+    og_id, emps = await _group_with_employees(db_session)
+    now = datetime.now(timezone.utc)
+    period = f"{now.year:04d}-{now.month:02d}"
+    before = await compute_monthly_overage(db_session, og_id, "invoice_item_employees", period)
+    assert before == 3.0
+    for e in emps:
+        e.archived_at = now
+    await db_session.commit()
+    after = await compute_monthly_overage(db_session, og_id, "invoice_item_employees", period)
+    assert after == before

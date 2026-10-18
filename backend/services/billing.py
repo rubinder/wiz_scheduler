@@ -10,7 +10,7 @@ import logging
 import math
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -417,9 +417,11 @@ async def record_storage_snapshots(db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 async def count_employees_for_group(db: AsyncSession, og_id: str) -> int:
-    """Count total employees across all companies in an ownership group.
+    """Count active employees across all companies in an ownership group.
 
-    Archived rows are neither limited nor billed (#126).
+    This is the plan-limit count (plan.py): archived rows are not limited
+    (#126). Billing must not use it, because archiving just before a billing
+    run would lower the charge; billing uses count_billable_employees_for_group.
     """
     company_ids = await _get_company_ids_for_group(db, og_id)
     if not company_ids:
@@ -428,6 +430,28 @@ async def count_employees_for_group(db: AsyncSession, og_id: str) -> int:
     result = await db.execute(
         select(func.count(Employee.id)).where(
             Employee.company_id.in_(company_ids), active(Employee)
+        )
+    )
+    return result.scalar() or 0
+
+
+async def count_billable_employees_for_group(
+    db: AsyncSession, og_id: str, period_start: datetime
+) -> int:
+    """Count employees active at any point since `period_start` (#126).
+
+    Active ones plus those archived on or after the period start, so
+    archiving before a billing run and restoring after does not avoid the
+    charge. Employees archived before the period began are not billed.
+    """
+    company_ids = await _get_company_ids_for_group(db, og_id)
+    if not company_ids:
+        return 0
+
+    result = await db.execute(
+        select(func.count(Employee.id)).where(
+            Employee.company_id.in_(company_ids),
+            or_(Employee.archived_at.is_(None), Employee.archived_at >= period_start),
         )
     )
     return result.scalar() or 0
@@ -497,7 +521,8 @@ async def compute_monthly_overage(
         return calculate_storage_charge(float(snap.storage_gb))
 
     if kind == "invoice_item_employees":
-        count = await count_employees_for_group(db, og_id)
+        period_start = datetime(int(period[:4]), int(period[5:7]), 1, tzinfo=timezone.utc)
+        count = await count_billable_employees_for_group(db, og_id, period_start)
         return calculate_employee_charge(count)
 
     raise ValueError(f"Unknown overage kind: {kind!r}")
@@ -790,7 +815,9 @@ async def get_full_billing_summary(db: AsyncSession, og_id: str) -> dict:
     storage_charge = calculate_storage_charge(storage_gb)
 
     # Employees
-    employee_count = await count_employees_for_group(db, og_id)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    employee_count = await count_billable_employees_for_group(db, og_id, month_start)
     employee_charge = calculate_employee_charge(employee_count)
 
     # Schedules
