@@ -21,3 +21,26 @@ export function archivedHeldIds(
   const archived = new Set(rows.filter(isArchived).map((r) => r.id));
   return heldIds.filter((id) => archived.has(id));
 }
+
+/** `name`, marked "(Archived)" when `row` is archived — for history lookups. */
+export function withArchivedMark(
+  name: string,
+  row: { archived_at?: string | null } | undefined,
+  archivedWord: string
+): string {
+  return row && isArchived(row) ? `${name} (${archivedWord})` : name;
+}
+
+/**
+ * The rows a picker may offer: the active ones, plus the currently selected
+ * row first when it is archived, so the control shows what is actually held
+ * instead of silently falling back to the first option.
+ */
+export function choiceRows<T extends { id: string; archived_at?: string | null }>(
+  rows: T[],
+  currentId: string | null | undefined
+): T[] {
+  const current = rows.find((r) => r.id === currentId);
+  const active = visibleRows(rows, false);
+  return current && isArchived(current) ? [current, ...active] : active;
+}

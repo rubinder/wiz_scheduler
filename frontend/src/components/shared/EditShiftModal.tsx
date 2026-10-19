@@ -14,11 +14,14 @@ import { extractTime, extractOffset } from "../../utils/shiftTime";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, border } from "../../theme";
 import type { Employee, Role } from "../../types";
+import { choiceRows, withArchivedMark } from "../../utils/archived";
 
 interface Props {
   scheduleId: string;
   shift: WeekShift;
   employees: Employee[];
+  /** Every role, archived included: the shift's own archived role is shown
+   *  selected and labelled; only active roles are offered otherwise. */
   roles: Role[];
   onClose: () => void;
   /** Called once an edit has actually applied (with or without warnings) so
@@ -209,9 +212,13 @@ export default function EditShiftModal({
                   onChange={(e) => setRoleId(e.target.value)}
                   className="glass-input-sm w-full"
                 >
-                  {roles.map((r) => (
+                  {!roles.some((r) => r.id === shift.role_id) && (
+                    // Not in the list at all: keep showing what the shift holds.
+                    <option value={shift.role_id}>{shift.role_name}</option>
+                  )}
+                  {choiceRows(roles, shift.role_id).map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.name}
+                      {withArchivedMark(r.name, r, t.common.archived)}
                     </option>
                   ))}
                 </select>

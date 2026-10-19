@@ -19,6 +19,7 @@ import { text, bg, border, calendarToday, spinner as spinnerClass } from "../../
 // HourRestrictions.tsx:192), not a theme token.
 const card = "glass-card";
 import type { Employee, Location, Role } from "../../types";
+import { visibleRows, withArchivedMark } from "../../utils/archived";
 
 // Approved schedules stay editable for this many days after approval — kept
 // in sync with `settings.APPROVED_SCHEDULE_EDIT_DAYS` on the backend, which
@@ -91,9 +92,11 @@ export default function ApprovedSchedules() {
   } | null>(null);
 
   useEffect(() => {
-    locationsApi.listLocations().then(setLocations).catch(() => setLocations([]));
+    // Archived locations and roles too (#126): past schedules still name
+    // them. Anything offering a choice filters back down to active rows.
+    locationsApi.listLocations(true).then(setLocations).catch(() => setLocations([]));
     listEmployees().then(setEmployees).catch(() => setEmployees([]));
-    rolesApi.listRoles().then(setRoles).catch(() => setRoles([]));
+    rolesApi.listRoles(true).then(setRoles).catch(() => setRoles([]));
   }, []);
 
   // Dots marking which dates already have an approved schedule.
@@ -124,8 +127,11 @@ export default function ApprovedSchedules() {
   }, [selectedWeek, loadWeek]);
 
   const locationName = useCallback(
-    (id: string) => locations.find((l) => l.id === id)?.name ?? id,
-    [locations]
+    (id: string) => {
+      const loc = locations.find((l) => l.id === id);
+      return loc ? withArchivedMark(loc.name, loc, t.common.archived) : id;
+    },
+    [locations, t]
   );
 
   const shiftMonth = (delta: number) => {
@@ -306,7 +312,7 @@ export default function ApprovedSchedules() {
 
       {addingOpenFor && (
         <AddOpenShiftModal
-          roles={roles.map((r) => ({ id: r.id, name: r.name }))}
+          roles={visibleRows(roles, false).map((r) => ({ id: r.id, name: r.name }))}
           dates={weekDates(addingOpenFor.week_start_date)}
           onSubmit={async (v) => {
             // Naive wall-clock: the server reads it in the location's zone,

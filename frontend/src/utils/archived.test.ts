@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { archivedHeldIds, isArchived, visibleRows } from "./archived";
+import { archivedHeldIds, choiceRows, isArchived, visibleRows, withArchivedMark } from "./archived";
 
 const rows = [
   { id: "a", archived_at: null },
@@ -23,5 +23,15 @@ describe("archived rows", () => {
     ];
     expect(archivedHeldIds(["x", "y", "gone"], refs)).toEqual(["y"]);
     expect(archivedHeldIds([], refs)).toEqual([]);
+  });
+  it("marks archived names for history lookups", () => {
+    expect(withArchivedMark("B", rows[1], "Archived")).toBe("B (Archived)");
+    expect(withArchivedMark("A", rows[0], "Archived")).toBe("A");
+    expect(withArchivedMark("?", undefined, "Archived")).toBe("?");
+  });
+  it("offers active rows, plus the held row first when it is archived", () => {
+    expect(choiceRows(rows, "b").map((r) => r.id)).toEqual(["b", "a", "c"]);
+    expect(choiceRows(rows, "a").map((r) => r.id)).toEqual(["a", "c"]);
+    expect(choiceRows(rows, null).map((r) => r.id)).toEqual(["a", "c"]);
   });
 });
