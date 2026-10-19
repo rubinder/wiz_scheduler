@@ -14,20 +14,23 @@ from backend.models import (
     Company,
     Department,
     Employee,
-    EmployeeAffinity,
     EmployeeAvailability,
     EmployeeCompany,
-    EmployeeInvite,
     EmployeeRole,
-    EmployeeRoleMinutes,
     Location,
     OwnershipGroup,
     Region,
     Role,
-    Shift,
-    ShiftSchedule,
-    ShiftTemplate,
     User,
+)
+from backend.services.archive import (
+    active,
+    archive_employee,
+    archive_location,
+    archive_role,
+    restore_employee,
+    restore_location,
+    restore_role,
 )
 from backend.services.plan import assert_paid_plan
 
@@ -158,6 +161,20 @@ async def _get_or_create_wiz_company(
     return new_company
 
 
+async def _count_employee_match(
+    db: AsyncSession,
+    wiz_company_id: str,
+    emp: Employee,
+    counts: dict[str, dict[str, int]],
+) -> None:
+    """An upstream user matched an existing row: restore it if archived."""
+    if emp.archived_at is not None:
+        await restore_employee(db, wiz_company_id, emp)
+        counts["employees"]["restored"] += 1
+    else:
+        counts["employees"]["updated"] += 1
+
+
 async def _import_single_company(
     client: httpx.AsyncClient,
     db: AsyncSession,
@@ -217,7 +234,11 @@ async def _import_single_company(
                 loc.geo_coord = geo_coord
             loc.timezone = tz
             loc_ext_to_wiz[ext_id] = loc.id
-            counts["locations"]["updated"] += 1
+            if loc.archived_at is not None:
+                await restore_location(db, wiz_company_id, loc)
+                counts["locations"]["restored"] += 1
+            else:
+                counts["locations"]["updated"] += 1
         else:
             loc = Location(
                 company_id=wiz_company_id,
@@ -233,28 +254,11 @@ async def _import_single_company(
             loc_ext_to_wiz[ext_id] = loc.id
             counts["locations"]["created"] += 1
 
+    # Gone upstream: archive, never delete, so its history survives (#126).
     for ext_id, loc in existing_locs.items():
-        if ext_id not in seen_loc_ext_ids:
-            # Clean up all records referencing this location
-            loc_schedules = await db.execute(
-                select(ShiftSchedule.id).where(ShiftSchedule.location_id == loc.id)
-            )
-            schedule_ids = [sid for (sid,) in loc_schedules.all()]
-            if schedule_ids:
-                await db.execute(
-                    delete(Shift).where(Shift.shift_schedule_id.in_(schedule_ids))
-                )
-                await db.execute(
-                    delete(ShiftSchedule).where(ShiftSchedule.id.in_(schedule_ids))
-                )
-            await db.execute(
-                delete(ShiftTemplate).where(ShiftTemplate.location_id == loc.id)
-            )
-            await db.execute(
-                delete(Department).where(Department.location_id == loc.id)
-            )
-            await db.delete(loc)
-            counts["locations"]["deleted"] += 1
+        if ext_id not in seen_loc_ext_ids and loc.archived_at is None:
+            await archive_location(db, wiz_company_id, loc)
+            counts["locations"]["archived"] += 1
 
     # ── Departments ──
     seven_departments = await _fetch_all_pages(
@@ -310,6 +314,9 @@ async def _import_single_company(
             counts["departments"]["deleted"] += 1
 
     # ── Roles ──
+    # A failed fetch is not "every role is gone": archive only on success.
+    roles_fetched_ok = False
+    seven_roles: list[dict[str, Any]] = []
     try:
         resp = await client.get(
             f"{SEVEN_SHIFTS_BASE}/company/{ext_company_id}/roles",
@@ -317,12 +324,11 @@ async def _import_single_company(
         )
         if resp.status_code != 200:
             errors.append(f"Failed to fetch roles: {resp.text[:200]}")
-            seven_roles: list[dict[str, Any]] = []
         else:
             seven_roles = resp.json().get("data", [])
+            roles_fetched_ok = True
     except httpx.RequestError as e:
         errors.append(f"Failed to fetch roles: {e}")
-        seven_roles = []
 
     role_result = await db.execute(
         select(Role).where(
@@ -345,7 +351,11 @@ async def _import_single_company(
             role = existing_roles[ext_id]
             role.name = sr.get("name", role.name)
             role_ext_to_wiz[ext_id] = role.id
-            counts["roles"]["updated"] += 1
+            if role.archived_at is not None:
+                await restore_role(db, wiz_company_id, role)
+                counts["roles"]["restored"] += 1
+            else:
+                counts["roles"]["updated"] += 1
         else:
             role = Role(
                 company_id=wiz_company_id,
@@ -357,21 +367,11 @@ async def _import_single_company(
             role_ext_to_wiz[ext_id] = role.id
             counts["roles"]["created"] += 1
 
-    for ext_id, role in existing_roles.items():
-        if ext_id not in seen_role_ext_ids:
-            await db.execute(
-                delete(Shift).where(Shift.role_id == role.id)
-            )
-            await db.execute(
-                delete(EmployeeRole).where(EmployeeRole.role_id == role.id)
-            )
-            await db.execute(
-                delete(EmployeeRoleMinutes).where(
-                    EmployeeRoleMinutes.role_id == role.id
-                )
-            )
-            await db.delete(role)
-            counts["roles"]["deleted"] += 1
+    if roles_fetched_ok:
+        for ext_id, role in existing_roles.items():
+            if ext_id not in seen_role_ext_ids and role.archived_at is None:
+                await archive_role(db, wiz_company_id, role)
+                counts["roles"]["archived"] += 1
 
     # ── Employees ──
     seven_users = await _fetch_all_pages(
@@ -386,8 +386,10 @@ async def _import_single_company(
             Employee.external_id.isnot(None),
         )
     )
+    # Erased (GDPR) rows never come back: the person returns as a new row.
     existing_emps: dict[str, Employee] = {
         e.external_id: e for e in emp_result.scalars().all()  # type: ignore[union-attr]
+        if e.erased_at is None
     }
 
     seen_emp_ext_ids: set[str] = set()
@@ -414,7 +416,7 @@ async def _import_single_company(
             if email is not None:
                 emp.email = email
             emp_ext_to_wiz[company_user_id] = emp.id
-            counts["employees"]["updated"] += 1
+            await _count_employee_match(db, wiz_company_id, emp, counts)
         elif company_user_id in existing_emps:
             # Migrate from old external_id (company-user id) to new (user_id)
             emp = existing_emps[company_user_id]
@@ -423,7 +425,7 @@ async def _import_single_company(
             if email is not None:
                 emp.email = email
             emp_ext_to_wiz[company_user_id] = emp.id
-            counts["employees"]["updated"] += 1
+            await _count_employee_match(db, wiz_company_id, emp, counts)
         else:
             emp = Employee(
                 company_id=wiz_company_id,
@@ -439,40 +441,14 @@ async def _import_single_company(
             db.add(ec)
             counts["employees"]["created"] += 1
 
-    # Build set of wiz employee IDs we've seen (updated or created) to avoid deleting them
+    # Gone upstream (or inactive there): archive, never delete (#126).
     seen_wiz_emp_ids = set(emp_ext_to_wiz.values())
     for ext_id, emp in existing_emps.items():
-        if emp.id in seen_wiz_emp_ids:
+        if emp.id in seen_wiz_emp_ids or ext_id in seen_emp_ext_ids:
             continue
-        if ext_id not in seen_emp_ext_ids:
-            await db.execute(
-                delete(Shift).where(Shift.employee_id == emp.id)
-            )
-            await db.execute(
-                delete(EmployeeAffinity).where(
-                    (EmployeeAffinity.employee_id == emp.id)
-                    | (EmployeeAffinity.target_employee_id == emp.id)
-                )
-            )
-            await db.execute(
-                delete(EmployeeAvailability).where(EmployeeAvailability.employee_id == emp.id)
-            )
-            await db.execute(
-                delete(EmployeeInvite).where(EmployeeInvite.employee_id == emp.id)
-            )
-            await db.execute(
-                delete(EmployeeRole).where(EmployeeRole.employee_id == emp.id)
-            )
-            await db.execute(
-                delete(EmployeeRoleMinutes).where(
-                    EmployeeRoleMinutes.employee_id == emp.id
-                )
-            )
-            await db.execute(
-                delete(EmployeeCompany).where(EmployeeCompany.employee_id == emp.id)
-            )
-            await db.delete(emp)
-            counts["employees"]["deleted"] += 1
+        if emp.archived_at is None:
+            await archive_employee(db, wiz_company_id, emp)
+            counts["employees"]["archived"] += 1
 
     # ── User assignments (locations + roles) ──
     SKILL_MAP = {0: 1, 1: 2, 2: 3, 3: 5}
@@ -566,11 +542,11 @@ async def import_from_7shifts(
     }
     errors: list[str] = []
     counts: dict[str, dict[str, int]] = {
-        "companies": {"created": 0, "updated": 0, "deleted": 0},
-        "locations": {"created": 0, "updated": 0, "deleted": 0},
+        "companies": {"created": 0, "updated": 0},
+        "locations": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
         "departments": {"created": 0, "updated": 0, "deleted": 0},
-        "roles": {"created": 0, "updated": 0, "deleted": 0},
-        "employees": {"created": 0, "updated": 0, "deleted": 0},
+        "roles": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
+        "employees": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
         "user_assignments": {"created": 0, "updated": 0, "deleted": 0},
     }
 
@@ -914,6 +890,7 @@ async def import_availabilities_from_7shifts(
                 select(Employee).where(
                     Employee.company_id == wiz_company.id,
                     Employee.external_id.isnot(None),
+                    active(Employee),
                 )
             )
             ext_to_employee: dict[str, Employee] = {

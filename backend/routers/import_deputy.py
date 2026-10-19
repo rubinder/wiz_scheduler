@@ -13,19 +13,22 @@ from backend.dependencies import get_db, require_manager
 from backend.models import (
     Company,
     Employee,
-    EmployeeAffinity,
     EmployeeAvailability,
     EmployeeCompany,
     EmployeeDayBlackout,
-    EmployeeInvite,
     EmployeeRole,
-    EmployeeRoleMinutes,
     Location,
     OwnershipGroup,
     Region,
     Role,
-    Shift,
     User,
+)
+from backend.services.archive import (
+    active,
+    archive_employee,
+    restore_employee,
+    restore_location,
+    restore_role,
 )
 from backend.services.plan import assert_paid_plan
 from backend.utils.tz import is_valid_timezone
@@ -149,9 +152,9 @@ async def import_from_deputy(
     }
     errors: list[str] = []
     counts: dict[str, dict[str, int]] = {
-        "locations": {"created": 0, "updated": 0, "deleted": 0},
-        "roles": {"created": 0, "updated": 0, "deleted": 0},
-        "employees": {"created": 0, "updated": 0, "deleted": 0},
+        "locations": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
+        "roles": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
+        "employees": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
         "unavailability": {"created": 0, "skipped": 0, "deleted": 0},
     }
 
@@ -218,7 +221,11 @@ async def import_from_deputy(
                 loc.name = name
                 loc.address = address
                 loc_deputy_to_wiz[deputy_id] = loc.id
-                counts["locations"]["updated"] += 1
+                if loc.archived_at is not None:
+                    await restore_location(db, wiz_company_id, loc)
+                    counts["locations"]["restored"] += 1
+                else:
+                    counts["locations"]["updated"] += 1
             else:
                 loc = Location(
                     company_id=wiz_company_id,
@@ -275,7 +282,11 @@ async def import_from_deputy(
                 role = existing_roles[ext_id]
                 role.name = name
                 role_deputy_to_wiz[deputy_id] = role.id
-                counts["roles"]["updated"] += 1
+                if role.archived_at is not None:
+                    await restore_role(db, wiz_company_id, role)
+                    counts["roles"]["restored"] += 1
+                else:
+                    counts["roles"]["updated"] += 1
             else:
                 role = Role(
                     company_id=wiz_company_id,
@@ -291,12 +302,15 @@ async def import_from_deputy(
                 loc_to_role_ids.setdefault(deputy_loc_id, []).append(role_deputy_to_wiz[deputy_id])
 
         # ── 4. Import employees ──
+        # A failed fetch is not "everyone left": archive only on success.
+        employees_fetched_ok = False
         try:
             deputy_employees = await _deputy_get(
                 client, base_url, "/v1/supervise/employee", headers
             )
             if not isinstance(deputy_employees, list):
                 deputy_employees = [deputy_employees]
+            employees_fetched_ok = True
         except Exception as e:
             errors.append(f"Failed to fetch Deputy employees: {e}")
             deputy_employees = []
@@ -307,9 +321,11 @@ async def import_from_deputy(
                 Employee.external_id.isnot(None),
             )
         )
+        # Erased (GDPR) rows never come back: the person returns as a new row.
         existing_emps: dict[str, Employee] = {
             e.external_id: e for e in emp_result.scalars().all()
             if e.external_id and e.external_id.startswith("deputy:")
+            and e.erased_at is None
         }
 
         seen_emp_ext_ids: set[str] = set()
@@ -363,7 +379,11 @@ async def import_from_deputy(
                     emp.email = email
                 emp.location_ids = location_ids if location_ids else emp.location_ids
                 emp_deputy_to_wiz[deputy_id] = emp.id
-                counts["employees"]["updated"] += 1
+                if emp.archived_at is not None:
+                    await restore_employee(db, wiz_company_id, emp)
+                    counts["employees"]["restored"] += 1
+                else:
+                    counts["employees"]["updated"] += 1
             else:
                 emp = Employee(
                     company_id=wiz_company_id,
@@ -403,25 +423,12 @@ async def import_from_deputy(
                     )
                     db.add(er)
 
-        # Delete employees no longer in Deputy
-        for ext_id, emp in existing_emps.items():
-            if ext_id not in seen_emp_ext_ids:
-                for tbl in (Shift, EmployeeAffinity, EmployeeAvailability,
-                            EmployeeInvite, EmployeeRole, EmployeeRoleMinutes,
-                            EmployeeCompany, EmployeeDayBlackout):
-                    if tbl == EmployeeAffinity:
-                        await db.execute(
-                            delete(tbl).where(
-                                (tbl.employee_id == emp.id)
-                                | (tbl.target_employee_id == emp.id)
-                            )
-                        )
-                    else:
-                        await db.execute(
-                            delete(tbl).where(tbl.employee_id == emp.id)
-                        )
-                await db.delete(emp)
-                counts["employees"]["deleted"] += 1
+        # Gone from Deputy (or inactive there): archive, never delete (#126).
+        if employees_fetched_ok:
+            for ext_id, emp in existing_emps.items():
+                if ext_id not in seen_emp_ext_ids and emp.archived_at is None:
+                    await archive_employee(db, wiz_company_id, emp)
+                    counts["employees"]["archived"] += 1
 
         # ── 5. Import unavailability → EmployeeDayBlackout ──
         for deputy_emp_id, wiz_emp_id in emp_deputy_to_wiz.items():
@@ -633,6 +640,7 @@ async def import_availabilities_from_deputy(
         select(Employee).where(
             Employee.company_id == wiz_company_id,
             Employee.external_id.isnot(None),
+            active(Employee),
         )
     )
     deputy_employees = [

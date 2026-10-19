@@ -139,7 +139,6 @@ async def _history(db: AsyncSession, tenant: dict, emp: Employee, past_loc: Loca
     return {"past": past.id, "future": future.id, "entry": entry.id, "check_in": check_in.id}
 
 
-@pytest.mark.xfail(strict=True, reason="#126: re-import hard-deletes; fixed in Task 7")
 @pytest.mark.asyncio
 async def test_7shifts_reimport_archives_and_restores(client: AsyncClient, db_session: AsyncSession,
                                                       paid_tenant: dict, monkeypatch):
@@ -194,7 +193,6 @@ async def test_7shifts_reimport_archives_and_restores(client: AsyncClient, db_se
                       .where(Employee.external_id == "9031")) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="#126: re-import hard-deletes; fixed in Task 7")
 @pytest.mark.asyncio
 async def test_deputy_reimport_archives_and_restores(client: AsyncClient, db_session: AsyncSession,
                                                      paid_tenant: dict, monkeypatch):
@@ -229,3 +227,41 @@ async def test_deputy_reimport_archives_and_restores(client: AsyncClient, db_ses
     assert (await _one(db_session, select(Employee).where(Employee.id == ann.id))).archived_at is None
     assert await _one(db_session, select(func.count()).select_from(Employee)
                       .where(Employee.external_id == "deputy:71")) == 1
+
+
+@pytest.mark.asyncio
+async def test_7shifts_failed_roles_fetch_archives_no_role(client: AsyncClient, db_session: AsyncSession,
+                                                          paid_tenant: dict, monkeypatch):
+    routes = copy.deepcopy(SEVEN_SHIFTS)
+    install_fake_upstream(monkeypatch, routes)
+    h = paid_tenant["headers"]
+    assert (await client.post("/api/v1/import/7shifts", json={"access_token": "f"}, headers=h)).status_code == 200
+    import httpx
+    routes[f"{V2}/company/100/roles"] = httpx.Response(500, json={"error": "down"})
+    resp = await client.post("/api/v1/import/7shifts", json={"access_token": "f"}, headers=h)
+    assert resp.status_code == 200
+    assert resp.json()["roles"]["archived"] == 0
+    assert resp.json()["errors"]
+    with tenant_scope_disabled():
+        archived = (await db_session.execute(select(Role).where(Role.archived_at.is_not(None))
+                    .execution_options(populate_existing=True))).scalars().all()
+    assert archived == []
+
+
+@pytest.mark.asyncio
+async def test_deputy_failed_employee_fetch_archives_no_employee(client: AsyncClient, db_session: AsyncSession,
+                                                                 paid_tenant: dict, monkeypatch):
+    routes = copy.deepcopy(DEPUTY)
+    install_fake_upstream(monkeypatch, routes)
+    h = paid_tenant["headers"]
+    req = {"access_token": "f", "deputy_base_url": "https://fake.deputy.com"}
+    assert (await client.post("/api/v1/import/deputy", json=req, headers=h)).status_code == 200
+    import httpx
+    routes["/api/v1/supervise/employee"] = httpx.Response(500, json={"error": "down"})
+    resp = await client.post("/api/v1/import/deputy", json=req, headers=h)
+    assert resp.status_code == 200
+    assert resp.json()["employees"]["archived"] == 0
+    with tenant_scope_disabled():
+        archived = (await db_session.execute(select(Employee).where(Employee.archived_at.is_not(None))
+                    .execution_options(populate_existing=True))).scalars().all()
+    assert archived == []
