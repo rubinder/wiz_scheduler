@@ -19,6 +19,7 @@ from backend.models import (
     EmployeeInvite, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, ShiftSchedule,
     TimeEntry,
 )
+from backend.services.check_in import local_date_for
 
 
 class EmployeeErased(Exception):
@@ -94,15 +95,26 @@ async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
     now = _now(now)
     await archive_employee(db, company_id, employee, now=now)
     emp_id = employee.id
-    # Attendance logs are not pay records; time entries keep their own
-    # checked_in_at snapshot, so unlink them before the check-ins go.
-    check_ins = select(EmployeeCheckIn.id).where(EmployeeCheckIn.employee_id == emp_id)
-    await db.execute(
-        update(TimeEntry).where(TimeEntry.check_in_id.in_(check_ins))
-        .values(check_in_id=None).execution_options(synchronize_session=False)
-    )
-    await db.execute(delete(EmployeeCheckIn).where(EmployeeCheckIn.employee_id == emp_id)
-                     .execution_options(synchronize_session=False))
+    # Attendance logs are not pay records, so earlier days' check-ins go; time
+    # entries keep their own checked_in_at snapshot. Today's rows at each
+    # location are kept: the QR rotation counter is the count of that day's
+    # check-ins and (location_id, local_date, counter) is unique, so deleting
+    # one would make the next scan reuse a counter and be rejected as
+    # code_already_used until local midnight. They hold no contact data once
+    # the employee is erased, and the retention sweep removes them.
+    rows = (await db.execute(
+        select(EmployeeCheckIn.id, EmployeeCheckIn.local_date, Location)
+        .join(Location, Location.id == EmployeeCheckIn.location_id)
+        .where(EmployeeCheckIn.employee_id == emp_id)
+    )).all()
+    stale = [cid for cid, local_date, loc in rows if local_date < local_date_for(loc, now)]
+    if stale:
+        await db.execute(
+            update(TimeEntry).where(TimeEntry.check_in_id.in_(stale))
+            .values(check_in_id=None).execution_options(synchronize_session=False)
+        )
+        await db.execute(delete(EmployeeCheckIn).where(EmployeeCheckIn.id.in_(stale))
+                         .execution_options(synchronize_session=False))
     # The row stays, so the ON DELETE CASCADE tables do not fire: delete explicitly.
     for model in (EmployeeAvailability, EmployeeDayBlackout, EmployeeDayPreference,
                   EmployeeHourRangeCap, EmployeeHourRangePreference, EmployeeRole,
@@ -114,6 +126,7 @@ async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
             (EmployeeAffinity.employee_id == emp_id) | (EmployeeAffinity.target_employee_id == emp_id)
         ).execution_options(synchronize_session=False)
     )
+    # The bulk delete above bypassed the session; drop the stale selectin-loaded roles.
     db.expire(employee, ["roles"])
     employee.erased_at = now
     employee.email = None

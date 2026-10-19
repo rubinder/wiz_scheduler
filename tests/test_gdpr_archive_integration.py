@@ -8,10 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
     Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCheckIn, EmployeeDayBlackout,
-    EmployeeDayPreference, EmployeeInvite, EmployeeRole, EmailVerificationToken,
+    EmployeeCompany, EmployeeDayPreference, EmployeeHourRangeCap, EmployeeHourRangePreference,
+    EmployeeInvite, EmployeeRoleMinutes, Location, EmployeeRole, EmailVerificationToken,
     PasswordResetToken, ScheduleLock, Shift, ShiftSchedule, TimeEntry, User, UserConsent,
 )
 from backend.models.payroll_export import PayrollExport
+from backend.config import settings
+from backend.services.check_in import issue_token, local_date_for, record_check_in
 from tests.conftest import COMPANY_ID, EMPLOYEE_USER_ID, MANAGER_USER_ID, _id
 
 pytestmark = pytest.mark.integration
@@ -85,6 +88,13 @@ async def test_employee_erasure_keeps_shifts_and_pay(client, db_session: AsyncSe
         EmployeeAvailability(id=_id(), company_id=COMPANY_ID, employee_id=emp.id,
                              year=NOW.year, month=NOW.month, day=1,
                              start_time=NOW, end_time=NOW + timedelta(hours=8)),
+        EmployeeHourRangeCap(id=_id(), company_id=COMPANY_ID, employee_id=emp.id,
+                             start_time="16:00", end_time="22:00", max_per_week=3),
+        EmployeeHourRangePreference(id=_id(), company_id=COMPANY_ID, employee_id=emp.id,
+                                    start_time="08:00", end_time="12:00", weight=0.5),
+        EmployeeRoleMinutes(id=_id(), company_id=COMPANY_ID, employee_id=emp.id, role_id=role.id,
+                            month_start=NOW.date().replace(day=1), total_minutes=60.0),
+        EmployeeCompany(id=_id(), employee_id=emp.id, company_id=COMPANY_ID),
         UserConsent(id=_id(), user_id=EMPLOYEE_USER_ID, company_id=COMPANY_ID,
                     consent_type="privacy_policy"),
     ])
@@ -114,7 +124,8 @@ async def test_employee_erasure_keeps_shifts_and_pay(client, db_session: AsyncSe
     assert await _reload(db_session, User, EMPLOYEE_USER_ID) is None
 
     for model in (EmployeeInvite, EmployeeDayBlackout, EmployeeDayPreference, EmployeeAvailability,
-                  EmployeeRole):
+                  EmployeeRole, EmployeeHourRangeCap, EmployeeHourRangePreference,
+                  EmployeeRoleMinutes, EmployeeCompany):
         rows = (await db_session.execute(
             select(model).where(model.employee_id == emp_id))).scalars().all()
         assert rows == [], model.__name__
@@ -167,9 +178,49 @@ async def test_manager_erasure_nulls_attribution(client, db_session: AsyncSessio
     assert kept.approved_by_user_id is None and kept.attested_by_user_id is None
     kept_export = await _reload(db_session, PayrollExport, export_id)
     assert kept_export is not None and kept_export.exported_by_user_id is None
-    for model in (ScheduleLock,):
-        assert (await db_session.execute(select(model).where(
-            model.locked_by_user_id == MANAGER_USER_ID))).first() is None
+    assert (await db_session.execute(select(ScheduleLock).where(
+        ScheduleLock.locked_by_user_id == MANAGER_USER_ID))).first() is None
     for model in (PasswordResetToken, EmailVerificationToken):
         assert (await db_session.execute(select(model).where(
             model.user_id == MANAGER_USER_ID))).first() is None
+
+
+@pytest.fixture
+def _qr_secret(monkeypatch):
+    monkeypatch.setattr(settings, "CHECKIN_QR_SECRET", "test-secret-value")
+
+
+@pytest.mark.asyncio
+async def test_erasure_keeps_todays_check_ins_so_the_qr_counter_stays_unique(
+        client, db_session: AsyncSession, employee_token, seed_employee_user, seed_employees,
+        seed_location, seed_roles, _qr_secret):
+    emp, other, loc = seed_employees[0], seed_employees[1], seed_location
+    emp.user_id = EMPLOYEE_USER_ID
+    third = Employee(id=_id(), company_id=COMPANY_ID, full_name="Carol Third")
+    db_session.add(third)
+    today = local_date_for(loc, NOW)
+
+    def ci(employee, local_date, counter):
+        return EmployeeCheckIn(id=_id(), company_id=COMPANY_ID, location_id=loc.id,
+                               employee_id=employee.id, checked_in_at=NOW, local_date=local_date,
+                               counter=counter, status="no_shift")
+
+    past_row, today_row, other_row = ci(emp, today - timedelta(days=2), 0), ci(emp, today, 0), ci(other, today, 1)
+    db_session.add_all([past_row, today_row, other_row])
+    await db_session.commit()
+    past_id, today_id, third_id, loc_id = past_row.id, today_row.id, third.id, loc.id
+
+    resp = await client.delete("/api/v1/gdpr/delete-account",
+                               headers={"Authorization": f"Bearer {employee_token}"})
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    assert await _reload(db_session, EmployeeCheckIn, past_id) is None
+    assert await _reload(db_session, EmployeeCheckIn, today_id) is not None
+
+    # The next scan at the location still gets a fresh counter (2), not a collision.
+    location = await _reload(db_session, Location, loc_id)
+    token, counter = await issue_token(db_session, "slug", location, now=NOW)
+    assert counter == 2
+    recorded = await record_check_in(db_session, COMPANY_ID, third_id, location, "slug", token, now=NOW)
+    assert recorded is not None
