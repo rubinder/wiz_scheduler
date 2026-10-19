@@ -9,14 +9,12 @@ from backend.models import (
     Employee,
     EmployeeAffinity,
     EmployeeAvailability,
-    EmployeeCompany,
-    EmployeeInvite,
     EmployeeRole,
     Shift,
     User,
     UserConsent,
 )
-from backend.models.employee_role_minutes import EmployeeRoleMinutes
+from backend.services.archive import erase_employee
 
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 
@@ -218,54 +216,14 @@ async def delete_account(
         delete(UserConsent).where(UserConsent.user_id == user_id)
     )
 
-    # 2. If user has a linked employee, delete associated data
+    # 2. The employee row is archived and erased, not deleted: shifts and pay
+    #    records the employer must keep still point at it (#126).
     emp_result = await db.execute(
         select(Employee).where(Employee.user_id == user_id)
     )
     employee = emp_result.scalar_one_or_none()
-
     if employee:
-        emp_id = employee.id
-
-        # Delete shifts
-        await db.execute(
-            delete(Shift).where(Shift.employee_id == emp_id)
-        )
-        # Delete availability
-        await db.execute(
-            delete(EmployeeAvailability).where(
-                EmployeeAvailability.employee_id == emp_id
-            )
-        )
-        # Delete employee roles
-        await db.execute(
-            delete(EmployeeRole).where(EmployeeRole.employee_id == emp_id)
-        )
-        # Delete affinities (both directions)
-        await db.execute(
-            delete(EmployeeAffinity).where(
-                (EmployeeAffinity.employee_id == emp_id)
-                | (EmployeeAffinity.target_employee_id == emp_id)
-            )
-        )
-        # Delete employee-company links
-        await db.execute(
-            delete(EmployeeCompany).where(EmployeeCompany.employee_id == emp_id)
-        )
-        # Delete employee invites
-        await db.execute(
-            delete(EmployeeInvite).where(EmployeeInvite.employee_id == emp_id)
-        )
-        # Delete employee role minutes
-        await db.execute(
-            delete(EmployeeRoleMinutes).where(
-                EmployeeRoleMinutes.employee_id == emp_id
-            )
-        )
-        # Delete the employee record
-        await db.execute(
-            delete(Employee).where(Employee.id == emp_id)
-        )
+        await erase_employee(db, str(employee.company_id), employee)
 
     # 3. Delete the user record
     await db.execute(

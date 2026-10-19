@@ -88,6 +88,15 @@ def upgrade() -> None:
             op.alter_column(table, column, existing_type=sa.String(8), nullable=True)
         _swap_fk(table, column, ref, ondelete)
 
+    # Erasing the attesting manager nulls attested_by_user_id (SET NULL above);
+    # the old check demanded it be present and would block that deletion.
+    # attested_at stays required: the attestation itself is still on record.
+    op.drop_constraint("time_entries_attested_check", "time_entries", type_="check")
+    op.create_check_constraint(
+        "time_entries_attested_check", "time_entries",
+        "source <> 'manager_attested' OR attested_at IS NOT NULL",
+    )
+
 
 def downgrade() -> None:
     nulls = op.get_bind().execute(sa.text(
@@ -95,6 +104,8 @@ def downgrade() -> None:
         " + (SELECT count(*) FROM manager_invites WHERE invited_by_user_id IS NULL)"
         " + (SELECT count(*) FROM feedback_submissions WHERE user_id IS NULL)"
         " + (SELECT count(*) FROM gdpr_export_log WHERE user_id IS NULL)"
+        " + (SELECT count(*) FROM time_entries WHERE source = 'manager_attested'"
+        "    AND attested_by_user_id IS NULL)"
     )).scalar()
     if nulls:
         raise RuntimeError(
@@ -111,6 +122,12 @@ def downgrade() -> None:
             f"{archived} archived row(s) exist; before 0048 they would show as active. "
             "Downgrading past 0048 is refused."
         )
+    op.drop_constraint("time_entries_attested_check", "time_entries", type_="check")
+    op.create_check_constraint(
+        "time_entries_attested_check", "time_entries",
+        "source <> 'manager_attested' OR "
+        "(attested_by_user_id IS NOT NULL AND attested_at IS NOT NULL)",
+    )
     for table, column, ref, _ondelete, _nullable in _FKS:
         _swap_fk(table, column, ref, None)
         if (table, column) in _WAS_NOT_NULL:

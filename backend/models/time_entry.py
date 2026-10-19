@@ -47,8 +47,9 @@ class TimeEntry(Base):
             name="time_entries_source_check",
         ),
         CheckConstraint(
-            "source <> 'manager_attested' OR "
-            "(attested_by_user_id IS NOT NULL AND attested_at IS NOT NULL)",
+            # attested_by_user_id is SET NULL when that manager is erased; the
+            # attestation (attested_at, reason) is what must survive.
+            "source <> 'manager_attested' OR attested_at IS NOT NULL",
             name="time_entries_attested_check",
         ),
         CheckConstraint(

@@ -322,11 +322,14 @@ async def test_delete_account(
     )
     assert result.scalar_one_or_none() is None
 
-    # Verify employee is gone
+    # The employee row is erased, not deleted (#126): pay history points at it
+    db_session.expire_all()
     result = await db_session.execute(
         select(Employee).where(Employee.id == EMPLOYEE1_ID)
     )
-    assert result.scalar_one_or_none() is None
+    erased = result.scalar_one()
+    assert erased.erased_at is not None and erased.archived_at is not None
+    assert erased.user_id is None and erased.email is None
 
 
 async def test_delete_account_no_employee(

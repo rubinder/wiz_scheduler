@@ -14,7 +14,10 @@ from sqlalchemy import ColumnElement, delete, exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
-    Employee, EmployeeCheckIn, EmployeeInvite, Location, Role, Shift, ShiftSchedule, TimeEntry,
+    Employee, EmployeeAffinity, EmployeeAvailability, EmployeeCheckIn, EmployeeCompany,
+    EmployeeDayBlackout, EmployeeDayPreference, EmployeeHourRangeCap, EmployeeHourRangePreference,
+    EmployeeInvite, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, ShiftSchedule,
+    TimeEntry,
 )
 
 
@@ -79,6 +82,48 @@ async def archive_employee(db: AsyncSession, company_id: str, employee: Employee
     )
     employee.archived_at = now
     return ArchiveCounts(opened=opened)
+
+
+async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
+                         *, now: datetime | None = None) -> None:
+    """GDPR erasure: personal data goes, the row and its pay history stay (#126).
+
+    `full_name` is kept so past schedules and time entries stay readable.
+    The caller deletes the User row and consents.
+    """
+    now = _now(now)
+    await archive_employee(db, company_id, employee, now=now)
+    emp_id = employee.id
+    # Attendance logs are not pay records; time entries keep their own
+    # checked_in_at snapshot, so unlink them before the check-ins go.
+    check_ins = select(EmployeeCheckIn.id).where(EmployeeCheckIn.employee_id == emp_id)
+    await db.execute(
+        update(TimeEntry).where(TimeEntry.check_in_id.in_(check_ins))
+        .values(check_in_id=None).execution_options(synchronize_session=False)
+    )
+    await db.execute(delete(EmployeeCheckIn).where(EmployeeCheckIn.employee_id == emp_id)
+                     .execution_options(synchronize_session=False))
+    # The row stays, so the ON DELETE CASCADE tables do not fire: delete explicitly.
+    for model in (EmployeeAvailability, EmployeeDayBlackout, EmployeeDayPreference,
+                  EmployeeHourRangeCap, EmployeeHourRangePreference, EmployeeRole,
+                  EmployeeRoleMinutes, EmployeeCompany, EmployeeInvite):
+        await db.execute(delete(model).where(model.employee_id == emp_id)
+                         .execution_options(synchronize_session=False))
+    await db.execute(
+        delete(EmployeeAffinity).where(
+            (EmployeeAffinity.employee_id == emp_id) | (EmployeeAffinity.target_employee_id == emp_id)
+        ).execution_options(synchronize_session=False)
+    )
+    db.expire(employee, ["roles"])
+    employee.erased_at = now
+    employee.email = None
+    employee.user_id = None
+    employee.external_id = None
+    employee.timezone = None
+    employee.pay_rate = None
+    employee.hire_date = None
+    employee.seniority_rank = None
+    employee.location_ids = None
 
 
 async def archive_location(db: AsyncSession, company_id: str, location: Location,
