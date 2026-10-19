@@ -20,6 +20,7 @@ import type {
   CheckInStatus,
   Employee,
 } from "../../types";
+import { withArchivedMark } from "../../utils/archived";
 
 /** `local_date` is a bare "YYYY-MM-DD". `new Date(str)` parses that as UTC
  *  midnight, and the tick/tooltip formatters then render it in the viewer's
@@ -41,7 +42,9 @@ export default function CheckInReport() {
   const [attestation, setAttestation] = useState<AttestationRateRow[]>([]);
 
   useEffect(() => {
-    listEmployees().then(setEmployees).catch(() => setEmployees([]));
+    // Archived too (#126): the filter reads history, and archived
+    // employees' check-ins are still in the report.
+    listEmployees(true).then(setEmployees).catch(() => setEmployees([]));
   }, []);
 
   useEffect(() => {
@@ -111,7 +114,7 @@ export default function CheckInReport() {
         <option value="">{t.checkIn.allEmployees}</option>
         {employees.map((e) => (
           <option key={e.id} value={e.id}>
-            {e.full_name}
+            {withArchivedMark(e.full_name, e, t.common.archived)}
           </option>
         ))}
       </select>

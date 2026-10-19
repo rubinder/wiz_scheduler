@@ -16,6 +16,7 @@ import { text } from "../../theme";
 import type { Location, PayrollExceptionRow, TimeEntryRow } from "../../types";
 import { formatLateness, formatPaidHours } from "../../utils/payrollHours";
 import { formatTime } from "../../utils/shiftTime";
+import { withArchivedMark } from "../../utils/archived";
 
 /** "YYYY-MM-DD" from a browser-local Date, without going through toISOString
  *  (which converts to UTC and can hand back yesterday). */
@@ -101,7 +102,9 @@ export default function Payroll() {
   );
 
   useEffect(() => {
-    listLocations().then(setLocations).catch(() => setLocations([]));
+    // Archived too (#126): the filter reads history, and archived
+    // locations' time entries are still there.
+    listLocations(true).then(setLocations).catch(() => setLocations([]));
   }, []);
 
   const reload = useCallback(async () => {
@@ -282,7 +285,7 @@ export default function Payroll() {
             <option value="">{t.payroll.allLocations}</option>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
+                {withArchivedMark(l.name, l, t.common.archived)}
               </option>
             ))}
           </select>
