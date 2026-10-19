@@ -183,6 +183,14 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   "Available" has one definition, `services/availability_check.is_available`,
   shared by the candidate ranking and the `no_availability` edit warning;
   the frontend never evaluates availability itself.
+- **Employees, locations and roles are archived, never deleted** (#126).
+  `archived_at` (and `employees.erased_at` for GDPR) marks a row inactive;
+  `services/archive.py` owns archiving and restoring, and `active(Model)` is
+  the one filter. Only `services/billing.delete_og_and_dependents` hard-deletes
+  them. Any new reader must decide explicitly: planning surfaces (scheduler,
+  pickers, check-in, employee routes, plan counts) are active-only; history
+  (approved schedules, exports, payroll, importers' `external_id` matching)
+  includes archived rows. Pay records carry their own employee/location names.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate
