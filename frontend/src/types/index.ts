@@ -109,6 +109,8 @@ export interface Location {
   /** Default signal weights for scheduling at this location.
    * Overrides company defaults when set. null = inherit from company. */
   signal_config: SignalConfig | null;
+  /** Set when archived (#126); archived rows are hidden unless asked for. */
+  archived_at?: string | null;
 }
 
 // ── Role ──
@@ -119,6 +121,7 @@ export interface Role {
   name: string;
   description: string | null;
   external_id: string | null;
+  archived_at?: string | null;
 }
 
 // ── Condensed Role ──
@@ -151,6 +154,7 @@ export interface Employee {
   timezone: string | null;
   roles: EmployeeRole[];
   company_ids: string[];
+  archived_at?: string | null;
 }
 
 export interface EmployeeRole {

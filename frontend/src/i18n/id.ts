@@ -1,6 +1,10 @@
 const ind = {
   // ── Common ──
   common: {
+    archive: "Arsipkan",
+    restore: "Pulihkan",
+    archived: "Diarsipkan",
+    showArchived: "Tampilkan yang diarsipkan",
     appName: "Wiz Scheduler",
     timesInZone: "Waktu dalam {zone}",
     loading: "Memuat...",
@@ -377,6 +381,7 @@ const ind = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Arsipkan lokasi ini? Shift dan draf mendatangnya dihapus; jadwal lalu dan penggajian tetap disimpan.",
     title: "Lokasi",
     importData: "Impor Data",
     importTitle: "Impor Lokasi",
@@ -390,6 +395,7 @@ const ind = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Arsipkan peran ini? Shift mendatang dengan peran ini menjadi shift terbuka.",
     title: "Peran",
     importData: "Impor Data",
     importTitle: "Impor Peran",
@@ -416,6 +422,8 @@ const ind = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Arsipkan karyawan ini? Shift mendatangnya menjadi shift terbuka; jadwal lalu dan penggajian tetap disimpan.",
+    erasedCannotRestore: "Data karyawan ini telah dihapus dan tidak dapat dipulihkan.",
     title: "Karyawan",
     importData: "Impor Data",
     importTitle: "Impor Karyawan",
@@ -812,6 +820,8 @@ const ind = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Diarsipkan",
+    restored: "Dipulihkan",
     title: "Impor dari 7shifts",
     description: "Masukkan token akses 7shifts Anda untuk mengimpor perusahaan, lokasi, departemen, peran, karyawan, dan penugasan pengguna. Anda dapat membuat token akses di akun 7shifts Anda di bagian",
     devTools: "Pengaturan Perusahaan > Alat Pengembang",
@@ -828,6 +838,8 @@ const ind = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Diarsipkan",
+    restored: "Dipulihkan",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

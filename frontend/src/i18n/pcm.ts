@@ -1,6 +1,10 @@
 const pcm = {
   // ── Common ──
   common: {
+    archive: "Archive am",
+    restore: "Restore am",
+    archived: "Don archive",
+    showArchived: "Show di ones wey dem archive",
     appName: "Wiz Scheduler",
     timesInZone: "Time dey for {zone}",
     loading: "E dey load...",
@@ -377,6 +381,7 @@ const pcm = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Archive dis location? Dem go remove di shifts and drafts wey dey come; di old schedules and payroll go still dey.",
     title: "Locations",
     importData: "Bring In Data",
     importTitle: "Bring In Locations",
@@ -390,6 +395,7 @@ const pcm = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Archive dis role? Di shifts wey dey come wey get dis role go become open shifts.",
     title: "Roles",
     importData: "Bring In Data",
     importTitle: "Bring In Roles",
@@ -416,6 +422,8 @@ const pcm = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Archive dis employee? Dia shifts wey dey come go become open shifts; di old schedules and payroll go still dey.",
+    erasedCannotRestore: "Dem don erase dis employee data, so you no fit restore am.",
     title: "Workers",
     importData: "Bring In Data",
     importTitle: "Bring In Workers",
@@ -812,6 +820,8 @@ const pcm = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Don archive",
+    restored: "Don restore",
     title: "Bring from 7shifts",
     description: "Put your 7shifts access token to bring in companies, locations, departments, roles, workers, and user assignments. You fit create access token for your 7shifts account under",
     devTools: "Company Settings > Developer Tools",
@@ -828,6 +838,8 @@ const pcm = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Don archive",
+    restored: "Don restore",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

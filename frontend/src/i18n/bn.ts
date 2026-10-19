@@ -1,6 +1,10 @@
 const bn = {
   // ── Common ──
   common: {
+    archive: "আর্কাইভ করুন",
+    restore: "পুনরুদ্ধার করুন",
+    archived: "আর্কাইভ করা",
+    showArchived: "আর্কাইভ করা দেখান",
     appName: "Wiz Scheduler",
     timesInZone: "সময় {zone} অনুযায়ী",
     loading: "লোড হচ্ছে...",
@@ -377,6 +381,7 @@ const bn = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "এই লোকেশন আর্কাইভ করবেন? এর আসন্ন শিফট ও খসড়া সরিয়ে ফেলা হবে; আগের সময়সূচি ও বেতন-তালিকা সংরক্ষিত থাকবে।",
     title: "অবস্থানসমূহ",
     importData: "ডেটা ইম্পোর্ট",
     importTitle: "অবস্থান ইম্পোর্ট",
@@ -390,6 +395,7 @@ const bn = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "এই ভূমিকা আর্কাইভ করবেন? এই ভূমিকার আসন্ন শিফটগুলো উন্মুক্ত শিফট হয়ে যাবে।",
     title: "ভূমিকাসমূহ",
     importData: "ডেটা ইম্পোর্ট",
     importTitle: "ভূমিকা ইম্পোর্ট",
@@ -416,6 +422,8 @@ const bn = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "এই কর্মীকে আর্কাইভ করবেন? তাঁর আসন্ন শিফটগুলো উন্মুক্ত শিফট হয়ে যাবে; আগের সময়সূচি ও বেতন-তালিকা সংরক্ষিত থাকবে।",
+    erasedCannotRestore: "এই কর্মীর তথ্য মুছে ফেলা হয়েছে এবং পুনরুদ্ধার করা যাবে না।",
     title: "কর্মীগণ",
     importData: "ডেটা ইম্পোর্ট",
     importTitle: "কর্মী ইম্পোর্ট",
@@ -812,6 +820,8 @@ const bn = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "আর্কাইভ করা",
+    restored: "পুনরুদ্ধার হয়েছে",
     title: "7shifts থেকে ইম্পোর্ট",
     description: "আপনার 7shifts অ্যাক্সেস টোকেন দিন কোম্পানি, অবস্থান, বিভাগ, ভূমিকা, কর্মী এবং ব্যবহারকারীর বরাদ্দ ইম্পোর্ট করতে। আপনি আপনার 7shifts অ্যাকাউন্টের এখানে একটি অ্যাক্সেস টোকেন তৈরি করতে পারেন",
     devTools: "কোম্পানি সেটিংস > ডেভেলপার টুলস",
@@ -828,6 +838,8 @@ const bn = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "আর্কাইভ করা",
+    restored: "পুনরুদ্ধার হয়েছে",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

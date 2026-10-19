@@ -1,6 +1,10 @@
 const trLang = {
   // ── Common ──
   common: {
+    archive: "Arşivle",
+    restore: "Geri yükle",
+    archived: "Arşivlendi",
+    showArchived: "Arşivlenenleri göster",
     appName: "Wiz Scheduler",
     timesInZone: "Saatler {zone} saat diliminde",
     loading: "Yükleniyor...",
@@ -377,6 +381,7 @@ const trLang = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Bu konum arşivlensin mi? Gelecekteki vardiyaları ve taslakları kaldırılır; geçmiş çizelgeler ve bordro korunur.",
     title: "Konumlar",
     importData: "Veri İçe Aktar",
     importTitle: "Konumları İçe Aktar",
@@ -390,6 +395,7 @@ const trLang = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Bu rol arşivlensin mi? Bu role ait gelecekteki vardiyalar açık vardiya olur.",
     title: "Roller",
     importData: "Veri İçe Aktar",
     importTitle: "Rolleri İçe Aktar",
@@ -416,6 +422,8 @@ const trLang = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Bu çalışan arşivlensin mi? Gelecekteki vardiyaları açık vardiya olur; geçmiş çizelgeler ve bordro korunur.",
+    erasedCannotRestore: "Bu çalışanın verileri silindi ve geri yüklenemez.",
     title: "Çalışanlar",
     importData: "Veri İçe Aktar",
     importTitle: "Çalışanları İçe Aktar",
@@ -812,6 +820,8 @@ const trLang = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Arşivlendi",
+    restored: "Geri yüklendi",
     title: "7shifts'ten İçe Aktar",
     description: "Şirketleri, konumları, departmanları, rolleri, çalışanları ve kullanıcı atamalarını içe aktarmak için 7shifts erişim jetonunuzu girin. 7shifts hesabınızda erişim jetonu oluşturabilirsiniz",
     devTools: "Şirket Ayarları > Geliştirici Araçları",
@@ -828,6 +838,8 @@ const trLang = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Arşivlendi",
+    restored: "Geri yüklendi",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

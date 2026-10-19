@@ -1,6 +1,10 @@
 const te = {
   // ── Common ──
   common: {
+    archive: "ఆర్కైవ్ చేయండి",
+    restore: "పునరుద్ధరించండి",
+    archived: "ఆర్కైవ్ చేయబడింది",
+    showArchived: "ఆర్కైవ్ చేసినవి చూపించు",
     appName: "Wiz Scheduler",
     timesInZone: "సమయాలు {zone}లో ఉన్నాయి",
     loading: "లోడ్ అవుతోంది...",
@@ -377,6 +381,7 @@ const te = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "ఈ లొకేషన్‌ను ఆర్కైవ్ చేయాలా? దాని రాబోయే షిఫ్ట్‌లు, డ్రాఫ్ట్‌లు తొలగించబడతాయి; గత షెడ్యూళ్లు, పేరోల్ భద్రంగా ఉంటాయి.",
     title: "స్థానాలు",
     importData: "డేటా దిగుమతి చేయి",
     importTitle: "స్థానాలను దిగుమతి చేయి",
@@ -390,6 +395,7 @@ const te = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "ఈ పాత్రను ఆర్కైవ్ చేయాలా? ఈ పాత్రతో రాబోయే షిఫ్ట్‌లు ఓపెన్ షిఫ్ట్‌లుగా మారతాయి.",
     title: "పాత్రలు",
     importData: "డేటా దిగుమతి చేయి",
     importTitle: "పాత్రలను దిగుమతి చేయి",
@@ -416,6 +422,8 @@ const te = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "ఈ ఉద్యోగిని ఆర్కైవ్ చేయాలా? వారి రాబోయే షిఫ్ట్‌లు ఓపెన్ షిఫ్ట్‌లుగా మారతాయి; గత షెడ్యూళ్లు, పేరోల్ భద్రంగా ఉంటాయి.",
+    erasedCannotRestore: "ఈ ఉద్యోగి డేటా తొలగించబడింది, పునరుద్ధరించడం సాధ్యం కాదు.",
     title: "ఉద్యోగులు",
     importData: "డేటా దిగుమతి చేయి",
     importTitle: "ఉద్యోగులను దిగుమతి చేయి",
@@ -812,6 +820,8 @@ const te = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "ఆర్కైవ్ చేయబడింది",
+    restored: "పునరుద్ధరించబడింది",
     title: "7shifts నుండి దిగుమతి చేయి",
     description: "సంస్థలు, స్థానాలు, విభాగాలు, పాత్రలు, ఉద్యోగులు మరియు వినియోగదారు కేటాయింపులను దిగుమతి చేయడానికి మీ 7shifts యాక్సెస్ టోకెన్‌ను నమోదు చేయండి. మీ 7shifts ఖాతాలో యాక్సెస్ టోకెన్‌ను రూపొందించవచ్చు",
     devTools: "సంస్థ సెట్టింగ్‌లు > డెవలపర్ టూల్స్",
@@ -828,6 +838,8 @@ const te = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "ఆర్కైవ్ చేయబడింది",
+    restored: "పునరుద్ధరించబడింది",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

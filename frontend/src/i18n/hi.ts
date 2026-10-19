@@ -1,6 +1,10 @@
 const hi = {
   // ── Common ──
   common: {
+    archive: "संग्रहित करें",
+    restore: "पुनर्स्थापित करें",
+    archived: "संग्रहित",
+    showArchived: "संग्रहित दिखाएँ",
     appName: "Wiz Scheduler",
     timesInZone: "समय {zone} में है",
     loading: "लोड हो रहा है...",
@@ -377,6 +381,7 @@ const hi = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "इस स्थान को संग्रहित करें? इसकी आगामी शिफ्ट और ड्राफ़्ट हटा दिए जाएँगे; पिछले शेड्यूल और पेरोल सुरक्षित रहेंगे।",
     title: "स्थान",
     importData: "डेटा आयात करें",
     importTitle: "स्थान आयात करें",
@@ -390,6 +395,7 @@ const hi = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "इस भूमिका को संग्रहित करें? इस भूमिका वाली आगामी शिफ्ट खुली शिफ्ट बन जाएँगी।",
     title: "भूमिकाएं",
     importData: "डेटा आयात करें",
     importTitle: "भूमिकाएं आयात करें",
@@ -416,6 +422,8 @@ const hi = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "इस कर्मचारी को संग्रहित करें? इनकी आगामी शिफ्ट खुली शिफ्ट बन जाएँगी; पिछले शेड्यूल और पेरोल सुरक्षित रहेंगे।",
+    erasedCannotRestore: "इस कर्मचारी का डेटा मिटा दिया गया है और पुनर्स्थापित नहीं किया जा सकता।",
     title: "कर्मचारी",
     importData: "डेटा आयात करें",
     importTitle: "कर्मचारी आयात करें",
@@ -812,6 +820,8 @@ const hi = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "संग्रहित",
+    restored: "पुनर्स्थापित",
     title: "7shifts से आयात करें",
     description: "कंपनियां, स्थान, विभाग, भूमिकाएं, कर्मचारी और उपयोगकर्ता असाइनमेंट आयात करने के लिए अपना 7shifts एक्सेस टोकन दर्ज करें। आप अपने 7shifts खाते में एक्सेस टोकन बना सकते हैं",
     devTools: "कंपनी सेटिंग > डेवलपर टूल्स",
@@ -828,6 +838,8 @@ const hi = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "संग्रहित",
+    restored: "पुनर्स्थापित",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

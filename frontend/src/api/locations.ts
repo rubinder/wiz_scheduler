@@ -2,8 +2,10 @@ import type { BulkUploadResponse, Location } from "../types";
 import { apiFetch } from "./client";
 import { browserTimeZone } from "../utils/timezones";
 
-export function listLocations(): Promise<Location[]> {
-  return apiFetch<Location[]>("/locations/");
+export function listLocations(includeArchived = false): Promise<Location[]> {
+  return apiFetch<Location[]>(
+    includeArchived ? "/locations/?include_archived=true" : "/locations/"
+  );
 }
 
 export function createLocation(body: {
@@ -45,6 +47,10 @@ export function updateLocation(
 
 export function deleteLocation(id: string): Promise<void> {
   return apiFetch<void>(`/locations/${id}`, { method: "DELETE" });
+}
+
+export function restoreLocation(id: string): Promise<Location> {
+  return apiFetch<Location>(`/locations/${id}/restore`, { method: "POST" });
 }
 
 export async function bulkUploadLocations(

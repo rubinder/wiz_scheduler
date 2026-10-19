@@ -1,6 +1,10 @@
 const ur = {
   // ── Common ──
   common: {
+    archive: "محفوظ شدہ میں منتقل کریں",
+    restore: "بحال کریں",
+    archived: "محفوظ شدہ",
+    showArchived: "محفوظ شدہ دکھائیں",
     appName: "Wiz Scheduler",
     timesInZone: "اوقات {zone} کے مطابق ہیں",
     loading: "لوڈ ہو رہا ہے...",
@@ -377,6 +381,7 @@ const ur = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "اس مقام کو محفوظ شدہ میں منتقل کریں؟ اس کی آنے والی شفٹیں اور مسودے ہٹا دیے جائیں گے؛ پچھلے شیڈول اور پے رول محفوظ رہیں گے۔",
     title: "مقامات",
     importData: "ڈیٹا درآمد کریں",
     importTitle: "مقامات درآمد کریں",
@@ -390,6 +395,7 @@ const ur = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "اس کردار کو محفوظ شدہ میں منتقل کریں؟ اس کردار والی آنے والی شفٹیں کھلی شفٹیں بن جائیں گی۔",
     title: "کردار",
     importData: "ڈیٹا درآمد کریں",
     importTitle: "کردار درآمد کریں",
@@ -416,6 +422,8 @@ const ur = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "اس ملازم کو محفوظ شدہ میں منتقل کریں؟ ان کی آنے والی شفٹیں کھلی شفٹیں بن جائیں گی؛ پچھلے شیڈول اور پے رول محفوظ رہیں گے۔",
+    erasedCannotRestore: "اس ملازم کا ڈیٹا مٹا دیا گیا ہے اور بحال نہیں کیا جا سکتا۔",
     title: "ملازمین",
     importData: "ڈیٹا درآمد کریں",
     importTitle: "ملازمین درآمد کریں",
@@ -812,6 +820,8 @@ const ur = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "محفوظ شدہ",
+    restored: "بحال کر دیا گیا",
     title: "7shifts سے درآمد کریں",
     description: "کمپنیاں، مقامات، محکمے، کردار، ملازمین، اور صارف تفویضات درآمد کرنے کے لیے اپنا 7shifts ایکسیس ٹوکن درج کریں۔ آپ اپنے 7shifts اکاؤنٹ میں ایکسیس ٹوکن بنا سکتے ہیں",
     devTools: "کمپنی ترتیبات > ڈویلپر ٹولز",
@@ -828,6 +838,8 @@ const ur = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "محفوظ شدہ",
+    restored: "بحال کر دیا گیا",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

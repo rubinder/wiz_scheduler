@@ -1,6 +1,10 @@
 const pt = {
   // ── Common ──
   common: {
+    archive: "Arquivar",
+    restore: "Restaurar",
+    archived: "Arquivado",
+    showArchived: "Mostrar arquivados",
     appName: "Wiz Scheduler",
     timesInZone: "Horários em {zone}",
     loading: "Carregando...",
@@ -377,6 +381,7 @@ const pt = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Arquivar este local? Os turnos futuros e rascunhos dele são removidos; escalas passadas e folha de pagamento são mantidas.",
     title: "Locais",
     importData: "Importar dados",
     importTitle: "Importar locais",
@@ -390,6 +395,7 @@ const pt = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Arquivar esta função? Os turnos futuros com esta função viram turnos abertos.",
     title: "Funções",
     importData: "Importar dados",
     importTitle: "Importar funções",
@@ -416,6 +422,8 @@ const pt = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Arquivar este funcionário? Os turnos futuros dele viram turnos abertos; escalas passadas e folha de pagamento são mantidas.",
+    erasedCannotRestore: "Os dados deste funcionário foram apagados e não podem ser restaurados.",
     title: "Funcionários",
     importData: "Importar dados",
     importTitle: "Importar funcionários",
@@ -812,6 +820,8 @@ const pt = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Arquivado",
+    restored: "Restaurado",
     title: "Importar do 7shifts",
     description: "Insira seu token de acesso do 7shifts para importar empresas, locais, departamentos, funções, funcionários e atribuições de usuários. Você pode gerar um token de acesso na sua conta do 7shifts em",
     devTools: "Configurações da empresa > Ferramentas de desenvolvimento",
@@ -828,6 +838,8 @@ const pt = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Arquivado",
+    restored: "Restaurado",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

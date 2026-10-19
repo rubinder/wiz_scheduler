@@ -1,6 +1,10 @@
 const zh = {
   // ── Common ──
   common: {
+    archive: "归档",
+    restore: "恢复",
+    archived: "已归档",
+    showArchived: "显示已归档",
     appName: "Wiz Scheduler",
     timesInZone: "时间为 {zone} 时区",
     loading: "加载中...",
@@ -377,6 +381,7 @@ const zh = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "归档该门店？其未来的班次和草稿将被移除；过往排班和工资记录会保留。",
     title: "门店",
     importData: "导入数据",
     importTitle: "导入门店",
@@ -390,6 +395,7 @@ const zh = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "归档该角色？使用该角色的未来班次将变为空缺班次。",
     title: "角色",
     importData: "导入数据",
     importTitle: "导入角色",
@@ -416,6 +422,8 @@ const zh = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "归档该员工？其未来的班次将变为空缺班次；过往排班和工资记录会保留。",
+    erasedCannotRestore: "该员工的数据已被清除，无法恢复。",
     title: "员工",
     importData: "导入数据",
     importTitle: "导入员工",
@@ -812,6 +820,8 @@ const zh = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "已归档",
+    restored: "已恢复",
     title: "从 7shifts 导入",
     description: "输入您的 7shifts 访问令牌以导入公司、门店、部门、角色、员工和用户分配。您可以在 7shifts 账号的以下位置生成访问令牌：",
     devTools: "公司设置 > 开发者工具",
@@ -828,6 +838,8 @@ const zh = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "已归档",
+    restored: "已恢复",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

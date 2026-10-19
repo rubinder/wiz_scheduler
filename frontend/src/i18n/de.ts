@@ -1,6 +1,10 @@
 const de = {
   // ── Common ──
   common: {
+    archive: "Archivieren",
+    restore: "Wiederherstellen",
+    archived: "Archiviert",
+    showArchived: "Archivierte anzeigen",
     appName: "Wiz Scheduler",
     timesInZone: "Zeiten in {zone}",
     loading: "Wird geladen...",
@@ -377,6 +381,7 @@ const de = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Diesen Standort archivieren? Seine künftigen Schichten und Entwürfe werden entfernt; vergangene Dienstpläne und die Lohnabrechnung bleiben erhalten.",
     title: "Standorte",
     importData: "Daten importieren",
     importTitle: "Standorte importieren",
@@ -390,6 +395,7 @@ const de = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Diese Rolle archivieren? Künftige Schichten mit dieser Rolle werden zu offenen Schichten.",
     title: "Rollen",
     importData: "Daten importieren",
     importTitle: "Rollen importieren",
@@ -416,6 +422,8 @@ const de = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Diesen Mitarbeiter archivieren? Seine künftigen Schichten werden zu offenen Schichten; vergangene Dienstpläne und die Lohnabrechnung bleiben erhalten.",
+    erasedCannotRestore: "Die Daten dieses Mitarbeiters wurden gelöscht und können nicht wiederhergestellt werden.",
     title: "Mitarbeiter",
     importData: "Daten importieren",
     importTitle: "Mitarbeiter importieren",
@@ -812,6 +820,8 @@ const de = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Archiviert",
+    restored: "Wiederhergestellt",
     title: "Von 7shifts importieren",
     description: "Geben Sie Ihr 7shifts-Zugriffstoken ein, um Unternehmen, Standorte, Abteilungen, Rollen, Mitarbeiter und Benutzerzuweisungen zu importieren. Sie können ein Zugriffstoken in Ihrem 7shifts-Konto unter",
     devTools: "Unternehmenseinstellungen > Entwicklertools",
@@ -828,6 +838,8 @@ const de = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Archiviert",
+    restored: "Wiederhergestellt",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

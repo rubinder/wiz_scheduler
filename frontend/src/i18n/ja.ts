@@ -1,6 +1,10 @@
 const ja = {
   // ── Common ──
   common: {
+    archive: "アーカイブ",
+    restore: "復元",
+    archived: "アーカイブ済み",
+    showArchived: "アーカイブ済みを表示",
     appName: "Wiz Scheduler",
     timesInZone: "時刻は{zone}です",
     loading: "読み込み中...",
@@ -377,6 +381,7 @@ const ja = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "この拠点をアーカイブしますか？今後のシフトと下書きは削除されます。過去のスケジュールと給与記録は保持されます。",
     title: "拠点",
     importData: "データをインポート",
     importTitle: "拠点のインポート",
@@ -390,6 +395,7 @@ const ja = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "このロールをアーカイブしますか？このロールの今後のシフトは未割り当てシフトになります。",
     title: "役割",
     importData: "データをインポート",
     importTitle: "役割のインポート",
@@ -416,6 +422,8 @@ const ja = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "この従業員をアーカイブしますか？今後のシフトは未割り当てシフトになります。過去のスケジュールと給与記録は保持されます。",
+    erasedCannotRestore: "この従業員のデータは消去されたため、復元できません。",
     title: "従業員",
     importData: "データをインポート",
     importTitle: "従業員のインポート",
@@ -812,6 +820,8 @@ const ja = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "アーカイブ済み",
+    restored: "復元済み",
     title: "7shiftsからインポート",
     description: "7shiftsのアクセストークンを入力して、会社、拠点、部門、役割、従業員、ユーザー割り当てをインポートします。アクセストークンは7shiftsアカウントの以下から生成できます：",
     devTools: "会社設定 > 開発者ツール",
@@ -828,6 +838,8 @@ const ja = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "アーカイブ済み",
+    restored: "復元済み",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",
