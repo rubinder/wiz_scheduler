@@ -457,10 +457,21 @@ async def count_billable_employees_for_group(
     return result.scalar() or 0
 
 
-async def count_locations_for_group(db: AsyncSession, og_id: str) -> int:
-    """Count total locations across all companies in an ownership group.
+def utc_month_start(now: datetime | None = None) -> datetime:
+    """First instant of the current UTC month."""
+    now = now or datetime.now(timezone.utc)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    Archived rows are neither limited nor billed (#126).
+
+async def count_locations_for_group(
+    db: AsyncSession, og_id: str, now: datetime | None = None
+) -> int:
+    """Count locations that hold a plan slot across an ownership group.
+
+    This is the plan-limit count. Active locations count, and so do those
+    archived since the start of the current UTC month: the free plan's
+    monthly schedule allowance is keyed per location, so an archived
+    location holds its slot through the month it was archived (#126).
     """
     company_ids = await _get_company_ids_for_group(db, og_id)
     if not company_ids:
@@ -468,7 +479,9 @@ async def count_locations_for_group(db: AsyncSession, og_id: str) -> int:
 
     result = await db.execute(
         select(func.count(Location.id)).where(
-            Location.company_id.in_(company_ids), active(Location)
+            Location.company_id.in_(company_ids),
+            or_(Location.archived_at.is_(None),
+                Location.archived_at >= utc_month_start(now)),
         )
     )
     return result.scalar() or 0

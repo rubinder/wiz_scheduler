@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
+from backend.services.billing import utc_month_start
 from backend.services.archive import active, archive_location, restore_location
 from backend.services.plan import assert_can_add, assert_paid_plan
 from backend.utils.tz import is_valid_timezone
@@ -317,7 +318,10 @@ async def restore_location_endpoint(
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
     if location.archived_at is not None:
-        await assert_can_add(db, str(current_user.company_id), locations=1)
+        # A location archived this month still holds its plan slot, so
+        # restoring it adds nothing; only an older one needs a free slot.
+        if location.archived_at < utc_month_start():
+            await assert_can_add(db, str(current_user.company_id), locations=1)
         await restore_location(db, current_user.company_id, location)
         await db.commit()
         await db.refresh(location)

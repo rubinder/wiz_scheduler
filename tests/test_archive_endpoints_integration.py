@@ -9,9 +9,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from backend.models import (
-    Company, Employee, EmployeeCheckIn, Location, OwnershipGroup, Region, Role, Shift, ShiftSchedule,
+    Company, Employee, EmployeeCheckIn, Location, OwnershipGroup, Region, Role, Shift, ShiftSchedule, User,
 )
-from tests.conftest import COMPANY_ID, _id
+from tests.conftest import COMPANY_ID, _id, _make_token
 
 pytestmark = pytest.mark.integration
 
@@ -137,7 +137,68 @@ async def test_archived_employee_not_counted_for_plan(db_session):
     locs[0].archived_at = now
     await db_session.commit()
     assert await count_employees_for_group(db_session, og_id) == 2
+    # An employee leaves the plan count at once; a location archived this month
+    # keeps holding its slot until the month ends.
+    assert await count_locations_for_group(db_session, og_id) == 2
+
+    locs[0].archived_at = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0,
+                                                              microsecond=0) - timedelta(seconds=1)
+    await db_session.commit()
     assert await count_locations_for_group(db_session, og_id) == 1
+
+
+async def _free_tenant(db_session, n_locations):
+    og_id, company_id, region_id, user_id = _id(), _id(), _id(), _id()
+    db_session.add(OwnershipGroup(id=og_id, name="Free Group"))
+    await db_session.flush()
+    db_session.add(Company(id=company_id, name="Free Co", slug=_id(), ownership_group_id=og_id))
+    await db_session.flush()
+    db_session.add(Region(id=region_id, company_id=company_id, name="R"))
+    db_session.add(User(id=user_id, company_id=company_id, email=f"{_id()}@free.test",
+                        hashed_password="x", full_name="Mgr", user_role="manager"))
+    await db_session.flush()
+    locs = [Location(id=_id(), company_id=company_id, region_id=region_id, name=f"L{i}", timezone="UTC")
+            for i in range(n_locations)]
+    db_session.add_all(locs)
+    await db_session.commit()
+    return {"token": _make_token(user_id, company_id, "manager"), "region_id": region_id, "locs": locs}
+
+
+@pytest.mark.asyncio
+async def test_archive_then_create_location_is_refused_on_free_plan(client, db_session):
+    from backend.config import settings
+    t = await _free_tenant(db_session, settings.FREE_PLAN_MAX_LOCATIONS)
+    resp = await client.delete(f"/api/v1/locations/{t['locs'][0].id}", headers=_h(t["token"]))
+    assert resp.status_code == 204
+    resp = await client.post("/api/v1/locations/", headers=_h(t["token"]),
+                             json={"region_id": t["region_id"], "name": "fresh", "timezone": "UTC"})
+    assert resp.status_code == 402
+    assert resp.json()["detail"]["limit"] == "locations"
+
+
+@pytest.mark.asyncio
+async def test_restore_location_archived_this_month_not_double_counted(client, db_session):
+    from backend.config import settings
+    t = await _free_tenant(db_session, settings.FREE_PLAN_MAX_LOCATIONS)
+    loc = t["locs"][0]
+    await client.delete(f"/api/v1/locations/{loc.id}", headers=_h(t["token"]))
+    resp = await client.post(f"/api/v1/locations/{loc.id}/restore", headers=_h(t["token"]))
+    assert resp.status_code == 200
+    assert resp.json()["archived_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_restore_location_archived_last_month_needs_free_slot(client, db_session):
+    from backend.config import settings
+    t = await _free_tenant(db_session, settings.FREE_PLAN_MAX_LOCATIONS)
+    loc = t["locs"][0]
+    loc.archived_at = datetime.now(timezone.utc) - timedelta(days=62)
+    # A replacement fills the slot the old archived row no longer holds.
+    comp_id = loc.company_id
+    db_session.add(Location(id=_id(), company_id=comp_id, region_id=t["region_id"], name="Repl", timezone="UTC"))
+    await db_session.commit()
+    resp = await client.post(f"/api/v1/locations/{loc.id}/restore", headers=_h(t["token"]))
+    assert resp.status_code == 402
 
 
 async def _group_with_employees(db_session):
