@@ -464,25 +464,30 @@ def utc_month_start(now: datetime | None = None) -> datetime:
 
 
 async def count_locations_for_group(
-    db: AsyncSession, og_id: str, now: datetime | None = None
+    db: AsyncSession, og_id: str, now: datetime | None = None, *, active_only: bool = False
 ) -> int:
     """Count locations that hold a plan slot across an ownership group.
 
-    This is the plan-limit count. Active locations count, and so do those
-    archived since the start of the current UTC month: the free plan's
-    monthly schedule allowance is keyed per location, so an archived
-    location holds its slot through the month it was archived (#126).
+    This is the plan-limit count for adding (assert_can_add). Active
+    locations count, and so do those archived since the start of the
+    current UTC month: the free plan's monthly schedule allowance is keyed
+    per location, so an archived location holds its slot through the month
+    it was archived (#126).
+
+    `active_only=True` counts only active locations: what a tenant is
+    running now, used for the plan banner and the over-limit test, so a
+    tenant that archives down to the limit is not left blocked (#126).
     """
     company_ids = await _get_company_ids_for_group(db, og_id)
     if not company_ids:
         return 0
 
+    held = (
+        Location.archived_at.is_(None) if active_only
+        else or_(Location.archived_at.is_(None), Location.archived_at >= utc_month_start(now))
+    )
     result = await db.execute(
-        select(func.count(Location.id)).where(
-            Location.company_id.in_(company_ids),
-            or_(Location.archived_at.is_(None),
-                Location.archived_at >= utc_month_start(now)),
-        )
+        select(func.count(Location.id)).where(Location.company_id.in_(company_ids), held)
     )
     return result.scalar() or 0
 

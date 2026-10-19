@@ -121,3 +121,26 @@ async def test_week_listing_hides_discarded_schedules(client, db_session, manage
     assert resp.status_code == 200, resp.text
     assert sid not in [s["id"] for s in resp.json()]
 
+
+# --- 2. over_limit counts active locations only ---------------------------------
+
+
+async def test_archiving_down_to_the_location_limit_clears_over_limit(db_session):
+    t = await _free_group(db_session, settings.FREE_PLAN_MAX_LOCATIONS + 1)
+    state = await get_plan_state(db_session, t["company_id"])
+    assert state["over_limit"] is True
+
+    await archive_location(db_session, t["company_id"], t["locs"][0])
+    await db_session.commit()
+
+    state = await get_plan_state(db_session, t["company_id"])
+    assert state["over_limit"] is False
+    assert state["can_generate_local"] is True
+    assert state["block_reason"] is None
+    assert state["locations"]["count"] == settings.FREE_PLAN_MAX_LOCATIONS
+    # The archived location still holds its slot this month for new adds.
+    with pytest.raises(HTTPException) as exc:
+        await assert_can_add(db_session, t["company_id"], locations=1)
+    assert exc.value.status_code == 402
+    assert exc.value.detail["limit"] == "locations"
+
