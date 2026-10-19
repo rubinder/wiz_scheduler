@@ -75,8 +75,34 @@ async def _open(db: AsyncSession, *where: ColumnElement[bool]) -> int:
     return result.rowcount or 0
 
 
+async def lock_employees(db: AsyncSession, company_id: str,
+                         employee_ids) -> dict[str, datetime | None]:
+    """Row-lock these employees and return each one's committed archived_at.
+
+    Every path that archives an employee, or gives one a future shift, takes
+    this lock first, so an assignment cannot commit a shift for someone
+    archived concurrently: whichever transaction locks second sees the
+    other's result. Rows are locked in id order, the one lock order used
+    everywhere, so two such transactions cannot deadlock on each other.
+    Columns, not entities, are selected so a stale identity-map copy cannot
+    hide a concurrent archive.
+    """
+    ids = sorted({str(i) for i in employee_ids if i})
+    if not ids:
+        return {}
+    rows = await db.execute(
+        select(Employee.id, Employee.archived_at)
+        .where(Employee.company_id == company_id, Employee.id.in_(ids))
+        .order_by(Employee.id).with_for_update()
+    )
+    return {str(eid): archived_at for eid, archived_at in rows.all()}
+
+
 async def archive_employee(db: AsyncSession, company_id: str, employee: Employee,
                            *, now: datetime | None = None) -> ArchiveCounts:
+    archived_at = (await lock_employees(db, company_id, [employee.id])).get(str(employee.id))
+    if employee.archived_at is None and archived_at is not None:
+        employee.archived_at = archived_at  # archived concurrently; we lost the race
     if employee.archived_at is not None:
         return ArchiveCounts()
     now = _now(now)
@@ -168,6 +194,13 @@ async def archive_location(db: AsyncSession, company_id: str, location: Location
     Drafts move to the terminal status DISCARDED instead: kept and counted
     like a draft, but never listed, edited, rejected or approved.
     """
+    # Row lock first: approve_schedule takes the same lock before reading
+    # archived_at, so an approval cannot slip future shifts in mid-archive.
+    archived_at = (await db.execute(
+        select(Location.archived_at).where(Location.id == location.id).with_for_update()
+    )).scalar_one_or_none()
+    if location.archived_at is None and archived_at is not None:
+        location.archived_at = archived_at  # archived concurrently; we lost the race
     if location.archived_at is not None:
         return ArchiveCounts()
     now = _now(now)

@@ -185,3 +185,58 @@ async def test_bulk_upload_archived_employee_message_has_row_prefix(client, db_s
                              files={"file": ("e.json", payload, "application/json")})
     assert resp.status_code == 200, resp.text
     assert resp.json()["errors"] == [f"Row 1: {emp.email}: exists (archived) — restore it instead"]
+
+
+# --- 6. archive races: the archived check reads the locked, committed row -------
+
+
+async def test_assigning_employee_archived_by_another_session_409(client, db_session, manager_token,
+                                                                  seed_location, seed_roles, seed_employees):
+    """The request session already holds the employee in its identity map
+    (expire_on_commit=False), as a long request would. Another transaction
+    archives them and commits; the assignment must still see it."""
+    from tests.conftest import get_test_session_factory
+    from backend.services.archive import archive_employee
+
+    start = datetime.now(timezone.utc) + timedelta(days=3)
+    role, emp = seed_roles[0], seed_employees[1]
+    sched = ShiftSchedule(id=_id(), company_id=COMPANY_ID, location_id=seed_location.id,
+                          week_start_date=start.date() - timedelta(days=start.weekday()),
+                          status="approved", created_at=datetime.now(timezone.utc))
+    db_session.add(sched)
+    await db_session.flush()
+    shift = Shift(id=_id(), company_id=COMPANY_ID, shift_schedule_id=sched.id, location_id=seed_location.id,
+                  employee_id=None, role_id=role.id, role_name=role.name, date=start.date(),
+                  start_time=start, end_time=start + timedelta(hours=8))
+    db_session.add(shift)
+    await db_session.commit()
+    assert emp.archived_at is None
+
+    async with get_test_session_factory()() as other:
+        other_emp = await other.get(Employee, emp.id)
+        await archive_employee(other, COMPANY_ID, other_emp)
+        await other.commit()
+    assert emp.archived_at is None  # the request session's copy is stale
+
+    sched_id, shift_id, emp_id = sched.id, shift.id, emp.id
+    resp = await client.put(f"/api/v1/schedules/{sched_id}/approved-shifts", headers=_h(manager_token),
+                            json={"edits": [{"shift_id": shift_id, "employee_id": emp_id}]})
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "employee_archived"
+    assigned = (await db_session.execute(select(Shift.employee_id).where(Shift.id == shift_id))).scalar_one()
+    assert assigned is None
+
+
+async def test_lock_employees_returns_committed_archived_at(db_session, seed_employees):
+    from tests.conftest import get_test_session_factory
+    from backend.services.archive import lock_employees
+
+    archived_id, active_id = seed_employees[0].id, seed_employees[1].id
+    async with get_test_session_factory()() as other:
+        (await other.get(Employee, archived_id)).archived_at = datetime.now(timezone.utc)
+        await other.commit()
+    assert seed_employees[0].archived_at is None  # stale identity-map copy
+    locked = await lock_employees(db_session, COMPANY_ID, [archived_id, active_id, None])
+    await db_session.rollback()
+    assert locked[archived_id] is not None
+    assert locked[active_id] is None

@@ -26,7 +26,7 @@ from backend.schemas.schedule import (
 from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
-from backend.services.archive import DISCARDED, active
+from backend.services.archive import DISCARDED, active, lock_employees
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -462,6 +462,16 @@ async def edit_approved_shifts(
         from backend.models import Role
         from backend.services.edit_warnings import collect_edit_warnings
 
+        # Lock every employee this request assigns before any shift is
+        # written (#126): an archive running concurrently either finishes
+        # first, and the check below sees it, or waits and then opens the
+        # shift we assign. Read archived_at from the lock, not the entity,
+        # which may be a stale identity-map copy.
+        locked_archived = await lock_employees(
+            db, str(current_user.company_id),
+            [e.employee_id for e in body.edits if e.employee_id is not None],
+        )
+
         # Collect warnings BEFORE any edit is applied: the checks below read
         # committed `Shift` rows back out of the database, and doing this
         # after the mutation loop would compare a shift against its own
@@ -498,7 +508,7 @@ async def edit_approved_shifts(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Employee not found",
                     )
-                if employee.archived_at is not None:
+                if locked_archived.get(str(employee.id)) is not None:
                     # Archived (#126): a shift they already hold may still be
                     # retimed, but no shift may newly be given to them.
                     current_assignee = None
@@ -763,18 +773,6 @@ async def approve_schedule(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
     _refuse_discarded(schedule)
 
-    location_archived_at = (await db.execute(
-        select(Location.archived_at).where(Location.id == schedule.location_id)
-    )).scalar_one_or_none()
-    if location_archived_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "location_archived",
-                "message": "This location is archived; restore it before approving its schedule.",
-            },
-        )
-
     try:
         lock = await acquire_lock(
             db,
@@ -793,6 +791,22 @@ async def approve_schedule(
         )
 
     try:
+        # Checked under the schedule lock, and with the location row locked
+        # FOR UPDATE: archive_location takes the same row lock first, so it
+        # either finished before this read or waits until we commit (#126).
+        location_archived_at = (await db.execute(
+            select(Location.archived_at).where(Location.id == schedule.location_id)
+            .with_for_update()
+        )).scalar_one_or_none()
+        if location_archived_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "location_archived",
+                    "message": "This location is archived; restore it before approving its schedule.",
+                },
+            )
+
         schedule.status = "approved"
 
         # Create Shift records from the stored raw_llm_output
@@ -832,14 +846,20 @@ async def approve_schedule(
                     for lid, tz in loc_tz_result.all()
                 }
 
-                archived_ids = set((await db.execute(
-                    select(Employee.id).where(
-                        Employee.company_id == current_user.company_id,
-                        Employee.archived_at.is_not(None),
-                    )
-                )).scalars().all())
-
                 shifts_data = json.loads(schedule.raw_llm_output)
+                # Lock the employees this approval gives shifts to (#126),
+                # so an archive running concurrently either lands first and
+                # their entries open below, or waits and opens the shifts
+                # this approval commits.
+                locked_archived = await lock_employees(
+                    db, str(current_user.company_id),
+                    [s.get("employee_id") for s in shifts_data
+                     if isinstance(s, dict) and not is_open_entry(s)],
+                )
+                archived_ids = {
+                    eid for eid, archived_at in locked_archived.items()
+                    if archived_at is not None
+                }
                 for i, s in enumerate(shifts_data):
                     if (
                         s.get("status") == "ok"
