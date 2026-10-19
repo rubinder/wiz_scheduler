@@ -319,3 +319,26 @@ async def test_within_the_limit_every_location_still_generates(db_session):
     quota = await resolve_location_quota(db_session, t["company_id"], ids)
     assert all(quota[i]["allowed"] for i in ids[1:])
 
+
+# --- follow-up 2: retention never deletes a schedule the quota counts -----------
+
+
+async def test_retention_keeps_this_months_quota_counted_schedules(db_session, monkeypatch):
+    from backend.services.data_retention import run_data_retention
+    monkeypatch.setattr(settings, "RETENTION_STALE_DRAFTS_DAYS", 0)
+    monkeypatch.setattr(settings, "RETENTION_REJECTED_SCHEDULES_DAYS", 0)
+    t = await _free_group(db_session, 1)
+    loc = t["locs"][0]
+    this_month = max(_month_start(), datetime.now(timezone.utc) - timedelta(seconds=5))
+    kept = [await _generated(db_session, t, loc, status=s, created_at=this_month)
+            for s in ("draft", "discarded", "rejected")]
+    gone = [await _generated(db_session, t, loc, status=s, created_at=_month_start() - timedelta(days=1))
+            for s in ("draft", "discarded", "rejected")]
+
+    await run_data_retention(db_session)
+    await db_session.commit()
+
+    left = set((await db_session.execute(
+        select(ShiftSchedule.id).where(ShiftSchedule.id.in_(kept + gone))
+    )).scalars().all())
+    assert left == set(kept)

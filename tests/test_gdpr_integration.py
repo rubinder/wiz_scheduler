@@ -431,8 +431,12 @@ async def test_data_retention_deletes_stale_drafts(
     seed_location,
     seed_roles,
 ):
-    old_time = datetime.now(timezone.utc) - timedelta(
-        days=settings.RETENTION_STALE_DRAFTS_DAYS + 1
+    # Before this UTC month too: the free quota counts this month's drafts,
+    # so the sweep never deletes one (#126).
+    now = datetime.now(timezone.utc)
+    old_time = min(
+        now - timedelta(days=settings.RETENTION_STALE_DRAFTS_DAYS + 1),
+        now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1),
     )
     sched = ShiftSchedule(
         id=_id(),

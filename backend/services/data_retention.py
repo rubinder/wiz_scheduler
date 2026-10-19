@@ -19,6 +19,7 @@ from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 from backend.services.archive import DISCARDED, delete_past_check_ins
+from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,10 @@ async def run_data_retention(db: AsyncSession) -> dict:
             select(ShiftSchedule.id).where(
                 ShiftSchedule.status == "rejected",
                 ShiftSchedule.created_at < cutoff_rejected,
+                # Never this UTC month's rows: the free quota counts them
+                # (attempts, held slots, started locations) and so does the
+                # paid overage meter; deleting one would hand the month back.
+                ShiftSchedule.created_at < utc_month_start(now),
             )
         )
         rejected_ids = list(old_rejected.scalars().all())
@@ -65,6 +70,7 @@ async def run_data_retention(db: AsyncSession) -> dict:
                 # A discarded draft (#126) ages out exactly as the draft would have.
                 ShiftSchedule.status.in_(("draft", DISCARDED)),
                 ShiftSchedule.created_at < cutoff_drafts,
+                ShiftSchedule.created_at < utc_month_start(now),  # see above
             )
         )
         draft_ids = list(old_drafts.scalars().all())
