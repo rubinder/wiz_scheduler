@@ -235,7 +235,7 @@ async def bulk_upload_locations(
 
         if name.lower() in existing_names:
             if name.lower() in archived_names:
-                errors.append(f"{name}: exists (archived) — restore it instead")
+                errors.append(f"Row {row_num}: {name}: exists (archived) — restore it instead")
             else:
                 errors.append(f"Row {row_num}: location '{name}' already exists, skipped")
             skipped += 1

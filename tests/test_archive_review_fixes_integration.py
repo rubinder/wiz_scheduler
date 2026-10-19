@@ -160,3 +160,28 @@ async def test_update_erased_employee_409(client, db_session, manager_token, see
     email = (await db_session.execute(select(Employee.email).where(Employee.id == emp.id))).scalar_one()
     assert email is None
 
+
+# --- 8. bulk-upload "restore it instead" carries the row prefix -----------------
+
+
+async def test_bulk_upload_archived_location_message_has_row_prefix(client, db_session, manager_token,
+                                                                    seed_location):
+    seed_location.archived_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    payload = json.dumps([{"name": seed_location.name, "region_name": "East Coast"}])
+    resp = await client.post("/api/v1/locations/bulk-upload", headers=_h(manager_token),
+                             files={"file": ("l.json", payload, "application/json")})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["errors"] == [f"Row 1: {seed_location.name}: exists (archived) — restore it instead"]
+
+
+async def test_bulk_upload_archived_employee_message_has_row_prefix(client, db_session, manager_token,
+                                                                    seed_employees):
+    emp = seed_employees[0]
+    emp.archived_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    payload = json.dumps([{"full_name": "Someone", "email": emp.email}])
+    resp = await client.post("/api/v1/employees/bulk-upload", headers=_h(manager_token),
+                             files={"file": ("e.json", payload, "application/json")})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["errors"] == [f"Row 1: {emp.email}: exists (archived) — restore it instead"]

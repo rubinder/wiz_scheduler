@@ -465,7 +465,7 @@ async def bulk_upload(
             dup = dup_result.scalars().first()
             if dup is not None:
                 if dup.archived_at is not None:
-                    errors.append(f"{email}: exists (archived) — restore it instead")
+                    errors.append(f"Row {row_num}: {email}: exists (archived) — restore it instead")
                 else:
                     errors.append(f"Row {row_num}: employee with email {email} already exists, skipped")
                 skipped += 1

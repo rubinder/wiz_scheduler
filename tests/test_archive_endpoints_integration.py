@@ -111,7 +111,7 @@ async def test_bulk_upload_reports_archived_match(client, db_session, manager_to
     assert resp.status_code == 200
     body = resp.json()
     assert body["created"] == 0
-    assert body["errors"] == [f"{role.name}: exists (archived) — restore it instead"]
+    assert body["errors"] == [f"Row 1: {role.name}: exists (archived) — restore it instead"]
 
 
 @pytest.mark.asyncio
