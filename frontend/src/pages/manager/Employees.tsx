@@ -13,7 +13,7 @@ import type {
   Role,
 } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
-import { isArchived, visibleRows } from "../../utils/archived";
+import { archivedHeldIds, isArchived, visibleRows } from "../../utils/archived";
 import { ApiError } from "../../api/client";
 import { timeZoneOptions } from "../../utils/timezones";
 import { text, bg, border, action, badge } from "../../theme";
@@ -27,8 +27,13 @@ export default function Employees() {
   const { t } = useLanguage();
   const { plan, refresh: refreshPlan } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
+  // Archived roles/locations are fetched too: employees keep their
+  // assignments to them, so badges need the names. Pickers use the active
+  // subsets `roles` / `locations`.
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const roles = useMemo(() => visibleRows(allRoles, false), [allRoles]);
+  const locations = useMemo(() => visibleRows(allLocations, false), [allLocations]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
@@ -75,13 +80,13 @@ export default function Employees() {
     try {
       const [emps, rls, locs, comps] = await Promise.all([
         employeesApi.listEmployees(true),
-        rolesApi.listRoles(),
-        locationsApi.listLocations(),
+        rolesApi.listRoles(true),
+        locationsApi.listLocations(true),
         companyApi.listGroupCompanies().catch(() => [] as Company[]),
       ]);
       setEmployees(emps);
-      setRoles(rls);
-      setLocations(locs);
+      setAllRoles(rls);
+      setAllLocations(locs);
       setCompanies(comps);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -100,11 +105,35 @@ export default function Employees() {
     plan.employees.limit !== null &&
     plan.employees.count >= plan.employees.limit;
 
-  const roleName = (roleId: string) =>
-    roles.find((r) => r.id === roleId)?.name ?? roleId;
+  const withArchivedMark = (name: string, row?: { archived_at?: string | null }) =>
+    row && isArchived(row) ? `${name} (${t.common.archived})` : name;
 
-  const locationName = (locId: string) =>
-    locations.find((l) => l.id === locId)?.name ?? locId.slice(0, 8);
+  const roleName = (roleId: string) => {
+    const r = allRoles.find((x) => x.id === roleId);
+    return r ? withArchivedMark(r.name, r) : roleId;
+  };
+
+  const locationName = (locId: string) => {
+    const l = allLocations.find((x) => x.id === locId);
+    return l ? withArchivedMark(l.name, l) : locId.slice(0, 8);
+  };
+
+  // Read-only chips for assignments the pickers cannot offer. They are still
+  // in editValues, and toggles only touch their own id, so a save carries
+  // them through unchanged.
+  const renderKeptArchived = (labels: string[]) =>
+    labels.length > 0 && (
+      <div className="mt-1 flex flex-wrap gap-1">
+        {labels.map((label) => (
+          <span
+            key={label}
+            className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.status.default}`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    );
 
   const companyName = (compId: string) =>
     companies.find((c) => c.id === compId)?.name ?? compId.slice(0, 8);
@@ -342,6 +371,9 @@ export default function Employees() {
           </div>
         );
       })}
+      {renderKeptArchived(
+        archivedHeldIds(assignedRoles.map((r) => r.role_id), allRoles).map(roleName)
+      )}
     </div>
   );
 
@@ -364,6 +396,7 @@ export default function Employees() {
           {loc.name}
         </label>
       ))}
+      {renderKeptArchived(archivedHeldIds(selectedIds, allLocations).map(locationName))}
     </div>
   );
 

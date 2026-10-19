@@ -210,14 +210,14 @@ export default function Locations() {
       <div className="flex items-center justify-between mb-6">
         <h1 className={`text-2xl font-bold ${text.heading}`}>{t.locationsPage.title}</h1>
         <div className="flex items-center gap-3">
-        <label className={`flex items-center gap-2 text-sm ${text.muted}`}>
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-          />
-          {t.common.showArchived}
-        </label>
+          <label className={`flex items-center gap-2 text-sm ${text.muted}`}>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            {t.common.showArchived}
+          </label>
           <DemoGuard>
             <button
               onClick={() => setShowImportModal(true)}

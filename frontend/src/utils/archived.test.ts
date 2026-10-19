@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isArchived, visibleRows } from "./archived";
+import { archivedHeldIds, isArchived, visibleRows } from "./archived";
 
 const rows = [
   { id: "a", archived_at: null },
@@ -15,5 +15,13 @@ describe("archived rows", () => {
   it("treats a missing archived_at as active", () => {
     expect(isArchived(rows[2])).toBe(false);
     expect(isArchived(rows[1])).toBe(true);
+  });
+  it("finds held ids that point at archived rows, ignoring unknown ids", () => {
+    const refs = [
+      { id: "x", archived_at: null },
+      { id: "y", archived_at: "2026-10-01T00:00:00Z" },
+    ];
+    expect(archivedHeldIds(["x", "y", "gone"], refs)).toEqual(["y"]);
+    expect(archivedHeldIds([], refs)).toEqual([]);
   });
 });
