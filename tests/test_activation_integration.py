@@ -24,7 +24,7 @@ from backend.models.activation_event import ActivationEvent
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.activation import record_milestone
 from backend.services.activation_report import build_activation_report
-from backend.services.location_quota import DISCARDED
+from backend.services.location_quota import REJECTED
 from tests.conftest import _id, _make_token
 
 
@@ -591,7 +591,7 @@ async def test_generate_twice_records_first_generation_once(
         await db_session.execute(
             update(ShiftSchedule)
             .where(ShiftSchedule.location_id == og_tenant["location_id"])
-            .values(status=DISCARDED)
+            .values(status=REJECTED)
         )
         await db_session.commit()
 

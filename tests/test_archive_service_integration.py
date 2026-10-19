@@ -103,20 +103,26 @@ async def test_restore_erased_employee_refused(db_session, seed_employees):
 
 
 @pytest.mark.asyncio
-async def test_archive_location_drops_future_and_drafts_keeps_past(
+async def test_archive_location_drops_future_discards_drafts_keeps_past(
         db_session, seed_location, seed_roles, seed_employees):
     emp, role, loc = seed_employees[0], seed_roles[0], seed_location
     past = await _shift(db_session, emp_id=emp.id, loc_id=loc.id, role=role, start=NOW - timedelta(days=2))
     future = await _shift(db_session, emp_id=emp.id, loc_id=loc.id, role=role, start=NOW + timedelta(days=2))
     draft = await _shift(db_session, emp_id=emp.id, loc_id=loc.id, role=role,
                          start=NOW + timedelta(days=9), status="draft")
+    rejected = await _shift(db_session, emp_id=emp.id, loc_id=loc.id, role=role,
+                            start=NOW + timedelta(days=16), status="rejected")
     counts = await archive_location(db_session, COMPANY_ID, loc, now=NOW)
     await db_session.commit()
-    assert counts.deleted == 2
+    assert counts.deleted == 1
+    assert counts.discarded == 1
     assert await _reload(db_session, Shift, past.id) is not None
     assert await _reload(db_session, Shift, future.id) is None
-    assert await _reload(db_session, Shift, draft.id) is None
-    assert await _reload(db_session, ShiftSchedule, draft.shift_schedule_id) is None
+    # The draft is kept, terminally discarded: the free quota counts its row.
+    assert await _reload(db_session, Shift, draft.id) is not None
+    assert (await _reload(db_session, ShiftSchedule, draft.shift_schedule_id)).status == "discarded"
+    # A rejected schedule is already terminal and stays rejected.
+    assert (await _reload(db_session, ShiftSchedule, rejected.shift_schedule_id)).status == "rejected"
     assert (await _reload(db_session, Location, loc.id)).archived_at == NOW
 
 

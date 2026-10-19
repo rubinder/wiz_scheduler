@@ -18,7 +18,7 @@ from backend.models import (
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
-from backend.services.archive import delete_past_check_ins
+from backend.services.archive import DISCARDED, delete_past_check_ins
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,8 @@ async def run_data_retention(db: AsyncSession) -> dict:
 
         old_drafts = await db.execute(
             select(ShiftSchedule.id).where(
-                ShiftSchedule.status == "draft",
+                # A discarded draft (#126) ages out exactly as the draft would have.
+                ShiftSchedule.status.in_(("draft", DISCARDED)),
                 ShiftSchedule.created_at < cutoff_drafts,
             )
         )

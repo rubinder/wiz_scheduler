@@ -26,12 +26,28 @@ from backend.schemas.schedule import (
 from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
-from backend.services.archive import active
+from backend.services.archive import DISCARDED, active
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+
+
+def _refuse_discarded(schedule: ShiftSchedule) -> None:
+    """A draft discarded by archiving its location is terminal (#126): kept so
+    the free quota still counts it, never edited, rejected or approved."""
+    if schedule.status == DISCARDED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_discarded",
+                "message": (
+                    "This draft was discarded when its location was archived; "
+                    "generate a new schedule instead."
+                ),
+            },
+        )
 
 
 @router.get("/ai-credits")
@@ -344,6 +360,7 @@ async def update_shifts(
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
+    _refuse_discarded(schedule)
 
     # A cleared or null employee is an open shift (#174); store one shape.
     shifts = [
@@ -744,6 +761,7 @@ async def approve_schedule(
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
+    _refuse_discarded(schedule)
 
     location_archived_at = (await db.execute(
         select(Location.archived_at).where(Location.id == schedule.location_id)
@@ -994,6 +1012,7 @@ async def reject_schedule(
     schedule = result.scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    _refuse_discarded(schedule)
 
     schedule.status = "rejected"
     await db.commit()
@@ -1011,7 +1030,8 @@ async def get_week_schedules(
     """Schedules for one week, newest-relevant first.
 
     `?status=approved` narrows to approved schedules. Without it every
-    generation that was never approved comes back too — a week can easily
+    generation that was never approved comes back too (except drafts
+    discarded by archiving their location) — a week can easily
     hold dozens of empty drafts before RETENTION_STALE_DRAFTS_DAYS clears
     them, and callers that only render approved schedules should not pay
     for that.
@@ -1022,6 +1042,9 @@ async def get_week_schedules(
     ]
     if status_filter:
         conditions.append(ShiftSchedule.status == status_filter)
+    else:
+        # A discarded draft (#126) exists only so the free quota counts it.
+        conditions.append(ShiftSchedule.status != DISCARDED)
 
     result = await db.execute(select(ShiftSchedule).where(*conditions))
     schedules = result.scalars().all()

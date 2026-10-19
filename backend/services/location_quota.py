@@ -48,8 +48,11 @@ from backend.services.billing import (
 logger = logging.getLogger(__name__)
 
 # A schedule the manager explicitly threw away. Not coverage, so it does not
-# hold a location's slot — but it does burn an attempt.
-DISCARDED = "rejected"
+# hold a location's slot — but it does burn an attempt. Not to be confused
+# with archive.DISCARDED: a draft whose location was archived (#126) is
+# discarded by the system, not rejected by the manager, and holds the slot
+# exactly as the draft did, so archive -> restore cannot reset the month.
+REJECTED = "rejected"
 
 
 class LocationQuota(TypedDict):
@@ -144,7 +147,7 @@ async def resolve_location_quota(
     for raw_id in location_ids:
         location_id = str(raw_id)
         attempts = by_location.get(location_id, [])
-        held = [(w, s) for w, s in attempts if s != DISCARDED]
+        held = [(w, s) for w, s in attempts if s != REJECTED]
 
         if len(held) >= max_schedules:
             result[location_id] = LocationQuota(
@@ -256,7 +259,7 @@ async def free_plan_usage(db: AsyncSession, og_id: str) -> tuple[int, int]:
         select(ShiftSchedule.location_id).where(
             ShiftSchedule.company_id.in_(company_ids),
             ShiftSchedule.created_at >= _month_start(),
-            ShiftSchedule.status != DISCARDED,
+            ShiftSchedule.status != REJECTED,
         ).distinct()
     )).scalars().all()
 

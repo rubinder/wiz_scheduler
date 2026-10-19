@@ -26,10 +26,16 @@ class EmployeeErased(Exception):
     """GDPR-erased employees are archived for good."""
 
 
+# Terminal status for a draft whose location was archived (#126). Counted
+# by the free quota exactly like a draft; never listed, edited or approved.
+DISCARDED = "discarded"
+
+
 @dataclass
 class ArchiveCounts:
-    opened: int = 0
-    deleted: int = 0
+    opened: int = 0    # future approved shifts converted to open shifts
+    deleted: int = 0   # future approved shifts removed (archived location)
+    discarded: int = 0  # draft schedules moved to DISCARDED (archived location)
 
 
 def active(model) -> ColumnElement[bool]:
@@ -153,6 +159,15 @@ async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
 
 async def archive_location(db: AsyncSession, company_id: str, location: Location,
                            *, now: datetime | None = None) -> ArchiveCounts:
+    """Archive a location: its future approved shifts go, its drafts are discarded.
+
+    Unapproved schedules are NOT deleted. The free plan's per-location
+    allowance and the paid overage meter both count this month's
+    ShiftSchedule rows (services/location_quota, billing.count_schedules_this_month),
+    so deleting them would let archive -> restore -> generate reset both.
+    Drafts move to the terminal status DISCARDED instead: kept and counted
+    like a draft, but never listed, edited, rejected or approved.
+    """
     if location.archived_at is not None:
         return ArchiveCounts()
     now = _now(now)
@@ -161,22 +176,14 @@ async def archive_location(db: AsyncSession, company_id: str, location: Location
         delete(Shift).where(*_future_approved(company_id, now), Shift.location_id == location.id)
         .execution_options(synchronize_session=False)
     )
-    drafts = select(ShiftSchedule.id).where(
-        ShiftSchedule.company_id == company_id, ShiftSchedule.location_id == location.id,
-        ShiftSchedule.status != "approved",
-    )
-    draft_shifts = await db.execute(
-        delete(Shift).where(Shift.shift_schedule_id.in_(drafts), ~_untouchable())
-        .execution_options(synchronize_session=False)
-    )
-    await db.execute(
-        delete(ShiftSchedule).where(
-            ShiftSchedule.id.in_(drafts),
-            ~exists().where(Shift.shift_schedule_id == ShiftSchedule.id),
-        ).execution_options(synchronize_session=False)
+    discarded = await db.execute(
+        update(ShiftSchedule).where(
+            ShiftSchedule.company_id == company_id, ShiftSchedule.location_id == location.id,
+            ShiftSchedule.status == "draft",
+        ).values(status=DISCARDED).execution_options(synchronize_session=False)
     )
     location.archived_at = now
-    return ArchiveCounts(deleted=(future.rowcount or 0) + (draft_shifts.rowcount or 0))
+    return ArchiveCounts(deleted=future.rowcount or 0, discarded=discarded.rowcount or 0)
 
 
 async def archive_role(db: AsyncSession, company_id: str, role: Role,

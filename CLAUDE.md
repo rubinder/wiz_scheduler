@@ -191,6 +191,9 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   pickers, check-in, employee routes, plan counts) are active-only; history
   (approved schedules, exports, payroll, importers' `external_id` matching)
   includes archived rows. Pay records carry their own employee/location names.
+  Archiving a location deletes its future approved shifts but moves its
+  drafts to the terminal status `discarded`, never deleting them: the free
+  quota and the overage meter count this month's schedule rows.
 - **`ownership_groups.signup_*` are observe-only.** Recorded at registration
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate
