@@ -23,6 +23,7 @@ from backend.models import (
     EmployeeHourRangePreference,
     User,
 )
+from backend.services.archive import active
 from backend.schemas.employee import (
     EmployeeDayPreferenceCreate,
     EmployeeDayPreferenceResponse,
@@ -43,7 +44,8 @@ async def _get_owned_employee(
 ) -> Employee | None:
     result = await db.execute(
         select(Employee).where(
-            Employee.id == employee_id, Employee.company_id == company_id
+            Employee.id == employee_id, Employee.company_id == company_id,
+            active(Employee),
         )
     )
     return result.scalar_one_or_none()

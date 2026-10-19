@@ -28,6 +28,7 @@ from backend.services.check_in import (
     issue_token,
     record_check_in,
 )
+from backend.services.archive import active
 from backend.services.check_in_token import check_in_deep_link
 from backend.services.plan import assert_paid_plan
 from backend.services.time_entries import attestation_rates
@@ -72,6 +73,10 @@ async def get_check_in_qr(
     company_id = str(current_user.company_id)
     await assert_paid_plan(db, company_id, "check_in")
     location = await _load_location(db, company_id, location_id)
+    if location.archived_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Location not found"
+        )
 
     slug = await _company_slug(db, company_id)
     token, counter = await issue_token(db, slug, location)
@@ -104,6 +109,7 @@ async def create_check_in(
         select(Employee).where(
             Employee.company_id == company_id,
             Employee.user_id == current_user.id,
+            active(Employee),
         )
     )).scalar_one_or_none()
     if employee is None:
@@ -115,6 +121,8 @@ async def create_check_in(
     slug = await _company_slug(db, company_id)
 
     try:
+        if location.archived_at is not None:
+            raise CheckInRejected("location_archived", "This location is archived.")
         row = await record_check_in(
             db, company_id, str(employee.id), location, slug, body.token
         )

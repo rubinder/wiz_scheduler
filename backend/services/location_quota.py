@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import Location, ShiftSchedule
+from backend.services.archive import active
 from backend.services.billing import (
     count_schedules_this_month,
     get_ownership_group_id,
@@ -214,7 +215,7 @@ async def all_locations_for_company(
 ) -> list[str]:
     """Every location id in *company_id*. Used for the up-front check."""
     rows = (await db.execute(
-        select(Location.id).where(Location.company_id == company_id)
+        select(Location.id).where(Location.company_id == company_id, active(Location))
     )).scalars().all()
     return [str(r) for r in rows]
 
@@ -245,7 +246,7 @@ async def free_plan_usage(db: AsyncSession, og_id: str) -> tuple[int, int]:
         return (0, 0)
 
     location_ids = (await db.execute(
-        select(Location.id).where(Location.company_id.in_(company_ids))
+        select(Location.id).where(Location.company_id.in_(company_ids), active(Location))
     )).scalars().all()
     total = len(location_ids)
     if not total:

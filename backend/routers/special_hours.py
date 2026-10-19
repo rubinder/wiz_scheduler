@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, ShiftTemplate, SpecialHoursDay, User
+from backend.services.archive import active
 from backend.schemas.special_hours import (
     CreateSpecialHoursDayRequest,
     SpecialHoursDayResponse,
@@ -26,7 +27,8 @@ async def _verify_location_in_company(
 ) -> Location:
     loc = (await db.execute(
         select(Location).where(
-            Location.id == location_id, Location.company_id == company_id
+            Location.id == location_id, Location.company_id == company_id,
+            active(Location),
         )
     )).scalar_one_or_none()
     if loc is None:

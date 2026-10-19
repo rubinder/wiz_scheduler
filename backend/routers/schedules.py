@@ -26,6 +26,7 @@ from backend.schemas.schedule import (
 from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
+from backend.services.archive import active
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -470,7 +471,7 @@ async def edit_approved_shifts(
                 # company — otherwise a manager could schedule another
                 # tenant's staff.
                 employee = (await db.execute(
-                    select(Employee.id).where(
+                    select(Employee).where(
                         Employee.id == edit.employee_id,
                         Employee.company_id == current_user.company_id,
                     )
@@ -480,6 +481,31 @@ async def edit_approved_shifts(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Employee not found",
                     )
+                if employee.archived_at is not None:
+                    # Archived (#126): a shift they already hold may still be
+                    # retimed, but no shift may newly be given to them.
+                    current_assignee = None
+                    if edit.shift_id:
+                        current_assignee = (await db.execute(
+                            select(Shift.employee_id).where(
+                                Shift.id == edit.shift_id,
+                                Shift.company_id == current_user.company_id,
+                                Shift.shift_schedule_id == schedule.id,
+                            )
+                        )).scalar_one_or_none()
+                    if edit.employee_id != current_assignee:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "code": "employee_archived",
+                                "index": idx,
+                                "shift_id": edit.shift_id,
+                                "message": (
+                                    "This employee is archived; restore them "
+                                    "before assigning shifts."
+                                ),
+                            },
+                        )
 
             if edit.shift_id:
                 shift = (await db.execute(
@@ -562,12 +588,15 @@ async def edit_approved_shifts(
                     # (read by the UI and the 7shifts export), so it has to
                     # be refreshed here too or it goes stale next to the new
                     # role_id.
-                    role_name = (await db.execute(
-                        select(Role.name).where(
-                            Role.id == edit.role_id,
-                            Role.company_id == current_user.company_id,
-                        )
-                    )).scalar_one_or_none()
+                    role_query = select(Role.name).where(
+                        Role.id == edit.role_id,
+                        Role.company_id == current_user.company_id,
+                    )
+                    if edit.role_id != shift.role_id:
+                        # Only a move INTO a role must find it active: a
+                        # shift already in an archived role keeps it (#126).
+                        role_query = role_query.where(active(Role))
+                    role_name = (await db.execute(role_query)).scalar_one_or_none()
                     if role_name is None:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
@@ -612,6 +641,7 @@ async def edit_approved_shifts(
                     select(Role.name).where(
                         Role.id == edit.role_id,
                         Role.company_id == current_user.company_id,
+                        active(Role),
                     )
                 )).scalar_one_or_none()
                 if role_name is None:
@@ -715,6 +745,18 @@ async def approve_schedule(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
 
+    location_archived_at = (await db.execute(
+        select(Location.archived_at).where(Location.id == schedule.location_id)
+    )).scalar_one_or_none()
+    if location_archived_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "location_archived",
+                "message": "This location is archived; restore it before approving its schedule.",
+            },
+        )
+
     try:
         lock = await acquire_lock(
             db,
@@ -742,7 +784,9 @@ async def approve_schedule(
                 from backend.models import Role
                 from backend.models.condensed_role import CondensedRoleMapping
                 role_result = await db.execute(
-                    select(Role.id).where(Role.company_id == current_user.company_id)
+                    select(Role.id).where(
+                        Role.company_id == current_user.company_id, active(Role),
+                    )
                 )
                 valid_role_ids: set[str] = {str(r) for r in role_result.scalars().all()}
 
@@ -770,8 +814,26 @@ async def approve_schedule(
                     for lid, tz in loc_tz_result.all()
                 }
 
+                archived_ids = set((await db.execute(
+                    select(Employee.id).where(
+                        Employee.company_id == current_user.company_id,
+                        Employee.archived_at.is_not(None),
+                    )
+                )).scalars().all())
+
                 shifts_data = json.loads(schedule.raw_llm_output)
-                for s in shifts_data:
+                for i, s in enumerate(shifts_data):
+                    if (
+                        s.get("status") == "ok"
+                        and not is_open_entry(s)
+                        and s.get("employee_id") in archived_ids
+                    ):
+                        # Archived since generation (#126): the slot is still
+                        # needed, so it becomes an open shift rather than a
+                        # shift for someone who left. Written back so the
+                        # minutes loop below skips it as open.
+                        s = to_open_entry(s)
+                        shifts_data[i] = s
                     # Open entries (and legacy VACANT ones) become open shifts
                     # (#174); anything else that is not "ok" -- a CONFLICT --
                     # is still never materialised.

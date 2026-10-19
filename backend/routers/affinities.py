@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Employee, EmployeeAffinity, User
+from backend.services.archive import active
 from backend.schemas.employee import (
     EmployeeAffinityCreate,
     EmployeeAffinityResponse,
@@ -42,6 +43,7 @@ async def create_affinity(
             select(Employee).where(
                 Employee.id == eid,
                 Employee.company_id == current_user.company_id,
+                active(Employee),
             )
         )
         if result.scalar_one_or_none() is None:
@@ -89,6 +91,7 @@ async def update_affinity(
             select(Employee).where(
                 Employee.id == body.target_employee_id,
                 Employee.company_id == current_user.company_id,
+                active(Employee),
             )
         )
         if emp_result.scalar_one_or_none() is None:

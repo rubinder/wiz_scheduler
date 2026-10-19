@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from backend.dependencies import get_db, require_manager
 from backend.models import User, Location, ManagerLocation
+from backend.services.archive import active
 from backend.services.manager_permissions import (
     assign_location_to_manager,
     revoke_location_from_manager,
@@ -61,7 +62,7 @@ async def get_current_manager_locations(
 
     # Fetch the locations
     result = await db.execute(
-        select(Location).where(Location.id.in_(location_ids))
+        select(Location).where(Location.id.in_(location_ids), active(Location))
     )
     locations = result.scalars().all()
 
@@ -92,7 +93,7 @@ async def get_manager_location_assignments(
     # For admin managers, return all company locations
     if manager.manager_type == "admin":
         loc_result = await db.execute(
-            select(Location).where(Location.company_id == current_user.company_id)
+            select(Location).where(Location.company_id == current_user.company_id, active(Location))
         )
         locations = loc_result.scalars().all()
     else:
@@ -141,7 +142,7 @@ async def assign_location(
 
     # Fetch and return the location
     loc_result = await db.execute(
-        select(Location).where(Location.id == location_id)
+        select(Location).where(Location.id == location_id, active(Location))
     )
     location = loc_result.scalar_one_or_none()
     if not location:

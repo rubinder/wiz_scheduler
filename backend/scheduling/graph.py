@@ -41,6 +41,7 @@ from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
 )
+from backend.services.archive import active
 from backend.services.preference_loader import load_employee_preferences
 
 logger = logging.getLogger(__name__)
@@ -536,12 +537,19 @@ async def _load_initial_state(
     """Query the database to build the initial SchedulingState."""
     _validate_num_days(num_days)
 
-    # Load roles for name lookup
+    # Load roles for name lookup. Archived roles (#126) are kept aside only
+    # so their template slots and employee-role rows can be dropped below:
+    # nothing is scheduled into a role the company has retired.
     role_result = await db.execute(
         select(Role).where(Role.company_id == company_id)
     )
     roles_orm = role_result.scalars().all()
-    role_map: Dict[str, str] = {str(r.id): r.name for r in roles_orm}
+    role_map: Dict[str, str] = {
+        str(r.id): r.name for r in roles_orm if r.archived_at is None
+    }
+    archived_role_ids: set[str] = {
+        str(r.id) for r in roles_orm if r.archived_at is not None
+    }
 
     # Load condensed roles for name lookup and mappings
     from backend.models.condensed_role import CondensedRole as CondensedRoleModel
@@ -667,9 +675,12 @@ async def _load_initial_state(
                 contributing_ids.append(tmpl_id)
                 contributing_names.append(tmpl.name)
             day_name = _DAY_NAMES[d.weekday()]
-            slots = _normalize_template_slots_for_dow(
-                tmpl.weekly_schedule, d.weekday(), role_map,
-            )
+            slots = [
+                slot for slot in _normalize_template_slots_for_dow(
+                    tmpl.weekly_schedule, d.weekday(), role_map,
+                )
+                if str(slot.get("role_id") or "") not in archived_role_ids
+            ]
             # If multiple dates in the window resolve to the same day-name
             # (e.g. num_days > 7), the later date wins. This matches existing
             # day-name-keyed semantics and is the same constraint pre-existing
@@ -693,7 +704,9 @@ async def _load_initial_state(
     company_overtime_threshold = company_row.overtime_threshold_hours if company_row else None
 
     # Load locations — only those that have a successfully resolved template
-    loc_query = select(Location).where(Location.company_id == company_id)
+    loc_query = select(Location).where(
+        Location.company_id == company_id, active(Location),
+    )
     if selected_location_ids:
         loc_query = loc_query.where(Location.id.in_(selected_location_ids))
     loc_result = await db.execute(loc_query)
@@ -714,7 +727,7 @@ async def _load_initial_state(
 
     # Load employees
     emp_result = await db.execute(
-        select(Employee).where(Employee.company_id == company_id)
+        select(Employee).where(Employee.company_id == company_id, active(Employee))
     )
     employees_orm = emp_result.scalars().all()
 
@@ -725,6 +738,8 @@ async def _load_initial_state(
     emp_roles_orm = er_result.scalars().all()
     emp_roles_map: Dict[str, List[Dict[str, Any]]] = {}
     for er in emp_roles_orm:
+        if str(er.role_id) in archived_role_ids:
+            continue
         eid = str(er.employee_id)
         if eid not in emp_roles_map:
             emp_roles_map[eid] = []

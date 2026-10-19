@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
@@ -106,6 +106,8 @@ async def get_my_employee_profile(
         select(Employee).where(
             Employee.user_id == current_user.id,
             Employee.company_id == current_user.company_id,
+            # An archived employee's login has no profile (#126).
+            active(Employee),
         )
     )
     employee = result.scalar_one_or_none()
@@ -122,20 +124,21 @@ async def get_my_employee_profile(
     role_names: dict[str, str] = {}
     if role_ids:
         role_result = await db.execute(
-            select(Role).where(Role.id.in_(role_ids))
+            select(Role).where(Role.id.in_(role_ids), active(Role))
         )
         role_names = {r.id: r.name for r in role_result.scalars().all()}
 
     roles = [
-        EmployeeMeRoleResponse(role_id=er.role_id, role_name=role_names.get(er.role_id, ""))
+        EmployeeMeRoleResponse(role_id=er.role_id, role_name=role_names[er.role_id])
         for er in emp_roles
+        if er.role_id in role_names
     ]
 
     # Load location names
     locations: list[EmployeeMeLocationResponse] = []
     if employee.location_ids:
         loc_result = await db.execute(
-            select(Location).where(Location.id.in_(employee.location_ids))
+            select(Location).where(Location.id.in_(employee.location_ids), active(Location))
         )
         locations = [
             EmployeeMeLocationResponse(
@@ -573,6 +576,19 @@ async def list_all_availability(
     return list(result.scalars().all())
 
 
+def _employee_for_caller(employee_id: str, current_user: User) -> Select[tuple[Employee]]:
+    """The employee in the caller's company. A non-manager never finds an
+    archived employee (#126): their own login behaves as if no record were
+    linked. Managers still reach archived employees here."""
+    query = select(Employee).where(
+        Employee.id == employee_id,
+        Employee.company_id == current_user.company_id,
+    )
+    if current_user.user_role != "manager":
+        query = query.where(active(Employee))
+    return query
+
+
 @router.get("/{employee_id}/availability", response_model=list[AvailabilityResponse])
 async def list_availability(
     employee_id: str,
@@ -585,12 +601,7 @@ async def list_availability(
     Employees can only view their own.
     """
     # Verify the employee belongs to the user's company
-    emp_result = await db.execute(
-        select(Employee).where(
-            Employee.id == employee_id,
-            Employee.company_id == current_user.company_id,
-        )
-    )
+    emp_result = await db.execute(_employee_for_caller(employee_id, current_user))
     employee = emp_result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -618,12 +629,7 @@ async def create_availability(
 
     Managers can create for any employee; employees only for themselves.
     """
-    emp_result = await db.execute(
-        select(Employee).where(
-            Employee.id == body.employee_id,
-            Employee.company_id == current_user.company_id,
-        )
-    )
+    emp_result = await db.execute(_employee_for_caller(body.employee_id, current_user))
     employee = emp_result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -666,7 +672,7 @@ async def delete_availability(
     # Non-managers can only delete their own
     if current_user.user_role != "manager":
         emp_result = await db.execute(
-            select(Employee).where(Employee.id == avail.employee_id)
+            select(Employee).where(Employee.id == avail.employee_id, active(Employee))
         )
         emp = emp_result.scalar_one_or_none()
         if emp is None or emp.user_id != current_user.id:
@@ -724,12 +730,7 @@ async def list_day_blackouts(
     db: AsyncSession = Depends(get_db),
 ) -> list[DayBlackoutResponse]:
     # Confirm the employee belongs to the caller's company
-    emp_result = await db.execute(
-        select(Employee).where(
-            Employee.id == employee_id,
-            Employee.company_id == current_user.company_id,
-        )
-    )
+    emp_result = await db.execute(_employee_for_caller(employee_id, current_user))
     emp = emp_result.scalar_one_or_none()
     if emp is None:
         raise HTTPException(
