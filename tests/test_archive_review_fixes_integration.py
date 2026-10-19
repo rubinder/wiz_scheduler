@@ -144,3 +144,19 @@ async def test_archiving_down_to_the_location_limit_clears_over_limit(db_session
     assert exc.value.status_code == 402
     assert exc.value.detail["limit"] == "locations"
 
+
+# --- 5. an erased employee cannot be edited back into existence -----------------
+
+
+async def test_update_erased_employee_409(client, db_session, manager_token, seed_employees):
+    emp = seed_employees[0]
+    now = datetime.now(timezone.utc)
+    emp.archived_at, emp.erased_at, emp.email = now, now, None
+    await db_session.commit()
+    resp = await client.put(f"/api/v1/employees/{emp.id}", headers=_h(manager_token),
+                            json={"email": "back@example.com"})
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "employee_erased"
+    email = (await db_session.execute(select(Employee.email).where(Employee.id == emp.id))).scalar_one()
+    assert email is None
+

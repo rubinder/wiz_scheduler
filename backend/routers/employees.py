@@ -243,6 +243,14 @@ async def update_employee(
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    if employee.erased_at is not None:
+        # GDPR-erased (#126): the personal data is gone for good; an edit
+        # must not write contact details back onto the row.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "employee_erased",
+                    "message": "An erased employee cannot be edited."},
+        )
 
     # Gate on the VALUE being set, not just the field's presence, so a
     # free-plan company can clear a stale pay_rate (set it to null) without
