@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import (
-    Company, Employee, EmployeeCheckIn, Location, OwnershipGroup, PayrollExport,
+    Company, Employee, EmployeeCheckIn, EmployeeRole, Location, OwnershipGroup, PayrollExport,
     Region, Role, Shift, ShiftSchedule, SpecialHoursDay, TimeEntry, User,
 )
 from backend.tenant import tenant_scope_disabled
@@ -179,16 +179,19 @@ async def test_7shifts_reimport_archives_and_restores(client: AsyncClient, db_se
     future = await _one(db_session, select(Shift).where(Shift.id == ids["future"]))
     assert future.employee_id is None  # open shift (#174)
 
-    # Ann and Downtown come back upstream.
+    # Ann, Downtown and Cook come back upstream.
     routes[f"{V2}/company/100/users"]["data"].insert(0, copy.deepcopy(SEVEN_SHIFTS[f"{V2}/company/100/users"]["data"][0]))
     routes[f"{V2}/company/100/locations"]["data"].insert(0, copy.deepcopy(SEVEN_SHIFTS[f"{V2}/company/100/locations"]["data"][0]))
+    routes[f"{V2}/company/100/roles"]["data"].insert(0, copy.deepcopy(SEVEN_SHIFTS[f"{V2}/company/100/roles"]["data"][0]))
 
     third = await client.post(url, json={"access_token": "fake"}, headers=h)
     assert third.status_code == 200, third.text
     assert third.json()["employees"]["restored"] == 1
     assert third.json()["locations"]["restored"] == 1
+    assert third.json()["roles"]["restored"] == 1
     assert (await _one(db_session, select(Employee).where(Employee.id == ann.id))).archived_at is None
     assert (await _one(db_session, select(Location).where(Location.id == downtown.id))).archived_at is None
+    assert (await _one(db_session, select(Role).where(Role.id == cook.id))).archived_at is None
     assert await _one(db_session, select(func.count()).select_from(Employee)
                       .where(Employee.external_id == "9031")) == 1
 
@@ -236,6 +239,12 @@ async def test_7shifts_failed_roles_fetch_archives_no_role(client: AsyncClient, 
     install_fake_upstream(monkeypatch, routes)
     h = paid_tenant["headers"]
     assert (await client.post("/api/v1/import/7shifts", json={"access_token": "f"}, headers=h)).status_code == 200
+    ann = await _one(db_session, select(Employee).where(Employee.external_id == "9031"))
+    ann_roles_stmt = (select(EmployeeRole.role_id, EmployeeRole.skill_level)
+                      .where(EmployeeRole.employee_id == ann.id).order_by(EmployeeRole.role_id))
+    with tenant_scope_disabled():
+        ann_roles = (await db_session.execute(ann_roles_stmt)).all()
+    assert len(ann_roles) == 2
     import httpx
     routes[f"{V2}/company/100/roles"] = httpx.Response(500, json={"error": "down"})
     resp = await client.post("/api/v1/import/7shifts", json={"access_token": "f"}, headers=h)
@@ -246,6 +255,25 @@ async def test_7shifts_failed_roles_fetch_archives_no_role(client: AsyncClient, 
         archived = (await db_session.execute(select(Role).where(Role.archived_at.is_not(None))
                     .execution_options(populate_existing=True))).scalars().all()
     assert archived == []
+    # Without a roles list there is nothing to rebuild Ann's skills from.
+    with tenant_scope_disabled():
+        assert (await db_session.execute(ann_roles_stmt)).all() == ann_roles
+
+
+@pytest.mark.asyncio
+async def test_7shifts_user_inactive_upstream_is_archived(client: AsyncClient, db_session: AsyncSession,
+                                                         paid_tenant: dict, monkeypatch):
+    routes = copy.deepcopy(SEVEN_SHIFTS)
+    install_fake_upstream(monkeypatch, routes)
+    url, h = "/api/v1/import/7shifts", paid_tenant["headers"]
+    assert (await client.post(url, json={"access_token": "f"}, headers=h)).status_code == 200
+    ann = await _one(db_session, select(Employee).where(Employee.external_id == "9031"))
+
+    routes[f"{V2}/company/100/users"]["data"][0]["active"] = False
+    resp = await client.post(url, json={"access_token": "f"}, headers=h)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["employees"]["archived"] == 1
+    assert (await _one(db_session, select(Employee).where(Employee.id == ann.id))).archived_at is not None
 
 
 @pytest.mark.asyncio

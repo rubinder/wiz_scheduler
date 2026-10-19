@@ -492,7 +492,10 @@ async def _import_single_company(
         if employee and assigned_loc_ids:
             employee.location_ids = assigned_loc_ids
 
-        # Role assignments → employee_roles
+        # Role assignments → employee_roles. Without a roles list there is
+        # nothing to rebuild them from: keep the existing assignments.
+        if not roles_fetched_ok:
+            continue
         role_assignments = assignments_data.get("roles", [])
 
         await db.execute(
@@ -542,7 +545,7 @@ async def import_from_7shifts(
     }
     errors: list[str] = []
     counts: dict[str, dict[str, int]] = {
-        "companies": {"created": 0, "updated": 0},
+        "companies": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
         "locations": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
         "departments": {"created": 0, "updated": 0, "deleted": 0},
         "roles": {"created": 0, "updated": 0, "archived": 0, "restored": 0},
