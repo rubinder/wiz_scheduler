@@ -240,3 +240,82 @@ async def test_lock_employees_returns_committed_archived_at(db_session, seed_emp
     await db_session.rollback()
     assert locked[archived_id] is not None
     assert locked[active_id] is None
+
+
+# --- follow-up 1: no rotating the monthly allowance across archived locations ---
+
+
+def _month_start() -> datetime:
+    return datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+async def _generated(db, t, loc, *, status="draft", created_at=None) -> str:
+    sid = _id()
+    week = datetime.now(timezone.utc).date()
+    db.add(ShiftSchedule(id=sid, company_id=t["company_id"], location_id=loc.id,
+                         week_start_date=week - timedelta(days=week.weekday()),
+                         status=status, created_at=created_at or datetime.now(timezone.utc)))
+    await db.commit()
+    return sid
+
+
+async def test_rotating_locations_through_archive_cannot_exceed_the_location_limit(
+        db_session, monkeypatch):
+    monkeypatch.setattr(settings, "FREE_PLAN_MAX_LOCATIONS", 1)
+    t = await _free_group(db_session, 2)  # a downgraded tenant: two locations, limit one
+    a, b = t["locs"]
+
+    # Archive B to get under the limit; A may generate.
+    await archive_location(db_session, t["company_id"], b)
+    await db_session.commit()
+    assert (await get_plan_state(db_session, t["company_id"]))["over_limit"] is False
+    assert (await resolve_location_quota(db_session, t["company_id"], [a.id]))[a.id]["allowed"] is True
+    sid = await _generated(db_session, t, a)
+
+    # Swap: archive A, restore B (B still holds its slot this month).
+    await archive_location(db_session, t["company_id"], a)
+    await restore_location(db_session, t["company_id"], b)
+    await db_session.commit()
+    assert (await get_plan_state(db_session, t["company_id"]))["over_limit"] is False
+
+    quota = await resolve_location_quota(db_session, t["company_id"], [b.id])
+    assert quota[b.id]["allowed"] is False
+    assert quota[b.id]["code"] == "location_limit_this_month"
+    assert await any_location_available(db_session, t["company_id"]) is False
+
+    # Next month the count starts again.
+    await db_session.execute(
+        ShiftSchedule.__table__.update().where(ShiftSchedule.id == sid)
+        .values(created_at=_month_start() - timedelta(days=1))
+    )
+    await db_session.commit()
+    assert (await resolve_location_quota(db_session, t["company_id"], [b.id]))[b.id]["allowed"] is True
+
+
+async def test_rotation_through_reject_is_refused_too(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "FREE_PLAN_MAX_LOCATIONS", 1)
+    t = await _free_group(db_session, 2)
+    a, b = t["locs"]
+    await _generated(db_session, t, a, status="rejected")
+    quota = await resolve_location_quota(db_session, t["company_id"], [a.id, b.id])
+    # A started its month and may retry within its own allowance; B may not start.
+    assert quota[a.id]["allowed"] is True
+    assert quota[b.id]["allowed"] is False
+    assert quota[b.id]["code"] == "location_limit_this_month"
+
+
+async def test_one_run_cannot_start_more_locations_than_the_limit(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "FREE_PLAN_MAX_LOCATIONS", 1)
+    t = await _free_group(db_session, 2)
+    a, b = t["locs"]
+    quota = await resolve_location_quota(db_session, t["company_id"], [a.id, b.id])
+    assert [quota[a.id]["allowed"], quota[b.id]["allowed"]] == [True, False]
+
+
+async def test_within_the_limit_every_location_still_generates(db_session):
+    t = await _free_group(db_session, settings.FREE_PLAN_MAX_LOCATIONS)
+    ids = [loc.id for loc in t["locs"]]
+    await _generated(db_session, t, t["locs"][0])
+    quota = await resolve_location_quota(db_session, t["company_id"], ids)
+    assert all(quota[i]["allowed"] for i in ids[1:])
+

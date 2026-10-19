@@ -15,6 +15,9 @@ The rules, for free ownership groups only:
     there, so a rejected first draft is recoverable;
   * the retry must target the SAME WEEK as the draft it replaces. The
     second attempt is for redoing a bad week, not buying a second one.
+  * at most FREE_PLAN_MAX_LOCATIONS distinct locations may start a month
+    (archived ones included), so archiving and restoring cannot rotate
+    the allowance across more locations than the plan has (#126).
 
 Rejecting a draft returns the slot, which is what makes the retry possible
 at all. A rejected schedule is one the manager explicitly threw away; it is
@@ -140,6 +143,21 @@ async def resolve_location_quota(
     for location_id, week, status in rows:
         by_location.setdefault(str(location_id), []).append((week, status))
 
+    # The allowance is per location, but only for as many locations as the
+    # plan allows (#126). Every location in the group that has started its
+    # month -- any schedule row this month, rejected included, archived
+    # location included -- uses one of FREE_PLAN_MAX_LOCATIONS starts.
+    # Without this, a tenant over the location limit could archive down to
+    # it, generate, swap which locations are archived, and generate again,
+    # spending every location's month on a smaller plan.
+    started = {str(r) for r in (await db.execute(
+        select(ShiftSchedule.location_id).where(
+            ShiftSchedule.company_id.in_(company_ids),
+            ShiftSchedule.created_at >= _month_start(),
+        ).distinct()
+    )).scalars().all()}
+    starts_left = settings.FREE_PLAN_MAX_LOCATIONS - len(started)
+
     max_schedules = settings.FREE_PLAN_SCHEDULES_PER_LOCATION
     max_attempts = settings.FREE_PLAN_ATTEMPTS_PER_LOCATION
 
@@ -148,6 +166,26 @@ async def resolve_location_quota(
         location_id = str(raw_id)
         attempts = by_location.get(location_id, [])
         held = [(w, s) for w, s in attempts if s != REJECTED]
+
+        if location_id not in started:
+            if starts_left <= 0:
+                result[location_id] = LocationQuota(
+                    location_id=location_id,
+                    allowed=False,
+                    code="location_limit_this_month",
+                    message=(
+                        f"The free plan covers {settings.FREE_PLAN_MAX_LOCATIONS} "
+                        f"location(s) per month, and that many have already "
+                        f"been scheduled this month. Upgrade to schedule this one."
+                    ),
+                    required_week=None,
+                    attempts_used=0,
+                    attempts_max=max_attempts,
+                )
+                continue
+            # Held for this request too, so one run cannot start more
+            # locations than remain.
+            starts_left -= 1
 
         if len(held) >= max_schedules:
             result[location_id] = LocationQuota(
