@@ -392,18 +392,16 @@ async def list_time_entries(
     attester = aliased(User)
     query = (
         select(
-            TimeEntry, Employee.full_name, Location.name, Location.timezone,
-            attester.full_name,
+            TimeEntry, TimeEntry.employee_name, TimeEntry.location_name,
+            TimeEntry.location_timezone, attester.full_name,
         )
-        .join(Employee, Employee.id == TimeEntry.employee_id)
-        .join(Location, Location.id == TimeEntry.location_id)
         .outerjoin(attester, attester.id == TimeEntry.attested_by_user_id)
         .where(
             TimeEntry.company_id == company_id,
             TimeEntry.pay_date >= range_start,
             TimeEntry.pay_date <= range_end,
         )
-        .order_by(TimeEntry.pay_date, Employee.full_name)
+        .order_by(TimeEntry.pay_date, TimeEntry.employee_name)
     )
     if location_id:
         query = query.where(TimeEntry.location_id == location_id)
