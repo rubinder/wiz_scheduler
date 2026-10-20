@@ -945,8 +945,8 @@ const es = {
     exampleCost: "Costo",
     exampleBase: "Suscripción base",
     exampleSchedules: "Horarios generados",
-    exampleSchedulesUsage: "200 / month",
-    exampleSchedulesCost: "$0.30 (150 overage = 3 blocks)",
+    exampleSchedulesUsage: "200 / mes",
+    exampleSchedulesCost: "$0.30 (150 de excedente = 3 bloques)",
     exampleAI: "Generación con AI (ocasional)",
     exampleAIUsage: "~$1.50 en tokens",
     exampleAICost: "$1.95 de los créditos",
@@ -955,7 +955,7 @@ const es = {
     exampleStorageCost: "$0.00 (dentro de los 0.5 GB gratuitos)",
     exampleEmployees: "Empleados",
     exampleEmployeesUsage: "2,500",
-    exampleEmployeesCost: "$2.00 (1.5K overage = 2 blocks)",
+    exampleEmployeesCost: "$2.00 (1.5K de excedente = 2 bloques)",
     exampleTotal: "Total mensual",
     complianceTitle: "Privacidad y cumplimiento",
     complianceDesc: "Diseñado con el cumplimiento de GDPR en mente. Tus datos, tu control.",
@@ -973,7 +973,7 @@ const es = {
     featHourCapsTitle: "Tope de horas por empleado",
     featHourCapsDesc: "Establece un tope máximo de horas semanales para cada empleado. El programador aplica el tope en todas las ubicaciones dentro de una misma ejecución — sin necesidad de seguimiento manual.",
     featDayRulesTitle: "Reglas de días bloqueados",
-    featDayRulesDesc: "Block out recurring time ranges per day of week when an employee must not be scheduled. For example, no Mondays 8 PM-10 PM — enforced automatically every week.",
+    featDayRulesDesc: "Bloquea franjas horarias recurrentes por día de la semana en las que un empleado no debe ser programado. Por ejemplo, «nunca los lunes de 20:00 a 22:00» — se aplica automáticamente cada semana.",
     featDeputyTitle: "Integración con Deputy",
     featDeputyDesc: "Importa ubicaciones, áreas, empleados y la indisponibilidad desde Deputy. La indisponibilidad se invierte automáticamente en ventanas de disponibilidad para la programación.",
     feat7shiftsTitle: "Integración con 7shifts",
@@ -1022,7 +1022,8 @@ const es = {
     inputFreqCapsTitle: "Límites de Frecuencia",
     inputFreqCapsDesc: "Cuántas veces por semana trabaja un empleado dentro de un rango horario dado.",
     inputsTemplatesNote: "Las plantillas de turnos y las anulaciones de fechas específicas definen qué hay que cubrir. Cada borrador se vuelve a validar después de generarse, y cualquier turno que fue en contra de una preferencia flexible se marca para revisión.",
-    inputsNotYet: "Aún no se considera: tarifas salariales, recargos por horas extra, antigüedad. El descanso mínimo es la única regla laboral incorporada.",
+    inputsNotYetRule: "Regla laboral incorporada: descanso mínimo.",
+    inputsNotYetSignals: "Señales de programación consideradas: antigüedad (fecha de contratación o rango manual), tarifas de salario, umbrales de horas extra.",
     compDataExportTitle: "Exportación de datos",
     compDataExportDesc: "Descarga todos tus datos como JSON en cualquier momento.",
     compErasureTitle: "Derecho al olvido",
@@ -1057,7 +1058,7 @@ const es = {
       },
       locations: {
         title: "Ubicaciones",
-        desc: "Gestiona cada sitio físico para el que planificas. Cada ubicación tiene su propia zona horaria, dirección, región y lista de empleados elegibles — y la IA la planifica de forma independiente.",
+        desc: "Gestiona cada sitio físico para el que planificas. Cada ubicación tiene su propia zona horaria, dirección, región y lista de empleados elegibles — y el algoritmo de planificación la programa de forma independiente.",
       },
       roles: {
         title: "Roles del equipo",
@@ -1065,7 +1066,7 @@ const es = {
       },
       "role-equivalents": {
         title: "Equivalencias de rol",
-        desc: `Vincula roles que pueden cubrirse entre sí. Permite que el planificador trate "Barista" y "Baker" como intercambiables al cubrir un turno, respetando las diferencias de nivel de habilidad.`,
+        desc: `Vincula roles que pueden cubrirse entre sí. Permite que el algoritmo de planificación trate "Barista" y "Baker" como intercambiables al cubrir un turno, respetando las diferencias de nivel de habilidad.`,
       },
       employees: {
         title: "Empleados",
@@ -1077,7 +1078,7 @@ const es = {
       },
       "hour-restrictions": {
         title: "Restricciones de horas",
-        desc: "Aplica topes y mínimos semanales por empleado. Útil para visas de estudiante, acuerdos a tiempo parcial y presupuestos de horas extras. La IA nunca planificará fuera de estos límites.",
+        desc: "Aplica topes y mínimos semanales por empleado. Útil para visas de estudiante, acuerdos a tiempo parcial y presupuestos de horas extras. El algoritmo de planificación nunca programará fuera de estos límites.",
       },
       "day-blackouts": {
         title: "Días bloqueados",
@@ -1105,11 +1106,11 @@ const es = {
       },
       "employee-association": {
         title: "Asociación de empleados",
-        desc: "Marca qué empleados trabajan bien juntos (o no deberían emparejarse). La IA usa estas afinidades como preferencias suaves al asignar turnos.",
+        desc: "Marca qué empleados trabajan bien juntos (o no deberían emparejarse). El algoritmo de planificación usa estas afinidades como preferencias suaves al asignar turnos.",
       },
       "shift-templates": {
         title: "Plantillas de turnos",
-        desc: "Define el patrón semanal recurrente de cada ubicación: qué roles se necesitan, cuántos de cada uno, en qué días y a qué horas. El plano que la IA rellena.",
+        desc: "Define el patrón semanal recurrente de cada ubicación: qué roles se necesitan, cuántos de cada uno, en qué días y a qué horas. El plano que rellena el algoritmo de planificación.",
       },
       "check-in-qr": {
         title: "Código de registro",

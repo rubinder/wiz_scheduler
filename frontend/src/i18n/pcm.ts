@@ -908,12 +908,12 @@ const pcm = {
     viewPricing: "View Pricing",
     viewDemo: "View Demo",
 
-    exploreDashboard: "Explore every manager screen →",
+    exploreDashboard: "Check every manager screen →",
 
     featuresLink: "Manager tour",
-    demoTitle: "See It in Action",
-    demoDesc: "Watch a quick walkthrough of how Wiz Scheduler helps you build optimized schedules in minutes.",
-    demoFallback: "Your browser does not support the video tag.",
+    demoTitle: "See Am As E Dey Work",
+    demoDesc: "Watch quick walkthrough of how Wiz Scheduler dey help you arrange better schedules for few minutes.",
+    demoFallback: "Your browser no fit play dis video.",
     featuresTitle: "Everytin Wey You Need",
     featuresDesc: "From multi-location management to AI-powered optimization, Wiz Scheduler dey handle di complexity so you no need worry.",
     strategiesTitle: "Scheduling Strategies",
@@ -970,12 +970,12 @@ const pcm = {
     featMultiLocDesc: "Manage regions, locations, and ownership groups. Each location get im own shift templates and schedules.",
     featSelfServiceTitle: "Worker Self-Service",
     featSelfServiceDesc: "Workers set dia own availability through invite links. Managers see everytin for one place.",
-    featHourCapsTitle: "Per-Employee Hour Caps",
-    featHourCapsDesc: "Set a maximum weekly hours limit for each employee. The scheduler enforces the cap across all locations in a single run — no manual tracking needed.",
-    featDayRulesTitle: "Day Blackout Rules",
-    featDayRulesDesc: "Block out recurring time ranges per day of week when an employee must not be scheduled. For example, no Mondays 8 PM-10 PM — enforced automatically every week.",
-    featDeputyTitle: "Deputy Integration",
-    featDeputyDesc: "Import locations, areas, employees, and unavailability from Deputy. Unavailability is automatically inverted into availability windows for scheduling.",
+    featHourCapsTitle: "Hour Limit for Each Worker",
+    featHourCapsDesc: "Set di maximum hours wey each worker fit work for one week. Di scheduler go hold dat limit across all locations for one run — you no need dey count am by hand.",
+    featDayRulesTitle: "Rules to Block Days",
+    featDayRulesDesc: "Block di time wey dey repeat for any day of di week wen worker no suppose work. For example, “no Monday 8 PM–10 PM” — e go dey apply by itself every week.",
+    featDeputyTitle: "Connect with Deputy",
+    featDeputyDesc: "Import locations, areas, workers, and di times wey dem no dey available from Deputy. Di system go turn dat unavailable time to availability windows for scheduling by itself.",
     feat7shiftsTitle: "7shifts Integration",
     feat7shiftsDesc: "Import workers, roles, and availability from 7shifts. Export approved schedules back wit one click.",
     featGDPRTitle: "GDPR Compliant",
@@ -1022,11 +1022,12 @@ const pcm = {
     inputFreqCapsTitle: "How-Many-Time Limit",
     inputFreqCapsDesc: "How many times per week employee dey work inside one given hour range.",
     inputsTemplatesNote: "Shift templates and specific-date overrides dey define wetin need fill. Dem go re-validate every draft after generation, and any shift wey go against soft preference, dem go flag am for review.",
-    inputsNotYet: "No dey consider yet: pay rates, overtime premiums, seniority. Minimum rest na di only labor-law rule wey dey built in.",
+    inputsNotYetRule: "Labor-law rule wey dey built in: minimum rest.",
+    inputsNotYetSignals: "Scheduling signals wey e dey consider: seniority (hire date or manual rank), pay rates, overtime limits.",
     compDataExportTitle: "Data Export",
-    compDataExportDesc: "Download all your data as JSON anytime.",
+    compDataExportDesc: "Download all your data as JSON any time wey you like.",
     compErasureTitle: "Right to Erasure",
-    compErasureDesc: "Delete your account and all data permanently.",
+    compErasureDesc: "Delete your account and all your data forever.",
     compConsentTitle: "Consent Tracking",
     compConsentDesc: "Every consent dey recorded wit timestamp and IP.",
     compNoNamesTitle: "No Names to AI",
@@ -1057,7 +1058,7 @@ const pcm = {
       },
       locations: {
         title: "Locations",
-        desc: "Manage every physical site wey you dey schedule for. Each location get im own timezone, address, region, and list of eligible employees — and AI go schedule am separately.",
+        desc: "Manage every physical site wey you dey schedule for. Each location get im own timezone, address, region, and list of eligible employees — and the scheduling algorithm go schedule am separately.",
       },
       roles: {
         title: "Roles",
@@ -1065,7 +1066,7 @@ const pcm = {
       },
       "role-equivalents": {
         title: "Role Equivalents",
-        desc: `Match roles wey fit cover for each other. E go make scheduler treat "Barista" and "Baker" as if dem fit swap when filling shift, while still respecting skill-level difference.`,
+        desc: `Match roles wey fit cover for each other. E go make the scheduling algorithm treat "Barista" and "Baker" as if dem fit swap when filling shift, while still respecting skill-level difference.`,
       },
       employees: {
         title: "Employees",
@@ -1077,7 +1078,7 @@ const pcm = {
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
-        desc: "Set per-employee weekly maximum and minimum hours. E good for student visa, part-time arrangement, and overtime budget. AI no go ever schedule pass these limits.",
+        desc: "Set per-employee weekly maximum and minimum hours. E good for student visa, part-time arrangement, and overtime budget. The scheduling algorithm no go ever schedule pass these limits.",
       },
       "day-blackouts": {
         title: "Day Blackouts",
@@ -1105,11 +1106,11 @@ const pcm = {
       },
       "employee-association": {
         title: "Employee Association",
-        desc: "Mark which employees dey work well together (or wey dem no suppose pair). AI go use these preferences as soft hint when e dey assign shifts.",
+        desc: "Mark which employees dey work well together (or wey dem no suppose pair). The scheduling algorithm go use these preferences as soft hint when e dey assign shifts.",
       },
       "shift-templates": {
         title: "Shift Templates",
-        desc: "Define each location weekly shift pattern wey dey repeat: which roles dey needed, how many of each, on which days, and at what time. Na the blueprint AI go fill.",
+        desc: "Define each location weekly shift pattern wey dey repeat: which roles dey needed, how many of each, on which days, and at what time. Na the blueprint wey the scheduling algorithm go fill.",
       },
       "check-in-qr": {
         title: "Check-In Code",
