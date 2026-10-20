@@ -80,3 +80,47 @@ async def test_the_sweep_reports_zero_rather_than_omitting_the_key(
 
 async def test_retention_window_is_about_six_months():
     assert settings.RETENTION_CHECKINS_DAYS == 180
+
+
+async def _erase_all_employees(db: AsyncSession) -> None:
+    for emp in (await db.execute(select(Employee))).scalars():
+        emp.erased_at = emp.archived_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
+async def test_an_erased_employees_earlier_day_check_in_is_swept_inside_the_window(
+    db_session: AsyncSession
+):
+    await _seed(db_session, [1])
+    await _erase_all_employees(db_session)
+
+    summary = await run_data_retention(db_session)
+
+    assert summary["erased_check_ins_deleted"] == 1
+    assert (await db_session.execute(
+        select(func.count()).select_from(EmployeeCheckIn)
+    )).scalar_one() == 0
+
+
+async def test_an_erased_employees_check_in_from_today_is_kept(db_session: AsyncSession):
+    """Deleting it would lower the location's QR counter and collide."""
+    await _seed(db_session, [0])
+    await _erase_all_employees(db_session)
+
+    summary = await run_data_retention(db_session)
+
+    assert summary["erased_check_ins_deleted"] == 0
+    assert (await db_session.execute(
+        select(func.count()).select_from(EmployeeCheckIn)
+    )).scalar_one() == 1
+
+
+async def test_a_non_erased_employees_recent_check_in_is_untouched(db_session: AsyncSession):
+    await _seed(db_session, [0, 1, 30])
+
+    summary = await run_data_retention(db_session)
+
+    assert summary["erased_check_ins_deleted"] == 0
+    assert (await db_session.execute(
+        select(func.count()).select_from(EmployeeCheckIn)
+    )).scalar_one() == 3

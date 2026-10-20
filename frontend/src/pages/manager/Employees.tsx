@@ -13,6 +13,8 @@ import type {
   Role,
 } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { archivedHeldIds, isArchived, visibleRows } from "../../utils/archived";
+import { ApiError } from "../../api/client";
 import { timeZoneOptions } from "../../utils/timezones";
 import { text, bg, border, action, badge } from "../../theme";
 
@@ -25,12 +27,18 @@ export default function Employees() {
   const { t } = useLanguage();
   const { plan, refresh: refreshPlan } = usePlan();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
+  // Archived roles/locations are fetched too: employees keep their
+  // assignments to them, so badges need the names. Pickers use the active
+  // subsets `roles` / `locations`.
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const roles = useMemo(() => visibleRows(allRoles, false), [allRoles]);
+  const locations = useMemo(() => visibleRows(allLocations, false), [allLocations]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [showArchived, setShowArchived] = useState(false);
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,14 +79,14 @@ export default function Employees() {
   const fetchData = useCallback(async () => {
     try {
       const [emps, rls, locs, comps] = await Promise.all([
-        employeesApi.listEmployees(),
-        rolesApi.listRoles(),
-        locationsApi.listLocations(),
+        employeesApi.listEmployees(true),
+        rolesApi.listRoles(true),
+        locationsApi.listLocations(true),
         companyApi.listGroupCompanies().catch(() => [] as Company[]),
       ]);
       setEmployees(emps);
-      setRoles(rls);
-      setLocations(locs);
+      setAllRoles(rls);
+      setAllLocations(locs);
       setCompanies(comps);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -97,11 +105,35 @@ export default function Employees() {
     plan.employees.limit !== null &&
     plan.employees.count >= plan.employees.limit;
 
-  const roleName = (roleId: string) =>
-    roles.find((r) => r.id === roleId)?.name ?? roleId;
+  const withArchivedMark = (name: string, row?: { archived_at?: string | null }) =>
+    row && isArchived(row) ? `${name} (${t.common.archived})` : name;
 
-  const locationName = (locId: string) =>
-    locations.find((l) => l.id === locId)?.name ?? locId.slice(0, 8);
+  const roleName = (roleId: string) => {
+    const r = allRoles.find((x) => x.id === roleId);
+    return r ? withArchivedMark(r.name, r) : roleId;
+  };
+
+  const locationName = (locId: string) => {
+    const l = allLocations.find((x) => x.id === locId);
+    return l ? withArchivedMark(l.name, l) : locId.slice(0, 8);
+  };
+
+  // Read-only chips for assignments the pickers cannot offer. They are still
+  // in editValues, and toggles only touch their own id, so a save carries
+  // them through unchanged.
+  const renderKeptArchived = (labels: string[]) =>
+    labels.length > 0 && (
+      <div className="mt-1 flex flex-wrap gap-1">
+        {labels.map((label) => (
+          <span
+            key={label}
+            className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.status.default}`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    );
 
   const companyName = (compId: string) =>
     companies.find((c) => c.id === compId)?.name ?? compId.slice(0, 8);
@@ -170,12 +202,31 @@ export default function Employees() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm(t.employeesPage.archiveConfirm)) return;
     try {
       await employeesApi.deleteEmployee(id);
       await fetchData();
       await refreshPlan();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof Error ? err.message : "Archive failed");
+    }
+  };
+
+  // 402 is the free-plan employee limit (ApiError.message is already the
+  // server's plan_limit_exceeded message); 409 employee_erased means a GDPR
+  // erasure removed the person's data for good.
+  const handleRestore = async (id: string) => {
+    try {
+      await employeesApi.restoreEmployee(id);
+      await fetchData();
+      await refreshPlan();
+    } catch (err: unknown) {
+      const detail = err instanceof ApiError ? (err.data as { code?: string } | null) : null;
+      if (err instanceof ApiError && err.status === 409 && detail?.code === "employee_erased") {
+        setError(t.employeesPage.erasedCannotRestore);
+      } else {
+        setError(err instanceof Error ? err.message : "Restore failed");
+      }
     }
   };
 
@@ -320,6 +371,9 @@ export default function Employees() {
           </div>
         );
       })}
+      {renderKeptArchived(
+        archivedHeldIds(assignedRoles.map((r) => r.role_id), allRoles).map(roleName)
+      )}
     </div>
   );
 
@@ -342,6 +396,7 @@ export default function Employees() {
           {loc.name}
         </label>
       ))}
+      {renderKeptArchived(archivedHeldIds(selectedIds, allLocations).map(locationName))}
     </div>
   );
 
@@ -418,10 +473,12 @@ export default function Employees() {
 
   const hasMultipleCompanies = companies.length > 1;
 
-  const displayedEmployees =
+  const displayedEmployees = visibleRows(
     locationFilter === "all"
       ? employees
-      : employees.filter((e) => e.location_ids?.includes(locationFilter));
+      : employees.filter((e) => e.location_ids?.includes(locationFilter)),
+    showArchived
+  );
 
   return (
     <div>
@@ -441,6 +498,14 @@ export default function Employees() {
               ))}
             </select>
           </div>
+          <label className={`flex items-center gap-2 text-sm ${text.muted}`}>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            {t.common.showArchived}
+          </label>
           <DemoGuard>
             <button
               onClick={() => setShowImportModal(true)}
@@ -507,9 +572,13 @@ export default function Employees() {
           </thead>
           <tbody className={`divide-y ${border.divider}`}>
             {displayedEmployees.map((emp) => {
-              const isEditing = editingId === emp.id;
+              const archived = isArchived(emp);
+              const isEditing = editingId === emp.id && !archived;
               return (
-                <tr key={emp.id} className={isEditing ? bg.editingRow : ""}>
+                <tr
+                  key={emp.id}
+                  className={isEditing ? bg.editingRow : archived ? "opacity-60" : ""}
+                >
                   <td className="px-4 py-2">
                     {isEditing ? (
                       <input
@@ -524,7 +593,14 @@ export default function Employees() {
                         }
                       />
                     ) : (
-                      <span className={`text-sm ${text.body}`}>{emp.full_name}</span>
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`text-sm ${archived ? text.muted : text.body}`}>{emp.full_name}</span>
+                        {archived && (
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.status.default}`}>
+                            {t.common.archived}
+                          </span>
+                        )}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -655,6 +731,15 @@ export default function Employees() {
                           {t.common.cancel}
                         </button>
                       </>
+                    ) : archived ? (
+                      <DemoGuard>
+                        <button
+                          onClick={() => handleRestore(emp.id)}
+                          className={action.edit}
+                        >
+                          {t.common.restore}
+                        </button>
+                      </DemoGuard>
                     ) : (
                       <>
                         <DemoGuard>
@@ -670,7 +755,7 @@ export default function Employees() {
                             onClick={() => handleDelete(emp.id)}
                             className={action.delete}
                           >
-                            {t.common.delete}
+                            {t.common.archive}
                           </button>
                         </DemoGuard>
                       </>

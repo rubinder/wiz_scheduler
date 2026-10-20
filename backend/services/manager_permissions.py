@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import User, ManagerLocation, Location
+from backend.services.archive import active
 
 
 async def get_accessible_location_ids(db: AsyncSession, user: User) -> set[str]:
@@ -26,7 +27,7 @@ async def get_accessible_location_ids(db: AsyncSession, user: User) -> set[str]:
     if user.manager_type == "admin":
         # Admins can access all locations in their company
         result = await db.execute(
-            select(Location.id).where(Location.company_id == user.company_id)
+            select(Location.id).where(Location.company_id == user.company_id, active(Location))
         )
         return set(result.scalars().all())
 
@@ -71,7 +72,7 @@ async def get_manager_locations(
     result = await db.execute(
         select(Location)
         .join(ManagerLocation, Location.id == ManagerLocation.location_id)
-        .where(ManagerLocation.manager_id == manager_id)
+        .where(ManagerLocation.manager_id == manager_id, active(Location))
     )
     return result.scalars().all()
 
@@ -106,7 +107,8 @@ async def assign_location_to_manager(
     location_result = await db.execute(
         select(Location).where(
             Location.id == location_id,
-            Location.company_id == manager.company_id
+            Location.company_id == manager.company_id,
+            active(Location),
         )
     )
     location = location_result.scalar_one_or_none()

@@ -32,7 +32,8 @@ class CheckInRejected(Exception):
     """The scan was not recorded at all.
 
     Distinct from the four statuses, which all describe scans that WERE
-    recorded. Only a token that does not verify lands here.
+    recorded. Only a token that does not verify, or a scan at an archived
+    location (#126), lands here.
     """
 
     def __init__(self, code: str, message: str) -> None:

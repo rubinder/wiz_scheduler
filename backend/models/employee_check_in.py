@@ -62,7 +62,7 @@ class EmployeeCheckIn(Base):
     # Null for no_shift and wrong_location. Also leaves room for a check-out
     # feature later without a second table.
     shift_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("shifts.id"), nullable=True
+        String(8), ForeignKey("shifts.id", ondelete="SET NULL"), nullable=True
     )
     checked_in_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False

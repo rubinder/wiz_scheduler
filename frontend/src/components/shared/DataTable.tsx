@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import DemoGuard from "./DemoGuard";
-import { text, bg, border, action } from "../../theme";
+import { text, bg, border, action, badge } from "../../theme";
 
 export interface Column {
   key: string;
@@ -27,6 +27,12 @@ interface DataTableProps {
   /** Explanatory copy shown adjacent to the "+ Add" control when
    * `createDisabled` is true. Ignored otherwise. */
   createDisabledReason?: string;
+  /** Archived rows (#126) render muted with an "Archived" pill and only a
+   * Restore button. Indexes refer to `data`. */
+  isArchived?: (rowIndex: number) => boolean;
+  onRestore?: (rowIndex: number) => void;
+  /** Label for the row's remove button; defaults to "Delete". */
+  deleteLabel?: string;
 }
 
 export default function DataTable({
@@ -37,6 +43,9 @@ export default function DataTable({
   onCreate,
   createDisabled = false,
   createDisabledReason,
+  isArchived,
+  onRestore,
+  deleteLabel,
 }: DataTableProps) {
   const { t } = useLanguage();
   const [editingRow, setEditingRow] = useState<number | null>(null);
@@ -156,12 +165,28 @@ export default function DataTable({
         </thead>
         <tbody className={`divide-y ${border.divider}`}>
           {data.map((row, idx) => {
-            const isEditing = editingRow === idx;
+            const archived = isArchived?.(idx) ?? false;
+            const isEditing = editingRow === idx && !archived;
             return (
               <tr key={idx} className={isEditing ? bg.editingRow : ""}>
-                {columns.map((col) => (
+                {columns.map((col, colIdx) => (
                   <td key={col.key} className="px-4 py-2">
-                    {renderCell(
+                    {archived ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`text-sm ${text.muted}`}>
+                          {String(
+                            (col.type === "select" &&
+                              col.options?.find((o) => o.value === row[col.key])?.label) ||
+                              (row[col.key] ?? "")
+                          )}
+                        </span>
+                        {colIdx === 0 && (
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${badge.status.default}`}>
+                            {t.common.archived}
+                          </span>
+                        )}
+                      </span>
+                    ) : renderCell(
                       col,
                       isEditing ? editValues[col.key] : row[col.key],
                       isEditing,
@@ -188,6 +213,17 @@ export default function DataTable({
                         {t.common.cancel}
                       </button>
                     </>
+                  ) : archived ? (
+                    onRestore && (
+                      <DemoGuard>
+                        <button
+                          onClick={() => onRestore(idx)}
+                          className={action.edit}
+                        >
+                          {t.common.restore}
+                        </button>
+                      </DemoGuard>
+                    )
                   ) : (
                     <>
                       <DemoGuard>
@@ -204,7 +240,7 @@ export default function DataTable({
                             onClick={() => onDelete(idx)}
                             className={action.delete}
                           >
-                            {t.common.delete}
+                            {deleteLabel ?? t.common.delete}
                           </button>
                         </DemoGuard>
                       )}

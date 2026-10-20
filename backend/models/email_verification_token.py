@@ -22,7 +22,7 @@ class EmailVerificationToken(Base):
         String(8), primary_key=True, default=generate_short_id
     )
     user_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=False, index=True
+        String(8), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     token: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True, index=True

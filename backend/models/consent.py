@@ -11,7 +11,7 @@ class UserConsent(Base):
     __tablename__ = "user_consents"
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
-    user_id: Mapped[str] = mapped_column(String(8), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(8), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     company_id: Mapped[str] = mapped_column(String(8), ForeignKey("companies.id"), nullable=False)
     consent_type: Mapped[str] = mapped_column(String, nullable=False)  # "privacy_policy", "terms_of_service", "data_processing"
     version: Mapped[str] = mapped_column(String, nullable=False, default="1.0")

@@ -110,6 +110,7 @@ class EmployeeResponse(BaseModel):
     timezone: str | None = None
     roles: list[EmployeeRoleResponse] = []
     company_ids: list[str] = []
+    archived_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

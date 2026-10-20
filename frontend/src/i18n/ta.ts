@@ -1,6 +1,10 @@
 const ta = {
   // ── Common ──
   common: {
+    archive: "காப்பகப்படுத்து",
+    restore: "மீட்டமை",
+    archived: "காப்பகப்படுத்தப்பட்டது",
+    showArchived: "காப்பகப்படுத்தியவற்றைக் காட்டு",
     appName: "Wiz Scheduler",
     timesInZone: "நேரங்கள் {zone} இல் உள்ளன",
     loading: "ஏற்றுகிறது...",
@@ -377,6 +381,7 @@ const ta = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "இந்த இடத்தைக் காப்பகப்படுத்தவா? அதன் வரவிருக்கும் ஷிஃப்ட்களும் வரைவுகளும் நீக்கப்படும்; கடந்த அட்டவணைகளும் சம்பள விவரங்களும் பாதுகாக்கப்படும்.",
     title: "இடங்கள்",
     importData: "தரவை இறக்குமதி செய்",
     importTitle: "இடங்களை இறக்குமதி செய்",
@@ -390,6 +395,7 @@ const ta = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "இந்தப் பணியைக் காப்பகப்படுத்தவா? இந்தப் பணிக்கான வரவிருக்கும் ஷிஃப்ட்கள் திறந்த ஷிஃப்ட்களாக மாறும்.",
     title: "பங்குகள்",
     importData: "தரவை இறக்குமதி செய்",
     importTitle: "பங்குகளை இறக்குமதி செய்",
@@ -416,6 +422,8 @@ const ta = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "இந்த ஊழியரைக் காப்பகப்படுத்தவா? அவரது வரவிருக்கும் ஷிஃப்ட்கள் திறந்த ஷிஃப்ட்களாக மாறும்; கடந்த அட்டவணைகளும் சம்பள விவரங்களும் பாதுகாக்கப்படும்.",
+    erasedCannotRestore: "இந்த ஊழியரின் தரவு அழிக்கப்பட்டுவிட்டது; மீட்டமைக்க முடியாது.",
     title: "பணியாளர்கள்",
     importData: "தரவை இறக்குமதி செய்",
     importTitle: "பணியாளர்களை இறக்குமதி செய்",
@@ -812,6 +820,8 @@ const ta = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "காப்பகப்படுத்தப்பட்டது",
+    restored: "மீட்டமைக்கப்பட்டது",
     title: "7shifts இலிருந்து இறக்குமதி செய்",
     description: "நிறுவனங்கள், இடங்கள், துறைகள், பங்குகள், பணியாளர்கள் மற்றும் பயனர் ஒதுக்கீடுகளை இறக்குமதி செய்ய உங்கள் 7shifts அணுகல் டோக்கனை உள்ளிடுங்கள். உங்கள் 7shifts கணக்கில் அணுகல் டோக்கனை உருவாக்கலாம்",
     devTools: "நிறுவன அமைப்புகள் > டெவலப்பர் கருவிகள்",
@@ -828,6 +838,8 @@ const ta = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "காப்பகப்படுத்தப்பட்டது",
+    restored: "மீட்டமைக்கப்பட்டது",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

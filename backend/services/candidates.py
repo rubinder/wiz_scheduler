@@ -32,10 +32,12 @@ from backend.models import (
     EmployeeDayBlackout,
     EmployeeRole,
     Location,
+    Role,
     Shift,
 )
 from backend.scheduling.employee_time import needs_conversion
 from backend.scheduling.graph import _shift_local_face
+from backend.services.archive import active
 from backend.services.availability_check import blackout_dicts, is_available, window_dict
 from backend.utils.tz import is_valid_timezone
 
@@ -110,7 +112,7 @@ async def rank_candidates(
     equivalent_roles = role_equivalents(role_id, mappings)
 
     employees = (await db.execute(
-        select(Employee).where(Employee.company_id == company_id)
+        select(Employee).where(Employee.company_id == company_id, active(Employee))
     )).scalars().all()
 
     with_role = {
@@ -118,6 +120,9 @@ async def rank_candidates(
             select(EmployeeRole.employee_id).where(
                 EmployeeRole.company_id == company_id,
                 EmployeeRole.role_id.in_(equivalent_roles),
+                # An archived role (#126) qualifies no one, even when it is
+                # a group-mate of the slot's role.
+                EmployeeRole.role_id.in_(select(Role.id).where(active(Role))),
             )
         )).scalars().all()
     }

@@ -9,6 +9,7 @@ import { usePlan } from "../../hooks/usePlan";
 import type { Location, Region, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
+import { isArchived, visibleRows } from "../../utils/archived";
 import { browserTimeZone, timeZoneOptions } from "../../utils/timezones";
 
 export default function Locations() {
@@ -18,13 +19,14 @@ export default function Locations() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [editingSignalConfig, setEditingSignalConfig] = useState<SignalConfig | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       const [locs, regs] = await Promise.all([
-        locationsApi.listLocations(),
+        locationsApi.listLocations(true),
         regionsApi.listRegions(),
       ]);
       setLocations(locs);
@@ -47,6 +49,11 @@ export default function Locations() {
     plan.locations.count >= plan.locations.limit;
 
   const overtimeGated = plan?.plan === "free";
+
+  // DataTable indexes into the array it is given, so handlers index into the
+  // same filtered array. Everything else on the page works on active rows.
+  const shownLocations = visibleRows(locations, showArchived);
+  const activeLocations = visibleRows(locations, false);
 
   const columns: Column[] = useMemo(
     () => [
@@ -103,7 +110,7 @@ export default function Locations() {
 
   const handleSave = async (idx: number, row: Record<string, unknown>) => {
     try {
-      const location = locations[idx];
+      const location = shownLocations[idx];
       await locationsApi.updateLocation(location.id, {
         name: row.name as string,
         region_id: row.region_id as string,
@@ -120,12 +127,25 @@ export default function Locations() {
   };
 
   const handleDelete = async (idx: number) => {
+    if (!window.confirm(t.locationsPage.archiveConfirm)) return;
     try {
-      await locationsApi.deleteLocation(locations[idx].id);
+      await locationsApi.deleteLocation(shownLocations[idx].id);
       await fetchData();
       await refreshPlan();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof Error ? err.message : "Archive failed");
+    }
+  };
+
+  // A 402 here is the free-plan location limit; ApiError.message is already
+  // the server's plan_limit_exceeded message.
+  const handleRestore = async (idx: number) => {
+    try {
+      await locationsApi.restoreLocation(shownLocations[idx].id);
+      await fetchData();
+      await refreshPlan();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Restore failed");
     }
   };
 
@@ -189,14 +209,24 @@ export default function Locations() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className={`text-2xl font-bold ${text.heading}`}>{t.locationsPage.title}</h1>
-        <DemoGuard>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="glass-btn-success"
-          >
-            {t.locationsPage.importData}
-          </button>
-        </DemoGuard>
+        <div className="flex items-center gap-3">
+          <label className={`flex items-center gap-2 text-sm ${text.muted}`}>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            {t.common.showArchived}
+          </label>
+          <DemoGuard>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="glass-btn-success"
+            >
+              {t.locationsPage.importData}
+            </button>
+          </DemoGuard>
+        </div>
       </div>
       {error && (
         <div className="glass-alert-error mb-4">
@@ -220,7 +250,7 @@ export default function Locations() {
         </p>
       )}
       {(() => {
-        const utcNames = locations.filter((l) => l.timezone === "UTC").map((l) => l.name);
+        const utcNames = activeLocations.filter((l) => l.timezone === "UTC").map((l) => l.name);
         return utcNames.length > 0 ? (
           <p className={`mb-3 text-sm ${text.muted}`}>
             {t.locationsPage.utcHint.replace("{names}", utcNames.join(", "))}
@@ -230,9 +260,12 @@ export default function Locations() {
       <div className="glass-card">
         <DataTable
           columns={columns}
-          data={locations as unknown as Record<string, unknown>[]}
+          data={shownLocations as unknown as Record<string, unknown>[]}
           onSave={handleSave}
           onDelete={handleDelete}
+          deleteLabel={t.common.archive}
+          isArchived={(i) => isArchived(shownLocations[i])}
+          onRestore={handleRestore}
           onCreate={handleCreate}
           createDisabled={locationLimitReached}
           createDisabledReason={
@@ -247,7 +280,7 @@ export default function Locations() {
         {!overtimeGated && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex flex-wrap gap-2">
-              {locations.map((loc) => (
+              {activeLocations.map((loc) => (
                 <button
                   key={loc.id}
                   onClick={() => {

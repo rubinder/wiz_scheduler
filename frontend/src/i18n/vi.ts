@@ -1,6 +1,10 @@
 const vi = {
   // ── Common ──
   common: {
+    archive: "Lưu trữ",
+    restore: "Khôi phục",
+    archived: "Đã lưu trữ",
+    showArchived: "Hiện mục đã lưu trữ",
     appName: "Wiz Scheduler",
     timesInZone: "Thời gian theo {zone}",
     loading: "Đang tải...",
@@ -377,6 +381,7 @@ const vi = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Lưu trữ địa điểm này? Các ca làm việc sắp tới và bản nháp sẽ bị xóa; lịch đã qua và bảng lương vẫn được giữ.",
     title: "Địa điểm",
     importData: "Nhập dữ liệu",
     importTitle: "Nhập địa điểm",
@@ -390,6 +395,7 @@ const vi = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Lưu trữ vai trò này? Các ca sắp tới với vai trò này sẽ trở thành ca trống.",
     title: "Vai trò",
     importData: "Nhập dữ liệu",
     importTitle: "Nhập vai trò",
@@ -416,6 +422,8 @@ const vi = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Lưu trữ nhân viên này? Các ca làm việc sắp tới của họ sẽ trở thành ca trống; lịch đã qua và bảng lương vẫn được giữ.",
+    erasedCannotRestore: "Dữ liệu của nhân viên này đã bị xóa và không thể khôi phục.",
     title: "Nhân viên",
     importData: "Nhập dữ liệu",
     importTitle: "Nhập nhân viên",
@@ -812,6 +820,8 @@ const vi = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Đã lưu trữ",
+    restored: "Đã khôi phục",
     title: "Nhập từ 7shifts",
     description: "Nhập mã truy cập 7shifts để nhập công ty, địa điểm, phòng ban, vai trò, nhân viên và phân công người dùng. Bạn có thể tạo mã truy cập trong tài khoản 7shifts tại",
     devTools: "Cài đặt công ty > Công cụ nhà phát triển",
@@ -828,6 +838,8 @@ const vi = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Đã lưu trữ",
+    restored: "Đã khôi phục",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

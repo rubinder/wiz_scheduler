@@ -86,12 +86,17 @@ async def get_plan_state(db: AsyncSession, company_id: str) -> PlanState:
     is_paid = og.stripe_subscription_id is not None and og.canceled_at is None
     if is_paid:
         state = _unlimited()
-        state["locations"]["count"] = await count_locations_for_group(db, og_id)
+        state["locations"]["count"] = await count_locations_for_group(
+            db, og_id, active_only=True
+        )
         state["employees"]["count"] = await count_employees_for_group(db, og_id)
         state["schedules"]["count"] = await count_schedules_this_month(db, og_id)
         return state
 
-    loc_count = await count_locations_for_group(db, og_id)
+    # Active locations only: a location archived this month still holds its
+    # slot against ADDING one (assert_can_add), but a tenant that archived
+    # down to the limit is no longer over it (#126).
+    loc_count = await count_locations_for_group(db, og_id, active_only=True)
     emp_count = await count_employees_for_group(db, og_id)
     # Schedules are counted PER LOCATION now: how many of this group's
     # locations already hold a schedule this month, out of how many they

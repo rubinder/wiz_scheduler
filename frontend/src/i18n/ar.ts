@@ -1,6 +1,10 @@
 const ar = {
   // ── Common ──
   common: {
+    archive: "أرشفة",
+    restore: "استعادة",
+    archived: "مؤرشف",
+    showArchived: "عرض المؤرشف",
     appName: "Wiz Scheduler",
     timesInZone: "الأوقات بتوقيت {zone}",
     loading: "جارٍ التحميل...",
@@ -377,6 +381,7 @@ const ar = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "هل تريد أرشفة هذا الموقع؟ ستتم إزالة مناوباته ومسوداته القادمة، وسيتم الاحتفاظ بالجداول السابقة وكشوف الرواتب.",
     title: "المواقع",
     importData: "استيراد بيانات",
     importTitle: "استيراد المواقع",
@@ -390,6 +395,7 @@ const ar = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "هل تريد أرشفة هذا الدور؟ ستتحول المناوبات القادمة بهذا الدور إلى مناوبات شاغرة.",
     title: "الأدوار",
     importData: "استيراد بيانات",
     importTitle: "استيراد الأدوار",
@@ -416,6 +422,8 @@ const ar = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "هل تريد أرشفة هذا الموظف؟ ستتحول مناوباته القادمة إلى مناوبات شاغرة، وسيتم الاحتفاظ بالجداول السابقة وكشوف الرواتب.",
+    erasedCannotRestore: "تم مسح بيانات هذا الموظف ولا يمكن استعادتها.",
     title: "الموظفون",
     importData: "استيراد بيانات",
     importTitle: "استيراد الموظفين",
@@ -812,6 +820,8 @@ const ar = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "مؤرشف",
+    restored: "تمت الاستعادة",
     title: "استيراد من 7shifts",
     description: "أدخل رمز الوصول الخاص بـ 7shifts لاستيراد الشركات والمواقع والأقسام والأدوار والموظفين وتعيينات المستخدمين. يمكنك إنشاء رمز وصول من حسابك على 7shifts ضمن",
     devTools: "إعدادات الشركة > أدوات المطورين",
@@ -828,6 +838,8 @@ const ar = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "مؤرشف",
+    restored: "تمت الاستعادة",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

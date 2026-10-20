@@ -1,6 +1,10 @@
 const fr = {
   // ── Common ──
   common: {
+    archive: "Archiver",
+    restore: "Restaurer",
+    archived: "Archivé",
+    showArchived: "Afficher les archivés",
     appName: "Wiz Scheduler",
     timesInZone: "Heures exprimées en {zone}",
     loading: "Chargement...",
@@ -377,6 +381,7 @@ const fr = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Archiver cet établissement ? Ses futurs quarts et brouillons sont supprimés ; les plannings passés et la paie sont conservés.",
     title: "Emplacements",
     importData: "Importer des données",
     importTitle: "Importer des emplacements",
@@ -390,6 +395,7 @@ const fr = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Archiver ce rôle ? Les futurs quarts avec ce rôle deviennent des quarts ouverts.",
     title: "Rôles",
     importData: "Importer des données",
     importTitle: "Importer des rôles",
@@ -416,6 +422,8 @@ const fr = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Archiver cet employé ? Ses futurs quarts deviennent des quarts ouverts ; les plannings passés et la paie sont conservés.",
+    erasedCannotRestore: "Les données de cet employé ont été effacées et ne peuvent pas être restaurées.",
     title: "Employés",
     importData: "Importer des données",
     importTitle: "Importer des employés",
@@ -812,6 +820,8 @@ const fr = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Archivé",
+    restored: "Restauré",
     title: "Importer depuis 7shifts",
     description: "Entrez votre jeton d'accès 7shifts pour importer les entreprises, emplacements, départements, rôles, employés et affectations d'utilisateurs. Vous pouvez générer un jeton d'accès dans votre compte 7shifts sous",
     devTools: "Paramètres de l'entreprise > Outils de développement",
@@ -828,6 +838,8 @@ const fr = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Archivé",
+    restored: "Restauré",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

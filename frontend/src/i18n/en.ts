@@ -1,6 +1,10 @@
 const en = {
   // ── Common ──
   common: {
+    archive: "Archive",
+    restore: "Restore",
+    archived: "Archived",
+    showArchived: "Show archived",
     appName: "Wiz Scheduler",
     timesInZone: "Times are in {zone}",
     loading: "Loading...",
@@ -378,6 +382,7 @@ const en = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Archive this location? Its future shifts and drafts are removed; past schedules and payroll are kept.",
     title: "Locations",
     importData: "Import Data",
     importTitle: "Import Locations",
@@ -391,6 +396,7 @@ const en = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Archive this role? Future shifts with this role become open shifts.",
     title: "Roles",
     importData: "Import Data",
     importTitle: "Import Roles",
@@ -417,6 +423,8 @@ const en = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Archive this employee? Their future shifts become open shifts; past schedules and payroll are kept.",
+    erasedCannotRestore: "This employee's data was erased and cannot be restored.",
     title: "Employees",
     importData: "Import Data",
     importTitle: "Import Employees",
@@ -813,6 +821,8 @@ const en = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "Archived",
+    restored: "Restored",
     title: "Import from 7shifts",
     description: "Enter your 7shifts access token to import companies, locations, departments, roles, employees, and user assignments. You can generate an access token in your 7shifts account under",
     devTools: "Company Settings > Developer Tools",
@@ -830,6 +840,8 @@ const en = {
 
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "Archived",
+    restored: "Restored",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

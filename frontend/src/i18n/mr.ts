@@ -1,6 +1,10 @@
 const mr = {
   // ── Common ──
   common: {
+    archive: "संग्रहित करा",
+    restore: "पुनर्संचयित करा",
+    archived: "संग्रहित",
+    showArchived: "संग्रहित दाखवा",
     appName: "Wiz Scheduler",
     timesInZone: "वेळा {zone} मध्ये आहेत",
     loading: "लोड होत आहे...",
@@ -377,6 +381,7 @@ const mr = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "हे स्थान संग्रहित करायचे? त्याच्या आगामी शिफ्ट आणि मसुदे काढले जातील; मागील वेळापत्रके आणि पगार नोंदी जतन राहतील.",
     title: "स्थाने",
     importData: "डेटा आयात करा",
     importTitle: "स्थाने आयात करा",
@@ -390,6 +395,7 @@ const mr = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "ही भूमिका संग्रहित करायची? या भूमिकेच्या आगामी शिफ्ट खुल्या शिफ्ट होतील.",
     title: "भूमिका",
     importData: "डेटा आयात करा",
     importTitle: "भूमिका आयात करा",
@@ -416,6 +422,8 @@ const mr = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "या कर्मचाऱ्याला संग्रहित करायचे? त्यांच्या आगामी शिफ्ट खुल्या शिफ्ट होतील; मागील वेळापत्रके आणि पगार नोंदी जतन राहतील.",
+    erasedCannotRestore: "या कर्मचाऱ्याचा डेटा पुसला गेला आहे आणि पुनर्संचयित करता येत नाही.",
     title: "कर्मचारी",
     importData: "डेटा आयात करा",
     importTitle: "कर्मचारी आयात करा",
@@ -812,6 +820,8 @@ const mr = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "संग्रहित",
+    restored: "पुनर्संचयित",
     title: "7shifts वरून आयात करा",
     description: "कंपन्या, स्थाने, विभाग, भूमिका, कर्मचारी आणि वापरकर्ता नियुक्त्या आयात करण्यासाठी तुमचा 7shifts ऍक्सेस टोकन प्रविष्ट करा. तुम्ही तुमच्या 7shifts खात्यामध्ये खालील ठिकाणाहून ऍक्सेस टोकन तयार करू शकता:",
     devTools: "कंपनी सेटिंग्ज > डेव्हलपर टूल्स",
@@ -828,6 +838,8 @@ const mr = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "संग्रहित",
+    restored: "पुनर्संचयित",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

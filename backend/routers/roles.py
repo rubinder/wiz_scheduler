@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
 from backend.models import Role, User
+from backend.services.archive import active, archive_role, restore_role
 from backend.schemas.role import RoleBulkUploadResponse, RoleCreate, RoleResponse, RoleUpdate
 
 router = APIRouter(prefix="/roles", tags=["roles"])
@@ -15,12 +16,14 @@ router = APIRouter(prefix="/roles", tags=["roles"])
 
 @router.get("/", response_model=list[RoleResponse])
 async def list_roles(
+    include_archived: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[RoleResponse]:
-    result = await db.execute(
-        select(Role).where(Role.company_id == current_user.company_id).order_by(Role.name)
-    )
+    query = select(Role).where(Role.company_id == current_user.company_id)
+    if not include_archived:
+        query = query.where(active(Role))
+    result = await db.execute(query.order_by(Role.name))
     roles = result.scalars().all()
     return [RoleResponse.model_validate(r) for r in roles]
 
@@ -131,9 +134,14 @@ async def bulk_upload_roles(
 
     # Pre-fetch existing role names for dedup
     role_result = await db.execute(
-        select(Role.name).where(Role.company_id == current_user.company_id)
+        select(Role.name, Role.archived_at).where(Role.company_id == current_user.company_id)
     )
-    existing_names: set[str] = {name.lower() for name in role_result.scalars().all()}
+    existing_names: set[str] = set()
+    archived_names: set[str] = set()
+    for role_name, role_archived_at in role_result.all():
+        existing_names.add(role_name.lower())
+        if role_archived_at is not None:
+            archived_names.add(role_name.lower())
 
     created = 0
     skipped = 0
@@ -149,7 +157,10 @@ async def bulk_upload_roles(
             continue
 
         if name.lower() in existing_names:
-            errors.append(f"Row {row_num}: role '{name}' already exists, skipped")
+            if name.lower() in archived_names:
+                errors.append(f"Row {row_num}: {name}: exists (archived) — restore it instead")
+            else:
+                errors.append(f"Row {row_num}: role '{name}' already exists, skipped")
             skipped += 1
             continue
 
@@ -179,5 +190,23 @@ async def delete_role(
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
 
-    await db.delete(role)
+    await archive_role(db, current_user.company_id, role)
     await db.commit()
+
+
+@router.post("/{role_id}/restore", response_model=RoleResponse)
+async def restore_role_endpoint(
+    role_id: str,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> RoleResponse:
+    role = (await db.execute(
+        select(Role).where(Role.id == role_id, Role.company_id == current_user.company_id)
+    )).scalar_one_or_none()
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+    if role.archived_at is not None:
+        await restore_role(db, current_user.company_id, role)
+        await db.commit()
+        await db.refresh(role)
+    return RoleResponse.model_validate(role)

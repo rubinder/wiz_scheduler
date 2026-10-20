@@ -3,6 +3,7 @@ import { importFrom7Shifts, type ImportResult } from "../../api/import7shifts";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border } from "../../theme";
 import DemoGuard from "./DemoGuard";
+import SyncRow from "./SyncRow";
 
 interface Props {
   onClose: () => void;
@@ -13,23 +14,6 @@ interface Props {
    * stale and the customer thinks the import didn't work.
    */
   onSuccess?: () => void;
-}
-
-function SyncRow({
-  label,
-  stats,
-}: {
-  label: string;
-  stats: { created: number; updated: number; deleted: number };
-}) {
-  return (
-    <tr>
-      <td className={`px-3 py-1 text-sm font-medium ${text.secondary}`}>{label}</td>
-      <td className="px-3 py-1 text-sm text-emerald-400">{stats.created}</td>
-      <td className="px-3 py-1 text-sm text-blue-400">{stats.updated}</td>
-      <td className="px-3 py-1 text-sm text-red-400">{stats.deleted}</td>
-    </tr>
-  );
 }
 
 export default function Import7ShiftsModal({ onClose, onSuccess }: Props) {
@@ -135,6 +119,8 @@ export default function Import7ShiftsModal({ onClose, onSuccess }: Props) {
                     <th className="px-3 py-1">{t.import7Shifts.entity}</th>
                     <th className="px-3 py-1">{t.import7Shifts.created}</th>
                     <th className="px-3 py-1">{t.import7Shifts.updated}</th>
+                    <th className="px-3 py-1">{t.import7Shifts.archived}</th>
+                    <th className="px-3 py-1">{t.import7Shifts.restored}</th>
                     <th className="px-3 py-1">{t.import7Shifts.deleted}</th>
                   </tr>
                 </thead>

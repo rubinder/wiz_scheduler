@@ -15,8 +15,10 @@ export function getMyProfile(): Promise<EmployeeMeProfile> {
   return apiFetch<EmployeeMeProfile>("/employees/me");
 }
 
-export function listEmployees(): Promise<Employee[]> {
-  return apiFetch<Employee[]>("/employees/");
+export function listEmployees(includeArchived = false): Promise<Employee[]> {
+  return apiFetch<Employee[]>(
+    includeArchived ? "/employees/?include_archived=true" : "/employees/"
+  );
 }
 
 export function createEmployee(body: {
@@ -62,6 +64,10 @@ export function updateEmployee(
 
 export function deleteEmployee(id: string): Promise<void> {
   return apiFetch<void>(`/employees/${id}`, { method: "DELETE" });
+}
+
+export function restoreEmployee(id: string): Promise<Employee> {
+  return apiFetch<Employee>(`/employees/${id}/restore`, { method: "POST" });
 }
 
 export async function bulkUploadEmployees(

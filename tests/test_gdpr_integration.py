@@ -322,11 +322,14 @@ async def test_delete_account(
     )
     assert result.scalar_one_or_none() is None
 
-    # Verify employee is gone
+    # The employee row is erased, not deleted (#126): pay history points at it
+    db_session.expire_all()
     result = await db_session.execute(
         select(Employee).where(Employee.id == EMPLOYEE1_ID)
     )
-    assert result.scalar_one_or_none() is None
+    erased = result.scalar_one()
+    assert erased.erased_at is not None and erased.archived_at is not None
+    assert erased.user_id is None and erased.email is None
 
 
 async def test_delete_account_no_employee(
@@ -428,8 +431,12 @@ async def test_data_retention_deletes_stale_drafts(
     seed_location,
     seed_roles,
 ):
-    old_time = datetime.now(timezone.utc) - timedelta(
-        days=settings.RETENTION_STALE_DRAFTS_DAYS + 1
+    # Before this UTC month too: the free quota counts this month's drafts,
+    # so the sweep never deletes one (#126).
+    now = datetime.now(timezone.utc)
+    old_time = min(
+        now - timedelta(days=settings.RETENTION_STALE_DRAFTS_DAYS + 1),
+        now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1),
     )
     sched = ShiftSchedule(
         id=_id(),

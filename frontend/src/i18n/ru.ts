@@ -1,6 +1,10 @@
 const ru = {
   // ── Common ──
   common: {
+    archive: "Архивировать",
+    restore: "Восстановить",
+    archived: "В архиве",
+    showArchived: "Показать архивные",
     appName: "Wiz Scheduler",
     timesInZone: "Время указано в {zone}",
     loading: "Загрузка...",
@@ -377,6 +381,7 @@ const ru = {
 
   // ── Locations ──
   locationsPage: {
+    archiveConfirm: "Архивировать эту локацию? Её будущие смены и черновики будут удалены; прошлые графики и расчёт зарплаты сохранятся.",
     title: "Локации",
     importData: "Импорт данных",
     importTitle: "Импорт локаций",
@@ -390,6 +395,7 @@ const ru = {
 
   // ── Roles ──
   rolesPage: {
+    archiveConfirm: "Архивировать эту роль? Будущие смены с этой ролью станут открытыми.",
     title: "Роли",
     importData: "Импорт данных",
     importTitle: "Импорт ролей",
@@ -416,6 +422,8 @@ const ru = {
 
   // ── Employees ──
   employeesPage: {
+    archiveConfirm: "Архивировать этого сотрудника? Его будущие смены станут открытыми; прошлые графики и расчёт зарплаты сохранятся.",
+    erasedCannotRestore: "Данные этого сотрудника были удалены и не могут быть восстановлены.",
     title: "Сотрудники",
     importData: "Импорт данных",
     importTitle: "Импорт сотрудников",
@@ -812,6 +820,8 @@ const ru = {
 
   // ── Import 7Shifts Modal ──
   import7Shifts: {
+    archived: "В архиве",
+    restored: "Восстановлено",
     title: "Импорт из 7shifts",
     description: "Введите токен доступа 7shifts для импорта компаний, локаций, отделов, ролей, сотрудников и назначений пользователей. Вы можете сгенерировать токен доступа в вашем аккаунте 7shifts в разделе",
     devTools: "Настройки компании > Инструменты разработчика",
@@ -828,6 +838,8 @@ const ru = {
   },
   // ── Import Deputy Modal ──
   importDeputy: {
+    archived: "В архиве",
+    restored: "Восстановлено",
     title: "Import from Deputy",
     description: "Enter your Deputy subdomain URL and API access token to import locations, areas (roles), employees, and unavailability.",
     baseUrlLabel: "Deputy URL",

@@ -84,7 +84,9 @@ def _entry(s: SimpleNamespace, **overrides) -> TimeEntry:
     fields = dict(
         id=_id(), company_id=s.company_id, location_id=s.location_id,
         employee_id=s.employee_id, shift_id=s.shift_id, role_id=s.role_id,
-        role_name=s.role_name, pay_date=s.pay_date, start_time=s.start,
+        role_name=s.role_name, employee_name="Dana Okafor",
+        location_name="Flatbush Ave", location_timezone="America/New_York",
+        pay_date=s.pay_date, start_time=s.start,
         end_time=s.end, paid_minutes=480, source=TIME_ENTRY_CHECKED_IN,
     )
     fields.update(overrides)

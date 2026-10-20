@@ -537,7 +537,9 @@ async def test_a_shift_with_payroll_hours_cannot_be_deleted(
     db_session.add(TimeEntry(
         id=_id(), company_id=COMPANY_ID, location_id=LOCATION_ID,
         employee_id=EMPLOYEE1_ID, shift_id=shift_id, role_id=ROLE_FLOOR_ID,
-        role_name="Floor Associate", pay_date=date(2026, 8, 31),
+        role_name="Floor Associate", employee_name="Test Employee",
+        location_name="Test Location", location_timezone="UTC",
+        pay_date=date(2026, 8, 31),
         start_time=datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc),
         end_time=datetime(2026, 8, 31, 17, 0, tzinfo=timezone.utc),
         paid_minutes=480, source=TIME_ENTRY_MANAGER_ATTESTED,

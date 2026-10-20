@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import (
+    Employee,
     EmployeeAvailability,
     EmployeeCheckIn,
     EmployeeInvite,
@@ -17,6 +18,8 @@ from backend.models import (
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
+from backend.services.archive import DISCARDED, delete_past_check_ins
+from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,10 @@ async def run_data_retention(db: AsyncSession) -> dict:
             select(ShiftSchedule.id).where(
                 ShiftSchedule.status == "rejected",
                 ShiftSchedule.created_at < cutoff_rejected,
+                # Never this UTC month's rows: the free quota counts them
+                # (attempts, held slots, started locations) and so does the
+                # paid overage meter; deleting one would hand the month back.
+                ShiftSchedule.created_at < utc_month_start(now),
             )
         )
         rejected_ids = list(old_rejected.scalars().all())
@@ -60,8 +67,10 @@ async def run_data_retention(db: AsyncSession) -> dict:
 
         old_drafts = await db.execute(
             select(ShiftSchedule.id).where(
-                ShiftSchedule.status == "draft",
+                # A discarded draft (#126) ages out exactly as the draft would have.
+                ShiftSchedule.status.in_(("draft", DISCARDED)),
                 ShiftSchedule.created_at < cutoff_drafts,
+                ShiftSchedule.created_at < utc_month_start(now),  # see above
             )
         )
         draft_ids = list(old_drafts.scalars().all())
@@ -141,6 +150,17 @@ async def run_data_retention(db: AsyncSession) -> dict:
             )
         )
         summary["old_check_ins_deleted"] = result.rowcount
+
+        # 7b. An erased employee's check-ins from earlier days go regardless of
+        #     the window. erase_employee keeps same-day rows (QR counter
+        #     uniqueness); this removes them once the day has ended.
+        summary["erased_check_ins_deleted"] = await delete_past_check_ins(
+            db,
+            EmployeeCheckIn.employee_id.in_(
+                select(Employee.id).where(Employee.erased_at.isnot(None))
+            ),
+            now=now,
+        )
 
         # 8. Signup signals past their window. These are observe-only
         #    anti-abuse breadcrumbs (services/signup_signals.py), not account

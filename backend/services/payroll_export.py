@@ -17,7 +17,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Employee, Location, PayrollExport, TimeEntry, User
+from backend.models import Location, PayrollExport, TimeEntry, User
 from backend.services.billing import get_ownership_group_id
 from backend.services.time_entries import _as_utc
 
@@ -140,23 +140,22 @@ async def export_approved(
     period and a re-download is not a second export.
     """
     query = (
-        select(TimeEntry, Employee.full_name, Location.name, Location.timezone)
-        .join(Employee, Employee.id == TimeEntry.employee_id)
-        .join(Location, Location.id == TimeEntry.location_id)
+        select(
+            TimeEntry, TimeEntry.employee_name, TimeEntry.location_name,
+            TimeEntry.location_timezone,
+        )
         .where(
             TimeEntry.company_id == company_id,
             TimeEntry.pay_date >= range_start,
             TimeEntry.pay_date <= range_end,
             TimeEntry.approved_at.isnot(None),
         )
-        .order_by(TimeEntry.pay_date, Employee.full_name)
+        .order_by(TimeEntry.pay_date, TimeEntry.employee_name)
         # Locks the selected rows (PostgreSQL; SQLite ignores it) so a double
         # click can't have two concurrent exports both see exported_at IS NULL
         # for the same entry and both believe they are the one that stamped it.
         #
-        # of=TimeEntry: without it FOR UPDATE locks every table in the join,
-        # so exporting payroll would block unrelated writes to the employees
-        # and locations rows it merely read names from.
+        # of=TimeEntry keeps the lock on the rows being stamped only.
         .with_for_update(of=TimeEntry)
     )
     if location_id:
@@ -184,6 +183,13 @@ async def export_approved(
         )
 
     now = datetime.now(timezone.utc)
+    location_name: str | None = None
+    if location_id:
+        location_name = (await db.execute(
+            select(Location.name).where(
+                Location.id == location_id, Location.company_id == company_id
+            )
+        )).scalar_one_or_none()
     export = PayrollExport(
         company_id=company_id,
         # None for the OG-less dev company — hence the nullable column.
@@ -191,6 +197,7 @@ async def export_approved(
         exported_by_user_id=user.id,
         format="csv",
         location_id=location_id,
+        location_name=location_name,
         range_start=range_start,
         range_end=range_end,
         entry_count=len(found),

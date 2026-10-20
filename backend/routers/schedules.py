@@ -26,11 +26,28 @@ from backend.schemas.schedule import (
 from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
+from backend.services.archive import DISCARDED, active, lock_employees
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+
+
+def _refuse_discarded(schedule: ShiftSchedule) -> None:
+    """A draft discarded by archiving its location is terminal (#126): kept so
+    the free quota still counts it, never edited, rejected or approved."""
+    if schedule.status == DISCARDED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "schedule_discarded",
+                "message": (
+                    "This draft was discarded when its location was archived; "
+                    "generate a new schedule instead."
+                ),
+            },
+        )
 
 
 @router.get("/ai-credits")
@@ -343,6 +360,7 @@ async def update_shifts(
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
+    _refuse_discarded(schedule)
 
     # A cleared or null employee is an open shift (#174); store one shape.
     shifts = [
@@ -444,6 +462,16 @@ async def edit_approved_shifts(
         from backend.models import Role
         from backend.services.edit_warnings import collect_edit_warnings
 
+        # Lock every employee this request assigns before any shift is
+        # written (#126): an archive running concurrently either finishes
+        # first, and the check below sees it, or waits and then opens the
+        # shift we assign. Read archived_at from the lock, not the entity,
+        # which may be a stale identity-map copy.
+        locked_archived = await lock_employees(
+            db, str(current_user.company_id),
+            [e.employee_id for e in body.edits if e.employee_id is not None],
+        )
+
         # Collect warnings BEFORE any edit is applied: the checks below read
         # committed `Shift` rows back out of the database, and doing this
         # after the mutation loop would compare a shift against its own
@@ -470,7 +498,7 @@ async def edit_approved_shifts(
                 # company — otherwise a manager could schedule another
                 # tenant's staff.
                 employee = (await db.execute(
-                    select(Employee.id).where(
+                    select(Employee).where(
                         Employee.id == edit.employee_id,
                         Employee.company_id == current_user.company_id,
                     )
@@ -480,6 +508,31 @@ async def edit_approved_shifts(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Employee not found",
                     )
+                if locked_archived.get(str(employee.id)) is not None:
+                    # Archived (#126): a shift they already hold may still be
+                    # retimed, but no shift may newly be given to them.
+                    current_assignee = None
+                    if edit.shift_id:
+                        current_assignee = (await db.execute(
+                            select(Shift.employee_id).where(
+                                Shift.id == edit.shift_id,
+                                Shift.company_id == current_user.company_id,
+                                Shift.shift_schedule_id == schedule.id,
+                            )
+                        )).scalar_one_or_none()
+                    if edit.employee_id != current_assignee:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "code": "employee_archived",
+                                "index": idx,
+                                "shift_id": edit.shift_id,
+                                "message": (
+                                    "This employee is archived; restore them "
+                                    "before assigning shifts."
+                                ),
+                            },
+                        )
 
             if edit.shift_id:
                 shift = (await db.execute(
@@ -562,12 +615,15 @@ async def edit_approved_shifts(
                     # (read by the UI and the 7shifts export), so it has to
                     # be refreshed here too or it goes stale next to the new
                     # role_id.
-                    role_name = (await db.execute(
-                        select(Role.name).where(
-                            Role.id == edit.role_id,
-                            Role.company_id == current_user.company_id,
-                        )
-                    )).scalar_one_or_none()
+                    role_query = select(Role.name).where(
+                        Role.id == edit.role_id,
+                        Role.company_id == current_user.company_id,
+                    )
+                    if edit.role_id != shift.role_id:
+                        # Only a move INTO a role must find it active: a
+                        # shift already in an archived role keeps it (#126).
+                        role_query = role_query.where(active(Role))
+                    role_name = (await db.execute(role_query)).scalar_one_or_none()
                     if role_name is None:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
@@ -612,6 +668,7 @@ async def edit_approved_shifts(
                     select(Role.name).where(
                         Role.id == edit.role_id,
                         Role.company_id == current_user.company_id,
+                        active(Role),
                     )
                 )).scalar_one_or_none()
                 if role_name is None:
@@ -714,6 +771,7 @@ async def approve_schedule(
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
+    _refuse_discarded(schedule)
 
     try:
         lock = await acquire_lock(
@@ -733,6 +791,22 @@ async def approve_schedule(
         )
 
     try:
+        # Checked under the schedule lock, and with the location row locked
+        # FOR UPDATE: archive_location takes the same row lock first, so it
+        # either finished before this read or waits until we commit (#126).
+        location_archived_at = (await db.execute(
+            select(Location.archived_at).where(Location.id == schedule.location_id)
+            .with_for_update()
+        )).scalar_one_or_none()
+        if location_archived_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "location_archived",
+                    "message": "This location is archived; restore it before approving its schedule.",
+                },
+            )
+
         schedule.status = "approved"
 
         # Create Shift records from the stored raw_llm_output
@@ -742,7 +816,9 @@ async def approve_schedule(
                 from backend.models import Role
                 from backend.models.condensed_role import CondensedRoleMapping
                 role_result = await db.execute(
-                    select(Role.id).where(Role.company_id == current_user.company_id)
+                    select(Role.id).where(
+                        Role.company_id == current_user.company_id, active(Role),
+                    )
                 )
                 valid_role_ids: set[str] = {str(r) for r in role_result.scalars().all()}
 
@@ -771,7 +847,31 @@ async def approve_schedule(
                 }
 
                 shifts_data = json.loads(schedule.raw_llm_output)
-                for s in shifts_data:
+                # Lock the employees this approval gives shifts to (#126),
+                # so an archive running concurrently either lands first and
+                # their entries open below, or waits and opens the shifts
+                # this approval commits.
+                locked_archived = await lock_employees(
+                    db, str(current_user.company_id),
+                    [s.get("employee_id") for s in shifts_data
+                     if isinstance(s, dict) and not is_open_entry(s)],
+                )
+                archived_ids = {
+                    eid for eid, archived_at in locked_archived.items()
+                    if archived_at is not None
+                }
+                for i, s in enumerate(shifts_data):
+                    if (
+                        s.get("status") == "ok"
+                        and not is_open_entry(s)
+                        and s.get("employee_id") in archived_ids
+                    ):
+                        # Archived since generation (#126): the slot is still
+                        # needed, so it becomes an open shift rather than a
+                        # shift for someone who left. Written back so the
+                        # minutes loop below skips it as open.
+                        s = to_open_entry(s)
+                        shifts_data[i] = s
                     # Open entries (and legacy VACANT ones) become open shifts
                     # (#174); anything else that is not "ok" -- a CONFLICT --
                     # is still never materialised.
@@ -932,6 +1032,7 @@ async def reject_schedule(
     schedule = result.scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    _refuse_discarded(schedule)
 
     schedule.status = "rejected"
     await db.commit()
@@ -949,7 +1050,8 @@ async def get_week_schedules(
     """Schedules for one week, newest-relevant first.
 
     `?status=approved` narrows to approved schedules. Without it every
-    generation that was never approved comes back too — a week can easily
+    generation that was never approved comes back too (except drafts
+    discarded by archiving their location) — a week can easily
     hold dozens of empty drafts before RETENTION_STALE_DRAFTS_DAYS clears
     them, and callers that only render approved schedules should not pay
     for that.
@@ -960,6 +1062,9 @@ async def get_week_schedules(
     ]
     if status_filter:
         conditions.append(ShiftSchedule.status == status_filter)
+    else:
+        # A discarded draft (#126) exists only so the free quota counts it.
+        conditions.append(ShiftSchedule.status != DISCARDED)
 
     result = await db.execute(select(ShiftSchedule).where(*conditions))
     schedules = result.scalars().all()

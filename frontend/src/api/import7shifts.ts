@@ -1,11 +1,11 @@
 import { apiFetch } from "./client";
 
 export interface ImportResult {
-  companies: { created: number; updated: number; deleted: number };
-  locations: { created: number; updated: number; deleted: number };
+  companies: { created: number; updated: number; archived: number; restored: number };
+  locations: { created: number; updated: number; archived: number; restored: number };
   departments: { created: number; updated: number; deleted: number };
-  roles: { created: number; updated: number; deleted: number };
-  employees: { created: number; updated: number; deleted: number };
+  roles: { created: number; updated: number; archived: number; restored: number };
+  employees: { created: number; updated: number; archived: number; restored: number };
   user_assignments: { created: number; updated: number; deleted: number };
   errors: string[];
 }

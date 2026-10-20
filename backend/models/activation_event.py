@@ -59,5 +59,5 @@ class ActivationEvent(Base):
     # webhook-driven milestones (upgraded) where no single user initiated it
     # from an authenticated request.
     user_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=True
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

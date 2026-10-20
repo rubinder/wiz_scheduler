@@ -20,6 +20,9 @@ class ShiftSchedule(Base):
         String(8), ForeignKey("locations.id"), nullable=False
     )
     week_start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # draft | approved | rejected | discarded. "discarded" is terminal: a
+    # draft whose location was archived (#126), kept so the free quota still
+    # counts it (services/location_quota) and never listed or approved.
     status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
     raw_llm_output: Mapped[str | None] = mapped_column(Text, nullable=True)
     strategy: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -2,9 +2,9 @@ import { apiFetch } from "./client";
 import { browserTimeZone } from "../utils/timezones";
 
 export interface DeputyImportResult {
-  locations: { created: number; updated: number; deleted: number };
-  roles: { created: number; updated: number; deleted: number };
-  employees: { created: number; updated: number; deleted: number };
+  locations: { created: number; updated: number; archived: number; restored: number };
+  roles: { created: number; updated: number; archived: number; restored: number };
+  employees: { created: number; updated: number; archived: number; restored: number };
   unavailability: { created: number; skipped: number; deleted: number };
   errors: string[];
 }

@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
+from backend.services.billing import utc_month_start
+from backend.services.archive import active, archive_location, restore_location
 from backend.services.plan import assert_can_add, assert_paid_plan
 from backend.utils.tz import is_valid_timezone
 
@@ -17,12 +19,14 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 @router.get("/", response_model=list[LocationResponse])
 async def list_locations(
+    include_archived: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[LocationResponse]:
-    result = await db.execute(
-        select(Location).where(Location.company_id == current_user.company_id)
-    )
+    query = select(Location).where(Location.company_id == current_user.company_id)
+    if not include_archived:
+        query = query.where(active(Location))
+    result = await db.execute(query)
     locations = result.scalars().all()
     return [LocationResponse.model_validate(loc) for loc in locations]
 
@@ -199,9 +203,14 @@ async def bulk_upload_locations(
 
     # Pre-fetch existing location names to detect duplicates
     loc_result = await db.execute(
-        select(Location.name).where(Location.company_id == current_user.company_id)
+        select(Location.name, Location.archived_at).where(Location.company_id == current_user.company_id)
     )
-    existing_names: set[str] = {name.lower() for name in loc_result.scalars().all()}
+    existing_names: set[str] = set()
+    archived_names: set[str] = set()
+    for loc_name, loc_archived_at in loc_result.all():
+        existing_names.add(loc_name.lower())
+        if loc_archived_at is not None:
+            archived_names.add(loc_name.lower())
 
     # Free-plan cap. Checked after parsing (we need the row count) but before
     # any insert, so an oversized file is refused whole rather than filling
@@ -225,7 +234,10 @@ async def bulk_upload_locations(
             continue
 
         if name.lower() in existing_names:
-            errors.append(f"Row {row_num}: location '{name}' already exists, skipped")
+            if name.lower() in archived_names:
+                errors.append(f"Row {row_num}: {name}: exists (archived) — restore it instead")
+            else:
+                errors.append(f"Row {row_num}: location '{name}' already exists, skipped")
             skipped += 1
             continue
 
@@ -290,5 +302,27 @@ async def delete_location(
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
-    await db.delete(location)
+    await archive_location(db, current_user.company_id, location)
     await db.commit()
+
+
+@router.post("/{location_id}/restore", response_model=LocationResponse)
+async def restore_location_endpoint(
+    location_id: str,
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> LocationResponse:
+    location = (await db.execute(select(Location).where(
+        Location.id == location_id, Location.company_id == current_user.company_id,
+    ))).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    if location.archived_at is not None:
+        # A location archived this month still holds its plan slot, so
+        # restoring it adds nothing; only an older one needs a free slot.
+        if location.archived_at < utc_month_start():
+            await assert_can_add(db, str(current_user.company_id), locations=1)
+        await restore_location(db, current_user.company_id, location)
+        await db.commit()
+        await db.refresh(location)
+    return LocationResponse.model_validate(location)

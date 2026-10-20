@@ -16,6 +16,7 @@ from backend.utils.base_url import trusted_base_url
 from backend.utils.email_normalize import normalize_email
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
 from backend.models.consent import UserConsent
+from backend.services.archive import active
 from backend.utils.privacy import mask_ip
 from backend.schemas.employee import (
     AcceptInviteRequest,
@@ -95,6 +96,7 @@ async def create_invite(
         select(Employee).where(
             Employee.id == employee_id,
             Employee.company_id == current_user.company_id,
+            active(Employee),
         )
     )
     employee = result.scalar_one_or_none()
@@ -177,6 +179,20 @@ async def create_invite(
     )
 
 
+async def _invited_employee(db: AsyncSession, invite: EmployeeInvite) -> Employee:
+    """The invite's employee, or 410 when they have since been archived
+    (#126): an invite must never hand a login to someone who has left."""
+    employee = (await db.execute(
+        select(Employee).where(Employee.id == invite.employee_id, active(Employee))
+    )).scalar_one_or_none()
+    if employee is None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={"code": "invite_revoked", "message": "This invite has been revoked."},
+        )
+    return employee
+
+
 @router.get("/invites/{token}", response_model=InviteInfoResponse)
 async def get_invite_info(
     token: str,
@@ -199,8 +215,7 @@ async def get_invite_info(
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="This invite has expired")
 
     # Get employee and company names
-    emp_result = await db.execute(select(Employee).where(Employee.id == invite.employee_id))
-    employee = emp_result.scalar_one()
+    employee = await _invited_employee(db, invite)
 
     comp_result = await db.execute(select(Company).where(Company.id == invite.company_id))
     company = comp_result.scalar_one()
@@ -246,8 +261,7 @@ async def accept_invite(
         )
 
     # Get the employee
-    emp_result = await db.execute(select(Employee).where(Employee.id == invite.employee_id))
-    employee = emp_result.scalar_one()
+    employee = await _invited_employee(db, invite)
 
     # Create User account
     user = User(
@@ -297,7 +311,7 @@ async def list_invites(
     result = await db.execute(
         select(EmployeeInvite, Employee.full_name)
         .join(Employee, EmployeeInvite.employee_id == Employee.id)
-        .where(EmployeeInvite.company_id == current_user.company_id)
+        .where(EmployeeInvite.company_id == current_user.company_id, active(Employee))
         .order_by(EmployeeInvite.created_at.desc())
     )
     rows = result.all()

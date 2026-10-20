@@ -18,7 +18,7 @@ class Employee(Base):
         String(8), ForeignKey("companies.id"), nullable=False, index=True
     )
     user_id: Mapped[str | None] = mapped_column(
-        String(8), ForeignKey("users.id"), nullable=True
+        String(8), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -42,6 +42,12 @@ class Employee(Base):
     pay_rate: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     seniority_rank: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    # NULL = active. Archived rows stay so approved shifts and pay records
+    # that reference them keep their history (#126). Readers filter with
+    # services/archive.active(Employee).
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set by GDPR erasure. An erased employee is archived and can never be restored.
+    erased_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     roles: Mapped[list["EmployeeRole"]] = relationship(
         back_populates="employee", lazy="selectin"
