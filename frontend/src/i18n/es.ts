@@ -961,7 +961,7 @@ const es = {
     featHourCapsTitle: "Tope de horas por empleado",
     featHourCapsDesc: "Establece un tope máximo de horas semanales para cada empleado. El programador aplica el tope en todas las ubicaciones dentro de una misma ejecución — sin necesidad de seguimiento manual.",
     featDayRulesTitle: "Reglas de días bloqueados",
-    featDayRulesDesc: "Block out recurring time ranges per day of week when an employee must not be scheduled. For example, no Mondays 8 PM-10 PM — enforced automatically every week.",
+    featDayRulesDesc: "Bloquea franjas horarias recurrentes por día de la semana en las que un empleado no debe ser programado. Por ejemplo, «nunca los lunes de 20:00 a 22:00» — se aplica automáticamente cada semana.",
     featDeputyTitle: "Integración con Deputy",
     featDeputyDesc: "Importa ubicaciones, áreas, empleados y la indisponibilidad desde Deputy. La indisponibilidad se invierte automáticamente en ventanas de disponibilidad para la programación.",
     feat7shiftsTitle: "Integración con 7shifts",
