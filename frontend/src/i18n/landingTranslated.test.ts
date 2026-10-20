@@ -3,7 +3,10 @@
  * (wiz_scheduler_marketing/scripts/port-copy.mjs) and serves them in all 19
  * locales. A string left in English shows up as English in the middle of,
  * say, the Japanese home page. Strings of 12 characters or fewer are skipped:
- * brand names, "AI", "CSV", short numerics legitimately match.
+ * brand names, "AI", "CSV", short numerics legitimately match. The pricing
+ * example table (`landing.example*`) is checked whatever its length, because
+ * short cells like "200 / month" mix numbers with words; only cells with no
+ * word (numbers, "$", units like GB/K) are exempt.
  */
 import { describe, expect, it } from "vitest";
 import en from "./en";
@@ -28,8 +31,15 @@ const ported = (t: unknown) => {
   return flatten({ landing: tree.landing, features: tree.features });
 };
 
-/** Identical to English in every locale on purpose: prices and arithmetic. */
-const ALWAYS_KEPT = new Set(["landing.exampleSchedulesCost", "landing.exampleEmployeesCost"]);
+/** Units that may sit next to numbers in a pricing cell without being a word. */
+const UNITS = new Set(["GB", "MB", "TB", "K", "M"]);
+
+/** True when the string has a word of 3+ ASCII letters that is not a unit. */
+const hasWord = (s: string) => (s.match(/[A-Za-z]{3,}/g) ?? []).some((w) => !UNITS.has(w));
+
+/** Whether an English value must differ from English in every other locale. */
+const checked = (k: string, v: string) =>
+  k.startsWith("landing.example") ? hasWord(v) : v.length > 12;
 
 /**
  * Per-locale strings deliberately left identical to English. Nigerian Pidgin
@@ -37,6 +47,9 @@ const ALWAYS_KEPT = new Set(["landing.exampleSchedulesCost", "landing.exampleEmp
  * match it word for word. Every entry here was reviewed by hand.
  */
 const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {
+  // "Item" is the native word for a line item in Portuguese and Indonesian
+  pt: new Set<string>(["landing.exampleItem"]),
+  id: new Set<string>(["landing.exampleItem"]),
   pcm: new Set<string>([
     // Product, plan and feature names that Pidgin speakers use as-is
     "landing.heroTitle",
@@ -53,10 +66,19 @@ const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {
     "landing.stratAITag",
     // Pricing table labels and amounts
     "landing.storageIncluded",
+    "landing.exampleItem",
+    "landing.exampleUsage",
+    "landing.exampleCost",
+    "landing.exampleStorage",
     "landing.exampleBase",
     "landing.exampleAICost",
     "landing.exampleStorageCost",
     "landing.exampleTotal",
+    // Pidgin keeps "month", "overage" and "blocks" (as in its own
+    // pricePerMonth, overage and *OverageNote strings)
+    "landing.exampleSchedulesUsage",
+    "landing.exampleSchedulesCost",
+    "landing.exampleEmployeesCost",
     // Privacy and compliance terms
     "landing.complianceTitle",
     "landing.featGDPRTitle",
@@ -101,7 +123,7 @@ describe("ported marketing copy is translated", () => {
       expect(missing).toEqual([]);
       const kept = KEPT_IN_ENGLISH[code] ?? new Set<string>();
       const untranslated = Object.keys(EN).filter(
-        (k) => EN[k].length > 12 && t[k] === EN[k] && !ALWAYS_KEPT.has(k) && !kept.has(k),
+        (k) => checked(k, EN[k]) && t[k] === EN[k] && !kept.has(k),
       );
       expect(untranslated).toEqual([]);
     });
