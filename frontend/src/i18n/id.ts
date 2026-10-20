@@ -1010,7 +1010,8 @@ const ind = {
     inputFreqCapsTitle: "Batas Frekuensi",
     inputFreqCapsDesc: "Berapa kali seminggu seorang karyawan bekerja dalam rentang jam tertentu.",
     inputsTemplatesNote: "Template shift dan pengecualian tanggal tertentu menentukan apa yang perlu diisi. Setiap draf divalidasi ulang setelah pembuatan, dan shift mana pun yang bertentangan dengan preferensi lunak ditandai untuk ditinjau.",
-    inputsNotYet: "Belum dipertimbangkan: tarif gaji, premi lembur, senioritas. Istirahat minimum adalah satu-satunya aturan hukum ketenagakerjaan yang dibangun ke dalamnya.",
+    inputsNotYetRule: "Aturan hukum ketenagakerjaan bawaan: istirahat minimum.",
+    inputsNotYetSignals: "Sinyal penjadwalan yang dipertimbangkan: senioritas (tanggal perekrutan atau peringkat manual), tarif gaji, ambang lembur.",
     compDataExportTitle: "Ekspor Data",
     compDataExportDesc: "Unduh semua data Anda sebagai JSON kapan saja.",
     compErasureTitle: "Hak untuk Dihapus",
@@ -1045,7 +1046,7 @@ const ind = {
       },
       locations: {
         title: "Cabang",
-        desc: "Kelola setiap lokasi fisik yang Anda jadwalkan. Setiap cabang memiliki zona waktu, alamat, wilayah, dan daftar karyawan tersendiri — dan dijadwalkan secara independen oleh AI.",
+        desc: "Kelola setiap lokasi fisik yang Anda jadwalkan. Setiap cabang memiliki zona waktu, alamat, wilayah, dan daftar karyawan tersendiri — dan dijadwalkan secara independen oleh algoritme penjadwalan.",
       },
       roles: {
         title: "Peran",
@@ -1053,7 +1054,7 @@ const ind = {
       },
       "role-equivalents": {
         title: "Padanan peran",
-        desc: `Petakan peran yang dapat saling menggantikan. Memungkinkan penjadwal memperlakukan "Barista" dan "Baker" sebagai dapat dipertukarkan saat mengisi shift, sambil tetap menghormati perbedaan tingkat keterampilan.`,
+        desc: `Petakan peran yang dapat saling menggantikan. Memungkinkan algoritme penjadwalan memperlakukan "Barista" dan "Baker" sebagai dapat dipertukarkan saat mengisi shift, sambil tetap menghormati perbedaan tingkat keterampilan.`,
       },
       employees: {
         title: "Karyawan",
@@ -1065,7 +1066,7 @@ const ind = {
       },
       "hour-restrictions": {
         title: "Pembatasan jam",
-        desc: "Berlakukan batas atas dan bawah jam mingguan per karyawan. Berguna untuk visa pelajar, kesepakatan paruh waktu, dan anggaran lembur. AI tidak akan pernah menjadwalkan di luar batas ini.",
+        desc: "Berlakukan batas atas dan bawah jam mingguan per karyawan. Berguna untuk visa pelajar, kesepakatan paruh waktu, dan anggaran lembur. Algoritme penjadwalan tidak akan pernah menjadwalkan di luar batas ini.",
       },
       "day-blackouts": {
         title: "Hari tidak tersedia",
@@ -1093,11 +1094,11 @@ const ind = {
       },
       "employee-association": {
         title: "Asosiasi karyawan",
-        desc: "Tandai karyawan yang bekerja baik bersama (atau tidak boleh dipasangkan). AI menggunakan preferensi ini sebagai panduan lunak saat menugaskan shift.",
+        desc: "Tandai karyawan yang bekerja baik bersama (atau tidak boleh dipasangkan). Algoritme penjadwalan menggunakan preferensi ini sebagai panduan lunak saat menugaskan shift.",
       },
       "shift-templates": {
         title: "Template shift",
-        desc: "Tentukan pola shift mingguan berulang untuk setiap cabang: peran apa yang dibutuhkan, berapa banyak masing-masing, pada hari dan jam berapa. Cetak biru yang akan diisi AI.",
+        desc: "Tentukan pola shift mingguan berulang untuk setiap cabang: peran apa yang dibutuhkan, berapa banyak masing-masing, pada hari dan jam berapa. Cetak biru yang akan diisi algoritme penjadwalan.",
       },
       "check-in-qr": {
         title: "Kode check-in",

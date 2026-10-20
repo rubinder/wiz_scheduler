@@ -1010,7 +1010,8 @@ const fr = {
     inputFreqCapsTitle: "Limites de Fréquence",
     inputFreqCapsDesc: "Combien de fois par semaine un employé travaille dans une plage horaire donnée.",
     inputsTemplatesNote: "Les modèles de poste et les dérogations pour dates spécifiques définissent ce qui doit être couvert. Chaque brouillon est revalidé après la génération, et tout poste allant à l'encontre d'une préférence souple est signalé pour révision.",
-    inputsNotYet: "Pas encore pris en compte : taux de salaire, majorations pour heures supplémentaires, ancienneté. Le repos minimum est la seule règle du droit du travail intégrée.",
+    inputsNotYetRule: "Règle du droit du travail intégrée : repos minimum.",
+    inputsNotYetSignals: "Signaux de planification pris en compte : ancienneté (date d'embauche ou rang manuel), taux horaires, seuils d'heures supplémentaires.",
     compDataExportTitle: "Export de données",
     compDataExportDesc: "Téléchargez toutes vos données au format JSON à tout moment.",
     compErasureTitle: "Droit à l'effacement",
@@ -1045,7 +1046,7 @@ const fr = {
       },
       locations: {
         title: "Lieux",
-        desc: "Gérez chaque site physique pour lequel vous planifiez. Chaque lieu a son propre fuseau horaire, adresse, région et liste d'employés éligibles — et l'IA le planifie indépendamment.",
+        desc: "Gérez chaque site physique pour lequel vous planifiez. Chaque lieu a son propre fuseau horaire, adresse, région et liste d'employés éligibles — et l'algorithme de planification le traite indépendamment.",
       },
       roles: {
         title: "Rôles",
@@ -1053,7 +1054,7 @@ const fr = {
       },
       "role-equivalents": {
         title: "Équivalences de rôle",
-        desc: `Associez des rôles qui peuvent se remplacer. Permet au planificateur de traiter "Barista" et "Baker" comme interchangeables, tout en respectant les différences de niveau de compétence.`,
+        desc: `Associez des rôles qui peuvent se remplacer. Permet à l'algorithme de planification de traiter "Barista" et "Baker" comme interchangeables, tout en respectant les différences de niveau de compétence.`,
       },
       employees: {
         title: "Employés",
@@ -1065,7 +1066,7 @@ const fr = {
       },
       "hour-restrictions": {
         title: "Restrictions d'heures",
-        desc: "Imposez des plafonds et planchers hebdomadaires par employé. Utile pour les visas étudiants, les contrats à temps partiel et les budgets d'heures supplémentaires. L'IA ne planifiera jamais en dehors de ces bornes.",
+        desc: "Imposez des plafonds et planchers hebdomadaires par employé. Utile pour les visas étudiants, les contrats à temps partiel et les budgets d'heures supplémentaires. L'algorithme de planification ne sort jamais de ces bornes.",
       },
       "day-blackouts": {
         title: "Jours bloqués",
@@ -1093,11 +1094,11 @@ const fr = {
       },
       "employee-association": {
         title: "Association d'employés",
-        desc: "Indiquez quels employés travaillent bien ensemble (ou ne devraient pas être appariés). L'IA utilise ces affinités comme préférences souples lors de l'attribution des quarts.",
+        desc: "Indiquez quels employés travaillent bien ensemble (ou ne devraient pas être appariés). L'algorithme de planification utilise ces affinités comme préférences souples lors de l'attribution des quarts.",
       },
       "shift-templates": {
         title: "Modèles de quart",
-        desc: "Définissez le motif hebdomadaire récurrent de chaque lieu : quels rôles, combien de chacun, quels jours, à quelles heures. Le plan que l'IA remplit.",
+        desc: "Définissez le motif hebdomadaire récurrent de chaque lieu : quels rôles, combien de chacun, quels jours, à quelles heures. Le plan que remplit l'algorithme de planification.",
       },
       "check-in-qr": {
         title: "Code de pointage",

@@ -1012,7 +1012,8 @@ const en = {
     inputFreqCapsTitle: "Frequency Caps",
     inputFreqCapsDesc: "How many times a week an employee works inside a given hour range.",
     inputsTemplatesNote: "Shift templates and specific-date overrides define what needs filling. Every draft is re-validated after generation, and any shift that went against a soft preference is flagged for review.",
-    inputsNotYet: "Labor-law rule built in: minimum rest. Scheduling signals considered: seniority (hire date or manual rank), pay rates, overtime thresholds.",
+    inputsNotYetRule: "Labor-law rule built in: minimum rest.",
+    inputsNotYetSignals: "Scheduling signals considered: seniority (hire date or manual rank), pay rates, overtime thresholds.",
     // Compliance
     compDataExportTitle: "Data Export",
     compDataExportDesc: "Download all your data as JSON anytime.",
@@ -1048,7 +1049,7 @@ const en = {
       },
       locations: {
         title: "Locations",
-        desc: "Manage every physical site you schedule for. Each location has its own timezone, address, region, and roster of eligible employees — and is scheduled independently by the AI.",
+        desc: "Manage every physical site you schedule for. Each location has its own timezone, address, region, and roster of eligible employees — and is scheduled independently by the scheduling algorithm.",
       },
       roles: {
         title: "Roles",
@@ -1056,7 +1057,7 @@ const en = {
       },
       "role-equivalents": {
         title: "Role Equivalents",
-        desc: `Map roles that can cover for each other. Lets the scheduler treat "Barista" and "Baker" as interchangeable when filling a shift, while respecting skill-level differences.`,
+        desc: `Map roles that can cover for each other. Lets the scheduling algorithm treat "Barista" and "Baker" as interchangeable when filling a shift, while respecting skill-level differences.`,
       },
       employees: {
         title: "Employees",
@@ -1068,7 +1069,7 @@ const en = {
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
-        desc: "Enforce per-employee weekly hour caps and minimums. Useful for student visas, part-time agreements, and overtime budgets. The AI will never schedule outside these bounds.",
+        desc: "Enforce per-employee weekly hour caps and minimums. Useful for student visas, part-time agreements, and overtime budgets. The scheduling algorithm will never schedule outside these bounds.",
       },
       "day-blackouts": {
         title: "Day Blackouts",
@@ -1096,11 +1097,11 @@ const en = {
       },
       "employee-association": {
         title: "Employee Association",
-        desc: "Mark which employees work well together (or shouldn't be paired). The AI uses these affinities and anti-affinities as soft preferences when assigning shifts.",
+        desc: "Mark which employees work well together (or shouldn't be paired). The scheduling algorithm uses these affinities and anti-affinities as soft preferences when assigning shifts.",
       },
       "shift-templates": {
         title: "Shift Templates",
-        desc: "Define each location's recurring weekly shift pattern: which roles are needed, how many of each, on which days, and at what times. The blueprint the AI fills in.",
+        desc: "Define each location's recurring weekly shift pattern: which roles are needed, how many of each, on which days, and at what times. The blueprint the scheduling algorithm fills in.",
       },
       "check-in-qr": {
         title: "Check-In Code",

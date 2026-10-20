@@ -1010,7 +1010,8 @@ const zh = {
     inputFreqCapsTitle: "频率上限",
     inputFreqCapsDesc: "员工在给定时段内每周工作的次数。",
     inputsTemplatesNote: "班次模板和特定日期的覆盖项定义了需要填补的内容。每份草案在生成后都会重新验证，任何违反软性偏好的班次都会被标记以供审查。",
-    inputsNotYet: "尚未考虑：薪资标准、加班津贴、工龄。最短休息时间是唯一内置的劳动法规则。",
+    inputsNotYetRule: "内置劳动法规则：最短休息时间。",
+    inputsNotYetSignals: "排班考虑的因素：资历（入职日期或手动排名）、薪资标准、加班阈值。",
     compDataExportTitle: "数据导出",
     compDataExportDesc: "随时将所有数据下载为 JSON。",
     compErasureTitle: "删除权",
@@ -1045,7 +1046,7 @@ const zh = {
       },
       locations: {
         title: "门店",
-        desc: "管理每一个实际经营场所。每个门店都有自己的时区、地址、所属区域和员工名册 — AI 会独立为其生成排班。",
+        desc: "管理每一个实际经营场所。每个门店都有自己的时区、地址、所属区域和员工名册 — 排班算法会独立为其生成排班。",
       },
       roles: {
         title: "角色",
@@ -1053,7 +1054,7 @@ const zh = {
       },
       "role-equivalents": {
         title: "角色互通",
-        desc: `将可以互相顶替的角色映射在一起。让排班器把 "Barista" 和 "Baker" 视为可互换,同时尊重技能等级差异。`,
+        desc: `将可以互相顶替的角色映射在一起。让排班算法把 "Barista" 和 "Baker" 视为可互换,同时尊重技能等级差异。`,
       },
       employees: {
         title: "员工",
@@ -1065,7 +1066,7 @@ const zh = {
       },
       "hour-restrictions": {
         title: "工时限制",
-        desc: "为每位员工强制每周工时上下限。适用于学生签证、兼职合同和加班预算。AI 不会安排超出这些范围的班次。",
+        desc: "为每位员工强制每周工时上下限。适用于学生签证、兼职合同和加班预算。排班算法不会安排超出这些范围的班次。",
       },
       "day-blackouts": {
         title: "不可用日",
@@ -1093,11 +1094,11 @@ const zh = {
       },
       "employee-association": {
         title: "员工关联",
-        desc: "标记哪些员工合作良好(或不应被搭配)。AI 会把这些亲和度作为软性偏好用于分配班次。",
+        desc: "标记哪些员工合作良好(或不应被搭配)。排班算法会把这些亲和度作为软性偏好用于分配班次。",
       },
       "shift-templates": {
         title: "班次模板",
-        desc: "定义每个门店的周期性周班次模式:需要哪些角色、各需多少人、哪些日子、几点几分。AI 将以此为蓝本填充。",
+        desc: "定义每个门店的周期性周班次模式:需要哪些角色、各需多少人、哪些日子、几点几分。排班算法将以此为蓝本填充。",
       },
       "check-in-qr": {
         title: "签到码",

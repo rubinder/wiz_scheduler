@@ -1010,7 +1010,8 @@ const de = {
     inputFreqCapsTitle: "Häufigkeitsgrenzen",
     inputFreqCapsDesc: "Wie oft pro Woche ein Mitarbeiter innerhalb eines bestimmten Zeitraums arbeitet.",
     inputsTemplatesNote: "Schichtvorlagen und datumsspezifische Überschreibungen legen fest, was besetzt werden muss. Jeder Entwurf wird nach der Erstellung erneut geprüft, und jede Schicht, die einer weichen Präferenz widersprach, wird zur Überprüfung markiert.",
-    inputsNotYet: "Noch nicht berücksichtigt: Lohnsätze, Überstundenzuschläge, Betriebszugehörigkeit. Die Mindestruhezeit ist die einzige integrierte arbeitsrechtliche Regel.",
+    inputsNotYetRule: "Integrierte arbeitsrechtliche Regel: Mindestruhezeit.",
+    inputsNotYetSignals: "Berücksichtigte Planungssignale: Dienstalter (Einstellungsdatum oder manueller Rang), Stundenlöhne, Überstundenschwellen.",
     compDataExportTitle: "Datenexport",
     compDataExportDesc: "Laden Sie jederzeit alle Ihre Daten als JSON herunter.",
     compErasureTitle: "Recht auf Löschung",
@@ -1045,7 +1046,7 @@ const de = {
       },
       locations: {
         title: "Standorte",
-        desc: "Verwalten Sie jeden physischen Standort, für den Sie planen. Jeder Standort hat seine eigene Zeitzone, Adresse, Region und Liste berechtigter Mitarbeiter — und wird von der KI unabhängig geplant.",
+        desc: "Verwalten Sie jeden physischen Standort, für den Sie planen. Jeder Standort hat seine eigene Zeitzone, Adresse, Region und Liste berechtigter Mitarbeiter — und wird vom Planungsalgorithmus unabhängig geplant.",
       },
       roles: {
         title: "Rollen",
@@ -1053,7 +1054,7 @@ const de = {
       },
       "role-equivalents": {
         title: "Rollen-Äquivalente",
-        desc: `Ordnen Sie Rollen einander zu, die sich gegenseitig vertreten können. Lässt den Planer "Barista" und "Baker" als austauschbar behandeln, während Unterschiede im Qualifikationsniveau berücksichtigt werden.`,
+        desc: `Ordnen Sie Rollen einander zu, die sich gegenseitig vertreten können. Lässt den Planungsalgorithmus "Barista" und "Baker" als austauschbar behandeln, während Unterschiede im Qualifikationsniveau berücksichtigt werden.`,
       },
       employees: {
         title: "Mitarbeiter",
@@ -1065,7 +1066,7 @@ const de = {
       },
       "hour-restrictions": {
         title: "Stundenbegrenzungen",
-        desc: "Setzen Sie wöchentliche Höchst- und Mindeststunden pro Mitarbeiter durch. Nützlich für Studierendenvisa, Teilzeitvereinbarungen und Überstundenbudgets. Die KI plant nie außerhalb dieser Grenzen.",
+        desc: "Setzen Sie wöchentliche Höchst- und Mindeststunden pro Mitarbeiter durch. Nützlich für Studierendenvisa, Teilzeitvereinbarungen und Überstundenbudgets. Der Planungsalgorithmus plant nie außerhalb dieser Grenzen.",
       },
       "day-blackouts": {
         title: "Sperrtage",
@@ -1093,11 +1094,11 @@ const de = {
       },
       "employee-association": {
         title: "Mitarbeiter-Zuordnung",
-        desc: "Markieren Sie, welche Mitarbeiter gut zusammenarbeiten (oder nicht gepaart werden sollten). Die KI nutzt diese Präferenzen als weiche Hinweise bei der Schichtzuweisung.",
+        desc: "Markieren Sie, welche Mitarbeiter gut zusammenarbeiten (oder nicht gepaart werden sollten). Der Planungsalgorithmus nutzt diese Präferenzen als weiche Hinweise bei der Schichtzuweisung.",
       },
       "shift-templates": {
         title: "Schichtvorlagen",
-        desc: "Definieren Sie das wiederkehrende Wochenschichtmuster jedes Standorts: welche Rollen, wie viele jeweils, an welchen Tagen und zu welchen Zeiten. Die Vorlage, die die KI ausfüllt.",
+        desc: "Definieren Sie das wiederkehrende Wochenschichtmuster jedes Standorts: welche Rollen, wie viele jeweils, an welchen Tagen und zu welchen Zeiten. Die Vorlage, die der Planungsalgorithmus ausfüllt.",
       },
       "check-in-qr": {
         title: "Check-in-Code",

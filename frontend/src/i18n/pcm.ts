@@ -1010,7 +1010,8 @@ const pcm = {
     inputFreqCapsTitle: "How-Many-Time Limit",
     inputFreqCapsDesc: "How many times per week employee dey work inside one given hour range.",
     inputsTemplatesNote: "Shift templates and specific-date overrides dey define wetin need fill. Dem go re-validate every draft after generation, and any shift wey go against soft preference, dem go flag am for review.",
-    inputsNotYet: "No dey consider yet: pay rates, overtime premiums, seniority. Minimum rest na di only labor-law rule wey dey built in.",
+    inputsNotYetRule: "Labor-law rule wey dey built in: minimum rest.",
+    inputsNotYetSignals: "Scheduling signals wey e dey consider: seniority (hire date or manual rank), pay rates, overtime limits.",
     compDataExportTitle: "Data Export",
     compDataExportDesc: "Download all your data as JSON any time wey you like.",
     compErasureTitle: "Right to Erasure",
@@ -1045,7 +1046,7 @@ const pcm = {
       },
       locations: {
         title: "Locations",
-        desc: "Manage every physical site wey you dey schedule for. Each location get im own timezone, address, region, and list of eligible employees — and AI go schedule am separately.",
+        desc: "Manage every physical site wey you dey schedule for. Each location get im own timezone, address, region, and list of eligible employees — and the scheduling algorithm go schedule am separately.",
       },
       roles: {
         title: "Roles",
@@ -1053,7 +1054,7 @@ const pcm = {
       },
       "role-equivalents": {
         title: "Role Equivalents",
-        desc: `Match roles wey fit cover for each other. E go make scheduler treat "Barista" and "Baker" as if dem fit swap when filling shift, while still respecting skill-level difference.`,
+        desc: `Match roles wey fit cover for each other. E go make the scheduling algorithm treat "Barista" and "Baker" as if dem fit swap when filling shift, while still respecting skill-level difference.`,
       },
       employees: {
         title: "Employees",
@@ -1065,7 +1066,7 @@ const pcm = {
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
-        desc: "Set per-employee weekly maximum and minimum hours. E good for student visa, part-time arrangement, and overtime budget. AI no go ever schedule pass these limits.",
+        desc: "Set per-employee weekly maximum and minimum hours. E good for student visa, part-time arrangement, and overtime budget. The scheduling algorithm no go ever schedule pass these limits.",
       },
       "day-blackouts": {
         title: "Day Blackouts",
@@ -1093,11 +1094,11 @@ const pcm = {
       },
       "employee-association": {
         title: "Employee Association",
-        desc: "Mark which employees dey work well together (or wey dem no suppose pair). AI go use these preferences as soft hint when e dey assign shifts.",
+        desc: "Mark which employees dey work well together (or wey dem no suppose pair). The scheduling algorithm go use these preferences as soft hint when e dey assign shifts.",
       },
       "shift-templates": {
         title: "Shift Templates",
-        desc: "Define each location weekly shift pattern wey dey repeat: which roles dey needed, how many of each, on which days, and at what time. Na the blueprint AI go fill.",
+        desc: "Define each location weekly shift pattern wey dey repeat: which roles dey needed, how many of each, on which days, and at what time. Na the blueprint wey the scheduling algorithm go fill.",
       },
       "check-in-qr": {
         title: "Check-In Code",

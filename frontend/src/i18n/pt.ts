@@ -1010,7 +1010,8 @@ const pt = {
     inputFreqCapsTitle: "Limites de Frequência",
     inputFreqCapsDesc: "Quantas vezes por semana um funcionário trabalha dentro de um intervalo de horário específico.",
     inputsTemplatesNote: "Modelos de turno e substituições de data específica definem o que precisa ser preenchido. Cada rascunho é revalidado após a geração, e qualquer turno que tenha ido contra uma preferência flexível é sinalizado para revisão.",
-    inputsNotYet: "Ainda não considerado: taxas de pagamento, adicionais de hora extra, antiguidade. O descanso mínimo é a única regra trabalhista incorporada.",
+    inputsNotYetRule: "Regra trabalhista incorporada: descanso mínimo.",
+    inputsNotYetSignals: "Sinais de escala considerados: antiguidade (data de contratação ou classificação manual), taxas de pagamento, limites de horas extras.",
     compDataExportTitle: "Exportação de dados",
     compDataExportDesc: "Baixe todos os seus dados como JSON a qualquer momento.",
     compErasureTitle: "Direito ao apagamento",
@@ -1045,7 +1046,7 @@ const pt = {
       },
       locations: {
         title: "Unidades",
-        desc: "Gerencie cada local físico para o qual você escala. Cada unidade tem seu próprio fuso horário, endereço, região e lista de funcionários elegíveis — e é escalada de forma independente pela IA.",
+        desc: "Gerencie cada local físico para o qual você escala. Cada unidade tem seu próprio fuso horário, endereço, região e lista de funcionários elegíveis — e é escalada de forma independente pelo algoritmo de escala.",
       },
       roles: {
         title: "Funções",
@@ -1053,7 +1054,7 @@ const pt = {
       },
       "role-equivalents": {
         title: "Equivalências de função",
-        desc: `Mapeie funções que podem se substituir. Permite que o escalador trate "Barista" e "Baker" como intercambiáveis ao cobrir um turno, respeitando diferenças de nível de habilidade.`,
+        desc: `Mapeie funções que podem se substituir. Permite que o algoritmo de escala trate "Barista" e "Baker" como intercambiáveis ao cobrir um turno, respeitando diferenças de nível de habilidade.`,
       },
       employees: {
         title: "Funcionários",
@@ -1065,7 +1066,7 @@ const pt = {
       },
       "hour-restrictions": {
         title: "Restrições de horas",
-        desc: "Imponha limites semanais máximos e mínimos por funcionário. Útil para vistos de estudante, contratos de meio período e orçamentos de horas extras. A IA nunca escala fora desses limites.",
+        desc: "Imponha limites semanais máximos e mínimos por funcionário. Útil para vistos de estudante, contratos de meio período e orçamentos de horas extras. O algoritmo de escala nunca sai desses limites.",
       },
       "day-blackouts": {
         title: "Dias bloqueados",
@@ -1093,11 +1094,11 @@ const pt = {
       },
       "employee-association": {
         title: "Associação de funcionários",
-        desc: "Marque quais funcionários trabalham bem juntos (ou não devem ser pareados). A IA usa essas afinidades como preferências flexíveis ao atribuir turnos.",
+        desc: "Marque quais funcionários trabalham bem juntos (ou não devem ser pareados). O algoritmo de escala usa essas afinidades como preferências flexíveis ao atribuir turnos.",
       },
       "shift-templates": {
         title: "Modelos de turno",
-        desc: "Defina o padrão semanal recorrente de cada unidade: quais funções, quantas de cada, em quais dias e horários. O plano que a IA preenche.",
+        desc: "Defina o padrão semanal recorrente de cada unidade: quais funções, quantas de cada, em quais dias e horários. O plano que o algoritmo de escala preenche.",
       },
       "check-in-qr": {
         title: "Código de check-in",

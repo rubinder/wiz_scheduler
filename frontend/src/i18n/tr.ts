@@ -1010,7 +1010,8 @@ const trLang = {
     inputFreqCapsTitle: "Sıklık Sınırları",
     inputFreqCapsDesc: "Bir çalışanın belirli bir saat aralığında haftada kaç kez çalıştığı.",
     inputsTemplatesNote: "Vardiya şablonları ve belirli tarihe özgü geçersiz kılmalar, neyin doldurulması gerektiğini tanımlar. Her taslak, oluşturulduktan sonra yeniden doğrulanır ve yumuşak bir tercihe aykırı olan herhangi bir vardiya incelenmek üzere işaretlenir.",
-    inputsNotYet: "Henüz dikkate alınmayanlar: ücret oranları, fazla mesai primleri, kıdem. Minimum dinlenme, yerleşik tek iş hukuku kuralıdır.",
+    inputsNotYetRule: "Yerleşik iş hukuku kuralı: minimum dinlenme.",
+    inputsNotYetSignals: "Dikkate alınan planlama sinyalleri: kıdem (işe alım tarihi veya manuel sıra), ücret oranları, fazla mesai eşikleri.",
     compDataExportTitle: "Veri Dışa Aktarımı",
     compDataExportDesc: "Tüm verilerinizi istediğiniz zaman JSON olarak indirin.",
     compErasureTitle: "Silme Hakkı",
@@ -1045,7 +1046,7 @@ const trLang = {
       },
       locations: {
         title: "Şubeler",
-        desc: "Çizelge oluşturduğunuz her fiziksel şubeyi yönetin. Her şubenin kendi saat dilimi, adresi, bölgesi ve uygun çalışan listesi vardır — ve AI tarafından bağımsız olarak çizelgelenir.",
+        desc: "Çizelge oluşturduğunuz her fiziksel şubeyi yönetin. Her şubenin kendi saat dilimi, adresi, bölgesi ve uygun çalışan listesi vardır — ve planlama algoritması tarafından bağımsız olarak çizelgelenir.",
       },
       roles: {
         title: "Roller",
@@ -1053,7 +1054,7 @@ const trLang = {
       },
       "role-equivalents": {
         title: "Rol eşdeğerleri",
-        desc: `Birbirinin yerine geçebilen rolleri eşleştirin. Çizelgeleyicinin bir vardiyayı doldururken "Barista" ve "Baker" rollerini birbirinin yerine kullanmasına olanak tanır; beceri seviyesi farkları korunur.`,
+        desc: `Birbirinin yerine geçebilen rolleri eşleştirin. Planlama algoritmasının bir vardiyayı doldururken "Barista" ve "Baker" rollerini birbirinin yerine kullanmasına olanak tanır; beceri seviyesi farkları korunur.`,
       },
       employees: {
         title: "Çalışanlar",
@@ -1065,7 +1066,7 @@ const trLang = {
       },
       "hour-restrictions": {
         title: "Saat kısıtlamaları",
-        desc: "Çalışan başına haftalık üst ve alt saat sınırlarını uygulayın. Öğrenci vizesi, yarı zamanlı sözleşme ve fazla mesai bütçeleri için kullanışlıdır. AI bu sınırların dışına asla çizelge yapmaz.",
+        desc: "Çalışan başına haftalık üst ve alt saat sınırlarını uygulayın. Öğrenci vizesi, yarı zamanlı sözleşme ve fazla mesai bütçeleri için kullanışlıdır. Planlama algoritması bu sınırların dışına asla çıkmaz.",
       },
       "day-blackouts": {
         title: "Kapalı günler",
@@ -1093,11 +1094,11 @@ const trLang = {
       },
       "employee-association": {
         title: "Çalışan ilişkileri",
-        desc: "Hangi çalışanların birlikte iyi çalıştığını (ya da eşleştirilmemesi gerektiğini) işaretleyin. AI vardiyaları atarken bunu yumuşak tercihler olarak kullanır.",
+        desc: "Hangi çalışanların birlikte iyi çalıştığını (ya da eşleştirilmemesi gerektiğini) işaretleyin. Planlama algoritması vardiyaları atarken bunu yumuşak tercihler olarak kullanır.",
       },
       "shift-templates": {
         title: "Vardiya şablonları",
-        desc: "Her şube için tekrarlayan haftalık vardiya kalıbını tanımlayın: hangi roller, her birinden kaç kişi, hangi günlerde ve saatlerde. AI'nın dolduracağı taslaktır.",
+        desc: "Her şube için tekrarlayan haftalık vardiya kalıbını tanımlayın: hangi roller, her birinden kaç kişi, hangi günlerde ve saatlerde. Planlama algoritmasının dolduracağı taslaktır.",
       },
       "check-in-qr": {
         title: "Giriş kodu",

@@ -1010,7 +1010,8 @@ const vi = {
     inputFreqCapsTitle: "Giới Hạn Tần Suất",
     inputFreqCapsDesc: "Một nhân viên làm việc bao nhiêu lần một tuần trong một khung giờ nhất định.",
     inputsTemplatesNote: "Mẫu ca làm và các ghi đè theo ngày cụ thể xác định những gì cần được lấp đầy. Mỗi bản nháp được xác thực lại sau khi tạo, và bất kỳ ca làm nào đi ngược lại một ưu tiên mềm sẽ được đánh dấu để xem xét.",
-    inputsNotYet: "Chưa được xem xét: mức lương, phụ cấp làm thêm giờ, thâm niên. Nghỉ ngơi tối thiểu là quy tắc luật lao động duy nhất được tích hợp sẵn.",
+    inputsNotYetRule: "Quy tắc luật lao động tích hợp sẵn: nghỉ ngơi tối thiểu.",
+    inputsNotYetSignals: "Các tín hiệu xếp lịch được xem xét: thâm niên (ngày tuyển dụng hoặc thứ hạng thủ công), mức lương, ngưỡng làm thêm giờ.",
     compDataExportTitle: "Xuất dữ liệu",
     compDataExportDesc: "Tải xuống tất cả dữ liệu của bạn dưới dạng JSON bất cứ lúc nào.",
     compErasureTitle: "Quyền xóa",
@@ -1045,7 +1046,7 @@ const vi = {
       },
       locations: {
         title: "Chi nhánh",
-        desc: "Quản lý từng địa điểm vật lý mà bạn lên lịch. Mỗi chi nhánh có múi giờ, địa chỉ, khu vực và danh sách nhân viên đủ điều kiện riêng — AI lên lịch độc lập cho từng nơi.",
+        desc: "Quản lý từng địa điểm vật lý mà bạn lên lịch. Mỗi chi nhánh có múi giờ, địa chỉ, khu vực và danh sách nhân viên đủ điều kiện riêng — thuật toán lập lịch xếp lịch độc lập cho từng nơi.",
       },
       roles: {
         title: "Vai trò",
@@ -1053,7 +1054,7 @@ const vi = {
       },
       "role-equivalents": {
         title: "Vai trò tương đương",
-        desc: `Ánh xạ các vai trò có thể thay thế lẫn nhau. Cho phép trình lên lịch coi "Barista" và "Baker" là có thể hoán đổi khi điền vào một ca, đồng thời tôn trọng sự khác biệt về mức kỹ năng.`,
+        desc: `Ánh xạ các vai trò có thể thay thế lẫn nhau. Cho phép thuật toán lập lịch coi "Barista" và "Baker" là có thể hoán đổi khi điền vào một ca, đồng thời tôn trọng sự khác biệt về mức kỹ năng.`,
       },
       employees: {
         title: "Nhân viên",
@@ -1065,7 +1066,7 @@ const vi = {
       },
       "hour-restrictions": {
         title: "Giới hạn giờ làm",
-        desc: "Áp dụng giới hạn trên và dưới giờ làm hàng tuần cho từng nhân viên. Hữu ích cho visa sinh viên, hợp đồng bán thời gian và ngân sách làm thêm giờ. AI sẽ không lên lịch ngoài giới hạn này.",
+        desc: "Áp dụng giới hạn trên và dưới giờ làm hàng tuần cho từng nhân viên. Hữu ích cho visa sinh viên, hợp đồng bán thời gian và ngân sách làm thêm giờ. Thuật toán lập lịch sẽ không xếp ca ngoài giới hạn này.",
       },
       "day-blackouts": {
         title: "Ngày chặn",
@@ -1093,11 +1094,11 @@ const vi = {
       },
       "employee-association": {
         title: "Mối quan hệ nhân viên",
-        desc: "Đánh dấu những ai làm việc ăn ý cùng nhau (hoặc không nên ghép cặp). AI dùng các mối quan hệ này làm tùy chọn mềm khi phân ca.",
+        desc: "Đánh dấu những ai làm việc ăn ý cùng nhau (hoặc không nên ghép cặp). Thuật toán lập lịch dùng các mối quan hệ này làm tùy chọn mềm khi phân ca.",
       },
       "shift-templates": {
         title: "Mẫu ca làm việc",
-        desc: "Định nghĩa mẫu ca lặp lại hàng tuần cho từng chi nhánh: cần vai trò nào, mỗi vai trò bao nhiêu người, vào ngày và giờ nào. Bản thiết kế mà AI sẽ điền vào.",
+        desc: "Định nghĩa mẫu ca lặp lại hàng tuần cho từng chi nhánh: cần vai trò nào, mỗi vai trò bao nhiêu người, vào ngày và giờ nào. Bản thiết kế mà thuật toán lập lịch sẽ điền vào.",
       },
       "check-in-qr": {
         title: "Mã điểm danh",
