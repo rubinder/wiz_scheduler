@@ -70,6 +70,9 @@ const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {
     "landing.inputRolesTitle",
     "features.tocTitle",
     // Screen names, kept as the app's Pidgin UI labels its screens
+    // (the two input* titles: inputsDesc promises the app's own page names)
+    "landing.inputHourRestrictionsTitle",
+    "landing.inputAssociationTitle",
     "features.pages.role-equivalents.title",
     "features.pages.hour-restrictions.title",
     "features.pages.day-blackouts.title",
@@ -94,6 +97,8 @@ describe("ported marketing copy is translated", () => {
   for (const { code } of LANGUAGES.filter((l) => l.code !== "en")) {
     it(`${code} has no landing/features string left in English`, () => {
       const t = ported(MODULES[`./${code}.ts`]);
+      const missing = Object.keys(EN).filter((k) => !(k in t));
+      expect(missing).toEqual([]);
       const kept = KEPT_IN_ENGLISH[code] ?? new Set<string>();
       const untranslated = Object.keys(EN).filter(
         (k) => EN[k].length > 12 && t[k] === EN[k] && !ALWAYS_KEPT.has(k) && !kept.has(k),
