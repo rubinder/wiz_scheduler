@@ -377,6 +377,8 @@ async def _committed_shifts_by_employee(
             Location.company_id == company_id,
             Shift.start_time >= week_start - timedelta(days=1),
             Shift.start_time < week_end + timedelta(days=1),
+            # An open shift (#174) holds no one's time.
+            Shift.employee_id.isnot(None),
         )
     )).all()
 
@@ -923,6 +925,8 @@ async def _load_role_history_minutes(
             Shift.company_id == company_id,
             Shift.date >= three_months_ago,
             ShiftSchedule.status == "approved",
+            # An open shift (#174) was worked by no one.
+            Shift.employee_id.isnot(None),
         )
     )).all()
 

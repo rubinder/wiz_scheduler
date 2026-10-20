@@ -23,6 +23,7 @@ from backend.schemas.schedule import (
     UpdateShiftsRequest,
     UpdateShiftsResponse,
 )
+from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
@@ -343,7 +344,11 @@ async def update_shifts(
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
 
-    shifts = [s.model_dump() for s in body.shifts]
+    # A cleared or null employee is an open shift (#174); store one shape.
+    shifts = [
+        to_open_entry(d) if is_open_entry(d) else d
+        for d in (s.model_dump() for s in body.shifts)
+    ]
     # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
     # or off a preference, and the evaluator lives here, not in the client.
     prefs = await load_employee_preferences(db, str(current_user.company_id))
@@ -450,6 +455,16 @@ async def edit_approved_shifts(
         applied = 0
         touched: set[str] = set()
         for idx, edit in enumerate(body.edits):
+            if edit.open and edit.employee_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "invalid_edit",
+                        "index": idx,
+                        "shift_id": edit.shift_id,
+                        "reason": "open and employee_id are mutually exclusive",
+                    },
+                )
             if edit.employee_id is not None:
                 # Every employee referenced must belong to the caller's
                 # company — otherwise a manager could schedule another
@@ -495,19 +510,23 @@ async def edit_approved_shifts(
                             "reason": "shift not found",
                         },
                     )
-                touched.add(str(shift.employee_id))
-                if edit.deleted:
+                if shift.employee_id is not None:
+                    touched.add(str(shift.employee_id))
+                if edit.deleted or edit.open:
                     # A payroll time entry points at this shift (#78). Pay
                     # records are not schedule scratch: deleting the shift
                     # would either 500 on the FK or, with a cascade, quietly
-                    # erase hours somebody is owed. Refuse and say why.
+                    # erase hours somebody is owed; unassigning it (#174)
+                    # would leave a pay record on a shift that says no one
+                    # worked it. Refuse and say why.
                     from backend.models.time_entry import TimeEntry
                     has_entry = (await db.execute(
                         select(TimeEntry.id).where(
                             TimeEntry.shift_id == shift.id
-                        )
+                        ).limit(1)
                     )).scalar_one_or_none()
                     if has_entry is not None:
+                        action = "deleting" if edit.deleted else "unassigning"
                         raise HTTPException(
                             status_code=status.HTTP_409_CONFLICT,
                             detail={
@@ -517,10 +536,11 @@ async def edit_approved_shifts(
                                 "message": (
                                     "Payroll hours have already been "
                                     "recorded for this shift. Remove the "
-                                    "time entry before deleting the shift."
+                                    f"time entry before {action} the shift."
                                 ),
                             },
                         )
+                if edit.deleted:
                     await db.delete(shift)
                     applied += 1
                     continue
@@ -528,6 +548,12 @@ async def edit_approved_shifts(
                 if edit.employee_id is not None:
                     shift.employee_id = edit.employee_id
                     touched.add(str(edit.employee_id))
+                    changed = True
+                if edit.open:
+                    # Unassign (#174): the slot stays, the person goes, and so
+                    # do their preference asterisks.
+                    shift.employee_id = None
+                    shift.preference_violations = []
                     changed = True
                 if edit.role_id is not None:
                     # Same company check as the employee check above — a
@@ -568,7 +594,7 @@ async def edit_approved_shifts(
                 # commit -- an unhandled 500, where every sibling failure on
                 # this endpoint returns a 400 invalid_edit instead.
                 if (
-                    edit.employee_id is None
+                    (edit.employee_id is None and not edit.open)
                     or edit.date is None
                     or edit.start_time is None
                     or edit.end_time is None
@@ -579,7 +605,7 @@ async def edit_approved_shifts(
                             "code": "invalid_edit",
                             "index": idx,
                             "shift_id": None,
-                            "reason": "employee_id, date, start_time and end_time are required to create a shift",
+                            "reason": "employee_id (or open), date, start_time and end_time are required to create a shift",
                         },
                     )
                 role_name = (await db.execute(
@@ -598,18 +624,25 @@ async def edit_approved_shifts(
                             "reason": "role not found",
                         },
                     )
+                loc_tz = (await db.execute(
+                    select(Location.timezone).where(Location.id == schedule.location_id)
+                )).scalar_one_or_none()
+                zone = ZoneInfo(loc_tz) if loc_tz else None
                 db.add(Shift(
                     company_id=current_user.company_id,
                     shift_schedule_id=schedule.id,
                     location_id=schedule.location_id,
-                    employee_id=edit.employee_id,
+                    employee_id=None if edit.open else edit.employee_id,
                     role_id=edit.role_id,
                     role_name=role_name,
                     date=edit.date,
-                    start_time=edit.start_time,
-                    end_time=edit.end_time,
+                    # A time without an offset is the location's wall clock,
+                    # exactly as for an edit to an existing shift.
+                    start_time=_at_location(edit.start_time, zone),
+                    end_time=_at_location(edit.end_time, zone),
                 ))
-                touched.add(str(edit.employee_id))
+                if not edit.open:
+                    touched.add(str(edit.employee_id))
                 applied += 1
 
         try:
@@ -739,14 +772,17 @@ async def approve_schedule(
 
                 shifts_data = json.loads(schedule.raw_llm_output)
                 for s in shifts_data:
-                    # Skip VACANT placeholders and non-ok shifts
-                    if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                    # Open entries (and legacy VACANT ones) become open shifts
+                    # (#174); anything else that is not "ok" -- a CONFLICT --
+                    # is still never materialised.
+                    open_entry = is_open_entry(s)
+                    if not open_entry and s.get("status") != "ok":
                         continue
                     # Skip shifts with missing required IDs
                     try:
                         loc_id = s["location_id"]
-                        emp_id = s["employee_id"]
                         role_id = s["role_id"]
+                        emp_id = None if open_entry else s["employee_id"]
                     except KeyError:
                         continue
                     if not role_id:
@@ -760,6 +796,27 @@ async def approve_schedule(
                             role_id, s.get("role_name", ""),
                         )
                         continue
+                    zone = location_zones.get(str(loc_id))
+                    try:
+                        shift_date = (
+                            date.fromisoformat(s["date"])
+                            if isinstance(s["date"], str) else s["date"]
+                        )
+                        start_at = _at_location(s["start_time"], zone)
+                        end_at = _at_location(s["end_time"], zone)
+                    except (KeyError, ValueError, TypeError) as exc:
+                        if not open_entry:
+                            # A filled entry still fails the approval: it
+                            # holds someone's time and must not vanish.
+                            raise
+                        # An open entry is hand-added in the draft UI;
+                        # one that cannot be read is dropped, not allowed
+                        # to fail every other shift's approval.
+                        logger.warning(
+                            "Skipping unparseable open entry on schedule %s: %s",
+                            schedule.id, exc,
+                        )
+                        continue
                     shift = Shift(
                         company_id=current_user.company_id,
                         shift_schedule_id=schedule.id,
@@ -767,10 +824,13 @@ async def approve_schedule(
                         employee_id=emp_id,
                         role_id=role_id,
                         role_name=s.get("role_name", ""),
-                        date=date.fromisoformat(s["date"]) if isinstance(s["date"], str) else s["date"],
-                        start_time=_at_location(s["start_time"], location_zones.get(str(loc_id))),
-                        end_time=_at_location(s["end_time"], location_zones.get(str(loc_id))),
-                        preference_violations=list(s.get("preference_violations") or []),
+                        date=shift_date,
+                        start_time=start_at,
+                        end_time=end_at,
+                        preference_violations=(
+                            [] if open_entry
+                            else list(s.get("preference_violations") or [])
+                        ),
                     )
                     db.add(shift)
             except (json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -796,7 +856,8 @@ async def approve_schedule(
             from backend.models.employee_role_minutes import EmployeeRoleMinutes
 
             for s in shifts_data:
-                if s.get("status") != "ok" or s.get("employee_id") == "VACANT":
+                # An open shift is worked by no one: it books no minutes.
+                if s.get("status") != "ok" or is_open_entry(s):
                     continue
                 try:
                     emp_id = s["employee_id"]
@@ -1015,7 +1076,11 @@ def _shift_to_response(
     from backend.scheduling.graph import _shift_local_face
 
     resp = ShiftResponse.model_validate(shift)
-    if emp_names:
+    if shift.employee_id is None:
+        # An open shift (#174): the client renders the label, the API never
+        # sends a display string for "no one".
+        resp.employee_name = None
+    elif emp_names:
         resp.employee_name = emp_names.get(shift.employee_id, "")
     if location is not None:
         face = _shift_local_face(shift, location, keep_tzinfo=True)

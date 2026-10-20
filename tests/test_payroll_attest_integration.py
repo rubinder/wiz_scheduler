@@ -115,6 +115,26 @@ async def test_a_shift_that_has_not_started_cannot_be_pre_attested(
     assert resp.json()["detail"]["code"] == "shift_not_started"
 
 
+async def test_an_open_shift_cannot_be_attested(
+    client: AsyncClient, db_session: AsyncSession, paid
+):
+    """An open shift (#174) has no one to pay; say so rather than the
+    misleading entry_exists the NOT NULL employee_id would otherwise surface."""
+    shift_id = await _worked_shift(db_session, paid, checked_in=False)
+    shift = await db_session.get(Shift, shift_id)
+    shift.employee_id = None
+    await db_session.commit()
+
+    resp = await client.post("/api/v1/payroll/attest",
+                             json={"shift_id": shift_id},
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "shift_is_open"
+    assert resp.json()["detail"]["message"] == "This shift has no one assigned."
+    assert (await db_session.execute(select(TimeEntry))).first() is None
+
+
 async def test_a_shift_that_already_has_an_entry_is_refused(
     client: AsyncClient, db_session: AsyncSession, paid
 ):

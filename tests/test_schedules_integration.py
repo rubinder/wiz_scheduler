@@ -205,7 +205,7 @@ async def test_approve_already_approved(
     assert resp.status_code == 400
 
 
-async def test_approve_skips_vacant_shifts(
+async def test_approve_keeps_a_vacant_placeholder_as_an_open_shift(
     client: AsyncClient,
     manager_token: str,
     db_session: AsyncSession,
@@ -213,7 +213,7 @@ async def test_approve_skips_vacant_shifts(
     seed_location,
     seed_roles,
 ):
-    """VACANT placeholder shifts should not create Shift records."""
+    """A VACANT placeholder becomes an open shift (#174), not nothing."""
     shifts = [
         {
             "employee_id": "VACANT",
@@ -233,7 +233,7 @@ async def test_approve_skips_vacant_shifts(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert resp.status_code == 200
-    assert resp.json()["shifts"] == []
+    assert [s["employee_id"] for s in resp.json()["shifts"]] == [None]
 
 
 async def test_approve_does_not_consume_availability_for_a_trimmed_shift(
@@ -285,8 +285,9 @@ async def test_approve_does_not_consume_availability_for_a_trimmed_shift(
         headers={"Authorization": f"Bearer {manager_token}"},
     )
     assert resp.status_code == 200
-    # No Shift record for the trimmed assignment.
-    assert resp.json()["shifts"] == []
+    # The trimmed assignment becomes an open shift (#174) naming no one, so
+    # it can never be a hold on EMPLOYEE1's time.
+    assert [s["employee_id"] for s in resp.json()["shifts"]] == [None]
 
     # The original 09:00-17:00 window must survive untouched -- not deleted,
     # not split into remnants -- because the shift was never worked.

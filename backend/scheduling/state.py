@@ -10,15 +10,15 @@ class FailureEntry(TypedDict):
 
 
 class _ShiftAssignmentRequired(TypedDict):
-    employee_id: str
-    employee_name: str
+    employee_id: str | None
+    employee_name: str | None
     role_id: str
     role_name: str
     location_id: str
     date: str          # "YYYY-MM-DD"
     start_time: str    # ISO 8601 with tz offset
     end_time: str      # ISO 8601 with tz offset
-    status: str        # "ok" | "CONFLICT" | "VACANT"
+    status: str        # "ok" | "CONFLICT" | "VACANT" (inside the graph) | "OPEN" (after emit_result)
 
 
 class ShiftAssignment(_ShiftAssignmentRequired, total=False):
@@ -45,6 +45,8 @@ class LocationResult(TypedDict, total=False):
     preference_summary: Dict[str, Any] | None
     # Signal weights used for this location's scheduling (0.0-1.0 scale)
     signal_config: Dict[str, float]
+    # Open shifts in this location's result (#174), counted by emit_result.
+    open_count: int
 
 
 class SchedulingState(TypedDict):

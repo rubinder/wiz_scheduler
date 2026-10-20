@@ -23,8 +23,8 @@ export interface WeekShift {
   id: string;
   shift_schedule_id: string;
   location_id: string;
-  employee_id: string;
-  employee_name: string;
+  employee_id: string | null;
+  employee_name: string | null;
   role_id: string;
   role_name: string;
   date: string;
@@ -44,9 +44,11 @@ export function getApprovedWeek(weekStartDate: string): Promise<WeekSchedule[]> 
 /** Adapt materialised shifts to what ScheduleGrid renders.
  *
  *  The grid is shared with the post-generation review, which works in
- *  ShiftAssignment. Approved shifts are always "ok" — a CONFLICT or VACANT
- *  shift never becomes a Shift row at approval time. Approved shifts carry
- *  their persisted preference_violations (#99). */
+ *  ShiftAssignment. Status is always "ok": a CONFLICT entry never becomes a
+ *  Shift row at approval time, while an open (or legacy VACANT) entry becomes
+ *  an open Shift row with employee_id null (#174) — isOpenShift reads that
+ *  null as open regardless of status. Approved shifts carry their persisted
+ *  preference_violations (#99). */
 export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
   return shifts.map((s) => ({
     employee_id: s.employee_id,
@@ -68,7 +70,7 @@ export function toAssignments(shifts: WeekShift[]): ShiftAssignment[] {
 export interface EditWarning {
   code: "no_availability" | "already_booked" | "already_exported";
   shift_id: string | null;
-  employee_id: string;
+  employee_id: string | null;
   detail: string;
 }
 
@@ -78,6 +80,9 @@ export interface EditWarning {
 export interface ApprovedShiftEdit {
   shift_id?: string | null;
   deleted?: boolean;
+  /** true unassigns `shift_id`, or with no `shift_id` creates an open shift
+   *  (#174). Never sent together with `employee_id`. */
+  open?: boolean;
   employee_id?: string;
   role_id?: string;
   date?: string;

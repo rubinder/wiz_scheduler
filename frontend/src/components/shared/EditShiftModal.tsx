@@ -7,7 +7,8 @@ import {
 } from "../../api/approvedSchedules";
 import { ApiError } from "../../api/client";
 import { ScheduleLockedError } from "../../hooks/useScheduleStream";
-import EmployeeSearchBox from "./EmployeeSearchBox";
+import CandidatePicker from "./CandidatePicker";
+import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { getDayLabel } from "./ScheduleGrid";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -35,7 +36,7 @@ export default function EditShiftModal({
 }: Props) {
   const { t } = useLanguage();
 
-  const [employeeId, setEmployeeId] = useState(shift.employee_id);
+  const [employeeId, setEmployeeId] = useState<string | null>(shift.employee_id);
   const [roleId, setRoleId] = useState(shift.role_id);
   const [startTime, setStartTime] = useState(extractTime(shift.start_time));
   const [endTime, setEndTime] = useState(extractTime(shift.end_time));
@@ -74,6 +75,7 @@ export default function EditShiftModal({
     try {
       const result = await editApprovedShifts(scheduleId, [edit]);
       onApplied();
+      notifyOpenShiftsChanged();
       if (result.warnings.length > 0) {
         setWarnings(result.warnings);
         setDeleted(isDelete);
@@ -95,7 +97,7 @@ export default function EditShiftModal({
       await submit(
         {
           shift_id: shift.id,
-          employee_id: employeeId,
+          ...(employeeId === null ? { open: true } : { employee_id: employeeId }),
           role_id: roleId,
           start_time: `${shift.date}T${startTime}:00${extractOffset(shift.start_time)}`,
           end_time: `${shift.date}T${endTime}:00${extractOffset(shift.end_time)}`,
@@ -183,11 +185,18 @@ export default function EditShiftModal({
                 <label className={`block text-sm font-medium ${text.body} mb-1`}>
                   {t.common.employee}
                 </label>
-                <EmployeeSearchBox
+                <CandidatePicker
                   employees={employees}
+                  slot={{
+                    location_id: shift.location_id,
+                    role_id: roleId,
+                    date: shift.date,
+                    start_time: startTime,
+                    end_time: endTime,
+                    exclude_shift_id: shift.id,
+                  }}
                   value={employeeId}
                   onChange={setEmployeeId}
-                  placeholder={t.schedule.searchEmployee}
                 />
               </div>
 
@@ -270,7 +279,7 @@ export default function EditShiftModal({
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={submitting || deleting || !employeeId || !roleId}
+                  disabled={submitting || deleting || employeeId === "" || !roleId}
                   className="glass-btn-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? t.common.saving : t.common.save}
