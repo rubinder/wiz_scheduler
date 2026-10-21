@@ -195,7 +195,7 @@ export default function DataTable({
                     )}
                   </td>
                 ))}
-                <td className="px-4 py-2 text-end space-x-2">
+                <td className="px-4 py-2 text-end space-x-2 rtl:space-x-reverse">
                   {isEditing ? (
                     <>
                       <DemoGuard>
@@ -265,7 +265,7 @@ export default function DataTable({
                   )}
                 </td>
               ))}
-              <td className="px-4 py-2 text-end space-x-2">
+              <td className="px-4 py-2 text-end space-x-2 rtl:space-x-reverse">
                 <button
                   onClick={handleAdd}
                   className={action.save}

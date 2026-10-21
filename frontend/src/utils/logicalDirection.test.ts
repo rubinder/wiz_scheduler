@@ -33,6 +33,11 @@ const BANNED: [RegExp, string][] = [
   [/\bborder-r\b/, "border-e"],
   [/\bleft-0\b/, "start-0"],
   [/\bright-0\b/, "end-0"],
+  // space-x-* sets margin-left/right, so in RTL the gap lands on the outer
+  // side and neighbours touch ("EditArchive"). Fine only when paired with
+  // rtl:space-x-reverse on the same element; prefer gap-* on flex/grid.
+  [/\bspace-x-(?:px|\d+(?:\.\d+)?)\b(?!.*rtl:space-x-reverse)(?<!rtl:space-x-reverse.*)/,
+    "gap-* (flex/grid) or add rtl:space-x-reverse"],
 ];
 
 describe("logical direction utilities", () => {
@@ -60,9 +65,17 @@ describe("logical direction utilities", () => {
       'className="border border-red-300 bg-red-50"',
       'className="border-rule text-ink"',
       'className="ms-2 text-start"',
+      'className="text-end space-x-2 rtl:space-x-reverse"',
     ];
     for (const decoy of decoys) {
       expect(BANNED.some(([p]) => p.test(decoy))).toBe(false);
+    }
+  });
+
+  it("flags space-x-* without its rtl reverse", () => {
+    const physical = ['className="flex space-x-3"', 'className="space-x-px"'];
+    for (const line of physical) {
+      expect(BANNED.some(([p]) => p.test(line))).toBe(true);
     }
   });
 });
