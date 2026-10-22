@@ -25,6 +25,12 @@ os.makedirs(os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus_multipro
 
 from datetime import datetime, timedelta, timezone
 from typing import AsyncGenerator
+import warnings
+
+# passlib (unmaintained) imports the stdlib `crypt` module, deprecated in
+# 3.11. Nothing to fix on our side; silence it before backend imports pull
+# passlib in.
+warnings.filterwarnings("ignore", message="'crypt' is deprecated", category=DeprecationWarning)
 
 import pytest
 import pytest_asyncio

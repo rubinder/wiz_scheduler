@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -53,7 +56,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 def create_app() -> FastAPI:
     setup_logging()
-    app = FastAPI(title="WizScheduler API", version="1.0.0")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        """Start the background loops defined further down in create_app."""
+        import asyncio
+        from backend.services.monitoring import run_self_check_loop
+        tasks = [
+            asyncio.create_task(_daily_storage_snapshot_loop()),
+            asyncio.create_task(_weekly_monthly_billing_loop()),
+            asyncio.create_task(_daily_cancellation_lifecycle_loop()),
+            asyncio.create_task(run_self_check_loop()),
+        ]
+        yield
+        for task in tasks:
+            task.cancel()
+
+    app = FastAPI(title="WizScheduler API", version="1.0.0", lifespan=lifespan)
 
     # Metrics middleware (outermost — times the entire request including all other middleware)
     app.add_middleware(MetricsMiddleware)
@@ -224,15 +243,6 @@ def create_app() -> FastAPI:
                 log.error("Cancellation lifecycle failed: %s", e, exc_info=True)
 
             await asyncio.sleep(24 * 60 * 60)
-
-    @app.on_event("startup")
-    async def _start_background_tasks() -> None:
-        import asyncio
-        from backend.services.monitoring import run_self_check_loop
-        asyncio.create_task(_daily_storage_snapshot_loop())
-        asyncio.create_task(_weekly_monthly_billing_loop())
-        asyncio.create_task(_daily_cancellation_lifecycle_loop())
-        asyncio.create_task(run_self_check_loop())
 
     # Load-test profile: bypass JWT signature verification.
     # The register endpoint still works normally (creates real users/companies),

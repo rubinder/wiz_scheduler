@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from backend.dependencies import get_db, require_manager
 from backend.models import User, Location, ManagerLocation
@@ -18,32 +18,29 @@ router = APIRouter(prefix="/managers", tags=["managers"])
 
 
 class LocationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     timezone: str
 
-    class Config:
-        from_attributes = True
-
 
 class ManagerLocationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     location_id: str
     location: LocationResponse
 
-    class Config:
-        from_attributes = True
-
 
 class ManagerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: str
     full_name: str | None
     manager_type: str
     assigned_locations: list[LocationResponse]
-
-    class Config:
-        from_attributes = True
 
 
 @router.get("/me/locations", response_model=list[LocationResponse])
