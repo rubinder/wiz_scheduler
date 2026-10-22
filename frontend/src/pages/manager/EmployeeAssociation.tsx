@@ -287,7 +287,7 @@ export default function EmployeeAssociation() {
                       placeholder="Optional"
                     />
                   </td>
-                  <td className="px-4 py-4 text-end space-x-2">
+                  <td className="px-4 py-4 text-end space-x-2 rtl:space-x-reverse">
                     <button
                       onClick={handleSave}
                       disabled={
@@ -347,7 +347,7 @@ export default function EmployeeAssociation() {
                         <span className="text-gray-500">{t.common.none}</span>
                       )}
                     </td>
-                    <td className="px-4 py-5 text-end space-x-2">
+                    <td className="px-4 py-5 text-end space-x-2 rtl:space-x-reverse">
                       <button
                         onClick={() => startEditing(a)}
                         disabled={editing !== null}

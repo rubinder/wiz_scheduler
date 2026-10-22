@@ -529,7 +529,7 @@ export default function EmployeeFormFieldsEnhanced({
             const assignment = formData.roles.find((r) => r.role_id === role.id);
             return (
               <div key={role.id} className="border border-sage/20 rounded-lg p-4">
-                <label className="flex items-center space-x-3">
+                <label className="flex items-center gap-3">
                   <input
                     type="checkbox"
                     checked={!!assignment}
@@ -565,7 +565,7 @@ export default function EmployeeFormFieldsEnhanced({
         <h3 className={`text-lg font-semibold ${text.heading} mb-4`}>Work Locations</h3>
         <div className="space-y-3">
           {locations.map((loc) => (
-            <label key={loc.id} className="flex items-center space-x-3">
+            <label key={loc.id} className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={formData.location_ids.includes(loc.id)}
@@ -735,7 +735,7 @@ export default function EmployeeFormFieldsEnhanced({
                 return (
                   <div key={idx} className="border border-sage/20 rounded-lg p-4">
                     <div className="flex items-center justify-between">
-                      <label className="flex items-center space-x-3 flex-1">
+                      <label className="flex items-center gap-3 flex-1">
                         <input
                           type="checkbox"
                           checked={!!pref}

@@ -715,7 +715,7 @@ export default function Employees() {
                         )
                       : renderRoleBadges(emp.roles)}
                   </td>
-                  <td className="px-4 py-2 text-end space-x-2">
+                  <td className="px-4 py-2 text-end space-x-2 rtl:space-x-reverse">
                     {isEditing ? (
                       <>
                         <button
@@ -856,7 +856,7 @@ export default function Employees() {
                     setAddValues((v) => ({ ...v, roles: r }))
                   )}
                 </td>
-                <td className="px-4 py-2 text-end space-x-2">
+                <td className="px-4 py-2 text-end space-x-2 rtl:space-x-reverse">
                   <button
                     onClick={handleCreate}
                     className={action.save}

@@ -242,7 +242,7 @@ export default function SpecialHours() {
                       <span className={`text-sm ${text.muted}`}>—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-end space-x-3">
+                  <td className="px-4 py-2 text-end space-x-3 rtl:space-x-reverse">
                     <button
                       onClick={() => setEditing(row)}
                       className={action.edit}
