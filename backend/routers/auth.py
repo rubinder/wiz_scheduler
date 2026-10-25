@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -44,6 +44,15 @@ def _mask_email(email: str) -> str:
         return (email[:3] + "***") if email else "?"
     local, _, domain = email.partition("@")
     return f"{local[:3]}***@{domain}"
+
+
+def _checkout_session_email(session: object) -> str | None:
+    """The email a Stripe Checkout session was paid under, if it has one."""
+    details = getattr(session, "customer_details", None)
+    for candidate in (getattr(details, "email", None), getattr(session, "customer_email", None)):
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
 
 
 def _create_access_token(
@@ -173,6 +182,26 @@ async def register(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Billing payment has not been completed.",
+            )
+        # The session must be this registrant's (create-checkout-session
+        # pins customer_email to the address being registered) and must not
+        # already back an account: one payment, one ownership group.
+        session_email = _checkout_session_email(session)
+        if session_email is None or session_email.lower() != body.email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid billing session.",
+            )
+        claimed = (await db.execute(
+            select(OwnershipGroup.id).where(or_(
+                OwnershipGroup.stripe_customer_id == session.customer,
+                OwnershipGroup.stripe_subscription_id == session.subscription,
+            )).limit(1)
+        )).scalar_one_or_none()
+        if claimed is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid billing session.",
             )
         stripe_customer_id = session.customer
         stripe_subscription_id = session.subscription
