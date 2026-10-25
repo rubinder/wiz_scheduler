@@ -560,6 +560,8 @@ async def test_register_with_paid_stripe_session_creates_paid_account(
         payment_status="paid",
         customer="cus_test_paid_abc",
         subscription="sub_test_paid_xyz",
+        customer_email="Paid@Example.test",
+        customer_details=None,
     )
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
 
@@ -658,3 +660,74 @@ async def test_register_with_invalid_stripe_session_rejected(
     )
 
     assert resp.status_code == 400
+
+
+def _paid_session(**overrides):
+    fields = dict(
+        payment_status="paid",
+        customer="cus_bound_1",
+        subscription="sub_bound_1",
+        customer_email="owner@example.test",
+        customer_details=None,
+    )
+    fields.update(overrides)
+    return MagicMock(**fields)
+
+
+def _paid_register_body(email: str, company: str) -> dict:
+    return {
+        "email": email,
+        "password": "hunter2hunter2",
+        "full_name": "Someone",
+        "company_name": company,
+        "privacy_accepted": True,
+        "terms_accepted": True,
+        "stripe_session_id": "cs_test_bound",
+    }
+
+
+async def test_register_rejects_a_paid_session_for_another_email(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """A paid session is bound to the email it was created for."""
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _paid_session())
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json=_paid_register_body("someone-else@example.test", "Not Theirs Co"),
+    )
+
+    assert resp.status_code == 400
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Not Theirs Co")
+    )).scalar_one_or_none()
+    assert og is None
+
+
+async def test_register_rejects_a_session_already_backing_an_account(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    """One payment backs one ownership group: replaying the session fails."""
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _paid_session())
+
+    first = await client.post(
+        "/api/v1/auth/register",
+        json=_paid_register_body("owner@example.test", "First Co"),
+    )
+    assert first.status_code == 201
+
+    replay = await client.post(
+        "/api/v1/auth/register",
+        json=_paid_register_body("owner@example.test", "Second Co"),
+    )
+    assert replay.status_code == 400
+    og = (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.name == "Second Co")
+    )).scalar_one_or_none()
+    assert og is None
