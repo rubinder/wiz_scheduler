@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_current_user, get_db
 from backend.models import Company, OwnershipGroup, User
+from backend.tenant import tenant_scope_disabled
 from backend.models.consent import UserConsent
 from backend.services.billing import is_demo_group
 from backend.services.passwords import hash_password, verify_password
@@ -63,13 +64,16 @@ async def _proven_same_email_rows(db: AsyncSession, user: User) -> list[User]:
     was never verified may have been registered by someone else with this
     address, so it is never included.
     """
-    others = (await db.execute(
-        select(User).where(
-            User.email == user.email,
-            User.id != user.id,
-            User.email_verified_at.is_not(None),
-        )
-    )).scalars().all()
+    # The same person's rows live in other ownership groups, so this reads
+    # past the tenant filter.
+    with tenant_scope_disabled():
+        others = (await db.execute(
+            select(User).where(
+                User.email == user.email,
+                User.id != user.id,
+                User.email_verified_at.is_not(None),
+            )
+        )).scalars().all()
     return [user, *others]
 
 
