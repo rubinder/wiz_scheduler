@@ -11,6 +11,7 @@ from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
 from backend.services.billing import utc_month_start
 from backend.services.archive import active, archive_location, restore_location
+from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan
 from backend.utils.tz import is_valid_timezone
 
@@ -41,6 +42,7 @@ async def create_location(
     if body.overtime_threshold_hours is not None or body.overtime_premium_multiplier is not None:
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
+    await assert_owned(db, Region, [body.region_id], [current_user.company_id], "Region")
     location = Location(
         company_id=current_user.company_id,
         region_id=body.region_id,
@@ -94,6 +96,7 @@ async def update_location(
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
 
     if body.region_id is not None:
+        await assert_owned(db, Region, [body.region_id], [current_user.company_id], "Region")
         location.region_id = body.region_id
     if body.name is not None:
         location.name = body.name

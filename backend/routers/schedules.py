@@ -27,6 +27,7 @@ from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
 from backend.services.archive import DISCARDED, active, lock_employees
+from backend.services.ownership import assert_owned
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
 logger = logging.getLogger(__name__)
@@ -367,6 +368,15 @@ async def update_shifts(
         to_open_entry(d) if is_open_entry(d) else d
         for d in (s.model_dump() for s in body.shifts)
     ]
+    # Approval turns these entries into shifts, so the people and places
+    # they name must be this company's.
+    company = [current_user.company_id]
+    await assert_owned(
+        db, Employee,
+        [d.get("employee_id") for d in shifts if not is_open_entry(d)],
+        company, "Employee",
+    )
+    await assert_owned(db, Location, [d.get("location_id") for d in shifts], company, "Location")
     # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
     # or off a preference, and the evaluator lives here, not in the client.
     prefs = await load_employee_preferences(db, str(current_user.company_id))
@@ -896,6 +906,19 @@ async def approve_schedule(
                             role_id, s.get("role_name", ""),
                         )
                         continue
+                    # A draft saved before its IDs were checked could still
+                    # name another company's rows: refuse rather than
+                    # materialise them. Both lookups include archived rows.
+                    if str(loc_id) not in location_zones:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Location not found",
+                        )
+                    if emp_id is not None and str(emp_id) not in locked_archived:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Employee not found",
+                        )
                     zone = location_zones.get(str(loc_id))
                     try:
                         shift_date = (
