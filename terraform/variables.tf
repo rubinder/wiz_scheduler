@@ -115,9 +115,8 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "Master username for the RDS instance"
+  description = "Master username for the RDS instance. No default: the repo is public, so CI supplies it from the TF_VAR_DB_USERNAME secret. RDS cannot rename the master user, so a different value plans a database replacement."
   type        = string
-  default     = "wizzzadmin"
   sensitive   = true
 }
 

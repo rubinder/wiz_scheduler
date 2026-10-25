@@ -180,6 +180,7 @@ jobs:
         id: plan
         working-directory: terraform
         env:
+          TF_VAR_db_username: ${{ secrets.TF_VAR_DB_USERNAME }}
           TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           # Non-secret env-specific overrides that previously lived in the
@@ -262,6 +263,7 @@ jobs:
       - name: Terraform apply
         working-directory: terraform
         env:
+          TF_VAR_db_username: ${{ secrets.TF_VAR_DB_USERNAME }}
           TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           # Non-secret env-specific overrides that previously lived in the
