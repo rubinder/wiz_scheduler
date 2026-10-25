@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, require_manager
+from backend.services.passwords import hash_password
 from backend.utils.base_url import trusted_base_url
 from backend.utils.email_normalize import normalize_email
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
@@ -28,7 +28,6 @@ from backend.schemas.employee import (
 
 router = APIRouter(tags=["invites"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 INVITE_EXPIRE_DAYS = 7
 
@@ -267,7 +266,7 @@ async def accept_invite(
     user = User(
         company_id=invite.company_id,
         email=invite.email,
-        hashed_password=pwd_context.hash(body.password),
+        hashed_password=hash_password(body.password),
         full_name=employee.full_name,
         user_role="employee",
         email_normalized=normalize_email(invite.email),

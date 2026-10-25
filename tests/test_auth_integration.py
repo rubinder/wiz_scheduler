@@ -308,7 +308,7 @@ async def test_google_link_current_409_when_linked_to_other_user(
 ):
     """If the google_id is already linked to a different person, return 409."""
     from backend.routers import auth as auth_router
-    from passlib.context import CryptContext
+    from backend.services.passwords import hash_password
     from backend.models import Company, User
 
     # Seed a second User in a different Company with the same google_id we're
@@ -316,7 +316,7 @@ async def test_google_link_current_409_when_linked_to_other_user(
     other_co = Company(name="OtherCo", slug="other-co-slug")
     db_session.add(other_co)
     await db_session.flush()
-    pwd = CryptContext(schemes=["bcrypt"]).hash("doesntmatter")
+    pwd = hash_password("doesntmatter")
     db_session.add(User(
         company_id=other_co.id,
         email="someone-else@test.com",  # different email

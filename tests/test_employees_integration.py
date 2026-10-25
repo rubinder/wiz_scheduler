@@ -88,7 +88,7 @@ async def test_bulk_csv_upload(
 
 async def test_company_isolation(client: AsyncClient, db_session, seed_employees, manager_token: str):
     """A second company's manager should not see the first company's employees."""
-    from passlib.context import CryptContext
+    from backend.services.passwords import hash_password
 
     from backend.models import Company, User
 
@@ -98,7 +98,7 @@ async def test_company_isolation(client: AsyncClient, db_session, seed_employees
     db_session.add(company2)
     await db_session.flush()
 
-    pwd = CryptContext(schemes=["bcrypt"]).hash("pass2")
+    pwd = hash_password("pass2")
     user2_id = _id()
     user2 = User(
         id=user2_id,

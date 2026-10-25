@@ -71,7 +71,7 @@ Plan is *derived*, not stored: `paid` iff `stripe_subscription_id IS NOT NULL AN
 
 **AI scheduling** — LangGraph, Anthropic Claude (`claude-sonnet-4-20250514`) via the async SDK with tool-use structured output.
 
-**Auth** — JWT via python-jose, bcrypt password hashing via passlib, Google OAuth via google-auth.
+**Auth** — JWT via python-jose, bcrypt password hashing (`backend/services/passwords.py`), Google OAuth via google-auth.
 
 **Frontend** — React 18, TypeScript 5, Vite 6, Tailwind CSS 3, React Router 6, Stripe.js.
 

@@ -6,10 +6,10 @@ Usage:
 
 import asyncio
 
-from passlib.context import CryptContext
 from sqlalchemy import text
 
 from backend.database import async_session_factory
+from backend.services.passwords import hash_password
 
 EMAIL = "rubinder_4@hotmail.com"
 PASSWORD = "password"
@@ -21,11 +21,10 @@ COMPANY_ID = "rbcomp01"
 USER_ID = "rbuser01"
 COMPANY_SLUG = "rubinder01"
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 async def main() -> None:
-    hashed_password = pwd_context.hash(PASSWORD)
+    hashed_password = hash_password(PASSWORD)
 
     async with async_session_factory() as db:
         # Ownership group
