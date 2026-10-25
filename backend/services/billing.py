@@ -1483,12 +1483,17 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
 
             # Day 90: delete (the row goes away so this is naturally idempotent)
             if age_days >= settings.SUBSCRIPTION_GRACE_DAYS:
-                # Flushed but uncommitted, so the email (which reads the
-                # managers' addresses through its own session) still finds
-                # them, and goes out only once the delete is known to work.
-                async with db.begin_nested():
-                    await delete_og_and_dependents(db, og)
-                await send_data_deleted_email(og)
+                # The notice goes first and holds no lock of ours: it reads the
+                # managers' addresses and logs the send through its own
+                # session, and that log row references this group, so it
+                # would wait forever on an uncommitted delete. Stamped and
+                # committed, so a delete that fails is retried daily without
+                # mailing the notice again.
+                if og.notified_data_deleted_at is None:
+                    await send_data_deleted_email(og)
+                    og.notified_data_deleted_at = now
+                    await db.commit()
+                await delete_og_and_dependents(db, og)
                 await db.commit()
                 deletions_done += 1
         except Exception:
