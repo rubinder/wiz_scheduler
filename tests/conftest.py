@@ -277,9 +277,9 @@ async def seed_location(db_session: AsyncSession, seed_region: Region) -> Locati
 
 @pytest_asyncio.fixture
 async def seed_manager(db_session: AsyncSession, seed_company: Company) -> User:
-    from passlib.context import CryptContext
+    from backend.services.passwords import hash_password
 
-    pwd = CryptContext(schemes=["bcrypt"]).hash("testpass")
+    pwd = hash_password("testpass")
     user = User(
         id=MANAGER_USER_ID,
         company_id=COMPANY_ID,
@@ -302,9 +302,9 @@ async def seed_manager(db_session: AsyncSession, seed_company: Company) -> User:
 
 @pytest_asyncio.fixture
 async def seed_employee_user(db_session: AsyncSession, seed_company: Company) -> User:
-    from passlib.context import CryptContext
+    from backend.services.passwords import hash_password
 
-    pwd = CryptContext(schemes=["bcrypt"]).hash("testpass")
+    pwd = hash_password("testpass")
     user = User(
         id=EMPLOYEE_USER_ID,
         company_id=COMPANY_ID,

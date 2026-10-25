@@ -11,7 +11,6 @@ import asyncio
 import json
 from datetime import date, datetime, timedelta, timezone
 
-from passlib.context import CryptContext
 from sqlalchemy import delete, insert, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,8 +38,8 @@ from backend.models import (
     SpecialHoursDay,
     User,
 )
+from backend.services.passwords import hash_password
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Password for the demo manager/employee logins. In deployed environments this
 # arrives via DEMO_SEED_PASSWORD, injected from AWS Secrets Manager. The
@@ -120,7 +119,7 @@ assert not (set(LEGACY_EMPLOYEE_IDS) & set(EMPLOYEE_IDS)), (
 
 
 def _hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return hash_password(password)
 
 
 def _weekly_schedule(floor_headcount: int = 2) -> list[dict]:

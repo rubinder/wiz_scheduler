@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +13,7 @@ from backend.dependencies import get_current_user, get_db
 from backend.models import Company, OwnershipGroup, User
 from backend.models.consent import UserConsent
 from backend.services.billing import is_demo_group
+from backend.services.passwords import hash_password, verify_password
 from backend.utils.privacy import mask_ip
 from backend.schemas.auth import (
     ForgotPasswordRequest,
@@ -44,16 +44,6 @@ def _mask_email(email: str) -> str:
         return (email[:3] + "***") if email else "?"
     local, _, domain = email.partition("@")
     return f"{local[:3]}***@{domain}"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def _hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def _verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
 
 
 def _create_access_token(
@@ -157,10 +147,10 @@ async def register(
         # Generate an unguessable random password the user never sees. They
         # authenticate via Google; if they ever want a real password they
         # can set one later via a separate flow.
-        hashed_pw = _hash_password(secrets.token_urlsafe(48))
+        hashed_pw = hash_password(secrets.token_urlsafe(48))
     else:
         # Hash password outside the DB transaction to reduce connection hold time
-        hashed_pw = _hash_password(body.password)
+        hashed_pw = hash_password(body.password)
     client_ip = mask_ip(request.client.host) if request.client else None
 
     # Registration is free by default. A stripe_session_id is optional: when
@@ -307,7 +297,7 @@ async def login(
     users = result.scalars().all()
 
     # Find all users whose password matches
-    matched_users: list[User] = [u for u in users if _verify_password(body.password, u.hashed_password)]
+    matched_users: list[User] = [u for u in users if verify_password(body.password, u.hashed_password)]
     if not matched_users:
         logger.info(
             "login.fail email=%s reason=%s",
@@ -516,7 +506,7 @@ async def google_link(
         select(User).where(User.email == body.email)
     )
     users = result.scalars().all()
-    matched = [u for u in users if _verify_password(body.password, u.hashed_password)]
+    matched = [u for u in users if verify_password(body.password, u.hashed_password)]
 
     if not matched:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -764,7 +754,7 @@ async def reset_password(
     if owner is None:
         raise HTTPException(status_code=404, detail="User no longer exists")
 
-    new_hash = _hash_password(body.new_password)
+    new_hash = hash_password(body.new_password)
     same_email = (await db.execute(
         select(User).where(User.email == owner.email)
     )).scalars().all()

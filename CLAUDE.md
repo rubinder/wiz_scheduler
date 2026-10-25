@@ -10,7 +10,7 @@ WizScheduler is a multi-tenant AI-powered employee scheduling web app. Managers 
 
 - **Backend**: Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.x (Async), PostgreSQL, Alembic
 - **AI Scheduling**: LangGraph + Anthropic Claude (lives inside `backend/scheduling/`)
-- **Auth**: JWT via python-jose + passlib[bcrypt]
+- **Auth**: JWT via python-jose + bcrypt (`backend/services/passwords.py`)
 - **Frontend**: React 18+, TypeScript, Vite, Tailwind CSS
 - **Packaging**: `uv` (Python), `npm` (frontend)
 - **Testing**: pytest + pytest-asyncio + httpx
