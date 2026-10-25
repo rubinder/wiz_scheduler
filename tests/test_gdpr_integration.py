@@ -528,3 +528,49 @@ async def test_data_retention_empty_db(db_session: AsyncSession):
     assert summary["old_failure_logs_deleted"] == 0
     assert summary["expired_invites_deleted"] == 0
     assert summary["old_revoked_consents_deleted"] == 0
+
+
+async def test_export_and_erasure_cover_every_linked_profile_in_the_group(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    employee_token: str,
+    seed_employee_user,
+    seed_company,
+):
+    """An employee may be shared across the user's ownership group, so export
+    and erasure cover each linked profile there, and none outside it."""
+    from backend.models import Company, Employee
+    from backend.models.ownership_group import OwnershipGroup
+    from tests.conftest import COMPANY_ID, EMPLOYEE_USER_ID, _id
+
+    og = OwnershipGroup(name="Group")
+    outside_og = OwnershipGroup(name="Elsewhere")
+    db_session.add_all([og, outside_og])
+    await db_session.flush()
+    seed_company.ownership_group_id = og.id
+    sibling_id, outside_id = _id(), _id()
+    db_session.add_all([
+        Company(id=sibling_id, name="Sibling", slug=_id(), ownership_group_id=og.id),
+        Company(id=outside_id, name="Outside", slug=_id(), ownership_group_id=outside_og.id),
+    ])
+    await db_session.flush()
+    own, sibling, outside = (
+        Employee(id=_id(), company_id=cid, full_name=name, user_id=EMPLOYEE_USER_ID)
+        for cid, name in ((COMPANY_ID, "Own"), (sibling_id, "Sibling"), (outside_id, "Outside"))
+    )
+    db_session.add_all([own, sibling, outside])
+    await db_session.commit()
+    headers = {"Authorization": f"Bearer {employee_token}"}
+
+    export = await client.get("/api/v1/gdpr/export", headers=headers)
+    assert export.status_code == 200, export.text
+    body = export.json()
+    assert body["employee"]["id"] == own.id
+    assert {p["id"] for p in body["employee_profiles"]} == {own.id, sibling.id}
+
+    erased = await client.delete("/api/v1/gdpr/delete-account", headers=headers)
+    assert erased.status_code == 200, erased.text
+    for row in (own, sibling, outside):
+        await db_session.refresh(row)
+    assert own.erased_at is not None and sibling.erased_at is not None
+    assert outside.erased_at is None

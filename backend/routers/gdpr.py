@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_current_user, get_db, require_manager
+from backend.dependencies import (
+    get_current_user, get_db, get_ownership_group_company_ids, require_manager,
+)
 from backend.models import (
     Employee,
     EmployeeAffinity,
@@ -22,6 +24,19 @@ router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 # ---------------------------------------------------------------------------
 # POST /gdpr/retention/purge  --  Manual data retention purge (manager only)
 # ---------------------------------------------------------------------------
+async def _linked_employees(db: AsyncSession, user: User) -> list[Employee]:
+    """Every employee row linked to ``user`` within its ownership group,
+    the user's own company first. Export and erasure cover all of them; a
+    link from outside the group was never the user's to export or erase."""
+    company_ids = await get_ownership_group_company_ids(user, db)
+    rows = (await db.execute(
+        select(Employee).where(
+            Employee.user_id == user.id, Employee.company_id.in_(company_ids),
+        )
+    )).scalars().all()
+    return sorted(rows, key=lambda e: (e.company_id != user.company_id, e.id))
+
+
 @router.post("/retention/purge")
 async def trigger_retention_purge(
     current_user: User = Depends(require_manager),
@@ -90,20 +105,17 @@ async def export_data(
         "company_id": current_user.company_id,
     }
 
-    # Linked employee profile
-    emp_result = await db.execute(
-        select(Employee).where(
-            Employee.user_id == user_id, Employee.company_id == current_user.company_id,
-        )
-    )
-    employee = emp_result.scalar_one_or_none()
+    # Linked employee profiles: one per company of the user's ownership
+    # group they are linked in (an employee may be shared across it).
+    employees = await _linked_employees(db, current_user)
 
     employee_data = None
+    employee_profiles: list[dict] = []
     availability_data: list[dict] = []
     affinity_data: list[dict] = []
     shift_data: list[dict] = []
 
-    if employee:
+    for employee in employees:
         # Roles
         role_result = await db.execute(
             select(EmployeeRole).where(EmployeeRole.employee_id == employee.id)
@@ -113,13 +125,16 @@ async def export_data(
             for r in role_result.scalars().all()
         ]
 
-        employee_data = {
+        profile = {
             "id": employee.id,
             "full_name": employee.full_name,
             "email": employee.email,
             "location_ids": employee.location_ids,
             "roles": roles,
         }
+        employee_profiles.append(profile)
+        if employee_data is None:
+            employee_data = profile
 
         # Availability
         avail_result = await db.execute(
@@ -127,7 +142,7 @@ async def export_data(
                 EmployeeAvailability.employee_id == employee.id
             )
         )
-        availability_data = [
+        availability_data += [
             {
                 "id": a.id,
                 "year": a.year,
@@ -146,7 +161,7 @@ async def export_data(
                 | (EmployeeAffinity.target_employee_id == employee.id)
             )
         )
-        affinity_data = [
+        affinity_data += [
             {
                 "id": a.id,
                 "employee_id": a.employee_id,
@@ -162,7 +177,7 @@ async def export_data(
         shift_result = await db.execute(
             select(Shift).where(Shift.employee_id == employee.id)
         )
-        shift_data = [
+        shift_data += [
             {
                 "id": s.id,
                 "shift_schedule_id": s.shift_schedule_id,
@@ -196,6 +211,7 @@ async def export_data(
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "user": user_data,
         "employee": employee_data,
+        "employee_profiles": employee_profiles,
         "availability": availability_data,
         "affinities": affinity_data,
         "shifts": shift_data,
@@ -220,13 +236,7 @@ async def delete_account(
 
     # 2. The employee row is archived and erased, not deleted: shifts and pay
     #    records the employer must keep still point at it (#126).
-    emp_result = await db.execute(
-        select(Employee).where(
-            Employee.user_id == user_id, Employee.company_id == current_user.company_id,
-        )
-    )
-    employee = emp_result.scalar_one_or_none()
-    if employee:
+    for employee in await _linked_employees(db, current_user):
         await erase_employee(db, str(employee.company_id), employee)
 
     # 3. Delete the user record
