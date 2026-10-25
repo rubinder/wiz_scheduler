@@ -181,6 +181,9 @@ async def accept_manager_invite(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         user_role="manager",
+        # Full access, like every manager 0042 backfilled. Location-scoped
+        # "regular" managers (#149) are assigned explicitly, never by default.
+        manager_type="admin",
         email_normalized=normalize_email(invite.email),
         # Accepting the invite required opening a link we mailed to this
         # address, which is the same proof /auth/verify-email collects.

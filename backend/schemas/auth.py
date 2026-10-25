@@ -62,6 +62,8 @@ class UserResponse(BaseModel):
     email: str
     full_name: str | None
     user_role: str
+    # 'admin' | 'regular' for managers (#149); None for employees.
+    manager_type: str | None = None
     ownership_group_id: str | None = None
     is_demo: bool = False
     has_google: bool = False
