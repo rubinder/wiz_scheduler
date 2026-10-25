@@ -6,37 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 WizScheduler is a multi-tenant AI-powered employee scheduling web app. Managers configure companies, locations, employees, and shift templates. A LangGraph agentic pipeline (embedded in the FastAPI backend) generates optimized weekly shift schedules per location, respecting availability, roles, skill levels, and interpersonal affinities.
 
-## Tech Stack
-
-- **Backend**: Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.x (Async), PostgreSQL, Alembic
-- **AI Scheduling**: LangGraph + Anthropic Claude (lives inside `backend/scheduling/`)
-- **Auth**: JWT via python-jose + bcrypt (`backend/services/passwords.py`)
-- **Frontend**: React 18+, TypeScript, Vite, Tailwind CSS
-- **Packaging**: `uv` (Python), `npm` (frontend)
-- **Testing**: pytest + pytest-asyncio + httpx
-
 ## Development Commands
 
-```bash
-# Backend
-cd backend && uv pip install -r requirements.txt
-uvicorn main:app --reload                 # dev server on :8000
-alembic upgrade head                      # apply migrations
-python seed.py                            # insert demo data (idempotent)
+Only what the manifests and the Dockerfile don't make obvious:
 
-# Frontend
-cd frontend && npm install
-npm run dev                               # dev server on :5173
-npm run build                             # production build to dist/
-
-# Tests (from repo root)
-pytest tests/
-pytest tests/test_auth.py                 # single test file
-pytest tests/test_auth.py::test_login -v  # single test
-
-# Docker
-docker-compose up --build
-```
+- **Run the backend from the repo root.** Backend code imports through the
+  `backend.` package, so it's `uvicorn backend.main:app --reload` and
+  `python -m backend.seed`, not `uvicorn main:app` from inside `backend/`.
+  Migrations are the exception: `cd backend && alembic upgrade head`.
+- **`backend/.venv` is not committed.** In a fresh clone or worktree:
+  `uv venv --python 3.11 backend/.venv && uv pip install -r backend/requirements.txt --python backend/.venv/bin/python`.
+- **`pytest` needs Docker running.** `tests/conftest.py` starts Postgres via
+  testcontainers for every test; with Docker down the run dies at startup
+  with a `DockerException`. The full suite takes about 10 minutes.
+- **Frontend tests: `npm test`, not bare `vitest`.** The script pins
+  `TZ=Asia/Tokyo`, and the timezone tests fail without it.
 
 ## Architecture
 
@@ -73,24 +57,17 @@ enforced by a unique constraint on `(location_id, local_date, counter)`, not
 by application logic. Paid-only via `assert_paid_plan`, retained for
 `RETENTION_CHECKINS_DAYS`.
 
-### Frontend Structure
-
-- `src/api/` — typed fetch wrappers (one file per domain), shared `apiFetch` with Bearer token
-- `src/pages/manager/` — manager CRUD pages + Schedule page (AI generation + per-location review)
-- `src/pages/employee/` — employee availability self-service
-- `src/components/shared/DataTable.tsx` — reusable inline-editable table (used on Roles, Locations, Regions). Supports optional `createDisabled` / `createDisabledReason` props to render the "+ Add" control disabled with an explanatory message (e.g. free-plan limit reached) instead of omitting it.
-- `src/hooks/useAuth.ts` — JWT in localStorage, login/logout state
-- `src/hooks/useScheduleStream.ts` — NDJSON stream consumer
-
 ### Database
 
-SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. UUID primary keys with `server_default=text("gen_random_uuid()")`. `DateTime(timezone=True)` for all timestamps. Migrations via Alembic in `backend/alembic/`.
+SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. Primary keys are
+`String(8)` with `default=generate_short_id` (`backend/utils/id_gen.py`: 8 random
+lowercase letters and digits), not UUIDs. `DateTime(timezone=True)` for all timestamps. Migrations via Alembic in `backend/alembic/`.
 
 ## Knowledge Graph (RAG)
 
 A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as a first-pass lookup before reading files directly — it's 27x more token-efficient than scanning the full codebase.
 
-- **`graphify-out/graph.json`** — 3,535 nodes, 5,789 edges across 330 communities. Contains entities (functions, classes, models, concepts), relationships (calls, imports, references, inferred connections), and community assignments.
+- **`graphify-out/graph.json`** — entities (functions, classes, models, concepts), relationships (calls, imports, references, inferred connections), and community assignments.
 - **`graphify-out/GRAPH_REPORT.md`** — audit report with god nodes, surprising connections, community summaries, and suggested questions.
 - **`graphify-out/graph.html`** — interactive browser visualization.
 
@@ -199,13 +176,6 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   reads them to allow or deny; wiring enforcement onto them is a deliberate
   change that needs its own decision, not a drift.
 - Use type hints extensively in all Python code.
-- Prefer functional components and hooks in React.
-- **Use logical, not physical, direction utilities in Tailwind** — `text-start`
-  not `text-left`, `ms-2` not `ml-2`, `border-s` not `border-l`, `start-0` not
-  `left-0`, `gap-*` (or `space-x-* rtl:space-x-reverse`) not bare `space-x-*`.
-  `ar` and `ur` are RTL and `LanguageContext` sets `document.dir`, so
-  a physical utility looks right in 17 locales and wrong in 2.
-  `frontend/src/utils/logicalDirection.test.ts` enforces this.
 - All timestamps must carry timezone offsets (derive from `location.timezone` via `zoneinfo.ZoneInfo`).
 - **"Today" is always UTC** — `datetime.now(timezone.utc).date()`, never `date.today()`,
   in application code *and* in tests. `date.today()` reads the server's local clock;
