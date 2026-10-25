@@ -347,35 +347,21 @@ async def test_delete_account_no_employee(
 
 
 # ---------------------------------------------------------------------------
-# POST /gdpr/retention/purge  (manager only)
+# Platform-wide jobs are not tenant endpoints
 # ---------------------------------------------------------------------------
 
 
-async def test_retention_purge_endpoint(
+@pytest.mark.parametrize("path", ["/api/v1/gdpr/retention/purge", "/api/v1/billing/storage-snapshots"])
+async def test_platform_wide_jobs_are_not_exposed(
     client: AsyncClient,
     manager_token: str,
     seed_manager,
+    path: str,
 ):
-    resp = await client.post(
-        "/api/v1/gdpr/retention/purge",
-        headers={"Authorization": f"Bearer {manager_token}"},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "completed"
-    assert "summary" in data
-
-
-async def test_retention_purge_requires_manager(
-    client: AsyncClient,
-    employee_token: str,
-    seed_employee_user,
-):
-    resp = await client.post(
-        "/api/v1/gdpr/retention/purge",
-        headers={"Authorization": f"Bearer {employee_token}"},
-    )
-    assert resp.status_code == 403
+    """Retention and storage snapshots span every tenant, so no tenant's
+    manager may trigger them; they run from the scheduled jobs and scripts."""
+    resp = await client.post(path, headers={"Authorization": f"Bearer {manager_token}"})
+    assert resp.status_code in (404, 405)
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,6 @@ from backend.services.billing import (
     charge_saved_card,
     get_full_billing_summary,
     get_ownership_group_id,
-    record_storage_snapshots,
 )
 from backend.services.operator_alerts import send_credit_purchase_alert
 from backend.services.plan import assert_paid_plan
@@ -135,19 +134,6 @@ async def get_usage(
         summary["scheduled_deletion_at"] = None
 
     return summary
-
-
-@router.post("/storage-snapshots")
-async def trigger_storage_snapshots(
-    current_user: User = Depends(require_manager),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Record today's storage usage for all ownership groups.
-
-    Idempotent — groups that already have a snapshot today are skipped.
-    Also runs automatically once per day via a background task.
-    """
-    return await record_storage_snapshots(db)
 
 
 # ---------------------------------------------------------------------------

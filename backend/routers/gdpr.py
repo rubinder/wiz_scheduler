@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import (
-    get_current_user, get_db, get_ownership_group_company_ids, require_manager,
+    get_current_user, get_db, get_ownership_group_company_ids,
 )
 from backend.models import (
     Employee,
@@ -21,9 +21,6 @@ from backend.services.archive import erase_employee
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 
 
-# ---------------------------------------------------------------------------
-# POST /gdpr/retention/purge  --  Manual data retention purge (manager only)
-# ---------------------------------------------------------------------------
 async def _linked_employees(db: AsyncSession, user: User) -> list[Employee]:
     """Every employee row linked to ``user`` within its ownership group,
     the user's own company first. Export and erasure cover all of them; a
@@ -35,18 +32,6 @@ async def _linked_employees(db: AsyncSession, user: User) -> list[Employee]:
         )
     )).scalars().all()
     return sorted(rows, key=lambda e: (e.company_id != user.company_id, e.id))
-
-
-@router.post("/retention/purge")
-async def trigger_retention_purge(
-    current_user: User = Depends(require_manager),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Manually trigger data retention purge. Manager only."""
-    from backend.services.data_retention import run_data_retention
-
-    summary = await run_data_retention(db)
-    return {"status": "completed", "summary": summary}
 
 
 # ---------------------------------------------------------------------------
