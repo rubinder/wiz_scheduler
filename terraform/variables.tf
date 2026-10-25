@@ -115,29 +115,14 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "Master username for the RDS instance"
+  description = "Master username for the RDS instance. No default: the repo is public, so CI supplies it from the TF_VAR_DB_USERNAME secret. RDS cannot rename the master user, so a different value plans a database replacement."
   type        = string
-  default     = "wizzzadmin"
   sensitive   = true
 }
 
 variable "db_password" {
   description = "Master password for the RDS instance"
   type        = string
-  sensitive   = true
-}
-
-variable "app_db_username" {
-  description = "Application role username for RDS (Part 2: Postgres RLS). Used to connect as app_role with row-level security enforced."
-  type        = string
-  default     = "app_role"
-  sensitive   = true
-}
-
-variable "app_db_password" {
-  description = "Application role password for RDS (Part 2: Postgres RLS). Set via TF_VAR_app_db_password or terraform.tfvars. Required for APP_DATABASE_URL secret."
-  type        = string
-  default     = "CHANGE_ME_AFTER_CREATING_APP_ROLE"
   sensitive   = true
 }
 

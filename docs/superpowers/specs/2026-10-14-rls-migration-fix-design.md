@@ -29,7 +29,7 @@ Read-only one-off ECS task on task definition `:123` (command override,
 | Alembic version | `0042` (0043 `feedback_submissions` not applied either) |
 | Tables / FKs | 43 tables, 87 FKs; matches the ORM of the running image exactly |
 | RLS | Not enabled anywhere; 0 policies; `app_role`/`analytics_role`/`admin_role` do not exist |
-| Connecting user | `wizzzadmin` — owns every table, `rds_superuser`, `rolsuper=false`, **`rolbypassrls=false`** |
+| Connecting user | the RDS master user — owns every table, `rds_superuser`, `rolsuper=false`, **`rolbypassrls=false`** |
 
 ## Defects in 0044 / 0045
 
@@ -45,7 +45,7 @@ Read-only one-off ECS task on task definition `:123` (command override,
      `employee_role_minutes`, `employee_roles`, `payroll_exports`,
      `schedule_locks`, `special_hours_days`, `user_consents`, `users`.
 2. **`FORCE ROW LEVEL SECURITY` would lock the app out.** The app still connects as
-   the table owner (`DATABASE_URL` → `wizzzadmin`), and there is no policy for
+   the table owner (`DATABASE_URL` → the RDS master user), and there is no policy for
    that role. Reproduced on Postgres 16: the owner under FORCE reads `count = 0`
    and inserts fail with `new row violates row-level security policy`. Fixing
    only the table names would have turned this deploy failure into an outage.
@@ -69,7 +69,7 @@ Read-only one-off ECS task on task definition `:123` (command override,
 - PostgreSQL 15 `CREATE ROLE`: "You must be a superuser to create a new role
   having the BYPASSRLS attribute." RDS never grants true superuser.
 - PostgreSQL 16+: "Only superuser roles or roles with BYPASSRLS can specify
-  BYPASSRLS." `wizzzadmin` lacks it, so a major upgrade does not help.
+  BYPASSRLS." The master user lacks it, so a major upgrade does not help.
 - So any "sees everything" role (service/admin/analytics) needs explicit
   `USING (true)` policies.
 
@@ -121,7 +121,7 @@ Goal: 0043–0045 apply cleanly with **no change to what the running app sees**.
   sees empty tables (defect 2).
 - **Upgrade Postgres for BYPASSRLS:** 16+ still requires the granting role to
   have it.
-- **Run service code as `wizzzadmin` permanently:** works without FORCE, but
+- **Run service code as the master user permanently:** works without FORCE, but
   gives background jobs owner/DDL rights. Acceptable only as a temporary step.
 
 ## Related finding — naive shift timestamps (open)

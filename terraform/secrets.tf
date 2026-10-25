@@ -5,11 +5,6 @@
 #   derived from db_username/db_password vars + the RDS endpoint, so
 #   rotating db_password via TF_VAR_db_password updates this secret too).
 #
-# - APP_DATABASE_URL is for the application role (Part 2: Postgres RLS).
-#   Derived from app_db_username/app_db_password. The role must exist in
-#   the database (created by Alembic migration 0044_add_rls_policies.py)
-#   before this secret is used. Set via TF_VAR_app_db_password.
-#
 # - SECRET_KEY, ANTHROPIC_API_KEY, RESEND_API_KEY are seeded with
 #   placeholders the first time terraform runs, then expected to be
 #   set manually via the AWS Console or CLI. The lifecycle
@@ -28,22 +23,6 @@ resource "aws_secretsmanager_secret" "database_url" {
 resource "aws_secretsmanager_secret_version" "database_url" {
   secret_id     = aws_secretsmanager_secret.database_url.id
   secret_string = "postgresql+asyncpg://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}"
-}
-
-# Part 2: Postgres RLS — Application role with row-level security enforced
-# This role is created by Alembic migration 0044_add_rls_policies.py
-# Set app_db_password via: TF_VAR_app_db_password="generated_password"
-resource "aws_secretsmanager_secret" "app_database_url" {
-  name                    = "${var.app_name}/${var.environment}/APP_DATABASE_URL"
-  description             = "PostgreSQL app_role connection string (Part 2: RLS enforced)"
-  recovery_window_in_days = 7
-
-  tags = { Name = "${var.app_name}-app-database-url" }
-}
-
-resource "aws_secretsmanager_secret_version" "app_database_url" {
-  secret_id     = aws_secretsmanager_secret.app_database_url.id
-  secret_string = "postgresql+asyncpg://${var.app_db_username}:${var.app_db_password}@${aws_db_instance.main.endpoint}/${var.db_name}"
 }
 
 resource "aws_secretsmanager_secret" "secret_key" {
