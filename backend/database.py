@@ -13,6 +13,9 @@ engine = create_async_engine(
     pool_timeout=30,
     pool_recycle=1800,
     pool_pre_ping=True,
+    # Keep bound values (emails, names, password hashes) out of exception
+    # messages, which end up in logs and failure_logs.
+    hide_parameters=True,
 )
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

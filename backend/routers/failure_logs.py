@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
@@ -18,12 +18,10 @@ async def list_failure_logs(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[FailureLogResponse]:
-    query = select(FailureLog).where(
-        or_(
-            FailureLog.company_id == current_user.company_id,
-            FailureLog.company_id.is_(None),
-        )
-    )
+    # Only the caller's own company. Rows with no company come from requests
+    # that carried no usable token -- any tenant's, or nobody's -- so they are
+    # for operators, never for a tenant's managers.
+    query = select(FailureLog).where(FailureLog.company_id == current_user.company_id)
 
     if category:
         query = query.where(FailureLog.category == category)
