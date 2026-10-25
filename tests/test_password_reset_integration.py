@@ -292,3 +292,44 @@ async def test_forgot_password_used_token_does_not_block_cooldown(
         select(PasswordResetToken).where(PasswordResetToken.user_id == seed_manager.id)
     )).scalars().all()
     assert len(rows) == 2, "used token should not block a new mint"
+
+
+@pytest.mark.asyncio
+async def test_reset_password_reaches_verified_twins_not_unverified_ones(
+    client: AsyncClient, db_session: AsyncSession, seed_manager
+):
+    """The new password applies to the same person's verified rows in other
+    ownership groups, never to an unverified row someone else may have
+    registered with this address."""
+    from backend.models import Company
+    from backend.services.passwords import hash_password, verify_password
+    from tests.conftest import _id
+
+    twins = {}
+    for label, verified in (("verified", datetime.now(timezone.utc)), ("unverified", None)):
+        cid = _id()
+        db_session.add(Company(id=cid, name=f"{label} co", slug=_id()))
+        await db_session.flush()
+        twins[label] = User(
+            id=_id(), company_id=cid, email=seed_manager.email,
+            hashed_password=hash_password("their-own"), full_name=label,
+            user_role="manager", email_verified_at=verified,
+        )
+        db_session.add(twins[label])
+    db_session.add(PasswordResetToken(
+        user_id=seed_manager.id,
+        token="reset_token_twins_xxxxxxxxxxxxx",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    ))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": "reset_token_twins_xxxxxxxxxxxxx", "new_password": "new-secret"},
+    )
+    assert resp.status_code == 200
+
+    for user in twins.values():
+        await db_session.refresh(user)
+    assert verify_password("new-secret", twins["verified"].hashed_password)
+    assert verify_password("their-own", twins["unverified"].hashed_password)

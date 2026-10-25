@@ -731,3 +731,43 @@ async def test_register_rejects_a_session_already_backing_an_account(
         select(OwnershipGroup).where(OwnershipGroup.name == "Second Co")
     )).scalar_one_or_none()
     assert og is None
+
+
+async def test_google_link_current_skips_unverified_same_email_rows(
+    client: AsyncClient, db_session, manager_token: str, seed_manager, monkeypatch
+):
+    """Linking Google reaches the caller's verified rows elsewhere, but not an
+    unverified row someone else may have registered with the same address."""
+    from datetime import datetime, timezone
+    from backend.routers import auth as auth_router
+    from tests.conftest import _id
+
+    twins = {}
+    for label, verified in (("verified", datetime.now(timezone.utc)), ("unverified", None)):
+        cid = _id()
+        db_session.add(Company(id=cid, name=f"{label} co", slug=_id()))
+        await db_session.flush()
+        twins[label] = User(
+            id=_id(), company_id=cid, email="manager@test.com", hashed_password="x",
+            full_name=label, user_role="manager", email_verified_at=verified,
+        )
+        db_session.add(twins[label])
+    await db_session.commit()
+
+    async def fake_verify(_token):
+        return {"sub": "google-sub-twins", "email": "manager@test.com",
+                "email_verified": True, "name": "Test Manager"}
+    monkeypatch.setattr(auth_router, "_verify_google_token", fake_verify)
+
+    resp = await client.post(
+        "/api/v1/auth/google/link-current",
+        headers={"Authorization": f"Bearer {manager_token}"},
+        json={"id_token": "fake-id-token"},
+    )
+    assert resp.status_code == 200
+
+    for user in (seed_manager, *twins.values()):
+        await db_session.refresh(user)
+    assert seed_manager.google_id == "google-sub-twins"
+    assert twins["verified"].google_id == "google-sub-twins"
+    assert twins["unverified"].google_id is None
