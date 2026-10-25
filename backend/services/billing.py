@@ -1436,6 +1436,16 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     await db.delete(og)
 
 
+def _deletion_due(og: OwnershipGroup, now: datetime) -> bool:
+    """True while the group is still canceled and past the grace period."""
+    if og.canceled_at is None:
+        return False
+    canceled_at = og.canceled_at
+    if canceled_at.tzinfo is None:
+        canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+    return (now - canceled_at).days >= settings.SUBSCRIPTION_GRACE_DAYS
+
+
 async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
     """Daily cron driver.
 
@@ -1493,7 +1503,22 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                     await send_data_deleted_email(og)
                     og.notified_data_deleted_at = now
                     await db.commit()
-                await delete_og_and_dependents(db, og)
+                # Re-read under a row lock: a reactivation may have landed
+                # since this group was first read (or since the commit
+                # above). Its UPDATE takes the same row lock, so either it
+                # committed first and the group is no longer due, or it waits
+                # for this delete. Never held across the notice, whose log
+                # insert needs a key-share lock on this row.
+                locked = (await db.execute(
+                    select(OwnershipGroup)
+                    .where(OwnershipGroup.id == og_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                if locked is None or not _deletion_due(locked, now):
+                    await db.rollback()
+                    continue
+                await delete_og_and_dependents(db, locked)
                 await db.commit()
                 deletions_done += 1
         except Exception:

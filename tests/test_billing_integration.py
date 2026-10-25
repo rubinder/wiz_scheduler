@@ -2974,3 +2974,35 @@ async def test_lifecycle_deletion_does_not_block_on_its_own_notice(
     assert (await db_session.execute(
         select(OwnershipGroup).where(OwnershipGroup.id == OG_ID)
     )).scalar_one_or_none() is None
+
+
+async def test_lifecycle_skips_a_group_reactivated_before_its_delete(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A reactivation committed after the group was read (here: while its
+    notice was going out) must stop the delete."""
+    from sqlalchemy import select, update
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services.billing import process_cancellation_lifecycle
+    from tests.conftest import get_test_session_factory
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    async def reactivate_meanwhile(og):
+        async with get_test_session_factory()() as other:
+            await other.execute(
+                update(OwnershipGroup).where(OwnershipGroup.id == og.id).values(canceled_at=None)
+            )
+            await other.commit()
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", reactivate_meanwhile)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["deletions_done"] == 0
+    assert result["failures"] == 0
+    still_there = (await db_session.execute(
+        select(OwnershipGroup.canceled_at).where(OwnershipGroup.id == OG_ID)
+    )).one_or_none()
+    assert still_there is not None and still_there[0] is None
