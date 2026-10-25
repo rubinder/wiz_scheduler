@@ -1,7 +1,9 @@
 import logging
+import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -84,6 +86,42 @@ class DeputyImportResult(BaseModel):
     errors: list[str]
 
 
+# A Deputy install lives at https://<install>.<region>.deputy.com.
+_DEPUTY_HOST = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+deputy\.com$")
+
+
+def _deputy_origin(raw_url: str) -> str:
+    """The ``https://<host>`` origin of a Deputy install URL, or a 400.
+
+    The server sends the caller's Deputy token to this origin, so it must be
+    Deputy's: only an https ``*.deputy.com`` host on the default port is
+    accepted. Anything else a pasted URL carries (path, query, fragment) is
+    dropped rather than forwarded.
+    """
+    candidate = raw_url.strip()
+    if "://" not in candidate:
+        candidate = f"https://{candidate}"
+    try:
+        parts = urlsplit(candidate)
+        port = parts.port
+    except ValueError:
+        parts, port = None, None
+    host = (parts.hostname or "") if parts else ""
+    if (
+        parts is None
+        or parts.scheme not in ("https", "http")
+        or parts.username is not None
+        or parts.password is not None
+        or port not in (None, 443)
+        or not _DEPUTY_HOST.match(host)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enter your Deputy URL, e.g. https://yourcompany.na.deputy.com",
+        )
+    return f"https://{host}"
+
+
 async def _deputy_get(
     client: httpx.AsyncClient,
     base_url: str,
@@ -91,12 +129,16 @@ async def _deputy_get(
     headers: dict[str, str],
 ) -> list[dict[str, Any]] | dict[str, Any]:
     """GET a Deputy API endpoint. Returns parsed JSON."""
-    url = f"{base_url.rstrip('/')}/api{path}"
+    url = f"{base_url}/api{path}"
     resp = await client.get(url, headers=headers)
     if resp.status_code != 200:
+        # The body stays in our logs: it is upstream content, not ours to echo.
+        logger.warning(
+            "Deputy API %s returned %s: %s", path, resp.status_code, resp.text[:500],
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Deputy API error ({resp.status_code}): {resp.text[:500]}",
+            detail=f"Deputy API error ({resp.status_code})",
         )
     return resp.json()
 
@@ -138,6 +180,8 @@ async def import_from_deputy(
     db: AsyncSession = Depends(get_db),
 ) -> DeputyImportResult:
     await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+    # Validated before the cooldown starts, so a mistyped URL costs nothing.
+    base_url = _deputy_origin(body.deputy_base_url)
 
     # Per-OG cooldown (#44).
     from backend.services.billing import get_ownership_group_id
@@ -145,7 +189,6 @@ async def import_from_deputy(
     og_id_for_cooldown = await get_ownership_group_id(db, str(current_user.company_id))
     await begin_integration_import(db, og_id_for_cooldown, "deputy")
 
-    base_url = body.deputy_base_url.rstrip("/")
     headers = {
         "Authorization": f"Bearer {body.access_token}",
         "Accept": "application/json",
@@ -607,6 +650,8 @@ async def import_availabilities_from_deputy(
     3. Create EmployeeAvailability records for the available time
     """
     await assert_paid_plan(db, str(current_user.company_id), "integration_import")
+    # Validated before the cooldown starts, so a mistyped URL costs nothing.
+    base_url = _deputy_origin(body.deputy_base_url)
 
     # Per-OG cooldown (#44). Same integration key as /deputy — running either
     # burns the slot for both, since both hit Deputy.
@@ -615,7 +660,6 @@ async def import_availabilities_from_deputy(
     og_id_for_cooldown = await get_ownership_group_id(db, str(current_user.company_id))
     await begin_integration_import(db, og_id_for_cooldown, "deputy")
 
-    base_url = body.deputy_base_url.rstrip("/")
     headers = {
         "Authorization": f"Bearer {body.access_token}",
         "Accept": "application/json",
