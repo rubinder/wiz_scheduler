@@ -2881,3 +2881,128 @@ async def test_purchase_replayed_intent_credits_once(
     assert second.json()["current_balance_usd"] == 10.0
     charges = list((await db_session.execute(select(BillingCharge))).scalars())
     assert len(charges) == 1
+
+
+async def test_lifecycle_isolates_a_failing_group(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """One group's failed deletion rolls back only that group, and the
+    retry the next day does not mail the deletion notice again."""
+    from sqlalchemy import select
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services import billing
+    from backend.services.billing import process_cancellation_lifecycle
+
+    overdue = datetime.now(timezone.utc) - timedelta(days=91)
+    og_with_card.canceled_at = overdue
+    other = OwnershipGroup(name="Also Canceled", canceled_at=overdue)
+    db_session.add(other)
+    await db_session.commit()
+    other_id = other.id
+
+    real_delete = billing.delete_og_and_dependents
+
+    async def flaky_delete(db, og):
+        if og.id == OG_ID:
+            raise RuntimeError("a row elsewhere still references this group")
+        await real_delete(db, og)
+
+    deleted_emails, reminders = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deleted_emails.append(og.id)
+    monkeypatch.setattr("backend.services.billing.delete_og_and_dependents", flaky_delete)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["failures"] == 1
+    assert result["deletions_done"] == 1
+    assert sorted(deleted_emails) == sorted([OG_ID, other_id])
+    remaining = set((await db_session.execute(
+        select(OwnershipGroup.id).where(OwnershipGroup.id.in_([OG_ID, other_id]))
+    )).scalars().all())
+    assert remaining == {OG_ID}
+
+    # Next day's run retries the delete without re-sending either notice.
+    deleted_emails.clear()
+    reminders.clear()
+    again = await process_cancellation_lifecycle(db_session)
+    assert again["failures"] == 1
+    assert deleted_emails == [] and reminders == []
+
+
+async def test_lifecycle_deletion_does_not_block_on_its_own_notice(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """The real notice logs the send through its own session, on a row that
+    references the group. It must not wait on this pass's own delete."""
+    import asyncio
+    import backend.database as _db_module
+    from sqlalchemy import select
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.models import User
+    from backend.services.billing import process_cancellation_lifecycle
+    from tests.conftest import get_test_session_factory
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc)
+    db_session.add(User(
+        id=_id(), company_id=COMPANY_ID, email="manager@acme.test",
+        hashed_password="$2b$12$dummy", full_name="Acme Manager", user_role="manager",
+    ))
+    await db_session.commit()
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_key")
+    monkeypatch.setattr(settings, "FROM_EMAIL", "noreply@wiz.test")
+    # A genuinely separate connection, as in production.
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
+    sent = []
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            sent.append(payload)
+    class FakeResend:
+        api_key = None
+        Emails = FakeEmails()
+    monkeypatch.setitem(__import__("sys").modules, "resend", FakeResend)
+
+    result = await asyncio.wait_for(process_cancellation_lifecycle(db_session), timeout=20)
+
+    assert result == {"reminders_sent": 0, "deletions_done": 1, "failures": 0}
+    assert len(sent) == 1
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == OG_ID)
+    )).scalar_one_or_none() is None
+
+
+async def test_lifecycle_skips_a_group_reactivated_before_its_delete(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A reactivation committed after the group was read (here: while its
+    notice was going out) must stop the delete."""
+    from sqlalchemy import select, update
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services.billing import process_cancellation_lifecycle
+    from tests.conftest import get_test_session_factory
+
+    og_with_card.canceled_at = datetime.now(timezone.utc) - timedelta(days=91)
+    og_with_card.notified_deletion_reminder_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    async def reactivate_meanwhile(og):
+        async with get_test_session_factory()() as other:
+            await other.execute(
+                update(OwnershipGroup).where(OwnershipGroup.id == og.id).values(canceled_at=None)
+            )
+            await other.commit()
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", reactivate_meanwhile)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["deletions_done"] == 0
+    assert result["failures"] == 0
+    still_there = (await db_session.execute(
+        select(OwnershipGroup.canceled_at).where(OwnershipGroup.id == OG_ID)
+    )).one_or_none()
+    assert still_there is not None and still_there[0] is None

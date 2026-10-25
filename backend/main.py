@@ -246,9 +246,10 @@ def create_app() -> FastAPI:
                     with tenant_scope_disabled():
                         result = await process_cancellation_lifecycle(db)
                 log.info(
-                    "Cancellation lifecycle pass: reminders=%s deletions=%s",
+                    "Cancellation lifecycle pass: reminders=%s deletions=%s failures=%s",
                     result.get("reminders_sent"),
                     result.get("deletions_done"),
+                    result.get("failures"),
                 )
             except Exception as e:
                 log.error("Cancellation lifecycle failed: %s", e, exc_info=True)

@@ -1436,6 +1436,16 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     await db.delete(og)
 
 
+def _deletion_due(og: OwnershipGroup, now: datetime) -> bool:
+    """True while the group is still canceled and past the grace period."""
+    if og.canceled_at is None:
+        return False
+    canceled_at = og.canceled_at
+    if canceled_at.tzinfo is None:
+        canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+    return (now - canceled_at).days >= settings.SUBSCRIPTION_GRACE_DAYS
+
+
 async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
     """Daily cron driver.
 
@@ -1451,34 +1461,76 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
         - settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE
     )
 
-    canceled_ogs = (await db.execute(
-        select(OwnershipGroup).where(OwnershipGroup.canceled_at.is_not(None))
+    # Ids, not rows: a failed group's rollback expires every loaded object.
+    canceled_og_ids = (await db.execute(
+        select(OwnershipGroup.id).where(OwnershipGroup.canceled_at.is_not(None))
     )).scalars().all()
 
     reminders_sent = 0
     deletions_done = 0
+    failures = 0
 
-    for og in canceled_ogs:
-        # canceled_at column is timezone-aware UTC in PG; SQLite drops tz.
-        canceled_at = og.canceled_at
-        if canceled_at.tzinfo is None:
-            canceled_at = canceled_at.replace(tzinfo=timezone.utc)
-        age_days = (now - canceled_at).days
+    # Each group commits on its own, so one group's failure (say a foreign
+    # key another row still holds) cannot roll back the others' reminders and
+    # deletions, which would then be re-sent and retried every day.
+    for og_id in canceled_og_ids:
+        try:
+            og = await db.get(OwnershipGroup, og_id)
+            if og is None or og.canceled_at is None:
+                continue
+            # canceled_at column is timezone-aware UTC in PG; SQLite drops tz.
+            canceled_at = og.canceled_at
+            if canceled_at.tzinfo is None:
+                canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+            age_days = (now - canceled_at).days
 
-        # Day 76: send reminder (once)
-        if age_days >= reminder_threshold_days and og.notified_deletion_reminder_at is None:
-            await send_deletion_reminder_email(og)
-            og.notified_deletion_reminder_at = now
-            reminders_sent += 1
+            # Day 76: send reminder (once)
+            if age_days >= reminder_threshold_days and og.notified_deletion_reminder_at is None:
+                await send_deletion_reminder_email(og)
+                og.notified_deletion_reminder_at = now
+                await db.commit()
+                reminders_sent += 1
 
-        # Day 90: delete (the row goes away so this is naturally idempotent)
-        if age_days >= settings.SUBSCRIPTION_GRACE_DAYS:
-            await send_data_deleted_email(og)  # must happen BEFORE delete
-            await delete_og_and_dependents(db, og)
-            deletions_done += 1
+            # Day 90: delete (the row goes away so this is naturally idempotent)
+            if age_days >= settings.SUBSCRIPTION_GRACE_DAYS:
+                # The notice goes first and holds no lock of ours: it reads the
+                # managers' addresses and logs the send through its own
+                # session, and that log row references this group, so it
+                # would wait forever on an uncommitted delete. Stamped and
+                # committed, so a delete that fails is retried daily without
+                # mailing the notice again.
+                if og.notified_data_deleted_at is None:
+                    await send_data_deleted_email(og)
+                    og.notified_data_deleted_at = now
+                    await db.commit()
+                # Re-read under a row lock: a reactivation may have landed
+                # since this group was first read (or since the commit
+                # above). Its UPDATE takes the same row lock, so either it
+                # committed first and the group is no longer due, or it waits
+                # for this delete. Never held across the notice, whose log
+                # insert needs a key-share lock on this row.
+                locked = (await db.execute(
+                    select(OwnershipGroup)
+                    .where(OwnershipGroup.id == og_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                if locked is None or not _deletion_due(locked, now):
+                    await db.rollback()
+                    continue
+                await delete_og_and_dependents(db, locked)
+                await db.commit()
+                deletions_done += 1
+        except Exception:
+            await db.rollback()
+            failures += 1
+            logger.exception("Cancellation lifecycle failed for og=%s", og_id)
 
-    await db.commit()
-    return {"reminders_sent": reminders_sent, "deletions_done": deletions_done}
+    return {
+        "reminders_sent": reminders_sent,
+        "deletions_done": deletions_done,
+        "failures": failures,
+    }
 
 
 async def send_data_deleted_email(og: OwnershipGroup) -> None:
