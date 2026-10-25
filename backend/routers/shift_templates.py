@@ -3,7 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, require_manager
-from backend.models import ShiftTemplate, User
+from backend.services.ownership import assert_owned
+from backend.models import Location, ShiftTemplate, User
 from backend.schemas.shift_template import (
     ShiftTemplateCreate,
     ShiftTemplateResponse,
@@ -47,6 +48,7 @@ async def create_shift_template(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> ShiftTemplateResponse:
+    await assert_owned(db, Location, [body.location_id], [current_user.company_id], "Location")
     template = ShiftTemplate(
         company_id=current_user.company_id,
         location_id=body.location_id,

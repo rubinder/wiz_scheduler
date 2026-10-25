@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
 from backend.models import Employee, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, Location, Role, User
 from backend.services.archive import active, archive_employee, restore_employee
+from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan, assert_roster_editable
 from backend.schemas.employee import (
     AvailabilityCreate,
@@ -26,6 +27,18 @@ from backend.schemas.employee import (
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+
+async def _assert_employee_refs_owned(
+    db: AsyncSession, body: EmployeeCreate | EmployeeUpdate, group_company_ids: list[str],
+) -> None:
+    """The roles, locations and login a body names must be this ownership
+    group's: an employee may be shared across its companies, never beyond."""
+    await assert_owned(
+        db, Role, [r.role_id for r in body.roles or []], group_company_ids, "Role",
+    )
+    await assert_owned(db, Location, body.location_ids or [], group_company_ids, "Location")
+    await assert_owned(db, User, [body.user_id], group_company_ids, "User")
 
 
 async def _sync_employee_roles(
@@ -100,6 +113,7 @@ async def _to_response(db: AsyncSession, employee: Employee) -> EmployeeResponse
 async def get_my_employee_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> EmployeeMeResponse:
     """Return the employee profile for the currently authenticated user, including role names."""
     result = await db.execute(
@@ -124,7 +138,11 @@ async def get_my_employee_profile(
     role_names: dict[str, str] = {}
     if role_ids:
         role_result = await db.execute(
-            select(Role).where(Role.id.in_(role_ids), active(Role))
+            select(Role).where(
+                Role.id.in_(role_ids),
+                Role.company_id.in_(group_company_ids),
+                active(Role),
+            )
         )
         role_names = {r.id: r.name for r in role_result.scalars().all()}
 
@@ -138,7 +156,11 @@ async def get_my_employee_profile(
     locations: list[EmployeeMeLocationResponse] = []
     if employee.location_ids:
         loc_result = await db.execute(
-            select(Location).where(Location.id.in_(employee.location_ids), active(Location))
+            select(Location).where(
+                Location.id.in_(employee.location_ids),
+                Location.company_id.in_(group_company_ids),
+                active(Location),
+            )
         )
         locations = [
             EmployeeMeLocationResponse(
@@ -182,6 +204,7 @@ async def create_employee(
     await assert_can_add(db, str(current_user.company_id), employees=1)
     if body.pay_rate is not None:
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
+    await _assert_employee_refs_owned(db, body, group_company_ids)
 
     employee = Employee(
         company_id=current_user.company_id,
@@ -257,6 +280,7 @@ async def update_employee(
     # needing to re-upgrade -- clearing never grants paid-tier behavior.
     if "pay_rate" in body.model_fields_set and body.pay_rate is not None:
         await assert_paid_plan(db, str(current_user.company_id), "cost_aware_scheduling")
+    await _assert_employee_refs_owned(db, body, group_company_ids)
 
     if body.full_name is not None:
         employee.full_name = body.full_name

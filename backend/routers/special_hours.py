@@ -195,7 +195,10 @@ async def update_special_hours_day(
     tmpl: ShiftTemplate | None = None
     if row.shift_template_id and (times_changed or date_changed):
         tmpl = (await db.execute(
-            select(ShiftTemplate).where(ShiftTemplate.id == row.shift_template_id)
+            select(ShiftTemplate).where(
+                ShiftTemplate.id == row.shift_template_id,
+                ShiftTemplate.company_id == current_user.company_id,
+            )
         )).scalar_one_or_none()
 
     if body.date is not None:
@@ -264,7 +267,10 @@ async def delete_special_hours_day(
     await db.delete(row)
     if tmpl_id:
         tmpl = (await db.execute(
-            select(ShiftTemplate).where(ShiftTemplate.id == tmpl_id)
+            select(ShiftTemplate).where(
+                ShiftTemplate.id == tmpl_id,
+                ShiftTemplate.company_id == current_user.company_id,
+            )
         )).scalar_one_or_none()
         if tmpl is not None:
             await db.delete(tmpl)

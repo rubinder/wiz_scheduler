@@ -211,8 +211,12 @@ async def _candidate_shifts(
     query = (
         select(Shift, Location, Employee.full_name)
         .join(ShiftSchedule, ShiftSchedule.id == Shift.shift_schedule_id)
-        .join(Location, Location.id == Shift.location_id)
-        .join(Employee, Employee.id == Shift.employee_id)
+        .join(Location, and_(
+            Location.id == Shift.location_id, Location.company_id == Shift.company_id,
+        ))
+        .join(Employee, and_(
+            Employee.id == Shift.employee_id, Employee.company_id == Shift.company_id,
+        ))
         .where(
             Shift.company_id == company_id,
             ShiftSchedule.status == "approved",
@@ -529,7 +533,9 @@ async def attest_shift(
     row = (await db.execute(
         select(Shift, Location, ShiftSchedule.status)
         .join(ShiftSchedule, ShiftSchedule.id == Shift.shift_schedule_id)
-        .join(Location, Location.id == Shift.location_id)
+        .join(Location, and_(
+            Location.id == Shift.location_id, Location.company_id == Shift.company_id,
+        ))
         .where(Shift.id == shift_id, Shift.company_id == company_id)
     )).first()
     if row is None:

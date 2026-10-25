@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, require_manager
 from backend.models import Role, User
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
+from backend.services.ownership import assert_owned
 from backend.schemas.condensed_role import (
     CondensedRoleCreate,
     CondensedRoleMappingResponse,
@@ -22,7 +23,9 @@ async def _build_response(
     role_ids = [m.role_id for m in cr.mappings]
     role_map: dict[str, str] = {}
     if role_ids:
-        result = await db.execute(select(Role).where(Role.id.in_(role_ids)))
+        result = await db.execute(
+            select(Role).where(Role.id.in_(role_ids), Role.company_id == cr.company_id)
+        )
         role_map = {r.id: r.name for r in result.scalars().all()}
 
     return CondensedRoleResponse(
@@ -59,6 +62,7 @@ async def create_condensed_role(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> CondensedRoleResponse:
+    await assert_owned(db, Role, body.role_ids, [current_user.company_id], "Role")
     cr = CondensedRole(
         company_id=current_user.company_id,
         name=body.name,
@@ -95,6 +99,7 @@ async def update_condensed_role(
         cr.name = body.name
 
     if body.role_ids is not None:
+        await assert_owned(db, Role, body.role_ids, [current_user.company_id], "Role")
         # Replace all mappings
         for m in list(cr.mappings):
             await db.delete(m)

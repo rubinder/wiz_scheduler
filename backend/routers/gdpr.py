@@ -92,7 +92,9 @@ async def export_data(
 
     # Linked employee profile
     emp_result = await db.execute(
-        select(Employee).where(Employee.user_id == user_id)
+        select(Employee).where(
+            Employee.user_id == user_id, Employee.company_id == current_user.company_id,
+        )
     )
     employee = emp_result.scalar_one_or_none()
 
@@ -219,7 +221,9 @@ async def delete_account(
     # 2. The employee row is archived and erased, not deleted: shifts and pay
     #    records the employer must keep still point at it (#126).
     emp_result = await db.execute(
-        select(Employee).where(Employee.user_id == user_id)
+        select(Employee).where(
+            Employee.user_id == user_id, Employee.company_id == current_user.company_id,
+        )
     )
     employee = emp_result.scalar_one_or_none()
     if employee:

@@ -186,7 +186,9 @@ async def list_approved_schedules(
     loc_map: dict[str, str] = {}
     if loc_ids:
         loc_result = await db.execute(
-            select(Location).where(Location.id.in_(loc_ids))
+            select(Location).where(
+                Location.id.in_(loc_ids), Location.company_id == current_user.company_id,
+            )
         )
         for loc in loc_result.scalars().all():
             loc_map[loc.id] = loc.name
@@ -285,7 +287,9 @@ async def export_to_7shifts(
     from backend.models import Employee as EmpModel
 
     emp_result = await db.execute(
-        select(EmpModel).where(EmpModel.id.in_(emp_ids))
+        select(EmpModel).where(
+            EmpModel.id.in_(emp_ids), EmpModel.company_id == current_user.company_id,
+        )
     )
     emp_ext_map: dict[str, str | None] = {}
     for emp in emp_result.scalars().all():
@@ -294,7 +298,9 @@ async def export_to_7shifts(
     # Look up location external IDs
     loc_ids = {s.location_id for s in shifts}
     loc_result = await db.execute(
-        select(Location).where(Location.id.in_(loc_ids))
+        select(Location).where(
+            Location.id.in_(loc_ids), Location.company_id == current_user.company_id,
+        )
     )
     loc_ext_map: dict[str, str | None] = {}
     for loc in loc_result.scalars().all():
@@ -425,7 +431,9 @@ async def export_jsonl(
     # Lookup employee names
     emp_ids = {s.employee_id for s in shifts}
     emp_result = await db.execute(
-        select(Employee).where(Employee.id.in_(emp_ids))
+        select(Employee).where(
+            Employee.id.in_(emp_ids), Employee.company_id == current_user.company_id,
+        )
     )
     emp_map: dict[str, str] = {}
     for emp in emp_result.scalars().all():
