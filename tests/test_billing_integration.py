@@ -2881,3 +2881,52 @@ async def test_purchase_replayed_intent_credits_once(
     assert second.json()["current_balance_usd"] == 10.0
     charges = list((await db_session.execute(select(BillingCharge))).scalars())
     assert len(charges) == 1
+
+
+async def test_lifecycle_isolates_a_failing_group(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """One group's failed deletion rolls back only that group: the others
+    are still deleted and emailed, and the failing group gets no
+    "your data was deleted" email it would then receive again every day."""
+    from sqlalchemy import select
+    from backend.models.ownership_group import OwnershipGroup
+    from backend.services import billing
+    from backend.services.billing import process_cancellation_lifecycle
+
+    overdue = datetime.now(timezone.utc) - timedelta(days=91)
+    og_with_card.canceled_at = overdue
+    other = OwnershipGroup(name="Also Canceled", canceled_at=overdue)
+    db_session.add(other)
+    await db_session.commit()
+    other_id = other.id
+
+    real_delete = billing.delete_og_and_dependents
+
+    async def flaky_delete(db, og):
+        if og.id == OG_ID:
+            raise RuntimeError("a row elsewhere still references this group")
+        await real_delete(db, og)
+
+    deleted_emails, reminders = [], []
+    async def fake_reminder(og): reminders.append(og.id)
+    async def fake_deleted(og): deleted_emails.append(og.id)
+    monkeypatch.setattr("backend.services.billing.delete_og_and_dependents", flaky_delete)
+    monkeypatch.setattr("backend.services.billing.send_deletion_reminder_email", fake_reminder)
+    monkeypatch.setattr("backend.services.billing.send_data_deleted_email", fake_deleted)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["failures"] == 1
+    assert result["deletions_done"] == 1
+    assert deleted_emails == [other_id]
+    remaining = set((await db_session.execute(
+        select(OwnershipGroup.id).where(OwnershipGroup.id.in_([OG_ID, other_id]))
+    )).scalars().all())
+    assert remaining == {OG_ID}
+    # The failing group's reminder was committed before its delete failed,
+    # so tomorrow's run does not send it again.
+    stamped = (await db_session.execute(
+        select(OwnershipGroup.notified_deletion_reminder_at).where(OwnershipGroup.id == OG_ID)
+    )).scalar_one()
+    assert stamped is not None
