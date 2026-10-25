@@ -411,6 +411,9 @@ class Settings(BaseSettings):
     MONITORING_INTERVAL_SECONDS: int = 300                   # self-check loop interval
     MONITORING_SCHEDULING_FAILURE_WINDOW_MINUTES: int = 30   # look-back for recent failures
     PROMETHEUS_MULTIPROC_DIR: str = "/tmp/prometheus_multiproc"
+    # Bearer token a scraper must send to read /metrics. Empty (the default)
+    # turns the endpoint off: it answers 404 to everyone.
+    METRICS_TOKEN: str = ""
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
