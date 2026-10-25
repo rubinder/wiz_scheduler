@@ -6,7 +6,6 @@ multiprocess mode.
 """
 
 import os
-import re
 import time
 
 from backend.config import settings
@@ -67,24 +66,36 @@ DB_POOL_OVERFLOW = Gauge(
 )
 
 
-# ── Path normalization to prevent label cardinality explosion ──
-
-# Match 6-8 char alphanumeric IDs (short IDs) and standard UUIDs in paths
-_SHORT_ID = re.compile(r"/[a-z0-9]{6,8}(?=/|$)", re.IGNORECASE)
-_UUID = re.compile(
-    r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=/|$)",
-    re.IGNORECASE,
-)
+# ── Endpoint labels ──
 
 # Paths to skip instrumentation entirely
 _SKIP_PATHS = frozenset({"/metrics", "/health", "/health/live"})
 
+# Label for requests that matched no route (404s, scanners). Never the raw
+# path: anything a client puts in a URL must not reach a label.
+UNMATCHED_ENDPOINT = "<unmatched>"
 
-def _normalize_path(path: str) -> str:
-    """Replace IDs in URL paths with {id} to keep Prometheus cardinality bounded."""
-    path = _UUID.sub("/{id}", path)
-    path = _SHORT_ID.sub("/{id}", path)
-    return path
+
+def endpoint_label(request: Request) -> str:
+    """The matched route's template, e.g. ``/api/v1/invites/{token}``.
+
+    Labelling by template rather than by the request path keeps Prometheus
+    cardinality bounded and keeps path parameters out of /metrics: some are
+    secrets (an invite token is the whole credential for accepting it).
+
+    Built from the path and its matched ``path_params`` rather than from the
+    route object, whose ``path`` omits an ``include_router`` prefix on newer
+    FastAPI versions.
+    """
+    if request.scope.get("route") is None and request.scope.get("endpoint") is None:
+        return UNMATCHED_ENDPOINT
+    names_by_value = {
+        str(value): name for name, value in request.scope.get("path_params", {}).items()
+    }
+    return "/".join(
+        f"{{{names_by_value[segment]}}}" if segment in names_by_value else segment
+        for segment in request.url.path.split("/")
+    )
 
 
 # ── Multiprocess /metrics output ──
@@ -112,7 +123,6 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         method = request.method
-        endpoint = _normalize_path(path)
         start = time.monotonic()
 
         try:
@@ -120,12 +130,15 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except Exception:
             # Unhandled exception — record as 500
             elapsed = time.monotonic() - start
+            endpoint = endpoint_label(request)
             REQUEST_LATENCY.labels(method=method, endpoint=endpoint, status_code="500").observe(elapsed)
             REQUEST_COUNT.labels(method=method, endpoint=endpoint, status_code="500").inc()
             REQUEST_ERRORS.labels(method=method, endpoint=endpoint).inc()
             raise
 
         elapsed = time.monotonic() - start
+        # Read after call_next: routing fills in scope["route"].
+        endpoint = endpoint_label(request)
         status = str(response.status_code)
         REQUEST_LATENCY.labels(method=method, endpoint=endpoint, status_code=status).observe(elapsed)
         REQUEST_COUNT.labels(method=method, endpoint=endpoint, status_code=status).inc()

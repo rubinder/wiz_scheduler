@@ -1,3 +1,4 @@
+import hmac
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -109,10 +110,20 @@ def create_app() -> FastAPI:
         Use this for ALB health checks if the deep check proves too slow."""
         return {"status": "alive"}
 
-    @app.get("/metrics")
-    async def metrics_endpoint() -> Response:
-        """Prometheus metrics endpoint, aggregated across all workers."""
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint(request: Request) -> Response:
+        """Prometheus metrics, aggregated across all workers.
+
+        Off unless METRICS_TOKEN is set, and then only for a request bearing
+        it: the ALB is internet-facing, and nothing here is for the public.
+        """
         from backend.middleware.metrics import get_metrics, CONTENT_TYPE_LATEST
+        expected = settings.METRICS_TOKEN
+        supplied = request.headers.get("authorization", "")
+        if not expected or not hmac.compare_digest(
+            supplied.encode(), f"Bearer {expected}".encode()
+        ):
+            return Response(status_code=404)
         return Response(content=get_metrics(), media_type=CONTENT_TYPE_LATEST)
 
     # Register all routers under /api/v1
