@@ -143,16 +143,6 @@ resource "aws_ecs_task_definition" "app" {
           valueFrom = aws_secretsmanager_secret.database_url.arn
         },
         {
-          # Part 2: Postgres RLS. Application role with row-level security.
-          # Set by backend/database.py with current_setting('app.company_ids')
-          # after every connection checkout. Requires Alembic migration
-          # 0044_add_rls_policies.py to create app_role and RLS policies.
-          # For now, both DATABASE_URL and APP_DATABASE_URL are available.
-          # The app will switch to APP_DATABASE_URL once migration is deployed.
-          name      = "APP_DATABASE_URL"
-          valueFrom = aws_secretsmanager_secret.app_database_url.arn
-        },
-        {
           name      = "SECRET_KEY"
           valueFrom = aws_secretsmanager_secret.secret_key.arn
         },
