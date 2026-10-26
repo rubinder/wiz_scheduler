@@ -72,7 +72,13 @@ async def get_manager_location_assignments(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> list[LocationResponse]:
-    """Get all locations assigned to a manager."""
+    """Get all locations assigned to a manager. Admins may ask about anyone
+    in their company; a regular manager only about themselves."""
+    if current_user.manager_type != "admin" and current_user.id != manager_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only an admin manager can view another manager's locations",
+        )
     # Verify the manager exists and belongs to the same company
     result = await db.execute(
         select(User).where(

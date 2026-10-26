@@ -259,6 +259,9 @@ async def register(
         hashed_password=hashed_pw,
         full_name=body.full_name,
         user_role="manager",
+        # Full access, like every manager 0042 backfilled. Location-scoped
+        # "regular" managers (#149) are assigned explicitly, never by default.
+        manager_type="admin",
         google_id=google_sub,
         email_normalized=normalize_email(body.email),
         # Google already proved the address — _verify_google_token rejects an

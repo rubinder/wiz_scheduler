@@ -287,6 +287,7 @@ async def seed_manager(db_session: AsyncSession, seed_company: Company) -> User:
         hashed_password=pwd,
         full_name="Test Manager",
         user_role="manager",
+        manager_type="admin",
         # An established account, like every row the 0032 backfill stamped.
         # Tests that care about the unverified state build their own user;
         # leaving this NULL would 403 every generate test for a reason none
