@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_manager
+from backend.services.location_scope import LocationScope
 from backend.services.ownership import assert_owned
 from backend.models import Location, ShiftTemplate, User
 from backend.schemas.shift_template import (
@@ -19,6 +20,7 @@ async def list_shift_templates(
     include_overrides: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[ShiftTemplateResponse]:
     """List shift templates for the current company.
 
@@ -33,7 +35,8 @@ async def list_shift_templates(
     cloned overrides remain visible for inspection/edit.
     """
     query = select(ShiftTemplate).where(
-        ShiftTemplate.company_id == current_user.company_id
+        ShiftTemplate.company_id == current_user.company_id,
+        scope.clause(ShiftTemplate.location_id),
     )
     if not include_overrides:
         query = query.where(ShiftTemplate.specific_date.is_(None))
@@ -47,8 +50,10 @@ async def create_shift_template(
     body: ShiftTemplateCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> ShiftTemplateResponse:
     await assert_owned(db, Location, [body.location_id], [current_user.company_id], "Location")
+    scope.require(body.location_id)
     template = ShiftTemplate(
         company_id=current_user.company_id,
         location_id=body.location_id,
@@ -67,6 +72,7 @@ async def update_shift_template(
     body: ShiftTemplateUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> ShiftTemplateResponse:
     result = await db.execute(
         select(ShiftTemplate).where(
@@ -77,6 +83,7 @@ async def update_shift_template(
     template = result.scalar_one_or_none()
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift template not found")
+    scope.require(template.location_id, "Shift template")
 
     if body.name is not None:
         template.name = body.name
@@ -93,6 +100,7 @@ async def delete_shift_template(
     template_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     result = await db.execute(
         select(ShiftTemplate).where(
@@ -103,6 +111,7 @@ async def delete_shift_template(
     template = result.scalar_one_or_none()
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift template not found")
+    scope.require(template.location_id, "Shift template")
 
     await db.delete(template)
     await db.commit()

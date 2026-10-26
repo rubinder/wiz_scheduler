@@ -8,6 +8,7 @@ import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg } from "../../theme";
 import * as billingApi from "../../api/billing";
 import { googleLinkCurrent } from "../../api/googleAuth";
+import { isAdminOnlyPath } from "../../utils/permissions";
 
 declare global {
   interface Window {
@@ -83,7 +84,8 @@ function LinkGoogleCard() {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  // Imports and company-wide pages are admin-only (#149).
+  const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
   const [showImport, setShowImport] = useState(false);
   const [showDeputyImport, setShowDeputyImport] = useState(false);
@@ -141,7 +143,7 @@ export default function Dashboard() {
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const navCards = [
+  const allNavCards = [
     {
       to: "/manager/quick-entry",
       title: t.nav.quickEntry,
@@ -184,6 +186,7 @@ export default function Dashboard() {
       desc: t.dashboard.checkInDesc,
     },
   ];
+  const navCards = allNavCards.filter((c) => isAdmin || !isAdminOnlyPath(c.to));
 
   return (
     <div>
@@ -191,34 +194,36 @@ export default function Dashboard() {
         <h1 className={`text-2xl font-bold ${text.heading}`}>
           {t.dashboard.welcome} {user?.full_name ?? t.dashboard.manager}
         </h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowImport(true)}
-            disabled={importsDisabled}
-            title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
-            className="glass-btn-orange"
-          >
-            {t.dashboard.importFrom7shifts}
-          </button>
-          <button
-            onClick={() => setShowDeputyImport(true)}
-            disabled={importsDisabled}
-            title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
-            className="glass-btn-primary"
-          >
-            {t.dashboard.importFromDeputy}
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              disabled={importsDisabled}
+              title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
+              className="glass-btn-orange"
+            >
+              {t.dashboard.importFrom7shifts}
+            </button>
+            <button
+              onClick={() => setShowDeputyImport(true)}
+              disabled={importsDisabled}
+              title={importsDisabled ? t.dashboard.importDisabledFreePlan : undefined}
+              className="glass-btn-primary"
+            >
+              {t.dashboard.importFromDeputy}
+            </button>
+          </div>
+        )}
       </div>
       {sessionConfirmError && (
         <div className="glass-alert-error mb-4">
           {sessionConfirmError}
         </div>
       )}
-      <p className={`${text.muted} ${importsDisabled ? "mb-1" : "mb-8"}`}>
+      <p className={`${text.muted} ${isAdmin && importsDisabled ? "mb-1" : "mb-8"}`}>
         {t.dashboard.subtitle}
       </p>
-      {importsDisabled && (
+      {isAdmin && importsDisabled && (
         <p className={`text-xs ${text.muted} mb-8`}>
           {t.dashboard.importDisabledFreePlan}
         </p>
@@ -239,13 +244,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {showImport && (
+      {isAdmin && showImport && (
         <Import7ShiftsModal
           onClose={() => setShowImport(false)}
           onSuccess={() => window.location.reload()}
         />
       )}
-      {showDeputyImport && (
+      {isAdmin && showDeputyImport && (
         <ImportDeputyModal
           onClose={() => setShowDeputyImport(false)}
           onSuccess={() => window.location.reload()}

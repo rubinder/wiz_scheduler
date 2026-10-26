@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin, require_manager
 from backend.models import Role, User
 from backend.services.archive import active, archive_role, restore_role
 from backend.schemas.role import RoleBulkUploadResponse, RoleCreate, RoleResponse, RoleUpdate
@@ -31,7 +31,7 @@ async def list_roles(
 @router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
 async def create_role(
     body: RoleCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RoleResponse:
     role = Role(
@@ -49,7 +49,7 @@ async def create_role(
 async def update_role(
     role_id: str,
     body: RoleUpdate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RoleResponse:
     result = await db.execute(
@@ -72,7 +72,7 @@ async def update_role(
 @router.post("/bulk-upload", response_model=RoleBulkUploadResponse)
 async def bulk_upload_roles(
     file: UploadFile,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RoleBulkUploadResponse:
     """
@@ -180,7 +180,7 @@ async def bulk_upload_roles(
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role(
     role_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
@@ -197,7 +197,7 @@ async def delete_role(
 @router.post("/{role_id}/restore", response_model=RoleResponse)
 async def restore_role_endpoint(
     role_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RoleResponse:
     role = (await db.execute(

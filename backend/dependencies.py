@@ -10,6 +10,7 @@ from backend.config import settings
 from backend.database import RLS_COMPANY_IDS, apply_rls, async_session_factory
 from backend.models.company import Company
 from backend.models.user import User
+from backend.services.location_scope import LocationScope, is_restricted_manager, location_scope_for
 from backend.tenant import set_tenant_context
 
 security = HTTPBearer()
@@ -56,6 +57,22 @@ async def require_manager(
     if current_user.user_role != "manager":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager access required")
     return current_user
+
+
+async def require_admin(current_user: User = Depends(require_manager)) -> User:
+    """Company settings, billing, team, imports and payroll (spec Q1, Q4).
+    Only an explicit 'regular' manager is refused."""
+    if is_restricted_manager(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
+
+async def get_location_scope(
+    current_user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+) -> LocationScope:
+    """The locations this manager may act on; unrestricted for admins."""
+    return await location_scope_for(db, current_user)
 
 
 async def _get_company_ids_for_user(user: User, db: AsyncSession) -> list[str]:

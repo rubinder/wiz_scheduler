@@ -17,6 +17,7 @@ from backend.models import (
     UserConsent,
 )
 from backend.services.archive import erase_employee
+from backend.services.manager_permissions import is_admin_manager, lock_company_admin_ids
 
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 
@@ -213,6 +214,26 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     user_id = current_user.id
+
+    # The company keeps an admin (#149, spec Q6): while other managers
+    # remain, the last admin promotes one of them first. A sole manager may
+    # always erase their account, as before.
+    if is_admin_manager(current_user):
+        admin_ids = await lock_company_admin_ids(db, current_user.company_id)
+        if admin_ids - {user_id} == set():
+            other_manager = (await db.execute(
+                select(User.id).where(
+                    User.company_id == current_user.company_id,
+                    User.user_role == "manager",
+                    User.id != user_id,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if other_manager is not None:
+                await db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Make another manager an admin before deleting the last admin account",
+                )
 
     # 1. Delete consent records
     await db.execute(

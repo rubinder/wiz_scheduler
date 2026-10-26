@@ -8,8 +8,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, Shift, ShiftSchedule, User
+from backend.services.location_scope import LocationScope
 from backend.services.candidates import rank_candidates, slot_span
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
@@ -50,6 +51,7 @@ async def list_candidates(
     body: CandidatesRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[CandidateResponse]:
     location = (await db.execute(
         select(Location).where(
@@ -59,6 +61,10 @@ async def list_candidates(
     )).scalar_one_or_none()
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    # Every candidate offered works at this location (rank_candidates drops
+    # the rest), so an in-scope location is all a scoped manager needs to
+    # see them (#149, spec Q2).
+    scope.require(location.id)
     span_start, span_end = slot_span(body.date, body.start_time, body.end_time)
     ranked = await rank_candidates(
         db, str(current_user.company_id), location, body.role_id,
@@ -71,6 +77,7 @@ async def list_candidates(
 async def open_shift_count(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> OpenShiftCount:
     now = datetime.now(timezone.utc)
     count = (await db.execute(
@@ -79,6 +86,7 @@ async def open_shift_count(
         .join(ShiftSchedule, Shift.shift_schedule_id == ShiftSchedule.id)
         .where(
             Shift.company_id == current_user.company_id,
+            scope.clause(Shift.location_id),
             ShiftSchedule.status == "approved",
             Shift.employee_id.is_(None),
             Shift.start_time >= now,

@@ -1,6 +1,8 @@
 """Manager permission checks for location-scoped access control."""
 
-from sqlalchemy import select
+from collections.abc import Iterable
+
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import User, ManagerLocation, Location
@@ -115,6 +117,15 @@ async def assign_location_to_manager(
     if not location:
         raise ValueError(f"Location {location_id} not found in manager's company")
 
+    existing = (await db.execute(
+        select(ManagerLocation).where(
+            ManagerLocation.manager_id == manager_id,
+            ManagerLocation.location_id == location_id,
+        )
+    )).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
     # Create the assignment
     manager_location = ManagerLocation(
         manager_id=manager_id,
@@ -159,3 +170,73 @@ async def revoke_location_from_manager(
     if assignment:
         await db.delete(assignment)
         await db.commit()
+
+
+class LastAdminError(Exception):
+    """Demoting this manager would leave the company without an admin (Q6)."""
+
+
+def is_admin_manager(user: User) -> bool:
+    """NULL was the pre-0049 value for every manager and meant admin."""
+    return user.user_role == "manager" and user.manager_type != "regular"
+
+
+async def lock_company_admin_ids(db: AsyncSession, company_id: str) -> set[str]:
+    """Row-lock and return the company's admin managers.
+
+    Every demotion takes these locks first, so two admins demoting each
+    other serialize: the second re-reads the first's row, no longer an
+    admin, and sees itself as the last one.
+    """
+    rows = await db.execute(
+        select(User.id)
+        .where(
+            User.company_id == company_id,
+            User.user_role == "manager",
+            or_(User.manager_type.is_(None), User.manager_type != "regular"),
+        )
+        .order_by(User.id)
+        .with_for_update()
+    )
+    return set(rows.scalars().all())
+
+
+async def validate_assignable_locations(
+    db: AsyncSession,
+    company_id: str,
+    location_ids: Iterable[str],
+    keep: Iterable[str] = (),
+) -> list[str]:
+    """Deduplicated ids, each an active location of `company_id`, or an
+    archived one listed in `keep` (the manager's current assignments).
+
+    New assignments need an active location, as `assign_location_to_manager`
+    does; an archived location already assigned may stay assigned when the
+    set is replaced (spec Q7). Raises ValueError naming the first unknown id.
+    """
+    ids = list(dict.fromkeys(location_ids))
+    if not ids:
+        return []
+    kept = set(keep)
+    rows = (await db.execute(
+        select(Location.id, Location.archived_at).where(
+            Location.id.in_(ids),
+            Location.company_id == company_id,
+        )
+    )).all()
+    found = {lid for lid, archived_at in rows if archived_at is None or lid in kept}
+    for lid in ids:
+        if lid not in found:
+            raise ValueError(f"Location {lid} not found in this company")
+    return ids
+
+
+async def replace_manager_locations(
+    db: AsyncSession, manager_id: str, location_ids: Iterable[str]
+) -> None:
+    """Make `location_ids` the manager's whole assignment set. No commit:
+    the caller's transaction owns it."""
+    await db.execute(delete(ManagerLocation).where(ManagerLocation.manager_id == manager_id))
+    for lid in dict.fromkeys(location_ids):
+        db.add(ManagerLocation(manager_id=manager_id, location_id=lid))
+    await db.flush()

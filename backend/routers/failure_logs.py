@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin
 from backend.models import FailureLog, User
 from backend.schemas.failure_log import FailureLogResponse
 
@@ -15,7 +15,7 @@ async def list_failure_logs(
     severity: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[FailureLogResponse]:
     # Only the caller's own company. Rows with no company come from requests

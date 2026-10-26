@@ -17,6 +17,7 @@ import { listLocations } from "../../api/locations";
 import { listRoles } from "../../api/roles";
 import DemoGuard from "../../components/shared/DemoGuard";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type {
   Employee,
@@ -49,6 +50,7 @@ const ONBOARDING_URL = "https://app.wizscheduler.com/manager/employee-onboarding
 
 export default function EmployeeAvailability() {
   const { t } = useLanguage();
+  const { isAdmin } = useAuth();
   // onboardingHint contains a "{link}" placeholder for the onboarding link text
   const [hintBefore, hintAfter] = t.employeeAvailability.onboardingHint.split("{link}");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -416,38 +418,43 @@ export default function EmployeeAvailability() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <DemoGuard>
-              <button
-                onClick={() => {
-                  setShowImport7Shifts(!showImport7Shifts);
-                  setImport7Result(null);
-                  if (!showImport7Shifts) { setShowImportDeputy(false); setDeputyResult(null); }
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded border ${
-                  showImport7Shifts
-                    ? "bg-orange-500/15 border-orange-400/20 text-orange-300"
-                    : "glass-btn-secondary border"
-                }`}
-              >
-                {t.association.importFrom7shifts}
-              </button>
-            </DemoGuard>
-            <DemoGuard>
-              <button
-                onClick={() => {
-                  setShowImportDeputy(!showImportDeputy);
-                  setDeputyResult(null);
-                  if (!showImportDeputy) { setShowImport7Shifts(false); setImport7Result(null); }
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded border ${
-                  showImportDeputy
-                    ? "bg-blue-500/15 border-blue-400/20 text-blue-300"
-                    : "glass-btn-secondary border"
-                }`}
-              >
-                {t.association.importFromDeputy}
-              </button>
-            </DemoGuard>
+            {/* Availability imports are admin-only (#149). */}
+            {isAdmin && (
+              <>
+                <DemoGuard>
+                  <button
+                    onClick={() => {
+                      setShowImport7Shifts(!showImport7Shifts);
+                      setImport7Result(null);
+                      if (!showImport7Shifts) { setShowImportDeputy(false); setDeputyResult(null); }
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded border ${
+                      showImport7Shifts
+                        ? "bg-orange-500/15 border-orange-400/20 text-orange-300"
+                        : "glass-btn-secondary border"
+                    }`}
+                  >
+                    {t.association.importFrom7shifts}
+                  </button>
+                </DemoGuard>
+                <DemoGuard>
+                  <button
+                    onClick={() => {
+                      setShowImportDeputy(!showImportDeputy);
+                      setDeputyResult(null);
+                      if (!showImportDeputy) { setShowImport7Shifts(false); setImport7Result(null); }
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded border ${
+                      showImportDeputy
+                        ? "bg-blue-500/15 border-blue-400/20 text-blue-300"
+                        : "glass-btn-secondary border"
+                    }`}
+                  >
+                    {t.association.importFromDeputy}
+                  </button>
+                </DemoGuard>
+              </>
+            )}
             <DemoGuard>
               <button
                 onClick={() => setAddingAvail(true)}
@@ -461,7 +468,7 @@ export default function EmployeeAvailability() {
         </div>
 
         {/* 7shifts import panel */}
-        {showImport7Shifts && (
+        {isAdmin && showImport7Shifts && (
           <div className="bg-orange-500/[0.07] backdrop-blur-xl border border-orange-400/[0.12] rounded-xl p-4 mb-4">
             <h3 className={`text-sm font-semibold ${text.body} mb-1`}>
               {t.association.import7shiftsTitle}
@@ -558,7 +565,7 @@ export default function EmployeeAvailability() {
         )}
 
         {/* Deputy import panel */}
-        {showImportDeputy && (
+        {isAdmin && showImportDeputy && (
           <div className="bg-blue-500/[0.07] backdrop-blur-xl border border-blue-400/[0.12] rounded-xl p-4 mb-4">
             <h3 className={`text-sm font-semibold ${text.body} mb-1`}>
               {t.association.importDeputyTitle}

@@ -10,13 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.services.passwords import hash_password
 from backend.utils.base_url import trusted_base_url
 from backend.utils.email_normalize import normalize_email
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
 from backend.models.consent import UserConsent
+from backend.services.location_scope import require_employee_editable, visible_employee_ids
 from backend.services.archive import active
+from backend.services.location_scope import LocationScope
 from backend.utils.privacy import mask_ip
 from backend.schemas.employee import (
     AcceptInviteRequest,
@@ -88,6 +90,7 @@ async def create_invite(
     request: Request,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> InviteResponse:
     """Generate an invite link for an employee who doesn't have a login yet."""
     # Verify employee exists and belongs to this company
@@ -101,6 +104,8 @@ async def create_invite(
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    # Location scope (#149): inviting is a write on the employee.
+    require_employee_editable(scope, employee)
 
     if employee.user_id is not None:
         raise HTTPException(
@@ -305,14 +310,20 @@ async def accept_invite(
 async def list_invites(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[InviteStatusResponse]:
-    """List all invites for the manager's company."""
-    result = await db.execute(
+    """List invites for the manager's company, limited to the employees a
+    location-scoped manager can see (#149)."""
+    query = (
         select(EmployeeInvite, Employee.full_name)
         .join(Employee, EmployeeInvite.employee_id == Employee.id)
         .where(EmployeeInvite.company_id == current_user.company_id, active(Employee))
         .order_by(EmployeeInvite.created_at.desc())
     )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeInvite.employee_id.in_(sorted(visible)))
+    result = await db.execute(query)
     rows = result.all()
     return [
         InviteStatusResponse(

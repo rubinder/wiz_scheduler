@@ -1,7 +1,8 @@
 """Payable hours: derivation, the exception queue, attestation, approval, CSV.
 
-Paid-only in every direction via assert_paid_plan, manager-only via
-require_manager, and every query filtered by the caller's company_id.
+Paid-only in every direction via assert_paid_plan, admin-manager-only via
+require_admin (a location-scoped regular manager is refused, #149), and
+every query filtered by the caller's company_id.
 
 The router is a thin translation layer: the decision table lives in
 backend/services/time_entries.py and backend/services/payroll_export.py.
@@ -15,7 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin
 from backend.models import Company, User
 from backend.schemas.payroll import (
     MAX_RANGE_DAYS,
@@ -69,7 +70,7 @@ def _validate_range(range_start: date, range_end: date) -> None:
 @router.post("/entries/derive", response_model=PayrollDeriveResponse)
 async def derive_entries(
     body: PayrollRangeRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollDeriveResponse:
     """Create the payable rows for a range. Idempotent — the page calls it on
@@ -91,7 +92,7 @@ async def get_entries(
     range_end: date = Query(...),
     location_id: str | None = Query(None),
     approved: bool | None = Query(None),
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollEntriesResponse:
     company_id = str(current_user.company_id)
@@ -114,7 +115,7 @@ async def get_exceptions(
     range_start: date = Query(...),
     range_end: date = Query(...),
     location_id: str | None = Query(None),
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollExceptionsResponse:
     """Approved shifts nobody scanned for. Phones die; nobody misses a
@@ -136,7 +137,7 @@ async def get_exceptions(
              status_code=status.HTTP_201_CREATED)
 async def attest(
     body: PayrollAttestRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> TimeEntryRowSchema:
     """Confirm an unscanned shift was worked. Phones die; nobody misses a
@@ -157,7 +158,7 @@ async def attest(
 @router.post("/approve", response_model=PayrollApproveResponse)
 async def approve(
     body: PayrollApproveRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> PayrollApproveResponse:
     company_id = str(current_user.company_id)
@@ -174,7 +175,7 @@ async def approve(
 @router.post("/export", response_class=Response)
 async def export_csv(
     body: PayrollExportRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Download approved hours as CSV.

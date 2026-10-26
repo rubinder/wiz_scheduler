@@ -144,6 +144,33 @@ const ja = {
     columnAcceptedAt: "Accepted",
     columnCompany: "Company",
     noInvites: "No manager invites yet.",
+    managersTitle: "Managers",
+    invitesTitle: "Invites",
+    columnName: "Name",
+    columnType: "Access",
+    columnLocations: "Locations",
+    typeAdmin: "Admin",
+    typeRegular: "Location manager",
+    typeAdminDesc: "Every location, plus company settings, billing and the team.",
+    typeRegularDesc: "Only the locations you pick.",
+    typeLabel: "Access",
+    locationsLabel: "Locations",
+    allLocations: "All locations",
+    noLocationsAssigned: "None",
+    noActiveLocations: "There are no active locations to assign.",
+    noManagers: "No managers yet.",
+    editAccess: "Edit access",
+    editAccessTitle: "Edit access for {name}",
+    locationsRequired: "Pick at least one location.",
+    lastAdminError: "The company must keep at least one admin. Make another manager an admin first.",
+    archivedAssignmentNote: "Archived locations stay assigned until you change this manager's locations.",
+  },
+
+  // ── Location-scoped managers ──
+  access: {
+    restrictedTo: "Restricted to: {locations}",
+    noLocations: "No locations assigned yet. Ask a company admin to assign one.",
+    billingAdminOnly: "Only a company admin can buy credits or change billing. Ask an admin to top up.",
   },
 
   // ── Login ──

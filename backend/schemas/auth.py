@@ -64,6 +64,8 @@ class UserResponse(BaseModel):
     user_role: str
     # 'admin' | 'regular' for managers (#149); None for employees.
     manager_type: str | None = None
+    # Locations a regular manager may act on; None = all (admins, employees).
+    accessible_location_ids: list[str] | None = None
     ownership_group_id: str | None = None
     is_demo: bool = False
     has_google: bool = False

@@ -1,12 +1,19 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
+
+ManagerType = Literal["admin", "regular"]
 
 
 class CreateManagerInviteRequest(BaseModel):
     # Note: plan specifies EmailStr, but email-validator is not a project
     # dep — mirrors existing schemas in backend/schemas/employee.py.
     email: str
+    # 'regular' requires a non-empty location_ids in the inviter's company
+    # (#149); an admin invite ignores location_ids.
+    manager_type: ManagerType = "admin"
+    location_ids: list[str] | None = None
 
 
 class ManagerInviteResponse(BaseModel):
@@ -17,6 +24,8 @@ class ManagerInviteResponse(BaseModel):
     status: str
     created_at: datetime
     expires_at: datetime
+    manager_type: str = "admin"
+    location_ids: list[str] | None = None
 
 
 class CompanyChoice(BaseModel):
@@ -51,3 +60,5 @@ class ListManagerInviteRow(BaseModel):
     expires_at: datetime
     accepted_at: datetime | None
     accepted_company_id: str | None
+    manager_type: str = "admin"
+    location_ids: list[str] | None = None

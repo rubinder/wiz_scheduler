@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin, require_manager
 from backend.models import Company, OwnershipGroup, User
 from backend.schemas.ownership_group import (
     CompanySummary,
@@ -52,7 +52,7 @@ async def get_ownership_group(
 @router.put("/", response_model=OwnershipGroupResponse)
 async def update_ownership_group(
     body: OwnershipGroupCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> OwnershipGroupResponse:
     """Update the ownership group name."""
@@ -80,7 +80,7 @@ async def update_ownership_group(
 @router.post("/companies", response_model=CompanySummary, status_code=status.HTTP_201_CREATED)
 async def add_company_to_group(
     body: OwnershipGroupCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> CompanySummary:
     """Create a new company and add it to the current ownership group."""

@@ -11,9 +11,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_admin, require_manager
 from backend.models import Department, Employee, EmployeeRole, Location, Role, Shift, ShiftSchedule, User
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
+from backend.services.location_scope import LocationScope
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -137,6 +138,7 @@ def _resolve_role_for_employee(
 async def list_approved_dates(
     anchor: date | None = None,
     current_user: User = Depends(require_manager),
+    scope: LocationScope = Depends(get_location_scope),
     db: AsyncSession = Depends(get_db),
 ) -> list[str]:
     """Return distinct week_start_dates with approved schedules within ±31 days of anchor."""
@@ -151,6 +153,7 @@ async def list_approved_dates(
         .where(
             ShiftSchedule.company_id == current_user.company_id,
             ShiftSchedule.status == "approved",
+            scope.clause(ShiftSchedule.location_id),
             ShiftSchedule.week_start_date >= range_start,
             ShiftSchedule.week_start_date <= range_end,
         )
@@ -163,6 +166,7 @@ async def list_approved_dates(
 async def list_approved_schedules(
     week_start_date: date | None = None,
     current_user: User = Depends(require_manager),
+    scope: LocationScope = Depends(get_location_scope),
     db: AsyncSession = Depends(get_db),
 ) -> list[ApprovedScheduleItem]:
     """List approved schedules for the current week (or specified week), grouped by location."""
@@ -176,6 +180,7 @@ async def list_approved_schedules(
         select(ShiftSchedule).where(
             ShiftSchedule.company_id == current_user.company_id,
             ShiftSchedule.status == "approved",
+            scope.clause(ShiftSchedule.location_id),
             ShiftSchedule.week_start_date == week_start_date,
         )
     )
@@ -251,7 +256,7 @@ async def list_approved_schedules(
 @router.post("/7shifts", response_model=Export7ShiftsResult)
 async def export_to_7shifts(
     body: Export7ShiftsRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Export7ShiftsResult:
     """Push selected shifts to 7shifts via their Create Shift API."""
@@ -405,6 +410,7 @@ async def export_to_7shifts(
 async def export_jsonl(
     schedule_id: str,
     current_user: User = Depends(require_manager),
+    scope: LocationScope = Depends(get_location_scope),
     db: AsyncSession = Depends(get_db),
     token: str | None = None,
 ) -> Response:
@@ -422,6 +428,8 @@ async def export_jsonl(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Approved schedule not found",
         )
+    # Out of scope answers the same 404 as another company's schedule (#149).
+    scope.require(schedule.location_id, "Approved schedule")
 
     shift_result = await db.execute(
         select(Shift).where(Shift.shift_schedule_id == schedule.id)

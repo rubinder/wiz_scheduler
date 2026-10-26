@@ -7,9 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, ShiftTemplate, SpecialHoursDay, User
 from backend.services.archive import active
+from backend.services.location_scope import LocationScope
 from backend.schemas.special_hours import (
     CreateSpecialHoursDayRequest,
     SpecialHoursDayResponse,
@@ -60,6 +61,7 @@ async def create_special_hours_day(
     body: CreateSpecialHoursDayRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> SpecialHoursDayResponse:
     if body.close_time <= body.open_time:
         raise HTTPException(
@@ -71,6 +73,7 @@ async def create_special_hours_day(
     await _verify_location_in_company(
         db, body.location_id, str(current_user.company_id)
     )
+    scope.require(body.location_id)
 
     existing = (await db.execute(
         select(SpecialHoursDay).where(
@@ -144,9 +147,11 @@ async def list_special_hours_days(
     to_date: date | None = None,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[SpecialHoursDayResponse]:
     q = select(SpecialHoursDay).where(
-        SpecialHoursDay.company_id == current_user.company_id
+        SpecialHoursDay.company_id == current_user.company_id,
+        scope.clause(SpecialHoursDay.location_id),
     )
     if location_id is not None:
         q = q.where(SpecialHoursDay.location_id == location_id)
@@ -165,6 +170,7 @@ async def update_special_hours_day(
     body: UpdateSpecialHoursDayRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> SpecialHoursDayResponse:
     row = (await db.execute(
         select(SpecialHoursDay).where(
@@ -173,6 +179,10 @@ async def update_special_hours_day(
         )
     )).scalar_one_or_none()
     if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not scope.allows(row.location_id):
+        # Out of a location-scoped manager's scope (#149): the same answer
+        # as another company's row.
         raise HTTPException(status_code=404, detail="Not found")
 
     new_open = body.open_time if body.open_time is not None else row.open_time
@@ -253,6 +263,7 @@ async def delete_special_hours_day(
     special_hours_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ):
     row = (await db.execute(
         select(SpecialHoursDay).where(
@@ -261,6 +272,10 @@ async def delete_special_hours_day(
         )
     )).scalar_one_or_none()
     if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not scope.allows(row.location_id):
+        # Out of a location-scoped manager's scope (#149): the same answer
+        # as another company's row.
         raise HTTPException(status_code=404, detail="Not found")
 
     tmpl_id = row.shift_template_id

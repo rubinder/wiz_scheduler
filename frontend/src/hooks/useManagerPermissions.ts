@@ -1,71 +1,36 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useAuth } from "./useAuth";
-import * as managersApi from "../api/managers";
+import {
+  canAccessLocation,
+  canVisitPath,
+  isRestricted,
+  type ManagerAccess,
+} from "../utils/permissions";
 
-interface ManagerPermissions {
-  isAdmin: boolean;
-  accessibleLocationIds: Set<string>;
-  isLoading: boolean;
-  error: string | null;
+export interface ManagerPermissions extends ManagerAccess {
+  /** True for a regular manager limited to some locations. */
+  restricted: boolean;
+  canAccessLocation: (locationId: string) => boolean;
+  canVisitPath: (pathname: string) => boolean;
 }
 
 /**
- * Hook for checking manager location permissions.
+ * The signed-in manager's permissions, read from the auth context
+ * (`/auth/me`), so no extra fetch and every page updates together when the
+ * user is re-fetched.
  *
- * - Admin managers: can access all locations
- * - Regular managers: can only access assigned locations
- * - Non-managers: no location access
+ * - Admin managers: every location and every page.
+ * - Regular managers: their assigned locations; company-wide pages hidden.
  */
 export function useManagerPermissions(): ManagerPermissions {
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [accessibleLocationIds, setAccessibleLocationIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const loadPermissions = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Non-managers have no location access
-        if (!user || user.user_role !== "manager") {
-          setAccessibleLocationIds(new Set());
-          setIsLoading(false);
-          return;
-        }
-
-        // Fetch accessible locations from API
-        const locations = await managersApi.getAccessibleLocations();
-        const ids = new Set(locations.map((loc) => loc.id));
-        setAccessibleLocationIds(ids);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load permissions");
-      } finally {
-        setIsLoading(false);
-      }
+  const { isAdmin, accessibleLocationIds } = useAuth();
+  return useMemo(() => {
+    const access: ManagerAccess = { isAdmin, accessibleLocationIds };
+    return {
+      ...access,
+      restricted: isRestricted(access),
+      canAccessLocation: (id: string) => canAccessLocation(access, id),
+      canVisitPath: (path: string) => canVisitPath(access, path),
     };
-
-    loadPermissions();
-  }, [user]);
-
-  return {
-    isAdmin: user?.manager_type === "admin" || false,
-    accessibleLocationIds,
-    isLoading,
-    error,
-  };
-}
-
-/**
- * Check if a manager can access a specific location.
- */
-export function canAccessLocation(
-  permissions: ManagerPermissions,
-  locationId: string
-): boolean {
-  if (permissions.isAdmin) {
-    return true;
-  }
-  return permissions.accessibleLocationIds.has(locationId);
+  }, [isAdmin, accessibleLocationIds]);
 }

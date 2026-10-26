@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin, require_manager
 from backend.models import User
 from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
@@ -213,7 +213,7 @@ async def get_autoreload(
 @router.put("/autoreload", response_model=AutoReloadStatus)
 async def update_autoreload(
     body: AutoReloadUpdate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AutoReloadStatus:
     og = await _load_og(db, current_user)
@@ -229,7 +229,7 @@ async def update_autoreload(
 
 @router.post("/autoreload/retry", response_model=AutoReloadStatus)
 async def retry_autoreload(
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AutoReloadStatus:
     og = await _load_og(db, current_user)
@@ -261,7 +261,7 @@ async def retry_autoreload(
 @router.post("/credits/purchase", response_model=AutoReloadStatus)
 async def purchase_credits(
     body: CreditPurchaseRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> AutoReloadStatus:
     """Buy a fixed AI credit pack, charged now to the saved card (#64).
@@ -325,7 +325,7 @@ async def purchase_credits(
 @router.get("/charges", response_model=BillingChargesResponse)
 async def get_billing_charges(
     limit: int = 50,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> BillingChargesResponse:
     from backend.utils.pagination import clamp_limit
@@ -358,7 +358,7 @@ async def get_billing_charges(
 
 @router.get("/portal-link", response_model=PortalLinkResponse)
 async def get_portal_link(
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> PortalLinkResponse:
     og = await _load_og(db, current_user)
@@ -395,7 +395,7 @@ class ConfirmReactivationRequest(BaseModel):
 
 @router.post("/reactivate-checkout", response_model=ReactivateCheckoutResponse)
 async def reactivate_checkout(
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ReactivateCheckoutResponse:
     """Create a Stripe Checkout session for reactivating a canceled subscription.
@@ -435,7 +435,7 @@ async def reactivate_checkout(
 @router.post("/confirm-reactivation")
 async def confirm_reactivation(
     body: ConfirmReactivationRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify the reactivation Checkout session and clear cancellation state."""
@@ -504,7 +504,7 @@ async def get_plan(
 
 @router.post("/upgrade-checkout", response_model=UpgradeCheckoutResponse)
 async def upgrade_checkout(
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> UpgradeCheckoutResponse:
     """Create a Checkout session that moves a free ownership group to paid.
@@ -560,7 +560,7 @@ async def upgrade_checkout(
 @router.post("/confirm-upgrade")
 async def confirm_upgrade(
     body: ConfirmUpgradeRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify the upgrade Checkout session and attach it to the group."""

@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_admin, require_manager
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
 from backend.services.billing import utc_month_start
 from backend.services.archive import active, archive_location, restore_location
+from backend.services.location_scope import LocationScope
 from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan
 from backend.utils.tz import is_valid_timezone
@@ -22,9 +23,13 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 async def list_locations(
     include_archived: bool = False,
     current_user: User = Depends(require_manager),
+    scope: LocationScope = Depends(get_location_scope),
     db: AsyncSession = Depends(get_db),
 ) -> list[LocationResponse]:
-    query = select(Location).where(Location.company_id == current_user.company_id)
+    # A regular manager sees only their assigned locations (#149).
+    query = select(Location).where(
+        Location.company_id == current_user.company_id, scope.clause(Location.id),
+    )
     if not include_archived:
         query = query.where(active(Location))
     result = await db.execute(query)
@@ -35,7 +40,7 @@ async def list_locations(
 @router.post("/", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
 async def create_location(
     body: LocationCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
     await assert_can_add(db, str(current_user.company_id), locations=1)
@@ -77,8 +82,11 @@ async def update_location(
     location_id: str,
     body: LocationUpdate,
     current_user: User = Depends(require_manager),
+    scope: LocationScope = Depends(get_location_scope),
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
+    # Out of scope answers 404, like another company's location (#149).
+    scope.require(location_id, "Location")
     result = await db.execute(
         select(Location).where(
             Location.id == location_id,
@@ -129,7 +137,7 @@ async def update_location(
 async def bulk_upload_locations(
     file: UploadFile,
     default_timezone: str | None = Form(None),
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> LocationBulkUploadResponse:
     """
@@ -292,7 +300,7 @@ async def bulk_upload_locations(
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_location(
     location_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
@@ -312,7 +320,7 @@ async def delete_location(
 @router.post("/{location_id}/restore", response_model=LocationResponse)
 async def restore_location_endpoint(
     location_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
     location = (await db.execute(select(Location).where(

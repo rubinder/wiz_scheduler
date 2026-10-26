@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
+from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_admin, require_manager
 from backend.models import Company, User
 from backend.schemas.company import CompanyResponse, CompanyUpdate
 from backend.services.plan import assert_paid_plan
@@ -41,7 +41,7 @@ async def list_group_companies(
 @router.put("/", response_model=CompanyResponse)
 async def update_company(
     body: CompanyUpdate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> CompanyResponse:
     result = await db.execute(

@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_current_user, get_db, require_manager
+from backend.dependencies import get_current_user, get_db, get_location_scope, require_manager
 from backend.models import Company, Employee, EmployeeCheckIn, Location, User
 from backend.schemas.check_in import (
     AttestationRateRow,
@@ -30,6 +30,7 @@ from backend.services.check_in import (
 )
 from backend.services.archive import active
 from backend.services.check_in_token import check_in_deep_link
+from backend.services.location_scope import LocationScope
 from backend.services.plan import assert_paid_plan
 from backend.services.time_entries import attestation_rates
 
@@ -63,6 +64,7 @@ async def get_check_in_qr(
     location_id: str = Query(...),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> CheckInQrResponse:
     """The code to display right now.
 
@@ -73,6 +75,7 @@ async def get_check_in_qr(
     company_id = str(current_user.company_id)
     await assert_paid_plan(db, company_id, "check_in")
     location = await _load_location(db, company_id, location_id)
+    scope.require(location.id)
     if location.archived_at is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Location not found"
@@ -142,6 +145,7 @@ async def get_check_in_report(
     employee_id: str | None = Query(None),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> CheckInReportResponse:
     """Punctuality over the retained window."""
     company_id = str(current_user.company_id)
@@ -156,6 +160,7 @@ async def get_check_in_report(
         .where(
             EmployeeCheckIn.company_id == company_id,
             EmployeeCheckIn.checked_in_at >= cutoff,
+            scope.clause(EmployeeCheckIn.location_id),
         )
         .order_by(EmployeeCheckIn.checked_in_at)
     )
@@ -190,5 +195,6 @@ async def get_check_in_report(
                 rate=r.rate,
             )
             for r in rates
+            if scope.allows(r.location_id)
         ],
     )

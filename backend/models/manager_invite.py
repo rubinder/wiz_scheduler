@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -39,3 +39,9 @@ class ManagerInvite(Base):
     accepted_company_id: Mapped[str | None] = mapped_column(
         String(8), ForeignKey("companies.id"), nullable=True
     )
+    # 'admin' | 'regular' (#149). A regular invite carries the locations to
+    # assign on acceptance; ids that no longer exist then are skipped.
+    manager_type: Mapped[str] = mapped_column(
+        String, server_default="admin", default="admin", nullable=False
+    )
+    location_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)

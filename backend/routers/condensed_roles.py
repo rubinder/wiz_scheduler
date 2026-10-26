@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin, require_manager
 from backend.models import Role, User
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
 from backend.services.ownership import assert_owned
@@ -59,7 +59,7 @@ async def list_condensed_roles(
 @router.post("/", response_model=CondensedRoleResponse, status_code=status.HTTP_201_CREATED)
 async def create_condensed_role(
     body: CondensedRoleCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> CondensedRoleResponse:
     await assert_owned(db, Role, body.role_ids, [current_user.company_id], "Role")
@@ -82,7 +82,7 @@ async def create_condensed_role(
 async def update_condensed_role(
     condensed_role_id: str,
     body: CondensedRoleUpdate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> CondensedRoleResponse:
     result = await db.execute(
@@ -115,7 +115,7 @@ async def update_condensed_role(
 @router.delete("/{condensed_role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_condensed_role(
     condensed_role_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(
