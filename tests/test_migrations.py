@@ -210,6 +210,57 @@ def test_every_tenant_table_has_rls_enabled_but_not_forced(rds_like_postgres):
     )
 
 
+def test_every_table_but_alembic_version_has_rls(rds_like_postgres):
+    """Tables keyed by ownership group, user or a parent row are tenant data
+    too (#183, 0052): app_role has DML on every table, so a table without
+    RLS is limited by application queries alone. A new table must get a
+    policy or be added here with a reason."""
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    without_rls = _psql(pg, """
+        SELECT c.relname FROM pg_class c
+        WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
+          AND (NOT c.relrowsecurity OR c.relforcerowsecurity
+               OR NOT EXISTS (SELECT 1 FROM pg_policies p
+                              WHERE p.tablename = c.relname AND 'app_role' = ANY(p.roles)))
+        ORDER BY 1
+    """).splitlines()
+    assert without_rls == ["alembic_version"], (
+        "tables without an enabled, unforced RLS app_role policy: "
+        + ", ".join(t for t in without_rls if t != "alembic_version")
+    )
+
+
+def test_app_role_sees_only_its_own_ownership_group(rds_like_postgres):
+    """The 0052 policies, exercised as app_role with a request's binding."""
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, """
+        INSERT INTO ownership_groups (id, name) VALUES ('og52aaaa', 'A'), ('og52bbbb', 'B')
+            ON CONFLICT DO NOTHING;
+        INSERT INTO companies (id, name, slug, ownership_group_id) VALUES
+            ('co52aaaa', 'A', 'co-52-a', 'og52aaaa'), ('co52bbbb', 'B', 'co-52-b', 'og52bbbb')
+            ON CONFLICT DO NOTHING;
+        INSERT INTO token_usage_daily (id, ownership_group_id, usage_date, input_tokens, output_tokens, cost_usd)
+            VALUES ('tu52aaaa', 'og52aaaa', '2026-10-01', 1, 1, 0), ('tu52bbbb', 'og52bbbb', '2026-10-01', 1, 1, 0)
+            ON CONFLICT DO NOTHING;
+    """)
+    as_a = """
+        BEGIN; SET LOCAL ROLE app_role;
+        SELECT set_config('app.company_ids', '{co52aaaa}', true);
+        SELECT string_agg(id, ',' ORDER BY id) FROM ownership_groups WHERE id LIKE 'og52%';
+        SELECT string_agg(id, ',' ORDER BY id) FROM companies WHERE id LIKE 'co52%';
+        SELECT string_agg(id, ',' ORDER BY id) FROM token_usage_daily WHERE id LIKE 'tu52%';
+        COMMIT;
+    """
+    lines = [l for l in _psql(pg, as_a).splitlines() if l not in ("BEGIN", "SET", "COMMIT", "{co52aaaa}")]
+    assert lines == ["og52aaaa", "co52aaaa", "tu52aaaa"], lines
+    # With no binding (an unauthenticated request never switches role, but
+    # app_role without app.company_ids must still see nothing).
+    none = _psql(pg, "BEGIN; SET LOCAL ROLE app_role; SELECT count(*) FROM ownership_groups; COMMIT;")
+    assert "0" in none.splitlines(), none
+
+
 def test_the_table_owner_still_sees_and_writes_rows(rds_like_postgres):
     url, pg = rds_like_postgres
     _alembic(url, "upgrade", "head")

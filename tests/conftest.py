@@ -166,6 +166,22 @@ async def _apply_rls_policies(conn) -> None:
             USING (company_id = ANY(current_setting('app.company_ids', true)::text[]))
             WITH CHECK (company_id = ANY(current_setting('app.company_ids', true)::text[]))
         """))
+    # Tables keyed by ownership group, user, location or condensed role:
+    # the exact statements migration 0052 runs.
+    for statement in _migration_0052().STATEMENTS:
+        await conn.execute(text(statement))
+
+
+def _migration_0052():
+    import importlib.util
+    from pathlib import Path
+
+    path = (Path(__file__).resolve().parent.parent / "backend" / "alembic" / "versions"
+            / "0052_rls_for_indirect_tenant_tables.py")
+    spec = importlib.util.spec_from_file_location("migration_0052", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest_asyncio.fixture(autouse=True)
