@@ -1,104 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { listEmployees } from "../../api/employees";
 import { getOpenShiftCount, OPEN_SHIFTS_CHANGED } from "../../api/openShifts";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, nav } from "../../theme";
-
-interface NavItem {
-  to: string;
-  labelKey: string;
-  /** Hidden until the company has at least one employee. */
-  requiresEmployees?: boolean;
-}
-
-interface NavGroup {
-  labelKey: string;
-  children: NavItem[];
-}
-
-type NavEntry = NavItem | NavGroup;
-
-function isGroup(entry: NavEntry): entry is NavGroup {
-  return (entry as NavGroup).children !== undefined;
-}
-
-const managerNav: NavEntry[] = [
-  { to: "/manager/dashboard", labelKey: "dashboard" },
-  {
-    labelKey: "groupOrganization",
-    children: [
-      { to: "/manager/company", labelKey: "company" },
-      { to: "/manager/team", labelKey: "team" },
-      { to: "/manager/regions", labelKey: "regions" },
-      { to: "/manager/locations", labelKey: "locations" },
-      { to: "/manager/special-hours", labelKey: "specialHours" },
-    ],
-  },
-  {
-    labelKey: "groupRoles",
-    children: [
-      { to: "/manager/roles", labelKey: "roles" },
-      { to: "/manager/role-equivalents", labelKey: "roleEquivalents" },
-    ],
-  },
-  {
-    labelKey: "groupPeople",
-    children: [
-      { to: "/manager/quick-entry", labelKey: "quickEntry" },
-      { to: "/manager/employees", labelKey: "employees" },
-      { to: "/manager/employee-onboarding", labelKey: "employeeOnboarding" },
-      {
-        to: "/manager/employee-availability",
-        labelKey: "employeeAvailability",
-        requiresEmployees: true,
-      },
-    ],
-  },
-  {
-    labelKey: "groupSchedulingRules",
-    children: [
-      {
-        to: "/manager/employee-association",
-        labelKey: "employeeAssociation",
-        requiresEmployees: true,
-      },
-      { to: "/manager/hour-restrictions", labelKey: "hourRestrictions" },
-      { to: "/manager/day-blackouts", labelKey: "dayBlackouts" },
-      { to: "/manager/day-preferences", labelKey: "dayPreferences" },
-      { to: "/manager/hour-range-preferences", labelKey: "hourRangePreferences" },
-      { to: "/manager/frequency-caps", labelKey: "frequencyCaps" },
-    ],
-  },
-  {
-    labelKey: "groupScheduling",
-    children: [
-      { to: "/manager/shift-templates", labelKey: "shiftTemplates" },
-      { to: "/manager/schedule", labelKey: "schedule" },
-      { to: "/manager/approved-schedules", labelKey: "approvedSchedules" },
-      { to: "/manager/export-schedules", labelKey: "exportSchedules" },
-    ],
-  },
-  {
-    labelKey: "groupCheckIn",
-    children: [
-      { to: "/manager/check-in-qr", labelKey: "checkInQr" },
-      { to: "/manager/check-in-report", labelKey: "checkInReport" },
-      { to: "/manager/payroll", labelKey: "payroll" },
-    ],
-  },
-  { to: "/manager/data-privacy", labelKey: "dataPrivacy" },
-];
-
-const employeeNav: NavEntry[] = [
-  { to: "/employee/availability", labelKey: "myAvailability" },
-  { to: "/employee/check-in", labelKey: "checkIn" },
-  { to: "/employee/data-privacy", labelKey: "dataPrivacy" },
-];
+import {
+  employeeNav,
+  isGroup,
+  visibleManagerNav,
+  type NavGroup,
+} from "./navItems";
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
   const { pathname } = useLocation();
   const isManager = user?.user_role === "manager";
@@ -138,7 +53,10 @@ export default function Sidebar() {
       </span>
     ) : null;
 
-  const entries = isManager ? managerNav : employeeNav;
+  const entries = useMemo(
+    () => (isManager ? visibleManagerNav({ isAdmin }, hasEmployees) : employeeNav),
+    [isManager, isAdmin, hasEmployees],
+  );
 
   // Auto-expand whichever group owns the active route, so a deep link never
   // lands the user inside a collapsed tree. Only ever opens a group — it must
@@ -153,7 +71,6 @@ export default function Sidebar() {
   }, [pathname, entries]);
 
   const label = (key: string) => t.nav[key as keyof typeof t.nav];
-  const visible = (item: NavItem) => !item.requiresEmployees || hasEmployees;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `block px-3 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -175,8 +92,7 @@ export default function Sidebar() {
             );
           }
 
-          const children = entry.children.filter(visible);
-          if (children.length === 0) return null;
+          const children = entry.children;
 
           const isOpen = openGroups[entry.labelKey] ?? false;
           return (

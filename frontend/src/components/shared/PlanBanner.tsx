@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { upgradeCheckout } from "../../api/billing";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { PlanState } from "../../types";
 
@@ -29,6 +30,8 @@ const REASON_KEYS: Record<string, ReasonKey> = {
  */
 export default function PlanBanner({ plan }: PlanBannerProps) {
   const { t } = useLanguage();
+  // Upgrading is a billing write: admin-only (#149).
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -72,13 +75,17 @@ export default function PlanBanner({ plan }: PlanBannerProps) {
       <p className="mb-2">{message}</p>
       <p className="mb-3 text-xs opacity-80">{usageText}</p>
       {error && <p className="mb-2 text-xs text-red-700">{error}</p>}
-      <button
-        onClick={handleUpgrade}
-        disabled={loading}
-        className="glass-btn-primary text-xs px-3 py-1"
-      >
-        {loading ? t.planBanner.upgrading : t.planBanner.upgradeButton}
-      </button>
+      {isAdmin ? (
+        <button
+          onClick={handleUpgrade}
+          disabled={loading}
+          className="glass-btn-primary text-xs px-3 py-1"
+        >
+          {loading ? t.planBanner.upgrading : t.planBanner.upgradeButton}
+        </button>
+      ) : (
+        <p className="text-xs">{t.access.billingAdminOnly}</p>
+      )}
     </div>
   );
 }

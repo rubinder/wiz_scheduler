@@ -6,6 +6,7 @@ import ImportModal from "../../components/shared/ImportModal";
 import DemoGuard from "../../components/shared/DemoGuard";
 import SignalWeightConfig from "../../components/shared/SignalWeightConfig";
 import { usePlan } from "../../hooks/usePlan";
+import { useAuth } from "../../hooks/useAuth";
 import type { Location, Region, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
@@ -15,6 +16,9 @@ import { browserTimeZone, timeZoneOptions } from "../../utils/timezones";
 export default function Locations() {
   const { t } = useLanguage();
   const { plan, refresh: refreshPlan } = usePlan();
+  // Creating, archiving, restoring and bulk-uploading locations are
+  // admin-only (#149, spec Q4); a regular manager edits their own.
+  const { isAdmin } = useAuth();
   const [locations, setLocations] = useState<Location[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [error, setError] = useState("");
@@ -218,14 +222,16 @@ export default function Locations() {
             />
             {t.common.showArchived}
           </label>
-          <DemoGuard>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="glass-btn-success"
-            >
-              {t.locationsPage.importData}
-            </button>
-          </DemoGuard>
+          {isAdmin && (
+            <DemoGuard>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="glass-btn-success"
+              >
+                {t.locationsPage.importData}
+              </button>
+            </DemoGuard>
+          )}
         </div>
       </div>
       {error && (
@@ -233,7 +239,7 @@ export default function Locations() {
           {error}
         </div>
       )}
-      {showImportModal && (
+      {isAdmin && showImportModal && (
         <ImportModal
           title={t.locationsPage.importTitle}
           format={{
@@ -262,11 +268,11 @@ export default function Locations() {
           columns={columns}
           data={shownLocations as unknown as Record<string, unknown>[]}
           onSave={handleSave}
-          onDelete={handleDelete}
+          onDelete={isAdmin ? handleDelete : undefined}
           deleteLabel={t.common.archive}
           isArchived={(i) => isArchived(shownLocations[i])}
-          onRestore={handleRestore}
-          onCreate={handleCreate}
+          onRestore={isAdmin ? handleRestore : undefined}
+          onCreate={isAdmin ? handleCreate : undefined}
           createDisabled={locationLimitReached}
           createDisabledReason={
             locationLimitReached

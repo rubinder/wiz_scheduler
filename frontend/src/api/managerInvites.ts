@@ -1,14 +1,26 @@
 import { apiFetch } from "./client";
-import type { ManagerInvite, ManagerInviteInfo } from "../types";
+import type { ManagerInvite, ManagerInviteInfo, ManagerType } from "../types";
 
 export async function listManagerInvites(): Promise<ManagerInvite[]> {
   return apiFetch<ManagerInvite[]>("/manager-invites/");
 }
 
-export async function createManagerInvite(email: string): Promise<ManagerInvite & { token: string; invite_url: string }> {
+/**
+ * Invite a manager. A regular (location-scoped) invite needs at least one
+ * location; an admin invite sends none.
+ */
+export async function createManagerInvite(
+  email: string,
+  managerType: ManagerType = "admin",
+  locationIds: string[] = []
+): Promise<ManagerInvite & { token: string; invite_url: string }> {
   return apiFetch("/manager-invites/", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(
+      managerType === "regular"
+        ? { email, manager_type: managerType, location_ids: locationIds }
+        : { email, manager_type: managerType }
+    ),
   });
 }
 

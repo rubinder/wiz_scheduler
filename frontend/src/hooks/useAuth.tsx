@@ -3,11 +3,13 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import * as authApi from "../api/auth";
 import { getDeviceId } from "../utils/deviceId";
 import type { User } from "../types";
+import { managerAccess } from "../utils/permissions";
 
 interface AuthContextValue {
   user: User | null;
@@ -25,8 +27,14 @@ interface AuthContextValue {
   }) => Promise<void>;
   logout: () => void;
   switchCompany: (companyId: string) => Promise<void>;
-  /** Re-fetch /auth/me. Used after email verification flips email_verified. */
+  /** Re-fetch /auth/me. Used after email verification flips email_verified,
+   * and after an admin changes their own manager type. */
   refreshUser: () => Promise<void>;
+  /** Full company access; false for regular (location-scoped) managers
+   * and for non-managers. Derived from /auth/me — see utils/permissions. */
+  isAdmin: boolean;
+  /** Locations a regular manager may use; null means every location. */
+  accessibleLocationIds: string[] | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -112,6 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [fetchMe]
   );
 
+  const access = useMemo(() => managerAccess(user), [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -122,6 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         switchCompany,
         refreshUser: fetchMe,
+        isAdmin: access.isAdmin,
+        accessibleLocationIds: access.accessibleLocationIds,
       }}
     >
       {children}

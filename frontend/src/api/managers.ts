@@ -1,4 +1,4 @@
-import type { Location } from "../types";
+import type { Location, ManagerSummary, ManagerType } from "../types";
 import { apiFetch } from "./client";
 
 export interface ManagerLocationAssignment {
@@ -42,5 +42,33 @@ export function revokeLocationFromManager(
 ): Promise<void> {
   return apiFetch<void>(`/managers/${managerId}/locations/${locationId}`, {
     method: "DELETE",
+  });
+}
+
+/**
+ * The company's managers with their type and assigned locations (admin only).
+ */
+export function listManagers(): Promise<ManagerSummary[]> {
+  return apiFetch<ManagerSummary[]>("/managers/");
+}
+
+export interface UpdateManagerBody {
+  manager_type?: ManagerType;
+  /** Replaces a regular manager's whole set; omit to keep it. */
+  location_ids?: string[];
+}
+
+/**
+ * Change a manager's type and/or replace their locations in one request
+ * (admin only). 409 when it would leave the company without an admin;
+ * 400 for an empty or invalid location set.
+ */
+export function updateManager(
+  managerId: string,
+  body: UpdateManagerBody
+): Promise<ManagerSummary> {
+  return apiFetch<ManagerSummary>(`/managers/${managerId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
   });
 }

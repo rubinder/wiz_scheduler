@@ -6,6 +6,7 @@ import * as companyApi from "../../api/company";
 import DemoGuard from "../../components/shared/DemoGuard";
 import ImportModal from "../../components/shared/ImportModal";
 import { usePlan } from "../../hooks/usePlan";
+import { useAuth } from "../../hooks/useAuth";
 import type {
   Company,
   Employee,
@@ -26,6 +27,8 @@ interface RoleAssignment {
 export default function Employees() {
   const { t } = useLanguage();
   const { plan, refresh: refreshPlan } = usePlan();
+  // Bulk upload is admin-only (#149).
+  const { isAdmin } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   // Archived roles/locations are fetched too: employees keep their
   // assignments to them, so badges need the names. Pickers use the active
@@ -506,14 +509,16 @@ export default function Employees() {
             />
             {t.common.showArchived}
           </label>
-          <DemoGuard>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="glass-btn-success"
-            >
-              {t.employeesPage.importData}
-            </button>
-          </DemoGuard>
+          {isAdmin && (
+            <DemoGuard>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="glass-btn-success"
+              >
+                {t.employeesPage.importData}
+              </button>
+            </DemoGuard>
+          )}
         </div>
       </div>
       {error && (
@@ -521,7 +526,7 @@ export default function Employees() {
           {error}
         </div>
       )}
-      {showImportModal && (
+      {isAdmin && showImportModal && (
         <ImportModal
           title={t.employeesPage.importTitle}
           format={{

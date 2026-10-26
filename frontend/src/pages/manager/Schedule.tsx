@@ -6,6 +6,7 @@ import * as locationsApi from "../../api/locations";
 import { listEmployees } from "../../api/employees";
 import * as rolesApi from "../../api/roles";
 import * as billingApi from "../../api/billing";
+import { useAuth } from "../../hooks/useAuth";
 import type { AiCreditStatus, AutoReloadStatus, BillingUsage, ScheduleQuota } from "../../api/billing";
 import { ApiError, errorMessage } from "../../api/client";
 import { listSpecialHours } from "../../api/specialHours";
@@ -261,6 +262,10 @@ function LockedToast({
 
 export default function Schedule() {
   const { t } = useLanguage();
+  // Billing writes (credit packs, auto-reload, retry, portal, reactivation)
+  // are admin-only (#149). A regular manager still sees balances and
+  // notices, with "ask an admin" in place of the buttons.
+  const { isAdmin } = useAuth();
   const [startDate, setStartDate] = useState(getNextMonday());
   const [endDate, setEndDate] = useState(addDays(getNextMonday(), 6));
   const weekStart = startDate; // alias for compatibility
@@ -914,13 +919,17 @@ export default function Schedule() {
                 : ""
             )}
           </p>
-          <button
-            onClick={handleReactivate}
-            disabled={reactivating}
-            className="px-4 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 disabled:opacity-50"
-          >
-            {reactivating ? t.schedule.redirectingToPayment : t.schedule.reactivateSubscription}
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={handleReactivate}
+              disabled={reactivating}
+              className="px-4 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              {reactivating ? t.schedule.redirectingToPayment : t.schedule.reactivateSubscription}
+            </button>
+          ) : (
+            <p className="text-sm text-red-800">{t.access.billingAdminOnly}</p>
+          )}
         </div>
       )}
 
@@ -936,20 +945,22 @@ export default function Schedule() {
               )}
             </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={handleRetryAutoReload}
-              className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium"
-            >
-              {t.schedule.retryPayment}
-            </button>
-            <button
-              onClick={handleOpenPortal}
-              className="px-3 py-1 bg-white border border-red-300 text-red-800 rounded text-sm font-medium"
-            >
-              {t.schedule.updateCard}
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={handleRetryAutoReload}
+                className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium"
+              >
+                {t.schedule.retryPayment}
+              </button>
+              <button
+                onClick={handleOpenPortal}
+                className="px-3 py-1 bg-white border border-red-300 text-red-800 rounded text-sm font-medium"
+              >
+                {t.schedule.updateCard}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1004,7 +1015,10 @@ export default function Schedule() {
                   buying them could not unblock a free tenant. Shown disabled
                   rather than removed, with the reason, so the path stays
                   visible; the plan banner offers Upgrade. */}
-              {scheduleQuota.is_over_included && !scheduleQuota.can_generate && (
+              {!isAdmin && !scheduleQuota.can_generate && (
+                <span className="text-xs">{t.access.billingAdminOnly}</span>
+              )}
+              {isAdmin && scheduleQuota.is_over_included && !scheduleQuota.can_generate && (
                 <div className="flex items-center gap-2">
                   {scheduleQuota.plan === "free" && (
                     <span id="buy-credits-reason" className={`text-xs ${text.muted}`}>
@@ -1043,7 +1057,10 @@ export default function Schedule() {
                   </span>
                 )}
               </div>
-              {creditStatus.purchase_required && (
+              {!isAdmin && creditStatus.purchase_required && (
+                <span className="text-xs">{t.access.billingAdminOnly}</span>
+              )}
+              {isAdmin && creditStatus.purchase_required && (
                 <button
                   onClick={() => { setPurchaseReason("ai"); setPurchaseError(""); setShowBillingModal(true); }}
                   className="glass-btn-primary text-xs px-3 py-1 whitespace-nowrap"
@@ -1686,7 +1703,39 @@ export default function Schedule() {
       </div>
 
       {/* Auto-Reload Settings Modal */}
-      {showBillingModal && autoReload && (
+      {showBillingModal && !isAdmin && (
+        <div className="glass-modal-overlay">
+          <div className="glass-modal w-full max-w-md mx-4">
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
+              <h3 className={`text-lg font-semibold ${text.heading}`}>{t.schedule.purchaseModalTitle}</h3>
+              <button
+                onClick={() => setShowBillingModal(false)}
+                className="text-gray-500 hover:text-gray-600 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <p className={`text-sm ${text.muted}`}>
+                {purchaseReason === "schedules"
+                  ? t.schedule.scheduleQuotaExhaustedMsg
+                  : t.schedule.creditsExhaustedMsg}
+              </p>
+              <p className={`text-sm ${text.body}`}>{t.access.billingAdminOnly}</p>
+            </div>
+            <div className={`flex justify-end gap-3 px-6 py-4 border-t ${border.default} ${bg.sectionSubtle} rounded-b-2xl`}>
+              <button
+                onClick={() => setShowBillingModal(false)}
+                className="glass-btn-secondary text-sm font-medium"
+              >
+                {t.common.close}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBillingModal && isAdmin && autoReload && (
         <div className="glass-modal-overlay">
           <div className="glass-modal w-full max-w-md mx-4">
             <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>

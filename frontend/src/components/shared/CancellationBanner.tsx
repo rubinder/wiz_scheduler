@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as billingApi from "../../api/billing";
 import type { BillingUsage } from "../../api/billing";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 
 /**
@@ -11,6 +12,8 @@ import { useLanguage } from "../../i18n/LanguageContext";
  */
 export default function CancellationBanner() {
   const { t } = useLanguage();
+  // Reactivating is a billing write: admin-only (#149).
+  const { isAdmin } = useAuth();
   const [usage, setUsage] = useState<BillingUsage | null>(null);
   const [reactivating, setReactivating] = useState(false);
 
@@ -57,13 +60,17 @@ export default function CancellationBanner() {
           .replace("{endDate}", endDate)
           .replace("{deleteDate}", deleteDate)}
       </div>
-      <button
-        onClick={handleReactivate}
-        disabled={reactivating}
-        className="bg-white text-red-700 px-3 py-1 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
-      >
-        {reactivating ? t.schedule.redirectingToPayment : t.schedule.reactivateSubscription}
-      </button>
+      {isAdmin ? (
+        <button
+          onClick={handleReactivate}
+          disabled={reactivating}
+          className="bg-white text-red-700 px-3 py-1 rounded text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+        >
+          {reactivating ? t.schedule.redirectingToPayment : t.schedule.reactivateSubscription}
+        </button>
+      ) : (
+        <span className="text-xs">{t.access.billingAdminOnly}</span>
+      )}
     </div>
   );
 }

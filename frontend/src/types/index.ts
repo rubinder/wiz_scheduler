@@ -35,6 +35,9 @@ export interface User {
   // Manager type: 'admin' (full access) | 'regular' (location-scoped)
   // Only populated for managers, null for employees
   manager_type: string | null;
+  // Location ids a regular manager may work with; null means every
+  // location (admins, employees). Read it through utils/permissions.
+  accessible_location_ids?: string[] | null;
   ownership_group_id: string | null;
   is_demo: boolean;
   has_google: boolean;
@@ -383,6 +386,28 @@ export interface ManagerInvite {
   expires_at: string;
   accepted_at: string | null;
   accepted_company_id: string | null;
+  manager_type?: ManagerType;
+  /** Initial locations of a regular-manager invite; null for admin. */
+  location_ids?: string[] | null;
+}
+
+export type ManagerType = "admin" | "regular";
+
+export interface ManagerAssignedLocation {
+  id: string;
+  name: string;
+  timezone: string;
+  /** Archived locations stay assigned (restoring one restores access). */
+  archived: boolean;
+}
+
+/** A row of GET /managers (admin only). */
+export interface ManagerSummary {
+  id: string;
+  email: string;
+  full_name: string | null;
+  manager_type: ManagerType;
+  assigned_locations: ManagerAssignedLocation[];
 }
 
 export interface ManagerInviteInfo {

@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import ExternalRedirect from "./components/shared/ExternalRedirect";
 import Sidebar from "./components/layout/Sidebar";
 import TopBar from "./components/layout/TopBar";
@@ -34,6 +34,8 @@ import QuickEntry from "./pages/manager/QuickEntry";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
 import CancellationBanner from "./components/shared/CancellationBanner";
+import RestrictedLocationsBadge from "./components/shared/RestrictedLocationsBadge";
+import { isAdminOnlyPath } from "./utils/permissions";
 
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -65,6 +67,7 @@ function ProtectedLayout() {
         <TopBar />
         <CancellationBanner />
         <main className="flex-1 p-6">
+          <RestrictedLocationsBadge />
           <Outlet />
         </main>
       </div>
@@ -73,9 +76,15 @@ function ProtectedLayout() {
 }
 
 function ManagerGuard() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { pathname } = useLocation();
   if (user && user.user_role !== "manager") {
     return <Navigate to="/employee/availability" replace />;
+  }
+  // Company-wide pages are admin-only (#149); a regular manager who
+  // follows an old link lands on the dashboard instead.
+  if (user && !isAdmin && isAdminOnlyPath(pathname)) {
+    return <Navigate to="/manager/dashboard" replace />;
   }
   return <Outlet />;
 }

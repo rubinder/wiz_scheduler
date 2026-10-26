@@ -6,6 +6,7 @@ import {
   listApprovedDates,
   listApprovedSchedules,
 } from "../../api/exportSchedules";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday } from "../../theme";
 import { formatTime } from "../../utils/shiftTime";
@@ -50,6 +51,9 @@ function buildMonthGrid(year: number, month: number): (string | null)[][] {
 
 export default function ExportSchedules() {
   const { t } = useLanguage();
+  // The 7shifts export is admin-only (#149); a regular manager sees their
+  // locations' approved schedules read-only.
+  const { isAdmin } = useAuth();
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
   const [schedules, setSchedules] = useState<ApprovedScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -352,7 +356,7 @@ export default function ExportSchedules() {
       </div>
 
       {/* Action bar */}
-      {schedules.length > 0 && (
+      {isAdmin && schedules.length > 0 && (
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={selectAllUnexported}
@@ -552,7 +556,7 @@ export default function ExportSchedules() {
       </div>
 
       {/* 7Shifts Token Modal */}
-      {showTokenModal && (
+      {isAdmin && showTokenModal && (
         <div className="glass-modal-overlay">
           <div className="glass-modal w-full max-w-md mx-4">
             <div className={`flex items-center justify-between px-6 py-4 border-b ${border.default}`}>
