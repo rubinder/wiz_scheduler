@@ -634,13 +634,15 @@ async def google_link_current(
             detail="Google account email must match your account email",
         )
 
-    # Reject if this google_id is already linked to a different person.
-    existing = (await db.execute(
-        select(User).where(
-            User.google_id == google_sub,
-            User.email != current_user.email,
-        )
-    )).first()
+    # Reject if this google_id is already linked to a different person --
+    # in any tenant, so this one check reads past the tenant filter.
+    with tenant_scope_disabled():
+        existing = (await db.execute(
+            select(User).where(
+                User.google_id == google_sub,
+                User.email != current_user.email,
+            )
+        )).first()
     if existing is not None:
         raise HTTPException(
             status_code=409,
