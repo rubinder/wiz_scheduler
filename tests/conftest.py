@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from testcontainers.community.postgres import PostgresContainer
 
 from backend.config import settings
+from backend.database import RLS_COMPANY_IDS
 from backend.database import Base
 from backend.dependencies import get_db
 from backend.main import app
@@ -134,12 +135,49 @@ def _id() -> str:
 # Session-scoped DB setup
 # ---------------------------------------------------------------------------
 
+# RLS_TEST=1 runs the suite with Postgres row-level security enforced (#183):
+# the 0044 policy on every tenant table, and RLS_ENFORCE on, so every
+# authenticated request's transactions run as app_role.
+RLS_TEST = os.environ.get("RLS_TEST") == "1"
+
+_RLS_SETUP_SQL = """
+DO $$ BEGIN CREATE ROLE app_role; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT app_role TO CURRENT_USER;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_role;
+"""
+
+
+async def _apply_rls_policies(conn) -> None:
+    from sqlalchemy import text
+    for statement in _RLS_SETUP_SQL.strip().split(";\n"):
+        await conn.execute(text(statement.rstrip(";")))
+    tables = (await conn.execute(text(
+        "SELECT c.table_name FROM information_schema.columns c "
+        "JOIN information_schema.tables t ON t.table_name = c.table_name "
+        "AND t.table_schema = c.table_schema "
+        "WHERE c.table_schema = 'public' AND c.column_name = 'company_id' "
+        "AND t.table_type = 'BASE TABLE'"
+    ))).scalars().all()
+    for table in tables:
+        await conn.execute(text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
+        await conn.execute(text(f"""
+            CREATE POLICY app_tenant_isolation_{table} ON {table} FOR ALL TO app_role
+            USING (company_id = ANY(current_setting('app.company_ids', true)::text[]))
+            WITH CHECK (company_id = ANY(current_setting('app.company_ids', true)::text[]))
+        """))
+
+
 @pytest_asyncio.fixture(autouse=True)
-async def setup_database():
+async def setup_database(monkeypatch):
     """Create all tables before each test, drop after."""
     engine = _get_test_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if RLS_TEST:
+            await _apply_rls_policies(conn)
+    if RLS_TEST:
+        monkeypatch.setattr(settings, "RLS_ENFORCE", True)
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -189,7 +227,18 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """AsyncClient that overrides get_db to use the test session."""
 
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
+        try:
+            yield db_session
+        finally:
+            # Production opens a session per request; this one is shared with
+            # the test and every later request. Drop the request's RLS binding,
+            # as a fresh session would not have it, so the test's own setup
+            # and the next request (perhaps another tenant's) are not run as
+            # this one -- also when the request ended in an error.
+            if db_session.info.pop(RLS_COMPANY_IDS, None) is not None and db_session.in_transaction():
+                from sqlalchemy import text
+                await db_session.execute(text("RESET ROLE"))
+                await db_session.execute(text("SELECT set_config('app.company_ids', '', true)"))
 
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)

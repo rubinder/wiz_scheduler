@@ -5,11 +5,12 @@ from datetime import datetime, timedelta, timezone
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_current_user, get_db
+from backend.database import cross_tenant_session
 from backend.models import Company, OwnershipGroup, User
 from backend.tenant import tenant_scope_disabled
 from backend.models.consent import UserConsent
@@ -637,11 +638,11 @@ async def google_link_current(
             detail="Google account email must match your account email",
         )
 
-    # Reject if this google_id is already linked to a different person --
-    # in any tenant, so this one check reads past the tenant filter.
-    with tenant_scope_disabled():
-        existing = (await db.execute(
-            select(User).where(
+    # Reject if this google_id is already linked to a different person -- in
+    # any tenant, so this reads past the tenant filter and RLS.
+    async with cross_tenant_session(db) as everyone:
+        existing = (await everyone.execute(
+            select(User.id).where(
                 User.google_id == google_sub,
                 User.email != current_user.email,
             )
@@ -655,9 +656,21 @@ async def google_link_current(
     # Link this row and the caller's other verified rows with this email, so
     # the multi-company-same-email case keeps working with Google sign-in.
     # An unverified row with the same address may have been registered by
-    # someone else, so it is left alone.
-    for u in await _proven_same_email_rows(db, current_user):
-        u.google_id = google_sub
+    # someone else, so it is left alone. The other rows are in other
+    # ownership groups, which this request's session (tenant filter, RLS)
+    # cannot write, so they are linked through a cross-tenant session.
+    current_user.google_id = google_sub
+    async with cross_tenant_session(db) as everyone:
+        await everyone.execute(
+            update(User)
+            .where(
+                User.email == current_user.email,
+                User.id != current_user.id,
+                User.email_verified_at.is_not(None),
+            )
+            .values(google_id=google_sub)
+        )
+        await everyone.commit()
     await db.commit()
 
     token = _create_access_token(

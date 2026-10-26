@@ -414,6 +414,10 @@ class Settings(BaseSettings):
     # Bearer token a scraper must send to read /metrics. Empty (the default)
     # turns the endpoint off: it answers 404 to everyone.
     METRICS_TOKEN: str = ""
+    # Postgres row-level security (#183). When on, every transaction of an
+    # authenticated request runs as app_role with app.company_ids set, so the
+    # 0044 policies limit it to the caller's companies at the database.
+    RLS_ENFORCE: bool = False
 
     model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
