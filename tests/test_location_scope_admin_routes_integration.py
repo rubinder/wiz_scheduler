@@ -53,8 +53,6 @@ ADMIN_ONLY: list[tuple[str, str, dict | None]] = [
     ("PUT", f"/condensed-roles/{BOGUS}", {}),
     ("DELETE", f"/condensed-roles/{BOGUS}", None),
     # billing, except GET /plan
-    ("GET", "/billing/usage", None),
-    ("GET", "/billing/autoreload", None),
     ("PUT", "/billing/autoreload", {"enabled": "not-a-bool"}),
     ("POST", "/billing/autoreload/retry", None),
     ("POST", "/billing/credits/purchase", {}),
@@ -96,6 +94,8 @@ OPEN_READS: list[str] = [
     "/roles/",
     "/condensed-roles/",
     "/billing/plan",
+    "/billing/usage",
+    "/billing/autoreload",
 ]
 
 

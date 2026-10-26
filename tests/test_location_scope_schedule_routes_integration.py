@@ -429,3 +429,16 @@ async def test_check_in_report_is_scoped(
     regular = (await client.get(url, headers=_h(regular_token))).json()
     assert {r["location_id"] for r in regular["rows"]} == {LOCATION_ID}
     assert all(a["location_id"] == LOCATION_ID for a in regular["attestation"])
+
+
+async def test_draft_save_refuses_an_employee_who_works_only_elsewhere(
+    client: AsyncClient, world, manager_token, regular_token,
+):
+    url = f"/api/v1/schedules/{world['in']['draft']}/shifts"
+    body = {"shifts": [_entry(LOCATION_ID, world["emp_out"])]}
+    resp = await client.put(url, headers=_h(regular_token), json=body)
+    assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"] == "Employee not found"
+
+    resp = await client.put(url, headers=_h(manager_token), json=body)
+    assert resp.status_code == 200, resp.text

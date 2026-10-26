@@ -185,6 +185,19 @@ async def accept_manager_invite(
             detail="Chosen company is not part of the invite's ownership group",
         )
 
+    if invite.manager_type == "regular" and invite.location_ids:
+        # A location-limited invite belongs to the company its locations
+        # are in; joining a sibling company would leave the manager with
+        # none of them.
+        invite_companies = set((await db.execute(
+            select(Location.company_id).where(Location.id.in_(list(invite.location_ids)))
+        )).scalars().all())
+        if invite_companies and company.id not in invite_companies:
+            raise HTTPException(
+                status_code=400,
+                detail="This invite is for locations in a different company",
+            )
+
     dup = (await db.execute(
         select(User).where(
             User.email == invite.email, User.company_id == company.id

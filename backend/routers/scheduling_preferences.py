@@ -26,7 +26,7 @@ from backend.models import (
     EmployeeHourRangePreference,
     User,
 )
-from backend.routers.employees import (
+from backend.services.location_scope import (
     require_employee_editable,
     require_employee_id_editable,
     visible_employee_ids,

@@ -29,7 +29,7 @@ from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
 from backend.services.archive import DISCARDED, active, lock_employees
-from backend.services.location_scope import LocationScope
+from backend.services.location_scope import LocationScope, require_employees_visible
 from backend.services.ownership import assert_owned
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
@@ -438,6 +438,9 @@ async def update_shifts(
     # materialises each entry at the location it names.
     for d in shifts:
         scope.require(d.get("location_id"))
+    await require_employees_visible(
+        db, scope, [d.get("employee_id") for d in shifts if not is_open_entry(d)],
+    )
     # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
     # or off a preference, and the evaluator lives here, not in the client.
     prefs = await load_employee_preferences(db, str(current_user.company_id))
@@ -545,6 +548,9 @@ async def edit_approved_shifts(
         locked_archived = await lock_employees(
             db, str(current_user.company_id),
             [e.employee_id for e in body.edits if e.employee_id is not None],
+        )
+        await require_employees_visible(
+            db, scope, [e.employee_id for e in body.edits if e.employee_id is not None],
         )
 
         # Collect warnings BEFORE any edit is applied: the checks below read

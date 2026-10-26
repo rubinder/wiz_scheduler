@@ -61,7 +61,7 @@ async def create_checkout_session(body: CreateCheckoutSessionRequest) -> CreateC
 
 @router.get("/usage")
 async def get_usage(
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get the full billing summary for the current ownership group.
@@ -203,7 +203,7 @@ def _autoreload_status(og: OwnershipGroup) -> AutoReloadStatus:
 
 @router.get("/autoreload", response_model=AutoReloadStatus)
 async def get_autoreload(
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
 ) -> AutoReloadStatus:
     og = await _load_og(db, current_user)

@@ -17,7 +17,14 @@ from backend.dependencies import (
 )
 from backend.models import Employee, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, Location, Role, User
 from backend.services.archive import active, archive_employee, restore_employee
-from backend.services.location_scope import LocationScope, location_scope_for
+from backend.services.location_scope import (
+    LocationScope,
+    location_scope_for,
+    require_employee_editable,
+    require_employee_id_editable,
+    require_employee_visible,
+    visible_employee_ids,
+)
 from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan, assert_roster_editable
 from backend.schemas.employee import (
@@ -35,58 +42,6 @@ from backend.schemas.employee import (
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
-
-
-# ── Location scope for employees (#149, spec Q2) ──
-# An employee is *visible* to a manager when any of their locations is in
-# scope and *editable* only when all of them are (and they have at least
-# one). Invisible answers 404 like another company's employee. All of these
-# are no-ops for an unrestricted (admin) scope.
-
-
-def require_employee_visible(
-    scope: LocationScope, employee: Employee, what: str = "Employee",
-) -> None:
-    if not scope.allows_any(employee.location_ids):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} not found")
-
-
-def require_employee_editable(
-    scope: LocationScope, employee: Employee, what: str = "Employee",
-) -> None:
-    scope.require_all(employee.location_ids, what)
-
-
-async def visible_employee_ids(
-    db: AsyncSession, company_id: str, scope: LocationScope,
-) -> set[str] | None:
-    """Ids of the company's employees (archived included) this scope may
-    see, or None when unrestricted. location_ids is a JSON column, so the
-    filter runs in Python."""
-    if not scope.restricted:
-        return None
-    rows = await db.execute(
-        select(Employee.id, Employee.location_ids).where(Employee.company_id == company_id)
-    )
-    return {eid for eid, lids in rows.all() if scope.allows_any(lids)}
-
-
-async def require_employee_id_editable(
-    db: AsyncSession,
-    scope: LocationScope,
-    company_id: str,
-    employee_id: str,
-    what: str = "Employee",
-) -> None:
-    """Editable check by id, for rows that carry only an employee_id."""
-    if not scope.restricted:
-        return
-    employee = (await db.execute(select(Employee).where(
-        Employee.id == employee_id, Employee.company_id == company_id,
-    ))).scalar_one_or_none()
-    if employee is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} not found")
-    require_employee_editable(scope, employee, what)
 
 
 async def _assert_employee_refs_owned(

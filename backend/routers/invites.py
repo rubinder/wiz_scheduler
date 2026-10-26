@@ -16,7 +16,7 @@ from backend.utils.base_url import trusted_base_url
 from backend.utils.email_normalize import normalize_email
 from backend.models import Company, Employee, EmployeeInvite, OwnershipGroup, User
 from backend.models.consent import UserConsent
-from backend.routers.employees import require_employee_editable, visible_employee_ids
+from backend.services.location_scope import require_employee_editable, visible_employee_ids
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
 from backend.utils.privacy import mask_ip

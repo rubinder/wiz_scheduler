@@ -361,6 +361,29 @@ async def test_regular_invite_round_trip(
     assert me.json()["accessible_location_ids"] == [OTHER_LOCATION_ID]
 
 
+async def test_regular_invite_refuses_a_sibling_company(
+    client: AsyncClient, db_session: AsyncSession, manager_token: str,
+    with_og: OwnershipGroup, other_location: Location,
+) -> None:
+    db_session.add(Company(
+        id=COMPANY2_ID, name="Sibling Co", slug="sibling-co", ownership_group_id=with_og.id,
+    ))
+    await db_session.commit()
+    resp = await client.post(
+        f"{API}/manager-invites/",
+        headers=_auth(manager_token),
+        json={"email": "sib@acme.test", "manager_type": "regular",
+              "location_ids": [OTHER_LOCATION_ID]},
+    )
+    assert resp.status_code == 200, resp.text
+    accepted = await client.post(
+        f"{API}/manager-invites/accept",
+        json={"token": resp.json()["token"], "company_id": COMPANY2_ID,
+              "full_name": "Sib", "password": "supersecret"},
+    )
+    assert accepted.status_code == 400, accepted.text
+
+
 async def test_admin_invite_default(
     client: AsyncClient, db_session: AsyncSession, manager_token: str, with_og: OwnershipGroup,
 ) -> None:

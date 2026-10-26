@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Employee, EmployeeAffinity, User
-from backend.routers.employees import (
+from backend.services.location_scope import (
     require_employee_editable,
     require_employee_id_editable,
     visible_employee_ids,
