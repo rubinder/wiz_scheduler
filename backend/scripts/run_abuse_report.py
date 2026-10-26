@@ -3,7 +3,7 @@
 Run manually or via cron:
     python -m backend.scripts.run_abuse_report
 
-Suggested cron (Mondays at 4 AM, after the nightly retention purge):
+Suggested cron (Mondays at 4 AM, after the 03:00 UTC jobs):
     0 4 * * 1 cd /app && python -m backend.scripts.run_abuse_report
 
 Prints the report as JSON and logs a one-line summary. It writes nothing

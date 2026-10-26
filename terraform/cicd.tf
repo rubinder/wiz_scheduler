@@ -66,6 +66,8 @@ data "aws_iam_policy_document" "cicd" {
     resources = [
       aws_iam_role.ecs_execution.arn,
       aws_iam_role.ecs_task.arn,
+      # terraform-apply attaches this role to the monthly retention rule.
+      aws_iam_role.retention_events.arn,
     ]
   }
 
