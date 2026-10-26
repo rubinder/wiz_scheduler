@@ -11,11 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin
 from backend.services.passwords import hash_password
 from backend.utils.base_url import trusted_base_url
 from backend.utils.email_normalize import normalize_email
-from backend.models import Company, ManagerInvite, OwnershipGroup, User
+from backend.models import Company, Location, ManagerInvite, ManagerLocation, OwnershipGroup, User
 from backend.schemas.manager_invite import (
     AcceptManagerInviteRequest,
     AcceptManagerInviteResponse,
@@ -26,6 +26,7 @@ from backend.schemas.manager_invite import (
     ManagerInviteResponse,
 )
 from backend.services.manager_invite_email import send_manager_invite_email
+from backend.services.manager_permissions import validate_assignable_locations
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def _invite_url_for(request: Request, token: str) -> str:
 async def create_manager_invite(
     body: CreateManagerInviteRequest,
     request: Request,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ManagerInviteResponse:
     company = (await db.execute(
@@ -73,6 +74,22 @@ async def create_manager_invite(
         select(OwnershipGroup).where(OwnershipGroup.id == company.ownership_group_id)
     )).scalar_one()
 
+    # A regular invite names its initial locations (spec Q5): active ones of
+    # the inviter's company, at least one. An admin invite has none.
+    location_ids: list[str] | None = None
+    if body.manager_type == "regular":
+        if not body.location_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A regular manager invite needs at least one location",
+            )
+        try:
+            location_ids = await validate_assignable_locations(
+                db, current_user.company_id, body.location_ids
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     invite = ManagerInvite(
@@ -82,6 +99,8 @@ async def create_manager_invite(
         token=token,
         status="pending",
         expires_at=now + timedelta(days=MANAGER_INVITE_EXPIRE_DAYS),
+        manager_type=body.manager_type,
+        location_ids=location_ids,
     )
     db.add(invite)
     await db.commit()
@@ -105,6 +124,8 @@ async def create_manager_invite(
         status=invite.status,
         created_at=invite.created_at,
         expires_at=invite.expires_at,
+        manager_type=invite.manager_type,
+        location_ids=invite.location_ids,
     )
 
 
@@ -181,9 +202,9 @@ async def accept_manager_invite(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         user_role="manager",
-        # Full access, like every manager 0042 backfilled. Location-scoped
-        # "regular" managers (#149) are assigned explicitly, never by default.
-        manager_type="admin",
+        # The invite chose the type (spec Q5); invites made before 0051
+        # are admin invites, like every manager 0042 backfilled.
+        manager_type="regular" if invite.manager_type == "regular" else "admin",
         email_normalized=normalize_email(invite.email),
         # Accepting the invite required opening a link we mailed to this
         # address, which is the same proof /auth/verify-email collects.
@@ -192,6 +213,21 @@ async def accept_manager_invite(
     )
     db.add(new_user)
     await db.flush()
+
+    if new_user.manager_type == "regular" and invite.location_ids:
+        # The invite's locations that still exist in the chosen company
+        # (archived ones included: they stay assigned, spec Q7). If none
+        # do, the manager starts with no locations and sees nothing until
+        # an admin assigns some.
+        kept = (await db.execute(
+            select(Location.id).where(
+                Location.id.in_(list(invite.location_ids)),
+                Location.company_id == company.id,
+            )
+        )).scalars().all()
+        for lid in dict.fromkeys(i for i in invite.location_ids if i in set(kept)):
+            db.add(ManagerLocation(manager_id=new_user.id, location_id=lid))
+        await db.flush()
 
     invite.status = "accepted"
     invite.accepted_at = now
@@ -205,7 +241,7 @@ async def accept_manager_invite(
 
 @router.get("/", response_model=list[ListManagerInviteRow])
 async def list_manager_invites(
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[ListManagerInviteRow]:
     company = (await db.execute(
@@ -224,6 +260,7 @@ async def list_manager_invites(
             id=r.id, email=r.email, status=r.status,
             created_at=r.created_at, expires_at=r.expires_at,
             accepted_at=r.accepted_at, accepted_company_id=r.accepted_company_id,
+            manager_type=r.manager_type, location_ids=r.location_ids,
         )
         for r in rows
     ]
