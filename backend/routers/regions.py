@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin, require_manager
 from backend.models import Region, User
 from backend.schemas.region import RegionCreate, RegionResponse, RegionUpdate
 
@@ -24,7 +24,7 @@ async def list_regions(
 @router.post("/", response_model=RegionResponse, status_code=status.HTTP_201_CREATED)
 async def create_region(
     body: RegionCreate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RegionResponse:
     region = Region(
@@ -42,7 +42,7 @@ async def create_region(
 async def update_region(
     region_id: str,
     body: RegionUpdate,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> RegionResponse:
     result = await db.execute(
@@ -65,7 +65,7 @@ async def update_region(
 @router.delete("/{region_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_region(
     region_id: str,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(

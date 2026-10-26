@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin
 from backend.models import (
     Company,
     Employee,
@@ -176,7 +176,7 @@ async def _get_or_create_ownership_group(
 @router.post("/deputy", response_model=DeputyImportResult)
 async def import_from_deputy(
     body: DeputyImportRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> DeputyImportResult:
     await assert_paid_plan(db, str(current_user.company_id), "integration_import")
@@ -639,7 +639,7 @@ def _invert_unavailability(
 @router.post("/deputy/availabilities", response_model=DeputyAvailImportResult)
 async def import_availabilities_from_deputy(
     body: DeputyAvailImportRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> DeputyAvailImportResult:
     """Import employee availability from Deputy by inverting unavailability.

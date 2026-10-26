@@ -9,7 +9,7 @@ from pydantic import BaseModel, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, require_admin
 from backend.models import (
     Company,
     Department,
@@ -528,7 +528,7 @@ async def _import_single_company(
 @router.post("/7shifts", response_model=ImportResult)
 async def import_from_7shifts(
     body: ImportRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ImportResult:
     await assert_paid_plan(db, str(current_user.company_id), "integration_import")
@@ -816,7 +816,7 @@ def _expand_7shifts_availability(
 @router.post("/7shifts/availabilities", response_model=ImportAvailabilitiesResult)
 async def import_availabilities_from_7shifts(
     body: ImportAvailabilitiesRequest,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ImportAvailabilitiesResult:
     """Import employee availabilities from 7shifts for the specified date range."""
