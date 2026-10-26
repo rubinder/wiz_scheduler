@@ -254,10 +254,14 @@ def _import_bodies() -> list[tuple[str, dict]]:
     ]
 
 
-@pytest.mark.parametrize("path,body", _import_bodies())
+# Parametrized by index, with each body built when the test runs: built at
+# collection, a run that crosses midnight UTC into a Monday sends last week's
+# dates and the availability validators 422 before the plan guard runs.
+@pytest.mark.parametrize("index", range(len(_import_bodies())))
 async def test_integration_import_refused_on_free(
-    client: AsyncClient, free_tenant: dict, path: str, body: dict
+    client: AsyncClient, free_tenant: dict, index: int
 ):
+    path, body = _import_bodies()[index]
     resp = await client.post(
         path,
         json=body,
