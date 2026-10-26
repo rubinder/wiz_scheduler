@@ -34,5 +34,5 @@ frontend/dist/
 .claude/worktrees/
 .DS_Store
 
-# Playwright MCP console logs
-.playwright-mcp/console-*.log
+# Playwright MCP output (console logs, snapshots, screenshots)
+.playwright-mcp/
