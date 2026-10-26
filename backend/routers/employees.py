@@ -7,9 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy import Select, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_manager
+from backend.dependencies import (
+    get_current_user,
+    get_db,
+    get_location_scope,
+    get_ownership_group_company_ids,
+    require_admin,
+    require_manager,
+)
 from backend.models import Employee, EmployeeAvailability, EmployeeCompany, EmployeeDayBlackout, EmployeeRole, Location, Role, User
 from backend.services.archive import active, archive_employee, restore_employee
+from backend.services.location_scope import LocationScope, location_scope_for
 from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan, assert_roster_editable
 from backend.schemas.employee import (
@@ -27,6 +35,58 @@ from backend.schemas.employee import (
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+
+# ── Location scope for employees (#149, spec Q2) ──
+# An employee is *visible* to a manager when any of their locations is in
+# scope and *editable* only when all of them are (and they have at least
+# one). Invisible answers 404 like another company's employee. All of these
+# are no-ops for an unrestricted (admin) scope.
+
+
+def require_employee_visible(
+    scope: LocationScope, employee: Employee, what: str = "Employee",
+) -> None:
+    if not scope.allows_any(employee.location_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} not found")
+
+
+def require_employee_editable(
+    scope: LocationScope, employee: Employee, what: str = "Employee",
+) -> None:
+    scope.require_all(employee.location_ids, what)
+
+
+async def visible_employee_ids(
+    db: AsyncSession, company_id: str, scope: LocationScope,
+) -> set[str] | None:
+    """Ids of the company's employees (archived included) this scope may
+    see, or None when unrestricted. location_ids is a JSON column, so the
+    filter runs in Python."""
+    if not scope.restricted:
+        return None
+    rows = await db.execute(
+        select(Employee.id, Employee.location_ids).where(Employee.company_id == company_id)
+    )
+    return {eid for eid, lids in rows.all() if scope.allows_any(lids)}
+
+
+async def require_employee_id_editable(
+    db: AsyncSession,
+    scope: LocationScope,
+    company_id: str,
+    employee_id: str,
+    what: str = "Employee",
+) -> None:
+    """Editable check by id, for rows that carry only an employee_id."""
+    if not scope.restricted:
+        return
+    employee = (await db.execute(select(Employee).where(
+        Employee.id == employee_id, Employee.company_id == company_id,
+    ))).scalar_one_or_none()
+    if employee is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{what} not found")
+    require_employee_editable(scope, employee, what)
 
 
 async def _assert_employee_refs_owned(
@@ -184,12 +244,13 @@ async def list_employees(
     include_archived: bool = False,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[EmployeeResponse]:
     query = select(Employee).where(Employee.company_id == current_user.company_id)
     if not include_archived:
         query = query.where(active(Employee))
     result = await db.execute(query)
-    employees = result.scalars().all()
+    employees = [e for e in result.scalars().all() if scope.allows_any(e.location_ids)]
     return [await _to_response(db, e) for e in employees]
 
 
@@ -199,7 +260,11 @@ async def create_employee(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeResponse:
+    # A restricted manager may only create an employee whose locations are
+    # all theirs (and at least one).
+    scope.require_all(body.location_ids, "Location")
     await assert_roster_editable(db, str(current_user.company_id))
     await assert_can_add(db, str(current_user.company_id), employees=1)
     if body.pay_rate is not None:
@@ -256,6 +321,7 @@ async def update_employee(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeResponse:
     result = await db.execute(
         select(Employee).where(
@@ -266,6 +332,9 @@ async def update_employee(
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    require_employee_editable(scope, employee)
+    if body.location_ids is not None:
+        scope.require_all(body.location_ids, "Location")
     if employee.erased_at is not None:
         # GDPR-erased (#126): the personal data is gone for good; an edit
         # must not write contact details back onto the row.
@@ -321,6 +390,7 @@ async def delete_employee(
     employee_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     # Supersedes an older check that keyed on the literal slug "acme-corp" and
     # only covered employees with a linked user — which left the rest of the
@@ -337,6 +407,7 @@ async def delete_employee(
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    require_employee_editable(scope, employee)
 
     await archive_employee(db, current_user.company_id, employee)
     await db.commit()
@@ -347,6 +418,7 @@ async def restore_employee_endpoint(
     employee_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeResponse:
     await assert_roster_editable(db, str(current_user.company_id))
     employee = (await db.execute(select(Employee).where(
@@ -354,6 +426,7 @@ async def restore_employee_endpoint(
     ))).scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    require_employee_editable(scope, employee)
     if employee.archived_at is not None:
         if employee.erased_at is not None:
             raise HTTPException(
@@ -371,7 +444,7 @@ async def restore_employee_endpoint(
 @router.post("/bulk-upload", response_model=BulkUploadResponse)
 async def bulk_upload(
     file: UploadFile,
-    current_user: User = Depends(require_manager),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
     group_company_ids: list[str] = Depends(get_ownership_group_company_ids),
 ) -> BulkUploadResponse:
@@ -589,6 +662,7 @@ async def list_all_availability(
     week_start: date | None = Query(None, description="Filter to a specific week (Monday). Returns 7 days from this date."),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[AvailabilityResponse]:
     """List all availability windows for the company (manager only).
 
@@ -604,6 +678,9 @@ async def list_all_availability(
             EmployeeAvailability.start_time >= week_start_dt,
             EmployeeAvailability.start_time < week_end_dt,
         )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeAvailability.employee_id.in_(sorted(visible)))
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -641,6 +718,8 @@ async def list_availability(
     # Non-managers can only view their own
     if current_user.user_role != "manager" and employee.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    # Unrestricted for employees and admins.
+    require_employee_visible(await location_scope_for(db, current_user), employee)
 
     result = await db.execute(
         select(EmployeeAvailability).where(
@@ -668,6 +747,8 @@ async def create_availability(
 
     if current_user.user_role != "manager" and employee.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    # Unrestricted for employees and admins.
+    require_employee_editable(await location_scope_for(db, current_user), employee)
 
     avail = EmployeeAvailability(
         company_id=current_user.company_id,
@@ -709,6 +790,11 @@ async def delete_availability(
         emp = emp_result.scalar_one_or_none()
         if emp is None or emp.user_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    else:
+        await require_employee_id_editable(
+            db, await location_scope_for(db, current_user),
+            current_user.company_id, avail.employee_id, "Availability",
+        )
 
     await db.delete(avail)
     await db.commit()
@@ -742,13 +828,16 @@ def _validate_hhmm(label: str, value: str) -> None:
 async def list_all_day_blackouts(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[DayBlackoutResponse]:
-    """Return every blackout across all employees for the current company."""
-    result = await db.execute(
-        select(EmployeeDayBlackout).where(
-            EmployeeDayBlackout.company_id == current_user.company_id
-        )
+    """Return every blackout across the employees this manager can see."""
+    query = select(EmployeeDayBlackout).where(
+        EmployeeDayBlackout.company_id == current_user.company_id
     )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeDayBlackout.employee_id.in_(sorted(visible)))
+    result = await db.execute(query)
     rows = result.scalars().all()
     return [DayBlackoutResponse.model_validate(r) for r in rows]
 
@@ -772,6 +861,8 @@ async def list_day_blackouts(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized"
         )
+    # Unrestricted for employees and admins.
+    require_employee_visible(await location_scope_for(db, current_user), emp)
 
     result = await db.execute(
         select(EmployeeDayBlackout).where(
@@ -791,6 +882,7 @@ async def create_day_blackout(
     body: DayBlackoutCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> DayBlackoutResponse:
     if not (0 <= body.day_of_week <= 6):
         raise HTTPException(
@@ -811,10 +903,12 @@ async def create_day_blackout(
             Employee.company_id == current_user.company_id,
         )
     )
-    if emp_result.scalar_one_or_none() is None:
+    emp = emp_result.scalar_one_or_none()
+    if emp is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
+    require_employee_editable(scope, emp)
 
     row = EmployeeDayBlackout(
         company_id=current_user.company_id,
@@ -836,6 +930,7 @@ async def delete_day_blackout(
     blackout_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     result = await db.execute(
         select(EmployeeDayBlackout).where(
@@ -848,5 +943,8 @@ async def delete_day_blackout(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Blackout not found"
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Blackout",
+    )
     await db.delete(row)
     await db.commit()

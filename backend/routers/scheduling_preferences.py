@@ -8,6 +8,9 @@ would weaken the tier they most help.
 Every handler filters by current_user.company_id (multi-tenancy), and
 creating/updating always re-verifies the target employee belongs to that
 company before writing.
+
+Location scope (#149): reads list only rows for employees the manager can
+see; every write needs the employee editable (spec Q2), else 404.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.dependencies import get_db, require_manager
+from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import (
     Employee,
     EmployeeDayPreference,
@@ -23,7 +26,13 @@ from backend.models import (
     EmployeeHourRangePreference,
     User,
 )
+from backend.routers.employees import (
+    require_employee_editable,
+    require_employee_id_editable,
+    visible_employee_ids,
+)
 from backend.services.archive import active
+from backend.services.location_scope import LocationScope
 from backend.schemas.employee import (
     EmployeeDayPreferenceCreate,
     EmployeeDayPreferenceResponse,
@@ -58,12 +67,15 @@ async def _get_owned_employee(
 async def list_day_preferences(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[EmployeeDayPreferenceResponse]:
-    result = await db.execute(
-        select(EmployeeDayPreference).where(
-            EmployeeDayPreference.company_id == current_user.company_id
-        )
+    query = select(EmployeeDayPreference).where(
+        EmployeeDayPreference.company_id == current_user.company_id
     )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeDayPreference.employee_id.in_(sorted(visible)))
+    result = await db.execute(query)
     return [
         EmployeeDayPreferenceResponse.model_validate(r)
         for r in result.scalars().all()
@@ -79,11 +91,14 @@ async def create_day_preference(
     body: EmployeeDayPreferenceCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeDayPreferenceResponse:
-    if await _get_owned_employee(db, body.employee_id, current_user.company_id) is None:
+    employee = await _get_owned_employee(db, body.employee_id, current_user.company_id)
+    if employee is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
+    require_employee_editable(scope, employee)
 
     row = EmployeeDayPreference(
         company_id=current_user.company_id,
@@ -110,6 +125,7 @@ async def update_day_preference(
     body: EmployeeDayPreferenceUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeDayPreferenceResponse:
     result = await db.execute(
         select(EmployeeDayPreference).where(
@@ -122,6 +138,9 @@ async def update_day_preference(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Day preference not found"
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Day preference",
+    )
 
     if body.day_of_week is not None:
         row.day_of_week = body.day_of_week
@@ -145,6 +164,7 @@ async def delete_day_preference(
     pref_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     result = await db.execute(
         select(EmployeeDayPreference).where(
@@ -157,6 +177,9 @@ async def delete_day_preference(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Day preference not found"
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Day preference",
+    )
     await db.delete(row)
     await db.commit()
 
@@ -168,12 +191,15 @@ async def delete_day_preference(
 async def list_hour_range_preferences(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[EmployeeHourRangePreferenceResponse]:
-    result = await db.execute(
-        select(EmployeeHourRangePreference).where(
-            EmployeeHourRangePreference.company_id == current_user.company_id
-        )
+    query = select(EmployeeHourRangePreference).where(
+        EmployeeHourRangePreference.company_id == current_user.company_id
     )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeHourRangePreference.employee_id.in_(sorted(visible)))
+    result = await db.execute(query)
     return [
         EmployeeHourRangePreferenceResponse.model_validate(r)
         for r in result.scalars().all()
@@ -189,11 +215,14 @@ async def create_hour_range_preference(
     body: EmployeeHourRangePreferenceCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeHourRangePreferenceResponse:
-    if await _get_owned_employee(db, body.employee_id, current_user.company_id) is None:
+    employee = await _get_owned_employee(db, body.employee_id, current_user.company_id)
+    if employee is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
+    require_employee_editable(scope, employee)
 
     row = EmployeeHourRangePreference(
         company_id=current_user.company_id,
@@ -223,6 +252,7 @@ async def update_hour_range_preference(
     body: EmployeeHourRangePreferenceUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeHourRangePreferenceResponse:
     result = await db.execute(
         select(EmployeeHourRangePreference).where(
@@ -236,6 +266,9 @@ async def update_hour_range_preference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Hour-range preference not found",
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Hour-range preference",
+    )
 
     new_start = body.start_time if body.start_time is not None else row.start_time
     new_end = body.end_time if body.end_time is not None else row.end_time
@@ -269,6 +302,7 @@ async def delete_hour_range_preference(
     pref_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     result = await db.execute(
         select(EmployeeHourRangePreference).where(
@@ -282,6 +316,9 @@ async def delete_hour_range_preference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Hour-range preference not found",
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Hour-range preference",
+    )
     await db.delete(row)
     await db.commit()
 
@@ -293,12 +330,15 @@ async def delete_hour_range_preference(
 async def list_hour_range_caps(
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[EmployeeHourRangeCapResponse]:
-    result = await db.execute(
-        select(EmployeeHourRangeCap).where(
-            EmployeeHourRangeCap.company_id == current_user.company_id
-        )
+    query = select(EmployeeHourRangeCap).where(
+        EmployeeHourRangeCap.company_id == current_user.company_id
     )
+    visible = await visible_employee_ids(db, current_user.company_id, scope)
+    if visible is not None:
+        query = query.where(EmployeeHourRangeCap.employee_id.in_(sorted(visible)))
+    result = await db.execute(query)
     return [
         EmployeeHourRangeCapResponse.model_validate(r)
         for r in result.scalars().all()
@@ -314,11 +354,14 @@ async def create_hour_range_cap(
     body: EmployeeHourRangeCapCreate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeHourRangeCapResponse:
-    if await _get_owned_employee(db, body.employee_id, current_user.company_id) is None:
+    employee = await _get_owned_employee(db, body.employee_id, current_user.company_id)
+    if employee is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
+    require_employee_editable(scope, employee)
 
     row = EmployeeHourRangeCap(
         company_id=current_user.company_id,
@@ -347,6 +390,7 @@ async def update_hour_range_cap(
     body: EmployeeHourRangeCapUpdate,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EmployeeHourRangeCapResponse:
     result = await db.execute(
         select(EmployeeHourRangeCap).where(
@@ -359,6 +403,9 @@ async def update_hour_range_cap(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Hour-range cap not found"
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Hour-range cap",
+    )
 
     new_start = body.start_time if body.start_time is not None else row.start_time
     new_end = body.end_time if body.end_time is not None else row.end_time
@@ -394,6 +441,7 @@ async def delete_hour_range_cap(
     cap_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> None:
     result = await db.execute(
         select(EmployeeHourRangeCap).where(
@@ -406,5 +454,8 @@ async def delete_hour_range_cap(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Hour-range cap not found"
         )
+    await require_employee_id_editable(
+        db, scope, current_user.company_id, row.employee_id, "Hour-range cap",
+    )
     await db.delete(row)
     await db.commit()
