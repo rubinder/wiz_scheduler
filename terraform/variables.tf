@@ -167,3 +167,9 @@ variable "ops_alert_email" {
   type        = string
   default     = ""
 }
+
+variable "rls_enforce" {
+  description = "Run authenticated requests as app_role under row-level security (#183)"
+  type        = bool
+  default     = true
+}

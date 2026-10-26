@@ -198,6 +198,13 @@ resource "aws_ecs_task_definition" "app" {
           value = var.stripe_price_id
         },
         {
+          # Authenticated requests run as app_role, so the 0044 row-level
+          # security policies bound them to the caller's companies (#183).
+          # Set "false" to roll back; nothing else depends on it.
+          name  = "RLS_ENFORCE"
+          value = var.rls_enforce ? "true" : "false"
+        },
+        {
           # The origin encoded into every check-in QR code. Not a secret, but
           # load-bearing: the app's default is http://localhost:5173, so a
           # missing value here would produce codes that scan cleanly and open
