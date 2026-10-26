@@ -14,7 +14,6 @@ from backend.services.archive import active
 from backend.services.location_scope import is_restricted_manager
 from backend.services.manager_permissions import (
     assign_location_to_manager,
-    is_admin_manager,
     lock_company_admin_ids,
     replace_manager_locations,
     revoke_location_from_manager,
@@ -91,14 +90,17 @@ async def _manager_responses(db: AsyncSession, managers: list[User]) -> list[Man
     ]
 
 
-async def _company_manager(db: AsyncSession, company_id: str, manager_id: str) -> User:
-    manager = (await db.execute(
-        select(User).where(
-            User.id == manager_id,
-            User.company_id == company_id,
-            User.user_role == "manager",
-        )
-    )).scalar_one_or_none()
+async def _company_manager(
+    db: AsyncSession, company_id: str, manager_id: str, lock: bool = False,
+) -> User:
+    query = select(User).where(
+        User.id == manager_id,
+        User.company_id == company_id,
+        User.user_role == "manager",
+    )
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    manager = (await db.execute(query)).scalar_one_or_none()
     if manager is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manager not found")
     return manager
@@ -137,8 +139,12 @@ async def update_manager(
       both pass.
     """
     company_id = current_user.company_id
-    target = await _company_manager(db, company_id, manager_id)
-    was_admin = is_admin_manager(target)
+    # Lock the admin rows first, then the target, and decide from what the
+    # locks read: overlapping changes serialize here, so no interleaving
+    # can demote the last admin.
+    admin_ids = await lock_company_admin_ids(db, company_id)
+    target = await _company_manager(db, company_id, manager_id, lock=True)
+    was_admin = target.id in admin_ids
     new_type = body.manager_type or ("admin" if was_admin else "regular")
 
     if new_type == "admin":
@@ -162,13 +168,17 @@ async def update_manager(
                     detail="A regular manager needs at least one location",
                 )
             try:
+                current = (await db.execute(
+                    select(ManagerLocation.location_id).where(
+                        ManagerLocation.manager_id == target.id
+                    )
+                )).scalars().all()
                 location_ids = await validate_assignable_locations(
-                    db, company_id, body.location_ids
+                    db, company_id, body.location_ids, keep=current,
                 )
             except ValueError as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         if was_admin:
-            admin_ids = await lock_company_admin_ids(db, company_id)
             if admin_ids - {target.id} == set():
                 await db.rollback()
                 raise HTTPException(

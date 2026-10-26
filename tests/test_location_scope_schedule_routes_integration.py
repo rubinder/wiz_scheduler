@@ -442,3 +442,42 @@ async def test_draft_save_refuses_an_employee_who_works_only_elsewhere(
 
     resp = await client.put(url, headers=_h(manager_token), json=body)
     assert resp.status_code == 200, resp.text
+
+
+async def test_generate_refuses_unknown_and_one_off_template_ids(
+    client, db_session: AsyncSession, world, regular_token, captured,
+):
+    """The graph schedules every location when no recurring template
+    matches, so an id that matches nothing must be refused, not passed on."""
+    assert await _generate(client, regular_token, template_ids=["zzzzzzzz"]) == 404
+    one_off = ShiftTemplate(id=_id(), company_id=COMPANY_ID, location_id=LOCATION_ID,
+                            name="One-off", weekly_schedule=[],
+                            specific_date=TOMORROW + timedelta(days=3))
+    db_session.add(one_off)
+    await db_session.commit()
+    assert await _generate(client, regular_token, template_ids=[one_off.id]) == 404
+    assert captured == []
+
+
+async def test_approved_edit_refuses_a_shift_at_an_out_of_scope_location(
+    client: AsyncClient, db_session: AsyncSession, world, regular_token,
+):
+    """A schedule at an in-scope location holding a shift elsewhere: that
+    shift is only as editable as its own location."""
+    start = datetime.combine(TOMORROW, time(13, 0), tzinfo=timezone.utc)
+    stray = Shift(id=_id(), company_id=COMPANY_ID, shift_schedule_id=world["in"]["approved"],
+                  location_id=OTHER_LOCATION_ID, employee_id=None, role_id=ROLE_FLOOR_ID,
+                  role_name="Floor Associate", date=TOMORROW,
+                  start_time=start, end_time=start + timedelta(hours=8))
+    db_session.add(stray)
+    await db_session.commit()
+    stray_id = stray.id
+    resp = await client.put(
+        f"/api/v1/schedules/{world['in']['approved']}/approved-shifts",
+        headers=_h(regular_token),
+        json={"edits": [{"shift_id": stray_id, "deleted": True}]},
+    )
+    assert resp.status_code == 400, resp.text
+    from sqlalchemy import select
+    still = (await db_session.execute(select(Shift.id).where(Shift.id == stray_id))).scalar_one_or_none()
+    assert still == stray_id

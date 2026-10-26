@@ -202,24 +202,29 @@ async def lock_company_admin_ids(db: AsyncSession, company_id: str) -> set[str]:
 
 
 async def validate_assignable_locations(
-    db: AsyncSession, company_id: str, location_ids: Iterable[str]
+    db: AsyncSession,
+    company_id: str,
+    location_ids: Iterable[str],
+    keep: Iterable[str] = (),
 ) -> list[str]:
-    """Deduplicated ids, each an active location of `company_id`.
+    """Deduplicated ids, each an active location of `company_id`, or an
+    archived one listed in `keep` (the manager's current assignments).
 
     New assignments need an active location, as `assign_location_to_manager`
-    does; an archived location already assigned stays assigned until it is
-    replaced. Raises ValueError naming the first unknown id.
+    does; an archived location already assigned may stay assigned when the
+    set is replaced (spec Q7). Raises ValueError naming the first unknown id.
     """
     ids = list(dict.fromkeys(location_ids))
     if not ids:
         return []
-    found = set((await db.execute(
-        select(Location.id).where(
+    kept = set(keep)
+    rows = (await db.execute(
+        select(Location.id, Location.archived_at).where(
             Location.id.in_(ids),
             Location.company_id == company_id,
-            active(Location),
         )
-    )).scalars().all())
+    )).all()
+    found = {lid for lid, archived_at in rows if archived_at is None or lid in kept}
     for lid in ids:
         if lid not in found:
             raise ValueError(f"Location {lid} not found in this company")

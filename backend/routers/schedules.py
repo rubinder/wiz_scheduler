@@ -78,14 +78,21 @@ async def _scoped_template_ids(
     if not scope.restricted:
         return template_ids
     if template_ids:
-        rows = (await db.execute(
-            select(ShiftTemplate.location_id).where(
+        # Every id must resolve to a recurring template of this company at
+        # an in-scope location. The graph picks locations from recurring
+        # templates only and schedules every location when none match, so
+        # an unknown, foreign or one-off id must fail here, not pass.
+        rows = dict((await db.execute(
+            select(ShiftTemplate.id, ShiftTemplate.location_id).where(
                 ShiftTemplate.company_id == company_id,
+                ShiftTemplate.specific_date.is_(None),
                 ShiftTemplate.id.in_(template_ids),
             )
-        )).scalars().all()
-        for location_id in rows:
-            scope.require(str(location_id), "Shift template")
+        )).all())
+        for tid in template_ids:
+            if tid not in rows:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift template not found")
+            scope.require(str(rows[tid]), "Shift template")
         return template_ids
     return [
         str(tid) for tid in (await db.execute(
@@ -472,8 +479,7 @@ async def edit_approved_shifts(
     )).scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    # Every edited or created shift is pinned to this schedule and its
-    # location, so the schedule's location is the whole scope check (#149).
+    # The schedule's location, then each edited shift's own below (#149).
     scope.require(schedule.location_id, "Schedule")
 
     if schedule.status != "approved":
@@ -629,6 +635,11 @@ async def edit_approved_shifts(
                         Shift.shift_schedule_id == schedule.id,
                     )
                 )).scalar_one_or_none()
+                if shift is not None and not scope.allows(shift.location_id):
+                    # A draft entry may name another location than its
+                    # schedule's; that shift is only as editable as its own
+                    # location (#149).
+                    shift = None
                 if shift is None:
                     # All-or-nothing: an edit list is a single manager
                     # decision. Silently skipping one edit while committing

@@ -179,6 +179,42 @@ async def test_locations_must_be_active_and_in_company(
     assert await _locations_of(db_session, REGULAR_MANAGER_ID) == {LOCATION_ID}
 
 
+async def test_replacement_may_keep_an_archived_assignment(
+    client: AsyncClient, db_session: AsyncSession, manager_token: str,
+    regular_manager: User,
+) -> None:
+    """Spec Q7: an archived location already assigned stays assignable when
+    the set is replaced, so saving the checklist does not drop it."""
+    db_session.add(ManagerLocation(manager_id=REGULAR_MANAGER_ID, location_id=OTHER_LOCATION_ID))
+    other = await db_session.get(Location, OTHER_LOCATION_ID)
+    other.archived_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    resp = await client.put(
+        f"{API}/managers/{REGULAR_MANAGER_ID}",
+        headers=_auth(manager_token),
+        json={"location_ids": [LOCATION_ID, OTHER_LOCATION_ID]},
+    )
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    assert await _locations_of(db_session, REGULAR_MANAGER_ID) == {LOCATION_ID, OTHER_LOCATION_ID}
+
+
+async def test_last_admin_cannot_delete_their_account_while_managers_remain(
+    client: AsyncClient, db_session: AsyncSession, manager_token: str, regular_manager: User,
+) -> None:
+    resp = await client.delete(f"{API}/gdpr/delete-account", headers=_auth(manager_token))
+    assert resp.status_code == 409, resp.text
+    assert await db_session.get(User, MANAGER_USER_ID) is not None
+
+
+async def test_a_sole_manager_may_still_delete_their_account(
+    client: AsyncClient, manager_token: str,
+) -> None:
+    resp = await client.delete(f"{API}/gdpr/delete-account", headers=_auth(manager_token))
+    assert resp.status_code == 200, resp.text
+
+
 async def test_replace_locations(
     client: AsyncClient, db_session: AsyncSession, manager_token: str, regular_manager: User,
 ) -> None:
