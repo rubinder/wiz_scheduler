@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 5
 
+    # CA bundle for verifying the database server's certificate (#203).
+    # When set, every connection requires TLS and checks the certificate
+    # chain and hostname against it; production points it at the AWS RDS
+    # bundle shipped in backend/certs/. Empty (local Postgres, tests) keeps
+    # asyncpg's default: TLS if the server offers it, nothing verified.
+    DB_SSL_ROOT_CERT: str = ""
+
     # Postgres max_connections for the RDS instance class. db.t3.micro derives
     # LEAST({DBInstanceClassMemory/9531392}, 5000) = ~112 on 1 GiB. Raise this
     # in step with the instance class, never ahead of it.

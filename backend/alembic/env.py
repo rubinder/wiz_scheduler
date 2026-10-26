@@ -7,7 +7,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from backend.config import settings
-from backend.database import Base
+from backend.database import Base, db_connect_args
 
 # Import all models so Base.metadata is fully populated
 import backend.models  # noqa: F401
@@ -50,6 +50,7 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=db_connect_args(),
     )
 
     async with connectable.connect() as connection:
