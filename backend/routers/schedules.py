@@ -9,8 +9,10 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_db, require_manager
-from backend.models import Employee, EmployeeCheckIn, Location, Shift, ShiftSchedule, User
+from backend.dependencies import get_db, get_location_scope, require_manager
+from backend.models import (
+    Employee, EmployeeCheckIn, Location, Shift, ShiftSchedule, ShiftTemplate, User,
+)
 from backend.models.consent import UserConsent
 from backend.utils.privacy import mask_ip
 from backend.schemas.schedule import (
@@ -27,6 +29,7 @@ from backend.scheduling.open_shifts import is_open_entry, to_open_entry
 from backend.scheduling.preferences import annotate_preference_violations
 from backend.services.preference_loader import load_employee_preferences
 from backend.services.archive import DISCARDED, active, lock_employees
+from backend.services.location_scope import LocationScope
 from backend.services.ownership import assert_owned
 from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
 
@@ -49,6 +52,50 @@ def _refuse_discarded(schedule: ShiftSchedule) -> None:
                 ),
             },
         )
+
+
+async def _scoped_template_ids(
+    db: AsyncSession,
+    scope: LocationScope,
+    company_id: str,
+    body: GenerateRequest,
+) -> list[str] | None:
+    """The template ids a generation may run, limited to the caller's
+    locations (#149, R8).
+
+    The graph resolves locations from recurring templates, not from
+    `location_ids`: no template ids means every location. For an admin the
+    request passes through unchanged. A restricted manager must name only
+    in-scope locations and templates, and "everything" means every
+    recurring template at their own locations. An empty list means nothing
+    is in scope to generate.
+    """
+    if body.location_ids:
+        scope.require_all([str(lid) for lid in body.location_ids])
+    template_ids = (
+        [str(tid) for tid in body.template_ids] if body.template_ids else None
+    )
+    if not scope.restricted:
+        return template_ids
+    if template_ids:
+        rows = (await db.execute(
+            select(ShiftTemplate.location_id).where(
+                ShiftTemplate.company_id == company_id,
+                ShiftTemplate.id.in_(template_ids),
+            )
+        )).scalars().all()
+        for location_id in rows:
+            scope.require(str(location_id), "Shift template")
+        return template_ids
+    return [
+        str(tid) for tid in (await db.execute(
+            select(ShiftTemplate.id).where(
+                ShiftTemplate.company_id == company_id,
+                ShiftTemplate.specific_date.is_(None),
+                scope.clause(ShiftTemplate.location_id),
+            )
+        )).scalars().all()
+    ]
 
 
 @router.get("/ai-credits")
@@ -79,6 +126,7 @@ async def generate_schedule(
     request: Request,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> StreamingResponse:
     from backend.scheduling.graph import run_scheduling_pipeline
     from backend.services.email_verification import assert_email_verified
@@ -88,6 +136,17 @@ async def generate_schedule(
     # in check_can_generate because plan state is a property of the ownership
     # group, and proving an address is a property of one person.
     assert_email_verified(current_user)
+
+    # Location scope before any gate that spends or records anything (#149).
+    template_ids = await _scoped_template_ids(
+        db, scope, str(current_user.company_id), body
+    )
+    if template_ids == []:
+        # A restricted manager with no recurring template at any of their
+        # locations: nothing to schedule, exactly like an admin whose
+        # company has no templates (the graph yields no lines). Passing []
+        # on would read as "no filter" and schedule every location.
+        return StreamingResponse(iter(()), media_type="application/x-ndjson")
 
     await check_can_generate(
         db,
@@ -175,10 +234,6 @@ async def generate_schedule(
                     "retry_after_seconds": 3600,
                 },
             )
-
-    template_ids = (
-        [str(tid) for tid in body.template_ids] if body.template_ids else None
-    )
 
     # Acquire per-Company schedule lock before starting the stream.
     # TTL is scoped to the mode: local mode is sub-second computation,
@@ -339,6 +394,7 @@ async def update_shifts(
     body: UpdateShiftsRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> UpdateShiftsResponse:
     """Save a hand-edited draft schedule and re-annotate it.
 
@@ -358,6 +414,7 @@ async def update_shifts(
     schedule = result.scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    scope.require(schedule.location_id, "Schedule")
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot edit an approved schedule")
@@ -377,6 +434,10 @@ async def update_shifts(
         company, "Employee",
     )
     await assert_owned(db, Location, [d.get("location_id") for d in shifts], company, "Location")
+    # ...and, for a location-scoped manager, theirs (#149): approval
+    # materialises each entry at the location it names.
+    for d in shifts:
+        scope.require(d.get("location_id"))
     # Re-annotate server-side (#99): a hand-edit may have moved a shift onto
     # or off a preference, and the evaluator lives here, not in the client.
     prefs = await load_employee_preferences(db, str(current_user.company_id))
@@ -392,6 +453,7 @@ async def edit_approved_shifts(
     body: EditApprovedShiftsRequest,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> EditApprovedResponse:
     """Edit an approved schedule's shifts.
 
@@ -407,6 +469,9 @@ async def edit_approved_shifts(
     )).scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    # Every edited or created shift is pinned to this schedule and its
+    # location, so the schedule's location is the whole scope check (#149).
+    scope.require(schedule.location_id, "Schedule")
 
     if schedule.status != "approved":
         raise HTTPException(
@@ -768,6 +833,7 @@ async def approve_schedule(
     schedule_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> ShiftScheduleResponse:
     result = await db.execute(
         select(ShiftSchedule).where(
@@ -778,6 +844,7 @@ async def approve_schedule(
     schedule = result.scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    scope.require(schedule.location_id, "Schedule")
 
     if schedule.status == "approved":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
@@ -914,6 +981,9 @@ async def approve_schedule(
                             status_code=status.HTTP_404_NOT_FOUND,
                             detail="Location not found",
                         )
+                    # Nor, for a location-scoped manager, a location
+                    # outside their scope (#149).
+                    scope.require(str(loc_id))
                     if emp_id is not None and str(emp_id) not in locked_archived:
                         raise HTTPException(
                             status_code=status.HTTP_404_NOT_FOUND,
@@ -1045,6 +1115,7 @@ async def reject_schedule(
     schedule_id: str,
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> ShiftScheduleResponse:
     result = await db.execute(
         select(ShiftSchedule).where(
@@ -1055,6 +1126,7 @@ async def reject_schedule(
     schedule = result.scalar_one_or_none()
     if schedule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    scope.require(schedule.location_id, "Schedule")
     _refuse_discarded(schedule)
 
     schedule.status = "rejected"
@@ -1069,6 +1141,7 @@ async def get_week_schedules(
     status_filter: str | None = Query(None, alias="status"),
     current_user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
 ) -> list[ShiftScheduleResponse]:
     """Schedules for one week, newest-relevant first.
 
@@ -1082,6 +1155,7 @@ async def get_week_schedules(
     conditions = [
         ShiftSchedule.company_id == current_user.company_id,
         ShiftSchedule.week_start_date == week_start_date,
+        scope.clause(ShiftSchedule.location_id),
     ]
     if status_filter:
         conditions.append(ShiftSchedule.status == status_filter)
