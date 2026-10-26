@@ -1,6 +1,6 @@
 # Location-scoped managers (#149, #150): design questions
 
-**Status:** draft for review. Nothing below is built yet beyond what "Current state" lists.
+**Status:** accepted 2026-10-26 with every recommended default; built in the PR that closes #149 and #150. Rulings made while building are in that PR.
 
 ## Current state (main, 2026-10-25)
 
