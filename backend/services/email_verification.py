@@ -118,12 +118,11 @@ async def redeem(db: AsyncSession, token_value: str) -> User | None:
         return None
 
     row.used_at = now
-    same_email = (await db.execute(
-        select(User).where(User.email == user.email)
-    )).scalars().all()
-    for u in same_email:
-        if u.email_verified_at is None:
-            u.email_verified_at = now
+    # Only the row this token was minted for. Another unverified row with the
+    # same address may have been registered by someone else; it proves the
+    # address through its own token.
+    if user.email_verified_at is None:
+        user.email_verified_at = now
     return user
 
 

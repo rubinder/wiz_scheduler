@@ -139,12 +139,12 @@ async def test_redeem_rejects_unknown_token(db_session: AsyncSession):
     assert await redeem(db_session, "never-minted") is None
 
 
-async def test_redeem_verifies_every_row_sharing_the_address(
+async def test_redeem_verifies_only_the_tokens_row(
     db_session: AsyncSession, unverified: User
 ):
-    """One mailbox can own several companies (see /auth/login's
-    multiple_ownership_groups flow). Proving it once proves it everywhere,
-    matching how /auth/reset-password stamps the password."""
+    """A token proves the address for the row it was minted for. Another
+    unverified row with the same address may have been registered by someone
+    else, so it must prove the address through its own token."""
     other_company_id = _id()
     db_session.add(Company(id=other_company_id, name="C2", slug=_id()))
     await db_session.flush()
@@ -153,7 +153,7 @@ async def test_redeem_verifies_every_row_sharing_the_address(
         company_id=other_company_id,
         email=unverified.email,
         hashed_password="x",
-        full_name="Same Person",
+        full_name="Possibly Someone Else",
         user_role="manager",
     )
     db_session.add(twin)
@@ -163,8 +163,10 @@ async def test_redeem_verifies_every_row_sharing_the_address(
     await redeem(db_session, token)
     await db_session.commit()
 
+    await db_session.refresh(unverified)
     await db_session.refresh(twin)
-    assert twin.email_verified_at is not None
+    assert unverified.email_verified_at is not None
+    assert twin.email_verified_at is None
 
 
 # ---------------------------------------------------------------------------

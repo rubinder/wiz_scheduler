@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_current_user, get_db
 from backend.models import Company, OwnershipGroup, User
+from backend.tenant import tenant_scope_disabled
 from backend.models.consent import UserConsent
 from backend.services.billing import is_demo_group
 from backend.services.passwords import hash_password, verify_password
@@ -53,6 +54,27 @@ def _checkout_session_email(session: object) -> str | None:
         if isinstance(candidate, str) and candidate:
             return candidate
     return None
+
+
+async def _proven_same_email_rows(db: AsyncSession, user: User) -> list[User]:
+    """``user`` plus every other row with the same email that has proven it.
+
+    One person can hold a row per ownership group, and account-wide actions
+    (a new password, a Google link) apply to all of them. A row whose email
+    was never verified may have been registered by someone else with this
+    address, so it is never included.
+    """
+    # The same person's rows live in other ownership groups, so this reads
+    # past the tenant filter.
+    with tenant_scope_disabled():
+        others = (await db.execute(
+            select(User).where(
+                User.email == user.email,
+                User.id != user.id,
+                User.email_verified_at.is_not(None),
+            )
+        )).scalars().all()
+    return [user, *others]
 
 
 def _create_access_token(
@@ -484,7 +506,10 @@ async def google_auth(
 
     # Case 1: User already linked with this google_id
     result = await db.execute(
-        select(User).where(User.google_id == google_sub)
+        select(User)
+        .where(User.google_id == google_sub)
+        # Deterministic, and a verified row before one that never proved its email.
+        .order_by(User.email_verified_at.is_(None), User.id)
     )
     user = result.scalars().first()
     if user:
@@ -622,12 +647,11 @@ async def google_link_current(
             detail="This Google account is already linked to a different user",
         )
 
-    # Mirror /auth/google/link: link to every User row with this email so the
-    # multi-company-same-email case keeps working with Google sign-in.
-    same_email = (await db.execute(
-        select(User).where(User.email == current_user.email)
-    )).scalars().all()
-    for u in same_email:
+    # Link this row and the caller's other verified rows with this email, so
+    # the multi-company-same-email case keeps working with Google sign-in.
+    # An unverified row with the same address may have been registered by
+    # someone else, so it is left alone.
+    for u in await _proven_same_email_rows(db, current_user):
         u.google_id = google_sub
     await db.commit()
 
@@ -784,10 +808,9 @@ async def reset_password(
         raise HTTPException(status_code=404, detail="User no longer exists")
 
     new_hash = hash_password(body.new_password)
-    same_email = (await db.execute(
-        select(User).where(User.email == owner.email)
-    )).scalars().all()
-    for u in same_email:
+    # The token's owner, plus the same person's other verified rows. An
+    # unverified row with this address may be someone else's registration.
+    for u in await _proven_same_email_rows(db, owner):
         u.hashed_password = new_hash
 
     token_row.used_at = now
