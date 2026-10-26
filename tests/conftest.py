@@ -559,3 +559,59 @@ async def other_company_employee_id(db_session: AsyncSession) -> str:
     db_session.add(employee)
     await db_session.commit()
     return employee.id
+
+
+# ---------------------------------------------------------------------------
+# Location-scoped managers (#149, #150)
+#
+# Two locations in the seeded company. `regular_token` belongs to a regular
+# manager assigned LOCATION_ID only, so OTHER_LOCATION_ID is out of scope;
+# `manager_token` stays the unrestricted admin.
+# ---------------------------------------------------------------------------
+
+OTHER_LOCATION_ID = _id()
+REGULAR_MANAGER_ID = _id()
+
+
+@pytest_asyncio.fixture
+async def other_location(db_session: AsyncSession, seed_location: Location) -> Location:
+    loc = Location(
+        id=OTHER_LOCATION_ID,
+        company_id=COMPANY_ID,
+        region_id=REGION_ID,
+        name="Uptown Store",
+        timezone="America/New_York",
+    )
+    db_session.add(loc)
+    await db_session.commit()
+    await db_session.refresh(loc)
+    return loc
+
+
+@pytest_asyncio.fixture
+async def regular_manager(
+    db_session: AsyncSession, seed_manager: User, other_location: Location
+) -> User:
+    from backend.models import ManagerLocation
+    from backend.services.passwords import hash_password
+
+    user = User(
+        id=REGULAR_MANAGER_ID,
+        company_id=COMPANY_ID,
+        email="regular-manager@test.com",
+        hashed_password=hash_password("testpass"),
+        full_name="Regular Manager",
+        user_role="manager",
+        manager_type="regular",
+        email_verified_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(ManagerLocation(manager_id=user.id, location_id=LOCATION_ID))
+    await db_session.commit()
+    return user
+
+
+@pytest_asyncio.fixture
+def regular_token(regular_manager: User) -> str:
+    return _make_token(REGULAR_MANAGER_ID, COMPANY_ID, "manager")

@@ -9,6 +9,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
+from backend.services.location_scope import location_scope_for
 from backend.dependencies import get_current_user, get_db
 from backend.database import cross_tenant_session
 from backend.models import Company, OwnershipGroup, User
@@ -950,4 +951,6 @@ async def me(
     )
     response.has_google = current_user.google_id is not None
     response.email_verified = current_user.email_verified_at is not None
+    scope = await location_scope_for(db, current_user)
+    response.accessible_location_ids = sorted(scope.ids) if scope.restricted else None
     return response
