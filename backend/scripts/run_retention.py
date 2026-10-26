@@ -1,10 +1,10 @@
 """Data retention purge script.
 
-Run manually or via cron:
+Run manually:
     python -m backend.scripts.run_retention
 
-Suggested cron (daily at 3 AM):
-    0 3 * * * cd /app && python -m backend.scripts.run_retention
+Production runs it monthly (03:00 UTC on the 1st) as a one-off ECS task;
+see terraform/retention_schedule.tf.
 """
 import asyncio
 import json
