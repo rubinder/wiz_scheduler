@@ -95,6 +95,52 @@ resource "aws_cloudfront_function" "www_to_apex" {
 }
 
 # -----------------------------------------------------------------------------
+# CloudFront Function — the app's client-side routes (default behavior only)
+#
+# A path whose last segment has no file extension (/manager/team, /login) is
+# a React route, so the request is rewritten to /index.html before it reaches
+# S3. This replaces distribution-wide custom_error_responses, which CloudFront
+# also applied to /api/*: every API 403/404 reached the browser as index.html
+# with a 200. No route takes a path parameter (tokens ride in query strings),
+# so "no dot in the last segment" is exactly the route set. Also performs the
+# www -> apex redirect, since a behavior takes one viewer-request function.
+# -----------------------------------------------------------------------------
+
+resource "aws_cloudfront_function" "app_routes" {
+  name    = "${var.app_name}-app-routes"
+  runtime = "cloudfront-js-2.0"
+  comment = "SPA route rewrite to /index.html (+ www redirect)"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var host = request.headers.host && request.headers.host.value;
+      var apex = '${var.domain_name}';
+      if (apex && host === 'www.' + apex) {
+        var qs = request.querystring && Object.keys(request.querystring).length
+          ? '?' + Object.keys(request.querystring).map(function (k) {
+              var v = request.querystring[k];
+              return encodeURIComponent(k) + '=' + encodeURIComponent(v.value);
+            }).join('&')
+          : '';
+        return {
+          statusCode: 301,
+          statusDescription: 'Moved Permanently',
+          headers: {
+            'location': { value: 'https://' + apex + request.uri + qs }
+          }
+        };
+      }
+      var last = request.uri.substring(request.uri.lastIndexOf('/') + 1);
+      if (last.indexOf('.') === -1) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
+# -----------------------------------------------------------------------------
 # CloudFront distribution — S3 default + ALB for /api/*
 # -----------------------------------------------------------------------------
 
@@ -153,12 +199,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     cache_policy_id            = local.cf_cache_caching_optimized
     response_headers_policy_id = local.cf_response_security_headers
 
-    dynamic "function_association" {
-      for_each = var.domain_name != "" ? [1] : []
-      content {
-        event_type   = "viewer-request"
-        function_arn = aws_cloudfront_function.www_to_apex[0].arn
-      }
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.app_routes.arn
     }
   }
 
@@ -183,20 +226,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # ---- SPA routing — serve index.html on 403/404 from S3 ----
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
+  # No custom_error_response: client routes are rewritten by app_routes,
+  # and error rewrites here would apply to /api/* too.
 
   restrictions {
     geo_restriction {
