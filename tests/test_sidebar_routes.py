@@ -13,13 +13,22 @@ import re
 from pathlib import Path
 
 _SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
-_SIDEBAR = _SRC / "components" / "layout" / "Sidebar.tsx"
+# The nav entries live in navItems.ts (shared with the admin-only route
+# guard, #149); Sidebar.tsx renders them.
+_SIDEBAR_SOURCES = [
+    _SRC / "components" / "layout" / "Sidebar.tsx",
+    _SRC / "components" / "layout" / "navItems.ts",
+]
 _APP = _SRC / "App.tsx"
 _EN = _SRC / "i18n" / "en.ts"
 
 
+def _sidebar_text() -> str:
+    return "\n".join(p.read_text() for p in _SIDEBAR_SOURCES)
+
+
 def _nav_targets() -> set[str]:
-    return set(re.findall(r'to:\s*"([^"]+)"', _SIDEBAR.read_text()))
+    return set(re.findall(r'to:\s*"([^"]+)"', _sidebar_text()))
 
 
 def _routes() -> set[str]:
@@ -57,7 +66,7 @@ def test_the_parser_still_finds_both_sides():
 def test_every_label_key_exists_in_en_translations():
     """Sidebar.tsx does `t.nav[key as keyof typeof t.nav]`, which bypasses
     key validation — a labelKey missing from en.ts silently renders blank."""
-    label_keys = set(re.findall(r'labelKey:\s*"([^"]+)"', _SIDEBAR.read_text()))
+    label_keys = set(re.findall(r'labelKey:\s*"([^"]+)"', _sidebar_text()))
     nav_block = re.search(r"nav:\s*\{(.*?)\n\s*\},", _EN.read_text(), re.DOTALL)
     assert nav_block, "could not find `nav: {` block in en.ts — parser is stale"
     nav_keys = set(re.findall(r"(\w+):", nav_block.group(1)))
