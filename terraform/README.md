@@ -340,3 +340,7 @@ To scale beyond the defaults:
 | S3 (frontend bucket) | ~$0.10 |
 | CloudFront (PriceClass_100) | ~$1–5 at low traffic (first 1 TB/mo free) |
 | **Total (idle/low traffic)** | **~$85–95/mo** |
+
+## Database TLS (#203)
+
+The app verifies the RDS server certificate: `DB_SSL_ROOT_CERT` (set in `ecs.tf`) points at `backend/certs/rds-global-bundle.pem`, AWS's global RDS CA bundle, which ships in the image. The instance uses CA `rds-ca-rsa2048-g1`; RDS rotates the server certificate itself. If AWS issues a new CA or the instance moves to one, refresh the bundle from `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` **before** switching the instance's CA, or every connection will fail verification. Rollback: set `DB_SSL_ROOT_CERT` to an empty string.

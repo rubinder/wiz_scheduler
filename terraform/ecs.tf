@@ -198,6 +198,12 @@ resource "aws_ecs_task_definition" "app" {
           value = var.stripe_price_id
         },
         {
+          # Verify the database server certificate and hostname (#203).
+          # The AWS RDS CA bundle ships in the image under backend/certs/.
+          name  = "DB_SSL_ROOT_CERT"
+          value = "/app/backend/certs/rds-global-bundle.pem"
+        },
+        {
           # Authenticated requests run as app_role, so the 0044 row-level
           # security policies bound them to the caller's companies (#183).
           # Set "false" to roll back; nothing else depends on it.

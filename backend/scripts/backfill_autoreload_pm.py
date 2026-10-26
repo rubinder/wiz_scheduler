@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.config import settings
+from backend.database import db_connect_args
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import cache_default_payment_method
 
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    engine = create_async_engine(settings.DATABASE_URL)
+    engine = create_async_engine(settings.DATABASE_URL, connect_args=db_connect_args())
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with Session() as db:

@@ -8,8 +8,20 @@ from sqlalchemy.orm import DeclarativeBase, ORMExecuteState, Session, with_loade
 from backend.config import settings
 from backend.tenant import get_tenant_context, tenant_scope_disabled
 
+def db_connect_args() -> dict:
+    """asyncpg connect arguments shared by the app, Alembic and scripts."""
+    if not settings.DB_SSL_ROOT_CERT:
+        return {}
+    import ssl
+
+    # create_default_context verifies the chain and the hostname (the RDS
+    # endpoint name in DATABASE_URL) and refuses a plaintext fallback.
+    return {"ssl": ssl.create_default_context(cafile=settings.DB_SSL_ROOT_CERT)}
+
+
 engine = create_async_engine(
     settings.DATABASE_URL,
+    connect_args=db_connect_args(),
     echo=False,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
