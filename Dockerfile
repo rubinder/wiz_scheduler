@@ -1,12 +1,5 @@
-# Stage 1 — build frontend
-FROM node:20-alpine AS frontend-build
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2 — backend runtime
+# Backend runtime. The frontend ships from S3 behind CloudFront; the image
+# never served it (main.py mounts frontend/dist, which the image did not have).
 FROM python:3.11-slim
 
 # Create non-root user
@@ -18,9 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=frontend-build /app/frontend/dist ./static
-COPY backend/ ./backend
+# Dependencies before source, so a code-only change reuses this layer.
+COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install uv && uv pip install --system -r backend/requirements.txt
+COPY backend/ ./backend
 
 ENV PYTHONPATH=/app
 

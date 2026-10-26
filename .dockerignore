@@ -1,0 +1,8 @@
+# The image needs only backend/ (see Dockerfile). Allow-list it so the build
+# context skips .git, the frontend, graphify-out and local virtualenvs.
+*
+!backend/
+backend/.venv
+backend/**/__pycache__
+backend/**/*.pyc
+backend/.env

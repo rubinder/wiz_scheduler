@@ -39,6 +39,7 @@ jobs:
       pull-requests: read
     outputs:
       terraform: ${{ steps.filter.outputs.terraform }}
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -47,16 +48,28 @@ jobs:
           filters: |
             terraform:
               - 'terraform/**'
+            # Anything that changes the image or the task definition it runs
+            # under. terraform/** is here because an env-var change only
+            # reaches the service through a new deploy (#139).
+            backend:
+              - 'backend/**'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'terraform/**'
+              - '.github/workflows/deploy.yml'
 
-  # Parallel test matrix: unit/integration/migration tests run concurrently
-  # Target: 4–5 min total vs. ~8–10 min sequential
+  # Parallel test matrix: unit, migration and three integration shards run
+  # concurrently. The integration suite alone took ~12 min; tests/conftest.py
+  # splits it by file via PYTEST_SHARD (#139).
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         test-category:
           - "unit"
-          - "integration"
+          - "integration-1"
+          - "integration-2"
+          - "integration-3"
           - "migration"
       fail-fast: false
     steps:
@@ -87,8 +100,11 @@ jobs:
             -v --tb=short
 
       - name: Run integration tests
-        if: matrix.test-category == 'integration'
+        if: startsWith(matrix.test-category, 'integration-')
+        env:
+          CATEGORY: ${{ matrix.test-category }}
         run: |
+          export PYTEST_SHARD="${CATEGORY#integration-}/3"
           pytest tests/ \
             --ignore=tests/test_migrations.py \
             -m "integration" \
@@ -281,13 +297,15 @@ jobs:
 
   deploy-backend:
     runs-on: ubuntu-latest
-    needs: [test, test-frontend, terraform-apply]
+    needs: [detect-changes, test, test-frontend, terraform-apply]
     # terraform-apply is skipped when terraform/** didn't change. Still run
-    # deploy in that case as long as all tests passed.
+    # deploy in that case as long as all tests passed. Skipped entirely when
+    # nothing that goes into the image or its task definition changed.
     if: |
       always() &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
+      needs.detect-changes.outputs.backend == 'true' &&
       needs.test.result == 'success' &&
       needs.test-frontend.result == 'success' &&
       (needs.terraform-apply.result == 'success' || needs.terraform-apply.result == 'skipped')
@@ -307,17 +325,26 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Layers cached in the GitHub Actions cache (#139): the OS and pip
+      # layers are rebuilt only when the base image or requirements change.
       - name: Build, tag, and push Docker image to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Record image URI
         id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        run: echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Download current ECS task definition
         run: |
