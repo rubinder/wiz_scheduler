@@ -631,3 +631,43 @@ async def regular_manager(
 @pytest_asyncio.fixture
 def regular_token(regular_manager: User) -> str:
     return _make_token(REGULAR_MANAGER_ID, COMPANY_ID, "manager")
+
+
+# ---------------------------------------------------------------------------
+# CI sharding (#139)
+#
+# PYTEST_SHARD="k/n" keeps only shard k (1-based) of n. Whole files move
+# together (they share fixtures and module setup), assigned greedily by test
+# count, largest first, so the split is deterministic and roughly balanced
+# with no extra dependency. Unset: everything runs.
+# ---------------------------------------------------------------------------
+
+
+def _shard_files(counts: dict[str, int], shards: int) -> list[set[str]]:
+    buckets: list[tuple[int, set[str]]] = [(0, set()) for _ in range(shards)]
+    for path, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        i = min(range(shards), key=lambda j: (buckets[j][0], j))
+        load, files = buckets[i]
+        files.add(path)
+        buckets[i] = (load + n, files)
+    return [files for _, files in buckets]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    spec = os.environ.get("PYTEST_SHARD")
+    if not spec:
+        return
+    k, n = (int(x) for x in spec.split("/"))
+    if not 1 <= k <= n:
+        raise pytest.UsageError(f"PYTEST_SHARD={spec!r}: want k/n with 1 <= k <= n")
+    counts: dict[str, int] = {}
+    for item in items:
+        path = item.nodeid.split("::", 1)[0]
+        counts[path] = counts.get(path, 0) + 1
+    keep_files = _shard_files(counts, n)[k - 1]
+    keep = [item for item in items if item.nodeid.split("::", 1)[0] in keep_files]
+    dropped = [item for item in items if item.nodeid.split("::", 1)[0] not in keep_files]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+    items[:] = keep
