@@ -1054,6 +1054,55 @@ async def test_compute_monthly_overage_unknown_kind_raises(db_session: AsyncSess
 # ---------------------------------------------------------------------------
 
 
+def _fake_subscription(status: str, period_start: int, item_level: bool = True):
+    """A real StripeObject shaped like the API version in use.
+
+    From API 2025-03-31 the period lives on the subscription item; older
+    versions carry it on the subscription itself.
+    """
+    import stripe
+    data: dict = {"id": "sub_test", "object": "subscription", "status": status}
+    if item_level:
+        data["items"] = {"object": "list", "data": [
+            {"id": "si_test", "object": "subscription_item",
+             "current_period_start": period_start},
+        ]}
+    else:
+        data["current_period_start"] = period_start
+    return stripe.Subscription.construct_from(data, "sk_test")
+
+
+async def test_subscription_period_start_reads_item_then_top_level():
+    """The period comes from the subscription item on current API versions
+    and from the subscription itself on older ones."""
+    from backend.services.billing import _subscription_period_start
+
+    may = int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp())
+    assert _subscription_period_start(_fake_subscription("active", may)) == may
+    assert _subscription_period_start(
+        _fake_subscription("active", may, item_level=False)
+    ) == may
+
+
+async def test_bill_monthly_overages_uses_item_level_period(
+    db_session: AsyncSession, og_with_card, monkeypatch
+):
+    """A subscription without a top-level current_period_start (API
+    2025-03-31+) still bills, for the month its item period starts in."""
+    import stripe
+    from backend.services.billing import bill_monthly_overages_for_og
+
+    fake_sub = _fake_subscription(
+        "active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp())
+    )
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
+    monkeypatch.setattr(stripe.InvoiceItem, "create", lambda **kw: MagicMock(id="ii_x"))
+
+    summary = await bill_monthly_overages_for_og(db_session, og_with_card)
+    assert "error" not in summary
+    assert summary["period"] == "2026-05"
+
+
 async def test_bill_monthly_overages_creates_invoice_item_when_charge_positive(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):
@@ -1073,10 +1122,7 @@ async def test_bill_monthly_overages_creates_invoice_item_when_charge_positive(
     ))
     await db_session.commit()
 
-    fake_sub = MagicMock(
-        status="active",
-        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
-    )
+    fake_sub = _fake_subscription("active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()))
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     created = []
     def fake_create(**kwargs):
@@ -1121,10 +1167,7 @@ async def test_bill_monthly_overages_idempotent_same_amount(
     ))
     await db_session.commit()
 
-    fake_sub = MagicMock(
-        status="active",
-        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
-    )
+    fake_sub = _fake_subscription("active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()))
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     create_calls = []
     monkeypatch.setattr(stripe.InvoiceItem, "create",
@@ -1160,10 +1203,7 @@ async def test_bill_monthly_overages_updates_when_amount_changes(
     ))
     await db_session.commit()
 
-    fake_sub = MagicMock(
-        status="active",
-        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
-    )
+    fake_sub = _fake_subscription("active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()))
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     create_calls = []
     delete_calls = []
@@ -1212,10 +1252,7 @@ async def test_bill_monthly_overages_deletes_when_charge_drops_to_zero(
     ))
     await db_session.commit()
 
-    fake_sub = MagicMock(
-        status="active",
-        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
-    )
+    fake_sub = _fake_subscription("active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()))
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     monkeypatch.setattr(stripe.InvoiceItem, "create",
                         lambda **kw: MagicMock(id="ii_first"))
@@ -1261,7 +1298,7 @@ async def test_bill_monthly_overages_skips_inactive_subscription(
     ))
     await db_session.commit()
 
-    fake_sub = MagicMock(status="past_due", current_period_start=0)
+    fake_sub = _fake_subscription("past_due", 0)
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     create_calls = []
     monkeypatch.setattr(stripe.InvoiceItem, "create",
@@ -1289,10 +1326,7 @@ async def test_bill_monthly_overages_all_iterates_subscribed_ogs(
     import stripe
     from backend.services.billing import bill_monthly_overages_all
 
-    fake_sub = MagicMock(
-        status="active",
-        current_period_start=int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()),
-    )
+    fake_sub = _fake_subscription("active", int(datetime(2026, 5, 1, tzinfo=timezone.utc).timestamp()))
     monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: fake_sub)
     monkeypatch.setattr(stripe.InvoiceItem, "create", lambda **kw: MagicMock(id="ii_x"))
 

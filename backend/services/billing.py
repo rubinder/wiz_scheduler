@@ -1046,6 +1046,22 @@ async def auto_reload_if_needed(
 # ---------------------------------------------------------------------------
 
 
+def _subscription_period_start(sub) -> int:
+    """Unix start of the subscription's current billing period.
+
+    Stripe API 2025-03-31 moved `current_period_start` from the
+    subscription onto each subscription item; older API versions still
+    carry it at the top level. Read the item first, then fall back.
+    """
+    try:
+        items = sub["items"]["data"]
+        if items:
+            return int(items[0]["current_period_start"])
+    except (KeyError, TypeError, IndexError):
+        pass
+    return int(sub["current_period_start"])
+
+
 async def bill_monthly_overages_for_og(
     db: AsyncSession,
     og: OwnershipGroup,
@@ -1084,7 +1100,7 @@ async def bill_monthly_overages_for_og(
 
     if period is None:
         from datetime import datetime as _dt, timezone as _tz
-        start = _dt.fromtimestamp(int(sub.current_period_start), _tz.utc)
+        start = _dt.fromtimestamp(_subscription_period_start(sub), _tz.utc)
         period = f"{start.year:04d}-{start.month:02d}"
 
     summary: dict = {"og_id": og.id, "period": period, "actions": []}
