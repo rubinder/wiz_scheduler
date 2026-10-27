@@ -13,7 +13,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -285,3 +285,38 @@ async def test_the_time_entry_key_is_reported_at_zero(db_session: AsyncSession):
 async def test_the_pay_record_window_is_seven_years():
     """7 x 365 + 2 leap days. Pinned so a change is a decision, not a drift."""
     assert settings.RETENTION_TIME_ENTRIES_DAYS == 2557
+
+
+async def test_a_swept_pay_record_is_not_derived_or_queued_again(
+    db_session: AsyncSession,
+):
+    """Approved shifts are kept, and the Payroll page derives entries and
+    lists exceptions on every load. A shift past the retention window must
+    come back neither as a pay record nor as an exception to attest after
+    the sweep deleted its record (#172)."""
+    from backend.services.time_entries import derive_time_entries, list_exceptions
+
+    s = await _seed(db_session, export_age_days=1, check_in_age_days=1)
+    old_day = _pay_cutoff() - timedelta(days=1)
+    new_day = _pay_cutoff() + timedelta(days=1)
+    await _add_entry(db_session, s, pay_date=old_day)
+    await _add_entry(db_session, s, pay_date=new_day)
+    await run_data_retention(db_session)
+    # Delete the in-window record too, so its shift shows what an unswept
+    # shift without a record looks like: an exception to attest.
+    await db_session.execute(
+        delete(TimeEntry).where(TimeEntry.company_id == s.company_id,
+                                TimeEntry.pay_date == new_day)
+    )
+    await db_session.commit()
+
+    await derive_time_entries(db_session, s.company_id, old_day, new_day)
+    exceptions = await list_exceptions(db_session, s.company_id, old_day, new_day)
+
+    entry_days = set((await db_session.execute(
+        select(TimeEntry.pay_date).where(TimeEntry.company_id == s.company_id)
+    )).scalars().all())
+    assert old_day not in entry_days
+    exception_days = {e.pay_date for e in exceptions}
+    assert old_day not in exception_days
+    assert new_day in exception_days

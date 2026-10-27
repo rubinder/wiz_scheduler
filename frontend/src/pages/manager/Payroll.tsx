@@ -137,7 +137,16 @@ export default function Payroll() {
     listLocations(true).then(setLocations).catch(() => setLocations([]));
     getPayrollRetention()
       .then(setRetention)
-      .catch(() => setRetention(null));
+      .catch((err) => {
+        // Only a 402 means "no access" (a free group). Any other failure is
+        // shown as an error, so a canceled admin is never told to upgrade
+        // just because the request blipped.
+        if (err instanceof ApiError && err.status === 402) {
+          setRetention(null);
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      });
   }, []);
 
   const reload = useCallback(async () => {
@@ -335,6 +344,7 @@ export default function Payroll() {
             {t.payroll.paidPlanOnly}
           </p>
         )}
+        {error && <div className="glass-alert-error mt-4">{error}</div>}
       </div>
     );
   }

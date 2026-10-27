@@ -26,6 +26,7 @@ from backend.models import (
     User,
 )
 from backend.models.employee_check_in import CHECK_IN_DUPLICATE, CHECK_IN_MATCHED
+from backend.services.data_retention import time_entry_cutoff
 from backend.models.time_entry import (
     TIME_ENTRY_CHECKED_IN,
     TIME_ENTRY_MANAGER_ATTESTED,
@@ -235,6 +236,11 @@ async def _candidate_shifts(
             continue
         pay_date = pay_date_for(location.timezone, start)
         if not (range_start <= pay_date <= range_end):
+            continue
+        if pay_date < time_entry_cutoff(now):
+            # Past the retention window (#172): the sweep deleted this pay
+            # record, and approved shifts are kept, so re-deriving it would
+            # bring it back as a fresh, unapproved entry.
             continue
         try:
             # paid_minutes is contracted on LOCAL wall-clock faces (see its
