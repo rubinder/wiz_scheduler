@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAuth } from "./useAuth";
 import {
   canAccessLocation,
+  canEditEmployee,
   canVisitPath,
   isRestricted,
   type ManagerAccess,
@@ -12,6 +13,9 @@ export interface ManagerPermissions extends ManagerAccess {
   restricted: boolean;
   canAccessLocation: (locationId: string) => boolean;
   canVisitPath: (pathname: string) => boolean;
+  /** Whether the API would let this manager write to an employee with
+   * these location ids (see utils/permissions `canEditEmployee`). */
+  canEditEmployee: (employeeLocationIds: string[] | null | undefined) => boolean;
 }
 
 /**
@@ -31,6 +35,7 @@ export function useManagerPermissions(): ManagerPermissions {
       restricted: isRestricted(access),
       canAccessLocation: (id: string) => canAccessLocation(access, id),
       canVisitPath: (path: string) => canVisitPath(access, path),
+      canEditEmployee: (ids: string[] | null | undefined) => canEditEmployee(access, ids),
     };
   }, [isAdmin, accessibleLocationIds]);
 }

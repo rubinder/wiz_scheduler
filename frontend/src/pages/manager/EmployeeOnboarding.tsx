@@ -5,12 +5,17 @@ import {
   sendInvite,
 } from "../../api/employees";
 import DemoGuard from "../../components/shared/DemoGuard";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Employee, InviteStatusResponse } from "../../types";
 import { text, bg, border } from "../../theme";
 
 export default function EmployeeOnboarding() {
   const { t } = useLanguage();
+  // Sending an invite is a write on the employee (#206): only for those
+  // whose every location this manager manages.
+  const { canEditEmployee } = useManagerPermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [invites, setInvites] = useState<InviteStatusResponse[]>([]);
   const [error, setError] = useState("");
@@ -144,7 +149,9 @@ export default function EmployeeOnboarding() {
       >
         {needsInvite.map((emp) => (
           <EmployeeRow key={emp.id} employee={emp} status="needs invite" statusBadge={statusBadge}>
-            {emp.email ? (
+            {!canEditEmployee(emp.location_ids) ? (
+              <SharedReadOnlyNote />
+            ) : emp.email ? (
               <DemoGuard>
                 <button
                   onClick={() => handleInvite(emp.id)}
@@ -180,15 +187,19 @@ export default function EmployeeOnboarding() {
                     ? new Date(inv.expires_at).toLocaleDateString()
                     : ""}
                 </span>
-                <DemoGuard>
-                  <button
-                    onClick={() => handleInvite(emp.id)}
-                    disabled={sendingId === emp.id}
-                    className="glass-btn-secondary px-3 py-1 text-sm disabled:opacity-50"
-                  >
-                    {sendingId === emp.id ? t.onboarding.sending : t.onboarding.resend}
-                  </button>
-                </DemoGuard>
+                {canEditEmployee(emp.location_ids) ? (
+                  <DemoGuard>
+                    <button
+                      onClick={() => handleInvite(emp.id)}
+                      disabled={sendingId === emp.id}
+                      className="glass-btn-secondary px-3 py-1 text-sm disabled:opacity-50"
+                    >
+                      {sendingId === emp.id ? t.onboarding.sending : t.onboarding.resend}
+                    </button>
+                  </DemoGuard>
+                ) : (
+                  <SharedReadOnlyNote />
+                )}
               </div>
             </EmployeeRow>
           );

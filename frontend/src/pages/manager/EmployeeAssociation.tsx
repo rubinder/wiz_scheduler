@@ -7,6 +7,8 @@ import {
 } from "../../api/affinities";
 import { listEmployees } from "../../api/employees";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type {
   Employee,
@@ -32,6 +34,9 @@ interface EditingRow {
 
 export default function EmployeeAssociation() {
   const { t } = useLanguage();
+  // An affinity write needs BOTH employees editable (#206): a regular
+  // manager picks only employees whose every location they manage.
+  const { canEditEmployee } = useManagerPermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +51,15 @@ export default function EmployeeAssociation() {
     employees.forEach((e) => map.set(e.id, e.full_name));
     return map;
   }, [employees]);
+
+  const editableEmployees = useMemo(
+    () => employees.filter((e) => canEditEmployee(e.location_ids)),
+    [employees, canEditEmployee],
+  );
+  const canEditAffinity = (a: EmployeeAffinity) =>
+    [a.employee_id, a.target_employee_id].every((id) =>
+      canEditEmployee(employees.find((e) => e.id === id)?.location_ids),
+    );
 
   const loadData = async () => {
     try {
@@ -220,7 +234,7 @@ export default function EmployeeAssociation() {
                 <tr className={`${bg.editingRow} align-top`}>
                   <td className="px-4 py-4">
                     <EmployeeSearchBox
-                      employees={employees}
+                      employees={editableEmployees}
                       value={editing.employee_id}
                       onChange={(id) =>
                         setEditing({ ...editing, employee_id: id })
@@ -236,7 +250,7 @@ export default function EmployeeAssociation() {
                   </td>
                   <td className="px-4 py-4">
                     <EmployeeSearchBox
-                      employees={employees}
+                      employees={editableEmployees}
                       value={editing.target_employee_id}
                       onChange={(id) =>
                         setEditing({ ...editing, target_employee_id: id })
@@ -348,20 +362,26 @@ export default function EmployeeAssociation() {
                       )}
                     </td>
                     <td className="px-4 py-5 text-end space-x-2 rtl:space-x-reverse">
-                      <button
-                        onClick={() => startEditing(a)}
-                        disabled={editing !== null}
-                        className="px-3 py-1 bg-accent/10 text-accent-dark text-xs rounded hover:bg-accent/20 disabled:opacity-50"
-                      >
-                        {t.common.edit}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(a.id)}
-                        disabled={editing !== null}
-                        className="px-3 py-1 bg-red-500/15 text-red-300 text-xs rounded hover:bg-red-500/25 disabled:opacity-50"
-                      >
-                        {t.common.delete}
-                      </button>
+                      {!canEditAffinity(a) ? (
+                        <SharedReadOnlyNote />
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEditing(a)}
+                            disabled={editing !== null}
+                            className="px-3 py-1 bg-accent/10 text-accent-dark text-xs rounded hover:bg-accent/20 disabled:opacity-50"
+                          >
+                            {t.common.edit}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(a.id)}
+                            disabled={editing !== null}
+                            className="px-3 py-1 bg-red-500/15 text-red-300 text-xs rounded hover:bg-red-500/25 disabled:opacity-50"
+                          >
+                            {t.common.delete}
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 )

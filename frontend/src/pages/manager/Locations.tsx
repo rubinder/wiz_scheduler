@@ -252,7 +252,9 @@ export default function Locations() {
       )}
       {overtimeGated && (
         <p className={`text-xs ${text.muted} mb-2`}>
-          Upgrade to a paid plan to configure overtime settings for a location.
+          {isAdmin
+            ? "Upgrade to a paid plan to configure overtime settings for a location."
+            : t.access.overtimeAdminOnly}
         </p>
       )}
       {(() => {

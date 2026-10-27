@@ -153,11 +153,27 @@ async def get_manager_invite_info(
         .order_by(Company.name)
     )).scalars().all()
 
+    # Names only, and only of locations inside the invite's ownership group:
+    # the token holder is about to manage them.
+    location_names: list[str] = []
+    if invite.manager_type == "regular" and invite.location_ids:
+        location_names = list((await db.execute(
+            select(Location.name)
+            .join(Company, Company.id == Location.company_id)
+            .where(
+                Location.id.in_(list(invite.location_ids)),
+                Company.ownership_group_id == og.id,
+            )
+            .order_by(Location.name)
+        )).scalars().all())
+
     return ManagerInviteInfoResponse(
         email=invite.email,
         group_name=og.name,
         expired=expired,
         companies=[CompanyChoice(id=c.id, name=c.name) for c in companies],
+        manager_type=invite.manager_type,
+        location_names=location_names,
     )
 
 

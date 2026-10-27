@@ -171,6 +171,12 @@ const fr = {
     restrictedTo: "Limité à : {locations}",
     noLocations: "Aucun emplacement attribué pour l'instant. Demandez à un administrateur de l'entreprise de vous en attribuer un.",
     billingAdminOnly: "Seul un administrateur de l'entreprise peut acheter des crédits ou modifier la facturation. Demandez à un administrateur de recharger.",
+    sharedReadOnly: "Partagé — lecture seule",
+    sharedReadOnlyHint: "Travaille aussi dans un emplacement que vous ne gérez pas ; demandez à un administrateur de modifier cet employé.",
+    otherLocation: "Autre emplacement",
+    upgradeAdminOnly: "Seul un administrateur de l'entreprise peut changer de forfait. Demandez à un administrateur de passer à l'offre payante.",
+    overtimeAdminOnly: "Les paramètres d'heures supplémentaires nécessitent un forfait payant. Demandez à un administrateur de l'entreprise de passer à l'offre payante.",
+    youWillManage: "Vous gérerez : {locations}",
   },
 
   // ── Login ──

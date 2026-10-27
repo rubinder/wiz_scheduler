@@ -171,6 +171,12 @@ const trLang = {
     restrictedTo: "Yalnızca: {locations}",
     noLocations: "Henüz atanmış konum yok. Bir şirket admininden konum atamasını isteyin.",
     billingAdminOnly: "Kredi satın almak veya faturalamayı değiştirmek yalnızca şirket admininin yetkisindedir. Bakiye yüklemesi için bir admine başvurun.",
+    sharedReadOnly: "Paylaşılan — salt okunur",
+    sharedReadOnlyHint: "Yönetmediğiniz bir konumda da çalışıyor; bu çalışanı değiştirmesi için bir admine başvurun.",
+    otherLocation: "Diğer konum",
+    upgradeAdminOnly: "Planı yalnızca şirket admini yükseltebilir. Yükseltme için bir admine başvurun.",
+    overtimeAdminOnly: "Fazla mesai ayarları ücretli plan gerektirir. Yükseltme için bir şirket adminine başvurun.",
+    youWillManage: "Yöneteceğiniz konumlar: {locations}",
   },
 
   // ── Login ──

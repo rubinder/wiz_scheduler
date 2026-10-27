@@ -171,6 +171,12 @@ const ind = {
     restrictedTo: "Dibatasi untuk: {locations}",
     noLocations: "Belum ada lokasi yang ditetapkan. Minta admin perusahaan untuk menetapkan satu.",
     billingAdminOnly: "Hanya admin perusahaan yang dapat membeli kredit atau mengubah penagihan. Minta admin untuk mengisi ulang.",
+    sharedReadOnly: "Dibagikan — hanya baca",
+    sharedReadOnlyHint: "Juga bekerja di lokasi yang tidak Anda kelola; minta admin untuk mengubah karyawan ini.",
+    otherLocation: "Lokasi lain",
+    upgradeAdminOnly: "Hanya admin perusahaan yang dapat meningkatkan paket. Minta admin untuk melakukan upgrade.",
+    overtimeAdminOnly: "Pengaturan lembur memerlukan paket berbayar. Minta admin perusahaan untuk melakukan upgrade.",
+    youWillManage: "Anda akan mengelola: {locations}",
   },
 
   // ── Login ──

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listEmployees, updateEmployee } from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
 import { action, bg, border, text } from "../../theme";
 import type { Employee } from "../../types";
 
@@ -9,16 +11,19 @@ interface DraftRow {
   full_name: string;
   value: string; // input state as string so we can distinguish empty from 0
   original: number | null;
+  /** False for a shared employee a regular manager cannot edit (#206). */
+  editable: boolean;
   saving: boolean;
   error: string | null;
 }
 
-function toDraft(emp: Employee): DraftRow {
+function toDraft(emp: Employee, editable: boolean): DraftRow {
   return {
     id: emp.id,
     full_name: emp.full_name,
     value: emp.max_hours_per_week == null ? "" : String(emp.max_hours_per_week),
     original: emp.max_hours_per_week ?? null,
+    editable,
     saving: false,
     error: null,
   };
@@ -26,6 +31,9 @@ function toDraft(emp: Employee): DraftRow {
 
 export default function HourRestrictions() {
   const { t } = useLanguage();
+  // The cap is saved with PUT /employees/{id}, which a regular manager may
+  // call only for employees whose every location they manage (#206).
+  const { canEditEmployee } = useManagerPermissions();
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -35,14 +43,14 @@ export default function HourRestrictions() {
     setLoading(true);
     try {
       const emps = await listEmployees();
-      setRows(emps.map(toDraft));
+      setRows(emps.map((e) => toDraft(e, canEditEmployee(e.location_ids))));
       setLoadError("");
     } catch (err: unknown) {
       setLoadError(err instanceof Error ? err.message : "Failed to load employees");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canEditEmployee]);
 
   useEffect(() => {
     fetchData();
@@ -237,7 +245,7 @@ export default function HourRestrictions() {
                         onChange={(e) => handleChange(row.id, e.target.value)}
                         placeholder={t.hourRestrictions.noCapPlaceholder}
                         className="glass-input w-28"
-                        disabled={row.saving}
+                        disabled={row.saving || !row.editable}
                       />
                       <span className={`text-xs ${text.muted}`}>
                         {t.hourRestrictions.hoursPerWeek}
@@ -248,24 +256,28 @@ export default function HourRestrictions() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleSave(row.id)}
-                        disabled={!dirty || row.saving}
-                        className={`${action.edit} disabled:opacity-30 disabled:cursor-not-allowed`}
-                      >
-                        {row.saving ? t.common.saving ?? "Saving..." : t.common.save}
-                      </button>
-                      {row.original !== null && (
+                    {!row.editable ? (
+                      <SharedReadOnlyNote />
+                    ) : (
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleClear(row.id)}
-                          disabled={row.saving}
-                          className={`${action.delete} disabled:opacity-30 disabled:cursor-not-allowed`}
+                          onClick={() => handleSave(row.id)}
+                          disabled={!dirty || row.saving}
+                          className={`${action.edit} disabled:opacity-30 disabled:cursor-not-allowed`}
                         >
-                          {t.hourRestrictions.clearCap}
+                          {row.saving ? t.common.saving ?? "Saving..." : t.common.save}
                         </button>
-                      )}
-                    </div>
+                        {row.original !== null && (
+                          <button
+                            onClick={() => handleClear(row.id)}
+                            disabled={row.saving}
+                            className={`${action.delete} disabled:opacity-30 disabled:cursor-not-allowed`}
+                          >
+                            {t.hourRestrictions.clearCap}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

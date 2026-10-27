@@ -3,6 +3,7 @@ import * as employeesApi from "../../api/employees";
 import type { Employee, Location, Role } from "../../types";
 import { text, action } from "../../theme";
 import EmployeeFormFields from "./EmployeeFormFields";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 
 interface Props {
   employees: Employee[];
@@ -19,6 +20,8 @@ export default function EmployeeSearchForm({
   locations,
   onSuccess,
 }: Props) {
+  // Only employees this manager may edit can be opened for update (#206).
+  const { canEditEmployee } = useManagerPermissions();
   const [step, setStep] = useState<Step>("search");
   const [query, setQuery] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -26,6 +29,7 @@ export default function EmployeeSearchForm({
   const [error, setError] = useState("");
 
   const filtered = employees.filter((e) =>
+    canEditEmployee(e.location_ids) &&
     e.full_name.toLowerCase().includes(query.toLowerCase())
   );
 

@@ -171,6 +171,12 @@ const vi = {
     restrictedTo: "Chỉ giới hạn: {locations}",
     noLocations: "Chưa được phân công địa điểm nào. Hãy nhờ quản trị viên công ty phân công một địa điểm.",
     billingAdminOnly: "Chỉ quản trị viên công ty mới có thể mua tín dụng hoặc thay đổi thanh toán. Hãy nhờ quản trị viên nạp thêm.",
+    sharedReadOnly: "Dùng chung — chỉ xem",
+    sharedReadOnlyHint: "Cũng làm việc tại một địa điểm bạn không quản lý; hãy nhờ quản trị viên thay đổi nhân viên này.",
+    otherLocation: "Địa điểm khác",
+    upgradeAdminOnly: "Chỉ quản trị viên công ty mới có thể nâng cấp gói. Hãy nhờ quản trị viên nâng cấp.",
+    overtimeAdminOnly: "Cài đặt làm thêm giờ cần gói trả phí. Hãy nhờ quản trị viên công ty nâng cấp.",
+    youWillManage: "Bạn sẽ quản lý: {locations}",
   },
 
   // ── Login ──

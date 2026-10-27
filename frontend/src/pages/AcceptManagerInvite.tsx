@@ -116,6 +116,13 @@ export default function AcceptManagerInvite() {
           {t.acceptManagerInvite.choosePassword}
         </p>
 
+        {/* A regular invite is limited to its locations (#206). */}
+        {info.manager_type === "regular" && (info.location_names ?? []).length > 0 && (
+          <p className={`text-sm ${m.text.body} mb-6`}>
+            {t.access.youWillManage.replace("{locations}", (info.location_names ?? []).join(", "))}
+          </p>
+        )}
+
         {error && (
           <div className={`${m.alert.error} mb-4`}>
             {error}

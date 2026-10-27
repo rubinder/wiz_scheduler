@@ -171,6 +171,12 @@ const de = {
     restrictedTo: "Beschränkt auf: {locations}",
     noLocations: "Noch keine Standorte zugewiesen. Bitte einen Admin des Unternehmens, dir einen zuzuweisen.",
     billingAdminOnly: "Nur ein Admin des Unternehmens kann Guthaben kaufen oder die Abrechnung ändern. Bitte einen Admin, Guthaben aufzuladen.",
+    sharedReadOnly: "Geteilt — nur lesen",
+    sharedReadOnlyHint: "Arbeitet auch an einem Standort, den du nicht verwaltest; bitte einen Admin, diesen Mitarbeiter zu ändern.",
+    otherLocation: "Anderer Standort",
+    upgradeAdminOnly: "Nur ein Admin des Unternehmens kann den Plan upgraden. Bitte einen Admin um das Upgrade.",
+    overtimeAdminOnly: "Überstunden-Einstellungen erfordern einen kostenpflichtigen Plan. Bitte einen Admin des Unternehmens um ein Upgrade.",
+    youWillManage: "Du verwaltest: {locations}",
   },
 
   // ── Login ──

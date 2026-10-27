@@ -171,6 +171,12 @@ const zh = {
     restrictedTo: "仅限：{locations}",
     noLocations: "尚未分配门店。请联系公司超级管理员为你分配。",
     billingAdminOnly: "只有公司超级管理员可以购买积分或更改账单设置。请联系超级管理员充值。",
+    sharedReadOnly: "共享 — 只读",
+    sharedReadOnlyHint: "该员工也在你未管理的门店工作；请联系超级管理员修改此员工。",
+    otherLocation: "其他门店",
+    upgradeAdminOnly: "只有公司超级管理员可以升级套餐。请联系超级管理员升级。",
+    overtimeAdminOnly: "加班设置需要付费套餐。请联系公司超级管理员升级。",
+    youWillManage: "你将管理：{locations}",
   },
 
   // ── Login ──

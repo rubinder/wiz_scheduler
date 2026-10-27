@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ADMIN_ONLY_PATHS,
   canAccessLocation,
+  canEditEmployee,
   canVisitPath,
   isAdminOnlyPath,
   isRestricted,
@@ -103,5 +104,35 @@ describe("restrictedLocationNames", () => {
       "Downtown",
       "Uptown",
     ]);
+  });
+});
+
+describe("canEditEmployee", () => {
+  const regular = managerAccess(manager("regular", ["a", "b"]));
+
+  it("lets an admin edit anyone, even with no locations", () => {
+    const admin = managerAccess(manager("admin"));
+    expect(canEditEmployee(admin, ["z"])).toBe(true);
+    expect(canEditEmployee(admin, [])).toBe(true);
+    expect(canEditEmployee(admin, null)).toBe(true);
+    expect(canEditEmployee(admin, undefined)).toBe(true);
+  });
+
+  it("lets a regular manager edit only when every location is in scope", () => {
+    expect(canEditEmployee(regular, ["a"])).toBe(true);
+    expect(canEditEmployee(regular, ["a", "b"])).toBe(true);
+    expect(canEditEmployee(regular, ["a", "c"])).toBe(false);
+    expect(canEditEmployee(regular, ["c"])).toBe(false);
+  });
+
+  it("keeps an employee with no locations admin-only", () => {
+    expect(canEditEmployee(regular, [])).toBe(false);
+    expect(canEditEmployee(regular, null)).toBe(false);
+    expect(canEditEmployee(regular, undefined)).toBe(false);
+  });
+
+  it("refuses everything to a regular manager with no locations", () => {
+    const none = managerAccess(manager("regular", []));
+    expect(canEditEmployee(none, ["a"])).toBe(false);
   });
 });
