@@ -158,7 +158,14 @@ async def test_regular_manager_affinity_changes_need_editable_coworker(
         sub = await _pending(db_session, await db_session.get(Employee, lee_id))
         r = await client.post(f"{URL}/{sub.id}/approve", json=body(affs),
                               headers=_h(regular_token))
-        assert r.status_code == 404, (affs, r.text)
+        # Refused with a coded 422, not a 404: the submission still exists.
+        assert r.status_code == 422, (affs, r.text)
+        detail = r.json()["detail"]
+        assert detail["code"] == "affinity_coworker_out_of_scope", detail
+        assert detail["target_employee_id"] == me_id
+        assert "Me" in detail["message"]
+        assert (await db_session.get(EmployeePreferenceSubmission, sub.id,
+                                     populate_existing=True)).status == "pending"
         await db_session.rollback()
         await db_session.execute(
             update(EmployeePreferenceSubmission)
@@ -177,6 +184,34 @@ async def test_regular_manager_affinity_changes_need_editable_coworker(
     assert set(rows) == {me_id, pat_id}
     assert float(rows[me_id].level) == 1.0
     assert rows[me_id].entry_date == today
+
+
+@pytest.mark.parametrize("who", ["admin", "regular"])
+async def test_level_zero_association_round_trips(client, db_session, setup, manager_token,
+                                                  regular_token, who):
+    """A live level-0 ("Neutral") association shows as neutral and approving
+    it unchanged succeeds, also for a regular manager who could not edit the
+    coworker (unchanged rows are allowed)."""
+    me, pat = setup  # me works at both locations: not editable by `regular`
+    lee = await _employee(db_session, "Lee", [LOCATION_ID])
+    lee_id, me_id = lee.id, me.id
+    today = datetime.now(timezone.utc).date()
+    db_session.add(EmployeeAffinity(company_id=COMPANY_ID, employee_id=lee_id,
+                                    target_employee_id=me_id, level=0, entry_date=today))
+    await db_session.commit()
+    sub = await _pending(db_session, lee, {
+        "affinities": [{"target_employee_id": me_id, "relationship": "neutral"}]})
+    token = manager_token if who == "admin" else regular_token
+    d = (await client.get(f"{URL}/{sub.id}", headers=_h(token))).json()
+    [cur] = d["current"]["affinities"]
+    assert cur["relationship"] == "neutral" and cur["level"] == 0.0
+    r = await client.post(f"{URL}/{sub.id}/approve", headers=_h(token), json={
+        "affinities": [{"target_employee_id": me_id, "relationship": "neutral", "level": 0}]})
+    assert r.status_code == 200, r.text
+    [row] = (await db_session.execute(
+        select(EmployeeAffinity).where(EmployeeAffinity.employee_id == lee_id)
+        .execution_options(populate_existing=True))).scalars().all()
+    assert float(row.level) == 0.0 and row.entry_date == today
 
 
 async def test_detail_current_carries_weights_and_levels(client, db_session, setup, manager_token):
@@ -396,7 +431,7 @@ async def test_approve_empty_clears_sections(client, db_session, setup, manager_
     lambda b: b["hour_range_preferences"][0].pop("weight"),
     lambda b: b["caps"][0].pop("weight"),
     lambda b: b["affinities"][0].pop("level"),
-    lambda b: b["affinities"][0].__setitem__("level", 0),
+    lambda b: b["affinities"][0].__setitem__("level", 0.7),
     lambda b: b.__setitem__("day_preferences", [
         {"day_of_week": d, "weight": 0.5} for d in range(4)]),
 ])

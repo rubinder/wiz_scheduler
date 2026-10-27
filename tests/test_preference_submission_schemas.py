@@ -16,8 +16,8 @@ def test_weight_required_and_step():
     ApprovedPayload(day_preferences=[{**row, "weight": 0.7}])
 
 
-@pytest.mark.parametrize("level,ok", [(-1, True), (-0.5, True), (0.5, True), (1, True),
-                                      (0, False), (0.7, False), (2, False)])
+@pytest.mark.parametrize("level,ok", [(-1, True), (-0.5, True), (0, True), (0.5, True),
+                                      (1, True), (0.7, False), (2, False)])
 def test_affinity_level(level, ok):
     row = {"target_employee_id": "a", "relationship": "prefer_with", "level": level}
     if ok:
@@ -25,6 +25,11 @@ def test_affinity_level(level, ok):
     else:
         with pytest.raises(ValidationError):
             ApprovedPayload(affinities=[row])
+
+
+def test_neutral_relationship_accepted():
+    ApprovedPayload(affinities=[{"target_employee_id": "a", "relationship": "neutral",
+                                 "level": 0}])
 
 
 def test_level_missing_and_importance_optional():

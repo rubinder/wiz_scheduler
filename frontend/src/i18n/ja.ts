@@ -1310,6 +1310,7 @@ const ja = {
     preferWith: "一緒に働きたい",
     preferApart: "できれば一緒に働きたくない",
     neverTogether: "絶対に同じシフトにしない",
+    neutral: "希望なし",
     addDay: "曜日を追加",
     addHours: "時間帯を追加",
     addCap: "上限を追加",
@@ -1368,6 +1369,8 @@ const ja = {
     deniedMessage: "却下しました。従業員に通知しました。",
     alreadyDecided: "この申請はすでに処理済みか、新しい申請に置き換えられています。",
     notFound: "この申請はもう存在しません。",
+    coworkerOutOfScope: "{name}との関係を追加・変更・削除できるのは管理者マネージャーだけです。管理者にこのリクエストの確認を依頼するか、却下してください。",
+    weightRequired: "承認する前に、すべての行に0〜1の重みを入力してください。",
   },
 } as const;
 

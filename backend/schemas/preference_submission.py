@@ -12,10 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from backend.schemas.employee import _validate_hhmm, _validate_weight_step
 
 Importance = Literal["low", "medium", "high"]
-Relationship = Literal["prefer_with", "prefer_apart", "never_together"]
+Relationship = Literal["prefer_with", "prefer_apart", "never_together", "neutral"]
 
 MAX_DAY_PREFERENCES = 3
-AFFINITY_LEVELS = (-1.0, -0.5, 0.5, 1.0)
+AFFINITY_LEVELS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 
 _FORBID = ConfigDict(extra="forbid")
 
@@ -122,7 +122,7 @@ class ApprovedAffinity(SubmittedAffinity):
     @classmethod
     def _level(cls, v: float) -> float:
         if v not in AFFINITY_LEVELS:
-            raise ValueError("level must be one of -1, -0.5, 0.5, 1")
+            raise ValueError("level must be one of -1, -0.5, 0, 0.5, 1")
         return v
 
 

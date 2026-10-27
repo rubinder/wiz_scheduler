@@ -1310,6 +1310,7 @@ const ind = {
     preferWith: "Lebih suka bekerja bersama",
     preferApart: "Lebih suka tidak bekerja bersama",
     neverTogether: "Jangan pernah jadwalkan kami bersama",
+    neutral: "Tidak ada preferensi",
     addDay: "Tambah hari",
     addHours: "Tambah jam",
     addCap: "Tambah batas",
@@ -1368,6 +1369,8 @@ const ind = {
     deniedMessage: "Ditolak. Karyawan sudah diberi tahu.",
     alreadyDecided: "Permintaan ini sudah diputuskan atau digantikan oleh permintaan yang lebih baru.",
     notFound: "Permintaan ini tidak tersedia lagi.",
+    coworkerOutOfScope: "Hanya manajer admin yang dapat menambah, mengubah, atau menghapus asosiasi dengan {name}. Minta admin meninjau permintaan ini, atau tolak permintaan ini.",
+    weightRequired: "Masukkan bobot dari 0 sampai 1 di setiap baris sebelum menyetujui.",
   },
 } as const;
 

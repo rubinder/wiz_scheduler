@@ -1310,6 +1310,7 @@ const es = {
     preferWith: "Prefiero trabajar con esta persona",
     preferApart: "Prefiero no trabajar con esta persona",
     neverTogether: "Nunca programarnos juntos",
+    neutral: "Sin preferencia",
     addDay: "Añadir día",
     addHours: "Añadir horario",
     addCap: "Añadir límite",
@@ -1368,6 +1369,8 @@ const es = {
     deniedMessage: "Rechazado. Se avisó al empleado.",
     alreadyDecided: "Esta solicitud ya se decidió o fue reemplazada por una más reciente.",
     notFound: "Esta solicitud ya no está disponible.",
+    coworkerOutOfScope: "Solo un gerente administrador puede agregar, cambiar o quitar una asociación con {name}. Pide a un administrador que revise esta solicitud o recházala.",
+    weightRequired: "Introduce un peso de 0 a 1 en cada fila antes de aprobar.",
   },
 } as const;
 

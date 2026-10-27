@@ -15,8 +15,11 @@ import {
   draftFromState,
   emptyPayload,
   nextFreeDay,
+  hasMissingWeight,
+  outOfScopeCoworkerId,
   prefillLevel,
   prefillWeight,
+  relationshipFromLevel,
   submissionProblems,
 } from "./preferenceSubmissions";
 
@@ -250,14 +253,54 @@ describe("prefillLevel", () => {
     ],
   };
 
-  it("uses the live level for the same coworker", () => {
-    expect(prefillLevel({ target_employee_id: "bob", relationship: "prefer_apart" }, current)).toBe(1);
+  const withLive = (level: number): ReviewCurrentView => ({
+    ...current,
+    affinities: [{ ...current.affinities[0], relationship: relationshipFromLevel(level), level }],
   });
 
-  it("maps the relationship otherwise", () => {
+  it("keeps the live level when it already means the requested relationship", () => {
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "prefer_with" }, current)).toBe(1);
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "prefer_apart" }, withLive(-0.5))).toBe(-0.5);
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "neutral" }, withLive(0))).toBe(0);
+  });
+
+  it("follows the request when the live level means something else", () => {
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "never_together" }, withLive(0.5))).toBe(-1);
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "prefer_apart" }, current)).toBe(-0.5);
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "neutral" }, current)).toBe(0);
+    expect(prefillLevel({ target_employee_id: "bob", relationship: "prefer_with" }, withLive(0))).toBe(0.5);
+  });
+
+  it("maps the relationship when there is no live row", () => {
     expect(prefillLevel({ target_employee_id: "x", relationship: "prefer_with" }, current)).toBe(0.5);
     expect(prefillLevel({ target_employee_id: "x", relationship: "prefer_apart" }, current)).toBe(-0.5);
     expect(prefillLevel({ target_employee_id: "x", relationship: "never_together" }, current)).toBe(-1);
+    expect(prefillLevel({ target_employee_id: "x", relationship: "neutral" }, current)).toBe(0);
+  });
+});
+
+describe("relationshipFromLevel", () => {
+  it("mirrors the backend mapping, with 0 as neutral", () => {
+    expect([1, 0.5, 0, -0.5, -1].map(relationshipFromLevel)).toEqual([
+      "prefer_with",
+      "prefer_with",
+      "neutral",
+      "prefer_apart",
+      "never_together",
+    ]);
+  });
+});
+
+describe("outOfScopeCoworkerId", () => {
+  const data = { code: "affinity_coworker_out_of_scope", target_employee_id: "bob", message: "m" };
+  it("reads the coworker from the coded 422", () => {
+    expect(outOfScopeCoworkerId(422, data)).toBe("bob");
+  });
+  it("ignores anything else", () => {
+    expect(outOfScopeCoworkerId(404, data)).toBeNull();
+    expect(outOfScopeCoworkerId(422, "Employee not found")).toBeNull();
+    expect(outOfScopeCoworkerId(422, [{ msg: "bad" }])).toBeNull();
+    expect(outOfScopeCoworkerId(422, { ...data, code: "other" })).toBeNull();
   });
 });
 
@@ -309,9 +352,17 @@ describe("review draft and approve payload", () => {
     ]);
     expect(draft.hour_range_preferences[0].weight).toBe(0.7);
     expect(draft.caps[0].weight).toBe(0.7);
-    expect(draft.affinities.map((a) => a.level)).toEqual([-0.5, 0.5]);
+    // Bob is live "prefer apart" (-0.5) but asked for never together: -1.
+    expect(draft.affinities.map((a) => a.level)).toEqual([-1, 0.5]);
     expect(draft.max_hours_per_week).toBe(25);
     expect(draft.blackouts).toEqual(detail().submitted_payload.blackouts);
+  });
+
+  it("flags a cleared weight so Approve can be blocked", () => {
+    const draft = buildReviewDraft(detail());
+    expect(hasMissingWeight(draft)).toBe(false);
+    draft.caps[0].weight = Number.NaN;
+    expect(hasMissingWeight(draft)).toBe(true);
   });
 
   it("builds an approve body with an explicit weight and level on every row", () => {
@@ -324,7 +375,7 @@ describe("review draft and approve payload", () => {
       expect(r.weight).toBeGreaterThanOrEqual(0);
       expect(r.weight).toBeLessThanOrEqual(1);
     }
-    for (const a of body.affinities) expect([-1, -0.5, 0.5, 1]).toContain(a.level);
+    for (const a of body.affinities) expect([-1, -0.5, 0, 0.5, 1]).toContain(a.level);
     expect(body.caps[0]).toEqual({
       start_time: "22:00",
       end_time: "06:00",

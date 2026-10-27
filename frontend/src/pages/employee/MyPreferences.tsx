@@ -26,7 +26,7 @@ import {
 } from "../../utils/preferenceSubmissions";
 
 const IMPORTANCES: PreferenceImportance[] = ["low", "medium", "high"];
-const RELATIONSHIPS: CoworkerRelationship[] = ["prefer_with", "prefer_apart", "never_together"];
+const RELATIONSHIPS: CoworkerRelationship[] = ["prefer_with", "neutral", "prefer_apart", "never_together"];
 
 type Section = Exclude<keyof PreferenceSubmissionPayload, "max_hours_per_week">;
 
@@ -79,6 +79,7 @@ export default function MyPreferences() {
     prefer_with: tp.preferWith,
     prefer_apart: tp.preferApart,
     never_together: tp.neverTogether,
+    neutral: tp.neutral,
   };
   const problemText: Record<SubmissionProblem, string> = {
     tooManyDays: tp.problemTooManyDays.replace("{max}", String(MAX_DAY_PREFERENCES)),

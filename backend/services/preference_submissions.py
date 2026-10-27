@@ -29,14 +29,17 @@ from backend.services.location_scope import (
 )
 
 DISABLED_CODE = "employee_preference_submissions_disabled"
+AFFINITY_OUT_OF_SCOPE_CODE = "affinity_coworker_out_of_scope"
 
 
 def relationship_from_level(level: float) -> str:
-    """-1 -> never_together, >0 -> prefer_with, otherwise prefer_apart."""
+    """-1 -> never_together, >0 -> prefer_with, 0 -> neutral, otherwise prefer_apart."""
     if level == -1:
         return "never_together"
     if level > 0:
         return "prefer_with"
+    if level == 0:
+        return "neutral"
     return "prefer_apart"
 
 
@@ -197,10 +200,13 @@ async def redact_approved(
     }
 
 
-async def get_pending(db: AsyncSession, employee_id: str) -> EmployeePreferenceSubmission | None:
+async def get_pending(
+    db: AsyncSession, employee: Employee
+) -> EmployeePreferenceSubmission | None:
     return (await db.execute(
         select(EmployeePreferenceSubmission).where(
-            EmployeePreferenceSubmission.employee_id == employee_id,
+            EmployeePreferenceSubmission.employee_id == employee.id,
+            EmployeePreferenceSubmission.company_id == employee.company_id,
             EmployeePreferenceSubmission.status == "pending",
         )
     )).scalars().first()
@@ -231,7 +237,7 @@ async def get_last_decision(
 
 
 async def build_my_state(db: AsyncSession, employee: Employee) -> dict[str, Any]:
-    pending = await get_pending(db, employee.id)
+    pending = await get_pending(db, employee)
     return {
         "enabled": await is_enabled(db, employee.company_id),
         "current": await build_current_view(db, employee),
@@ -386,7 +392,21 @@ async def _require_affinity_changes_in_scope(
             continue
         if before is None and after is None:
             continue
-        require_employee_editable(scope, target, what="Employee")
+        if not scope.allows_all(target.location_ids):
+            # Not a 404: the coworker shares a location with an employee this
+            # reviewer can edit, so they are already visible, and the
+            # submission itself is still there and pending.
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": AFFINITY_OUT_OF_SCOPE_CODE,
+                    "target_employee_id": target_id,
+                    "message": (
+                        f"Only an admin manager can add, change or remove an "
+                        f"association with {target.full_name}."
+                    ),
+                },
+            )
 
 
 async def apply_approved(

@@ -1318,6 +1318,7 @@ const en = {
     preferWith: "Prefer to work with",
     preferApart: "Prefer not to work with",
     neverTogether: "Never schedule us together",
+    neutral: "No preference",
     addDay: "Add day",
     addHours: "Add hours",
     addCap: "Add limit",
@@ -1376,6 +1377,8 @@ const en = {
     deniedMessage: "Denied. The employee has been told.",
     alreadyDecided: "This request was already decided or replaced by a newer one.",
     notFound: "This request is no longer available.",
+    coworkerOutOfScope: "Only an admin manager can add, change or remove an association with {name}. Ask an admin to review this request, or deny it.",
+    weightRequired: "Enter a weight from 0 to 1 on every row before approving.",
   },
 } as const;
 

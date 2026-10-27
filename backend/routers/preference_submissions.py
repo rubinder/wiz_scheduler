@@ -69,6 +69,7 @@ async def submit_my_preferences(
         update(EmployeePreferenceSubmission)
         .where(
             EmployeePreferenceSubmission.employee_id == emp.id,
+            EmployeePreferenceSubmission.company_id == emp.company_id,
             EmployeePreferenceSubmission.status == "pending",
         )
         .values(status="superseded")

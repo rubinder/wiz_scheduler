@@ -235,3 +235,24 @@ async def test_last_decision_redacted(client, db_session, me, employee_token):
     assert ld["approved"]["coworkers"] == [{"target_name": "Pat"}]
     assert ld["approved"]["day_preferences"] == [{"day_of_week": 2}]
     assert not ({"weight", "level", "employee_importance", "relationship"} & _keys(ld))
+
+
+async def test_live_level_zero_shows_as_neutral(client, db_session, me, employee_token):
+    """A manager-set level-0 ("Neutral") association reads as neutral, never
+    as prefer_apart, and the level itself is not exposed."""
+    await _enable(db_session)
+    cow = await _coworker(db_session)
+    db_session.add(EmployeeAffinity(company_id=COMPANY_ID, employee_id=me.id,
+                                    target_employee_id=cow.id, level=0,
+                                    entry_date=datetime.now(timezone.utc).date()))
+    await db_session.commit()
+    r = await client.get(f"{URL}/me", headers=_h(employee_token))
+    assert r.status_code == 200, r.text
+    [aff] = r.json()["current"]["affinities"]
+    assert aff["target_employee_id"] == cow.id
+    assert aff["relationship"] == "neutral"
+    assert "level" not in _keys(r.json())
+    # The employee can send it back as is.
+    r = await client.put(f"{URL}/me", headers=_h(employee_token), json={
+        "affinities": [{"target_employee_id": cow.id, "relationship": "neutral"}]})
+    assert r.status_code == 200, r.text

@@ -1310,6 +1310,7 @@ const trLang = {
     preferWith: "Birlikte çalışmayı tercih ederim",
     preferApart: "Birlikte çalışmamayı tercih ederim",
     neverTogether: "Bizi asla birlikte planlamayın",
+    neutral: "Tercih yok",
     addDay: "Gün ekle",
     addHours: "Saat ekle",
     addCap: "Sınır ekle",
@@ -1368,6 +1369,8 @@ const trLang = {
     deniedMessage: "Reddedildi. Çalışana bildirildi.",
     alreadyDecided: "Bu talep zaten karara bağlandı ya da daha yeni bir talep onun yerini aldı.",
     notFound: "Bu talep artık mevcut değil.",
+    coworkerOutOfScope: "{name} ile bir ilişkiyi yalnızca yönetici (admin) müdür ekleyebilir, değiştirebilir veya kaldırabilir. Bu talebi bir yöneticinin incelemesini isteyin ya da reddedin.",
+    weightRequired: "Onaylamadan önce her satıra 0 ile 1 arasında bir ağırlık girin.",
   },
 } as const;
 

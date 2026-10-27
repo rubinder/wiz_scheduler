@@ -23,6 +23,8 @@ import {
   AFFINITY_LEVELS,
   buildApprovePayload,
   buildReviewDraft,
+  hasMissingWeight,
+  outOfScopeCoworkerId,
 } from "../../utils/preferenceSubmissions";
 
 type Section = Exclude<keyof ApprovedPayload, "max_hours_per_week">;
@@ -81,6 +83,8 @@ export default function PreferenceReviews() {
       const data = err.data as { code?: string } | undefined;
       if (err.status === 409 && data?.code === ALREADY_DECIDED_CODE) return tr.alreadyDecided;
       if (err.status === 404) return tr.notFound;
+      const coworkerId = outOfScopeCoworkerId(err.status, err.data);
+      if (coworkerId) return tr.coworkerOutOfScope.replace("{name}", coworkerName(coworkerId));
     }
     return errorMessage(err, "Request failed");
   };
@@ -119,6 +123,9 @@ export default function PreferenceReviews() {
       setFlash(kind === "approve" ? tr.approvedMessage : tr.deniedMessage);
     } catch (err: unknown) {
       setActionError(describeError(err));
+      // Only a decided/replaced (409) or vanished (404) submission leaves the
+      // queue; a 422, such as an out-of-scope association, stays to be fixed
+      // or denied.
       if (err instanceof ApiError && (err.status === 409 || err.status === 404)) {
         setQueue((q) => q.filter((s) => s.id !== detail.id));
       }
@@ -137,10 +144,12 @@ export default function PreferenceReviews() {
     prefer_with: tp.preferWith,
     prefer_apart: tp.preferApart,
     never_together: tp.neverTogether,
+    neutral: tp.neutral,
   };
   const levelLabel = (v: number): string => {
     if (v === 1) return t.association.levelMustTogether;
     if (v === 0.5) return t.association.levelPreferTogether;
+    if (v === 0) return t.association.levelNeutral;
     if (v === -0.5) return t.association.levelPreferApart;
     if (v === -1) return t.association.levelMustNotTogether;
     return String(v);
@@ -252,6 +261,7 @@ export default function PreferenceReviews() {
 
   const renderReview = (d: PreferenceSubmissionDetail, dr: ApprovedPayload) => {
     const cur = d.current;
+    const weightMissing = hasMissingWeight(dr);
     return (
       <div className="glass-card p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -439,10 +449,11 @@ export default function PreferenceReviews() {
             className="glass-input w-full"
           />
           {actionError && <div className="glass-alert-error">{actionError}</div>}
+          {weightMissing && <div className="glass-alert-error">{tr.weightRequired}</div>}
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              disabled={busy !== null}
+              disabled={busy !== null || weightMissing}
               onClick={() => decide("approve")}
               className="glass-btn-success disabled:opacity-40"
             >

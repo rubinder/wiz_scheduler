@@ -1310,6 +1310,7 @@ const de = {
     preferWith: "Arbeite gern zusammen mit",
     preferApart: "Arbeite lieber nicht zusammen mit",
     neverTogether: "Uns nie zusammen einplanen",
+    neutral: "Keine Präferenz",
     addDay: "Tag hinzufügen",
     addHours: "Zeiten hinzufügen",
     addCap: "Grenze hinzufügen",
@@ -1368,6 +1369,8 @@ const de = {
     deniedMessage: "Abgelehnt. Die Person wurde benachrichtigt.",
     alreadyDecided: "Über diese Anfrage wurde bereits entschieden, oder sie wurde durch eine neuere ersetzt.",
     notFound: "Diese Anfrage ist nicht mehr verfügbar.",
+    coworkerOutOfScope: "Nur ein Admin-Manager kann eine Zuordnung zu {name} hinzufügen, ändern oder entfernen. Bitten Sie einen Admin, diese Anfrage zu prüfen, oder lehnen Sie sie ab.",
+    weightRequired: "Geben Sie vor dem Genehmigen in jeder Zeile eine Gewichtung von 0 bis 1 ein.",
   },
 } as const;
 

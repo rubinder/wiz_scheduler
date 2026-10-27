@@ -1310,6 +1310,7 @@ const zh = {
     preferWith: "希望一起上班",
     preferApart: "希望不一起上班",
     neverTogether: "绝不把我们排在一起",
+    neutral: "无偏好",
     addDay: "添加日期",
     addHours: "添加时段",
     addCap: "添加上限",
@@ -1368,6 +1369,8 @@ const zh = {
     deniedMessage: "已拒绝。已通知该员工。",
     alreadyDecided: "该申请已被处理，或已被更新的申请取代。",
     notFound: "该申请已不存在。",
+    coworkerOutOfScope: "只有管理员经理可以添加、更改或删除与{name}的关联。请让管理员审核此请求，或拒绝它。",
+    weightRequired: "批准前，请在每一行输入 0 到 1 之间的权重。",
   },
 } as const;
 

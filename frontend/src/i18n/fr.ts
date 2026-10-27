@@ -1310,6 +1310,7 @@ const fr = {
     preferWith: "Je préfère travailler avec",
     preferApart: "Je préfère ne pas travailler avec",
     neverTogether: "Ne jamais nous planifier ensemble",
+    neutral: "Aucune préférence",
     addDay: "Ajouter un jour",
     addHours: "Ajouter des heures",
     addCap: "Ajouter une limite",
@@ -1368,6 +1369,8 @@ const fr = {
     deniedMessage: "Refusé. L'employé a été prévenu.",
     alreadyDecided: "Cette demande a déjà été traitée ou remplacée par une plus récente.",
     notFound: "Cette demande n'est plus disponible.",
+    coworkerOutOfScope: "Seul un gestionnaire administrateur peut ajouter, modifier ou supprimer une association avec {name}. Demandez à un administrateur d'examiner cette demande, ou refusez-la.",
+    weightRequired: "Saisissez un poids de 0 à 1 sur chaque ligne avant d'approuver.",
   },
 } as const;
 

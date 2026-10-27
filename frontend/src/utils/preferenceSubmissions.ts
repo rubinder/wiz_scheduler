@@ -24,13 +24,23 @@ export const MAX_DAY_PREFERENCES = 3;
 /** Weight used when no live row matches a submitted one. */
 export const DEFAULT_WEIGHT = 0.7;
 /** The affinity levels the API accepts. */
-export const AFFINITY_LEVELS = [-1, -0.5, 0.5, 1] as const;
+export const AFFINITY_LEVELS = [-1, -0.5, 0, 0.5, 1] as const;
 
 const RELATIONSHIP_LEVEL: Record<CoworkerRelationship, number> = {
   prefer_with: 0.5,
   prefer_apart: -0.5,
   never_together: -1,
+  neutral: 0,
 };
+
+/** Mirror of the backend's relationship_from_level: -1 never together,
+ * above 0 prefer with, 0 neutral, otherwise prefer apart. */
+export function relationshipFromLevel(level: number): CoworkerRelationship {
+  if (level === -1) return "never_together";
+  if (level > 0) return "prefer_with";
+  if (level === 0) return "neutral";
+  return "prefer_apart";
+}
 
 export function emptyPayload(): PreferenceSubmissionPayload {
   return {
@@ -198,14 +208,17 @@ export const prefillWeight = {
   },
 };
 
-/** Level prefill: the live level for the same coworker, else the
- * relationship's default (with 0.5, apart -0.5, never -1). */
+/** Level prefill: the live level for the same coworker when it already
+ * means what the employee asked for, else the relationship's default (with
+ * 0.5, apart -0.5, never -1, neutral 0). So a live "prefer with" row the
+ * employee now wants "never together" prefills -1, not the old 0.5. */
 export function prefillLevel(
   affinity: Pick<SubmittedAffinity, "target_employee_id" | "relationship">,
   current: ReviewCurrentView,
 ): number {
   const live = current.affinities.find((a) => a.target_employee_id === affinity.target_employee_id);
-  return live?.level ?? RELATIONSHIP_LEVEL[affinity.relationship];
+  if (live && relationshipFromLevel(live.level) === affinity.relationship) return live.level;
+  return RELATIONSHIP_LEVEL[affinity.relationship];
 }
 
 /** The manager's editable copy of a submission, every weight and level
@@ -242,6 +255,27 @@ export function buildReviewDraft(detail: PreferenceSubmissionDetail): ApprovedPa
       employee_importance: r.employee_importance,
     })),
   };
+}
+
+/** True while any weighted row has a cleared (NaN) weight: Approve is
+ * blocked rather than silently sending a default. */
+export function hasMissingWeight(draft: ApprovedPayload): boolean {
+  return [...draft.day_preferences, ...draft.hour_range_preferences, ...draft.caps].some((r) =>
+    Number.isNaN(r.weight),
+  );
+}
+
+/** The 422 code for an association change with a coworker the reviewer
+ * cannot edit. The submission is still pending, so it stays in the queue. */
+export const AFFINITY_OUT_OF_SCOPE_CODE = "affinity_coworker_out_of_scope";
+
+/** The coworker id from an affinity-out-of-scope refusal, else null. */
+export function outOfScopeCoworkerId(status: number, data: unknown): string | null {
+  if (status !== 422 || typeof data !== "object" || data === null) return null;
+  const d = data as { code?: unknown; target_employee_id?: unknown };
+  return d.code === AFFINITY_OUT_OF_SCOPE_CODE && typeof d.target_employee_id === "string"
+    ? d.target_employee_id
+    : null;
 }
 
 /** The API takes weights 0..1 in steps of 0.1. */

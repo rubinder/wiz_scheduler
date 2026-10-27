@@ -1310,6 +1310,7 @@ const vi = {
     preferWith: "Muốn làm cùng",
     preferApart: "Không muốn làm cùng",
     neverTogether: "Không bao giờ xếp chúng tôi cùng ca",
+    neutral: "Không có ưu tiên",
     addDay: "Thêm ngày",
     addHours: "Thêm giờ",
     addCap: "Thêm giới hạn",
@@ -1368,6 +1369,8 @@ const vi = {
     deniedMessage: "Đã từ chối. Nhân viên đã được thông báo.",
     alreadyDecided: "Yêu cầu này đã được xử lý hoặc đã bị thay bằng yêu cầu mới hơn.",
     notFound: "Yêu cầu này không còn nữa.",
+    coworkerOutOfScope: "Chỉ quản lý quản trị mới có thể thêm, thay đổi hoặc xóa liên kết với {name}. Hãy nhờ quản trị viên xem xét yêu cầu này, hoặc từ chối nó.",
+    weightRequired: "Nhập trọng số từ 0 đến 1 ở mọi dòng trước khi phê duyệt.",
   },
 } as const;
 

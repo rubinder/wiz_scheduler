@@ -583,7 +583,7 @@ export interface PayrollApproveResult {
 // manager adds them on approval (Approved* below).
 
 export type PreferenceImportance = "low" | "medium" | "high";
-export type CoworkerRelationship = "prefer_with" | "prefer_apart" | "never_together";
+export type CoworkerRelationship = "prefer_with" | "prefer_apart" | "never_together" | "neutral";
 
 export interface SubmittedAffinity {
   target_employee_id: string;

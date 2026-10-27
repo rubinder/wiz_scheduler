@@ -1310,6 +1310,7 @@ const pcm = {
     preferWith: "I like to work with am",
     preferApart: "I no too like to work with am",
     neverTogether: "No ever put us for di same shift",
+    neutral: "E no matter to me",
     addDay: "Add day",
     addHours: "Add hours",
     addCap: "Add limit",
@@ -1368,6 +1369,8 @@ const pcm = {
     deniedMessage: "You no gree. We don tell di worker.",
     alreadyDecided: "Somebody don already decide dis request, or new one don replace am.",
     notFound: "Dis request no dey again.",
+    coworkerOutOfScope: "Na only admin manager fit add, change or remove association with {name}. Ask admin make e check dis request, or deny am.",
+    weightRequired: "Put weight from 0 reach 1 for every row before you approve.",
   },
 } as const;
 
