@@ -261,6 +261,14 @@ class Settings(BaseSettings):
     # period being exported twice and it outlives the log deliberately.
     RETENTION_PAYROLL_EXPORT_LOGS_DAYS: int = 365
 
+    # Pay records (#172). Seven years (7 x 365 + 2 leap days): the longest
+    # payroll-record retention a US employer is commonly held to, with room
+    # over the federal FLSA (3 years) and IRS (4 years) minimums. The sweep
+    # deletes time_entries whose pay_date is strictly before today minus this
+    # window; GET /payroll/retention warns admins 30 days ahead and offers a
+    # full-history export first.
+    RETENTION_TIME_ENTRIES_DAYS: int = 2557
+
     # How long an approved schedule stays editable, measured from created_at
     # (the basis specified in #84 — not week_start_date, which diverges for a
     # schedule approved well ahead of the week it covers).

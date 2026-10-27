@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,18 @@ from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
+
+
+def time_entry_cutoff(now: datetime) -> date:
+    """The oldest pay_date a sweep at ``now`` keeps; earlier dates go."""
+    return (now - timedelta(days=settings.RETENTION_TIME_ENTRIES_DAYS)).date()
+
+
+async def delete_expired_time_entries(db: AsyncSession, *, now: datetime) -> int:
+    result = await db.execute(
+        delete(TimeEntry).where(TimeEntry.pay_date < time_entry_cutoff(now))
+    )
+    return result.rowcount
 
 
 async def run_data_retention(db: AsyncSession) -> dict:
@@ -185,9 +197,8 @@ async def run_data_retention(db: AsyncSession) -> dict:
         #    describe are NOT deleted — exported_at is the idempotency marker and
         #    outliving the log is the point. Only the link is cleared, and the
         #    UPDATE must run before the DELETE or the FK blocks it.
-        #
-        #    time_entries themselves are never swept: they are pay records, and no
-        #    retention period for them was decided in #78.
+        #    The pay records themselves have their own, much longer window (step
+        #    10, #172).
         cutoff_payroll_logs = now - timedelta(
             days=settings.RETENTION_PAYROLL_EXPORT_LOGS_DAYS
         )
@@ -207,6 +218,16 @@ async def run_data_retention(db: AsyncSession) -> dict:
             )
         )
         summary["payroll_export_logs_deleted"] = result.rowcount
+
+        # 10. Pay records past the seven-year window (#172). By pay_date, a
+        #     calendar date, strictly before the cutoff — the same comparison
+        #     GET /payroll/retention uses for due_count, so the warning and the
+        #     sweep agree on the boundary day (it is kept). Archived and erased
+        #     employees' rows age out like any other. Nothing has a foreign key
+        #     into time_entries, so this is a plain bulk delete.
+        summary["time_entries_deleted"] = await delete_expired_time_entries(
+            db, now=now
+        )
 
         await db.commit()
 
