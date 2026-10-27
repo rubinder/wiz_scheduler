@@ -23,8 +23,8 @@ async def recurring_templates_by_location(
 
     `template_ids` falsy means "every recurring template of the company".
     Ids that are not recurring templates of this company simply match
-    nothing. The graph schedules every active location when the result is
-    empty (see `_load_initial_state`).
+    nothing. With a filter, an empty result schedules nothing; without one,
+    the graph falls back to every active location (see `_load_initial_state`).
     """
     query = select(ShiftTemplate.id, ShiftTemplate.location_id).where(
         ShiftTemplate.company_id == company_id,
@@ -44,11 +44,11 @@ async def generation_lock_seed(
     """The lock seed for a generate run: the locations it will schedule.
 
     None means "the whole company", which is what a run with no template
-    filter is (acceptance criterion 3 of #180), and also what a filter
-    matching no recurring template becomes: the graph then falls back to
-    every active location. A restricted manager never reaches this with
-    None: the route has already replaced "no filter" with their in-scope
-    template ids.
+    filter is (acceptance criterion 3 of #180). A filter matching no
+    recurring template schedules nothing; it also returns None, which
+    over-locks harmlessly for the moment the empty run takes. A restricted
+    manager never reaches this with None for "no filter": the route has
+    already replaced it with their in-scope template ids.
     """
     if not template_ids:
         return None

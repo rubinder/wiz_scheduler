@@ -701,7 +701,13 @@ async def _load_initial_state(
     loc_query = select(Location).where(
         Location.company_id == company_id, active(Location),
     )
-    if selected_location_ids:
+    # A template filter always restricts the run: if it matched no recurring
+    # template, or every match failed to resolve for the week, nothing is
+    # scheduled. It used to fall back to every active location, ignoring the
+    # caller's choice - and a regular manager's location scope, since the
+    # route turns their "no filter" into their in-scope template ids. Only an
+    # unfiltered run (an admin's) keeps the every-active-location fallback.
+    if template_ids or selected_location_ids:
         loc_query = loc_query.where(Location.id.in_(selected_location_ids))
     loc_result = await db.execute(loc_query)
     locations_orm = loc_result.scalars().all()

@@ -136,3 +136,26 @@ async def test_resolver_ignores_specific_dates_outside_the_week(
     )
     for d in WEEK:
         assert result[d].id == recurring.id
+
+
+@pytest.mark.asyncio
+async def test_unmatched_template_filter_schedules_no_location(
+    db_session: AsyncSession, seed_location, seed_company
+):
+    """A template filter that matches no recurring template must schedule
+    nothing. It used to fall back to every active location, ignoring the
+    caller's choice and a regular manager's location scope."""
+    from backend.scheduling.graph import _load_initial_state
+
+    db_session.add(ShiftTemplate(
+        company_id=seed_company.id, location_id=seed_location.id,
+        name="Weekly",
+        weekly_schedule=[{"day_of_week": i, "roles": []} for i in range(7)],
+    ))
+    await db_session.commit()
+
+    state = await _load_initial_state(
+        seed_company.id, WEEK[0].isoformat(), db_session,
+        template_ids=["nomatch1"],
+    )
+    assert state["locations"] == []
