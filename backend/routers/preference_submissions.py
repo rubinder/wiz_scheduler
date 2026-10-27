@@ -5,6 +5,7 @@ touches the six live preference tables.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db
@@ -61,7 +62,14 @@ async def submit_my_preferences(
         status="pending",
         submitted_payload=body.model_dump(mode="json"),
     ))
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # A concurrent submit won the one-pending-per-employee index.
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="A submission is already being saved; try again."
+        )
     return await svc.build_my_state(db, emp)
 
 
