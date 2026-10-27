@@ -29,7 +29,7 @@
   - Manager list returns `[]`.
   - Manager detail, approve and deny return 404.
   - Pending rows are untouched, never deleted or auto-decided.
-- **Reviewer scope:** a manager may review an employee they can **see**: `location_scope.require_employee_visible`, i.e. any of the employee's locations is in scope. Admins see everything. An out-of-scope reviewer gets 404.
+- **Reviewer scope (revised in review, matching #201/#206):** a regular manager reviews only employees they could edit directly (`location_scope.require_employee_editable`: every one of the employee's locations is in scope). A shared employee's submission goes to an admin. The spec's original rule was "any location", but that would let a regular manager change a shared employee's preferences through approval, which the direct API refuses. Adding, changing or removing an association with a coworker the reviewer can't edit is refused (404). Associations left exactly as they are live are fine. Admins see everything. Out of scope → 404.
 - Concurrent decisions: the submission row is locked `FOR UPDATE`. A decision on a non-pending row returns 409.
 - **Notification:**
   - Approve or deny sends an email to the employee, metered by `email_quota.check_and_log_email(db, og_id, "preference_decision")`.

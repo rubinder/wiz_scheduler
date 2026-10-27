@@ -134,7 +134,7 @@ async def approve_submission(
         db, submission_id, current_user.company_id, scope, lock=True
     )
     svc.require_pending(sub)
-    sub.approved_payload = await svc.apply_approved(db, emp, body)
+    sub.approved_payload = await svc.apply_approved(db, emp, body, scope)
     sub.status = "approved"
     sub.reviewed_by = current_user.id
     sub.reviewed_at = datetime.now(timezone.utc)

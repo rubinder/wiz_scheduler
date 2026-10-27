@@ -23,7 +23,10 @@ from backend.models import (
 from backend.models.preference_submission import EmployeePreferenceSubmission
 from backend.schemas.preference_submission import ApprovedPayload
 from backend.services.archive import active
-from backend.services.location_scope import LocationScope, require_employee_visible
+from backend.services.location_scope import (
+    LocationScope,
+    require_employee_editable,
+)
 
 DISABLED_CODE = "employee_preference_submissions_disabled"
 
@@ -104,7 +107,8 @@ async def build_current_view(
     include_values=False (employee view): no weight, level or importance;
     affinities are outgoing only, shown as a relationship. include_values=True
     (manager view) adds `weight` on day/hour-range/cap rows and `level` on
-    affinities. Archived affinity targets are omitted.
+    affinities. Affinities whose target is archived or no longer shares a
+    location are omitted.
     """
     cid, eid = employee.company_id, employee.id
 
@@ -123,16 +127,10 @@ async def build_current_view(
     caps = await rows(EmployeeHourRangeCap, EmployeeHourRangeCap.start_time,
                       EmployeeHourRangeCap.end_time)
     affs = await rows(EmployeeAffinity, EmployeeAffinity.entry_date)
-    names = {
-        e.id: e.full_name
-        for e in (await db.execute(
-            select(Employee).where(
-                Employee.company_id == cid,
-                Employee.id.in_([a.target_employee_id for a in affs] or [""]),
-                active(Employee),
-            )
-        )).scalars().all()
-    }
+    # Only associations with an eligible coworker (active, sharing a location)
+    # are shown, and only those are replaced on approve; the rest stay as
+    # they are, unseen, so a manager is never shown a row approve would reject.
+    names = {e.id: e.full_name for e in await share_location_coworkers(db, employee)}
     affinities: list[dict[str, Any]] = []
     for a in affs:
         if a.target_employee_id not in names:
@@ -255,7 +253,11 @@ _NOT_FOUND = "Preference submission not found"
 async def list_pending_for_review(
     db: AsyncSession, company_id: str, scope: LocationScope
 ) -> list[dict[str, Any]]:
-    """Pending submissions of the caller's company that the scope can see.
+    """Pending submissions of the caller's company that the scope can edit.
+
+    Approving writes the employee's live preferences, so a regular manager
+    reviews only employees they could edit directly (every location in
+    scope); a shared employee's submission goes to an admin.
 
     Empty while the company has the feature off. Archived employees are
     excluded. Ordered by submitted_at.
@@ -282,7 +284,7 @@ async def list_pending_for_review(
             "submitted_at": sub.submitted_at,
         }
         for sub, emp in rows
-        if scope.allows_any(emp.location_ids)
+        if scope.allows_all(emp.location_ids)
     ]
 
 
@@ -297,8 +299,8 @@ async def load_for_review(
     """The submission and its employee, else 404.
 
     404 when the feature is off for the company, the id is unknown or belongs
-    to another company, the employee is archived, or none of the employee's
-    locations is in scope. `lock=True` takes SELECT ... FOR UPDATE on the
+    to another company, the employee is archived, or the scope could not edit
+    the employee (some location out of scope). `lock=True` takes SELECT ... FOR UPDATE on the
     submission row (decisions); populate_existing so a row already in the
     session is re-read after the lock is granted.
     """
@@ -322,7 +324,7 @@ async def load_for_review(
     )).scalars().first()
     if emp is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
-    require_employee_visible(scope, emp, what="Preference submission")
+    require_employee_editable(scope, emp, what="Preference submission")
     return sub, emp
 
 
@@ -355,39 +357,79 @@ async def build_review_detail(
     }
 
 
+async def _require_affinity_changes_in_scope(
+    db: AsyncSession, employee: Employee, payload: ApprovedPayload, scope: LocationScope
+) -> None:
+    """A regular manager may add, change or remove an association only with a
+    coworker they could edit, as on the direct affinity API. Associations with
+    other coworkers must come back exactly as they are live."""
+    if not scope.restricted:
+        return
+    live = {
+        a.target_employee_id: (float(a.level), a.entry_date, a.expiration_date)
+        for a in (await db.execute(
+            select(EmployeeAffinity).where(
+                EmployeeAffinity.company_id == employee.company_id,
+                EmployeeAffinity.employee_id == employee.id,
+            )
+        )).scalars().all()
+    }
+    wanted = {
+        a.target_employee_id: (float(a.level), a.entry_date, a.expiration_date)
+        for a in payload.affinities
+    }
+    eligible = {e.id: e for e in await share_location_coworkers(db, employee)}
+    for target_id, target in eligible.items():
+        before, after = live.get(target_id), wanted.get(target_id)
+        if after is not None and before is not None and after[2] == before[2] \
+                and after[0] == before[0] and after[1] in (None, before[1]):
+            continue
+        if before is None and after is None:
+            continue
+        require_employee_editable(scope, target, what="Employee")
+
+
 async def apply_approved(
-    db: AsyncSession, employee: Employee, payload: ApprovedPayload
+    db: AsyncSession, employee: Employee, payload: ApprovedPayload,
+    scope: LocationScope,
 ) -> dict[str, Any]:
     """Replace the employee's rows in the six live sections with `payload`.
 
-    Outgoing affinities to archived targets are kept: the manager's view
-    (build_current_view) never showed them, so the approval cannot have
-    meant to drop them. Incoming affinities are untouched. Returns the
-    approved payload as stored (affinity entry_date defaulted to today, UTC).
-    Does not commit.
+    Outgoing affinities to a target that is archived or no longer shares a
+    location are kept: the manager's view (build_current_view) never showed
+    them, so the approval cannot have meant to drop them. Incoming affinities
+    are untouched. Returns the approved payload as stored (a missing affinity
+    entry_date keeps the live one, else today, UTC). Does not commit.
     """
     await validate_affinity_targets(
         db, employee, [a.target_employee_id for a in payload.affinities]
     )
+    await _require_affinity_changes_in_scope(db, employee, payload, scope)
     cid, eid = employee.company_id, employee.id
     today = datetime.now(timezone.utc).date()
+    live_entry = dict((await db.execute(
+        select(EmployeeAffinity.target_employee_id, EmployeeAffinity.entry_date).where(
+            EmployeeAffinity.company_id == cid, EmployeeAffinity.employee_id == eid,
+        )
+    )).all())
     for model in (EmployeeDayBlackout, EmployeeDayPreference,
                   EmployeeHourRangePreference, EmployeeHourRangeCap):
         await db.execute(
             delete(model).where(model.company_id == cid, model.employee_id == eid)
             .execution_options(synchronize_session=False)
         )
-    active_targets = select(Employee.id).where(Employee.company_id == cid, active(Employee))
+    eligible = [e.id for e in await share_location_coworkers(db, employee)]
     await db.execute(
         delete(EmployeeAffinity).where(
             EmployeeAffinity.company_id == cid,
             EmployeeAffinity.employee_id == eid,
-            EmployeeAffinity.target_employee_id.in_(active_targets),
+            EmployeeAffinity.target_employee_id.in_(eligible or [""]),
         ).execution_options(synchronize_session=False)
     )
     for a in payload.affinities:
         if a.entry_date is None:
-            a.entry_date = today
+            # An unchanged association keeps its start date; a new one starts today.
+            a.entry_date = live_entry.get(a.target_employee_id, today)
     db.add_all([
         *[EmployeeDayBlackout(company_id=cid, employee_id=eid, day_of_week=b.day_of_week,
                               start_time=b.start_time, end_time=b.end_time)

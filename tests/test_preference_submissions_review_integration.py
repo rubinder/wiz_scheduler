@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -105,20 +105,78 @@ async def test_list_and_detail_admin_and_regular(client, db_session, setup, mana
                                                  regular_token):
     me, pat = setup
     sub = await _pending(db_session, me)
-    for tok in (manager_token, regular_token):
-        r = await client.get(f"{URL}/", headers=_h(tok))
-        assert r.status_code == 200, r.text
-        assert r.json() == [{
-            "id": sub.id, "employee_id": me.id, "employee_name": "Me",
-            "location_ids": [LOCATION_ID, OTHER_LOCATION_ID],
-            "submitted_at": r.json()[0]["submitted_at"],
-        }]
-        d = await client.get(f"{URL}/{sub.id}", headers=_h(tok))
-        assert d.status_code == 200, d.text
-        assert d.json()["employee"] == {"id": me.id, "full_name": "Me",
-                                        "location_ids": [LOCATION_ID, OTHER_LOCATION_ID]}
-        assert d.json()["status"] == "pending"
-        assert d.json()["submitted_payload"]["max_hours_per_week"] == 30
+    # The admin reviews `me`, who works at both locations.
+    r = await client.get(f"{URL}/", headers=_h(manager_token))
+    assert r.status_code == 200, r.text
+    assert r.json() == [{
+        "id": sub.id, "employee_id": me.id, "employee_name": "Me",
+        "location_ids": [LOCATION_ID, OTHER_LOCATION_ID],
+        "submitted_at": r.json()[0]["submitted_at"],
+    }]
+    d = await client.get(f"{URL}/{sub.id}", headers=_h(manager_token))
+    assert d.status_code == 200, d.text
+    assert d.json()["employee"] == {"id": me.id, "full_name": "Me",
+                                    "location_ids": [LOCATION_ID, OTHER_LOCATION_ID]}
+    assert d.json()["status"] == "pending"
+    assert d.json()["submitted_payload"]["max_hours_per_week"] == 30
+
+    # The regular manager (LOCATION_ID only) could not edit `me` directly, so
+    # cannot review them either; Pat (LOCATION_ID only) is theirs.
+    pat_sub = await _pending(db_session, pat)
+    r = await client.get(f"{URL}/", headers=_h(regular_token))
+    assert [row["id"] for row in r.json()] == [pat_sub.id]
+    assert (await client.get(f"{URL}/{sub.id}", headers=_h(regular_token))).status_code == 404
+    r = await client.post(f"{URL}/{sub.id}/approve", json=_approved(pat.id),
+                          headers=_h(regular_token))
+    assert r.status_code == 404
+    assert (await client.get(f"{URL}/{pat_sub.id}", headers=_h(regular_token))).status_code == 200
+
+
+async def test_regular_manager_affinity_changes_need_editable_coworker(
+    client, db_session, setup, regular_token,
+):
+    """Adding, changing or removing an association with a coworker the
+    regular manager could not edit is refused; leaving it as is works."""
+    me, pat = setup  # me works at both locations, so me is not editable
+    lee = await _employee(db_session, "Lee", [LOCATION_ID])
+    lee_id, me_id, pat_id = lee.id, me.id, pat.id
+    today = datetime.now(timezone.utc).date()
+    db_session.add(EmployeeAffinity(company_id=COMPANY_ID, employee_id=lee_id,
+                                    target_employee_id=me_id, level=1,
+                                    entry_date=today))
+    await db_session.commit()
+
+    def body(affs: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"max_hours_per_week": None, "affinities": affs}
+
+    keep_me = {"target_employee_id": me_id, "relationship": "prefer_with", "level": 1}
+    add_pat = {"target_employee_id": pat_id, "relationship": "prefer_with", "level": 0.5}
+
+    for affs in ([keep_me | {"level": 0.5}],   # changed
+                 [],                             # removed
+                 ):
+        sub = await _pending(db_session, await db_session.get(Employee, lee_id))
+        r = await client.post(f"{URL}/{sub.id}/approve", json=body(affs),
+                              headers=_h(regular_token))
+        assert r.status_code == 404, (affs, r.text)
+        await db_session.rollback()
+        await db_session.execute(
+            update(EmployeePreferenceSubmission)
+            .where(EmployeePreferenceSubmission.employee_id == lee_id,
+                   EmployeePreferenceSubmission.status == "pending")
+            .values(status="denied"))
+        await db_session.commit()
+
+    sub = await _pending(db_session, await db_session.get(Employee, lee_id))
+    r = await client.post(f"{URL}/{sub.id}/approve", json=body([keep_me, add_pat]),
+                          headers=_h(regular_token))
+    assert r.status_code == 200, r.text
+    rows = {a.target_employee_id: a for a in (await db_session.execute(
+        select(EmployeeAffinity).where(EmployeeAffinity.employee_id == lee_id)
+        .execution_options(populate_existing=True))).scalars().all()}
+    assert set(rows) == {me_id, pat_id}
+    assert float(rows[me_id].level) == 1.0
+    assert rows[me_id].entry_date == today
 
 
 async def test_detail_current_carries_weights_and_levels(client, db_session, setup, manager_token):
@@ -249,6 +307,7 @@ async def test_approve_replaces_live_rows(client, db_session, setup, manager_tok
     me, pat = setup
     gone_target = await _employee(db_session, "Sam", [LOCATION_ID])
     archived_target = await _employee(db_session, "Old", [LOCATION_ID], archived=True)
+    moved_target = await _employee(db_session, "Moved", ["elsewhr1"])
     today = datetime.now(timezone.utc).date()
     cid = COMPANY_ID
     db_session.add_all([
@@ -263,6 +322,8 @@ async def test_approve_replaces_live_rows(client, db_session, setup, manager_tok
                          level=-1, entry_date=today),
         EmployeeAffinity(company_id=cid, employee_id=me.id,
                          target_employee_id=archived_target.id, level=1, entry_date=today),
+        EmployeeAffinity(company_id=cid, employee_id=me.id,
+                         target_employee_id=moved_target.id, level=0.5, entry_date=today),
         EmployeeAffinity(company_id=cid, employee_id=pat.id, target_employee_id=me.id,
                          level=1, entry_date=today),
     ])
@@ -292,11 +353,13 @@ async def test_approve_replaces_live_rows(client, db_session, setup, manager_tok
     assert [(b.day_of_week, b.start_time, b.end_time) for b in blackouts] == [(1, "08:00", "12:00")]
     affs = {a.target_employee_id: a for a in await rows(EmployeeAffinity)}
     # Replaced: Sam gone, Pat added with the manager's level and today's entry date.
-    assert set(affs) == {pat.id, archived_target.id}
+    assert set(affs) == {pat.id, archived_target.id, moved_target.id}
     assert float(affs[pat.id].level) == -0.5
     assert affs[pat.id].entry_date == today
-    # The archived target was never shown to the manager, so it is kept.
+    # Targets that are archived or no longer share a location were never
+    # shown to the manager, so they are kept.
     assert float(affs[archived_target.id].level) == 1.0
+    assert float(affs[moved_target.id].level) == 0.5
     # Incoming affinity untouched.
     incoming = (await db_session.execute(select(EmployeeAffinity).where(
         EmployeeAffinity.employee_id == pat.id))).scalars().all()
