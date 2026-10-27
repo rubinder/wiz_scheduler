@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Anthropic",
+    "purpose": "AI-powered schedule generation via Claude API",
+    "data_processed": "Employee names, roles, skill levels, availability windows, and interpersonal affinity scores",
+    "location": "United States",
+    "safeguards": "Data transmitted via encrypted API calls; not retained beyond request lifecycle; not used for model training"
+  },
+  {
+    "name": "7shifts",
+    "purpose": "Employee and schedule data import/export",
+    "data_processed": "Employee names, roles, shift schedules, and related workforce data",
+    "location": "Canada",
+    "safeguards": "Data transferred only at customer's explicit request; encrypted in transit via TLS"
+  },
+  {
+    "name": "Resend",
+    "purpose": "Transactional email delivery",
+    "data_processed": "Email addresses, recipient names, email content",
+    "location": "United States",
+    "safeguards": "Data processed solely for email delivery; encrypted in transit; subject to Resend's data processing terms"
+  },
+  {
+    "name": "PostgreSQL Hosting Provider",
+    "purpose": "Primary database hosting and storage",
+    "data_processed": "All application data including user accounts, employee profiles, availability, schedules, and consent records",
+    "location": "Configured per deployment",
+    "safeguards": "Encryption at rest and in transit; access restricted to application service; regular backups with encryption"
+  }
+]

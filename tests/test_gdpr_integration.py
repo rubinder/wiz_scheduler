@@ -45,7 +45,7 @@ async def test_privacy_policy(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/privacy-policy")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "1.0"
+    assert data["version"] == "2.0"
     assert "PRIVACY POLICY" in data["content"]
 
 
@@ -58,7 +58,7 @@ async def test_terms_of_service(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/terms")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "1.0"
+    assert data["version"] == "2.0"
     assert "TERMS OF SERVICE" in data["content"]
 
 
@@ -71,7 +71,8 @@ async def test_data_processing_agreement(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/dpa")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "1.0"
+    assert data["version"] == "2.0"
+    assert "DATA PROCESSING AGREEMENT" in data["content"]
     assert len(data["processors"]) > 0
     assert any(p["name"] == "Anthropic" for p in data["processors"])
 
