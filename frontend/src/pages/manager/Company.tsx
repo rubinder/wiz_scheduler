@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as companyApi from "../../api/company";
+import { errorMessage } from "../../api/client";
+import {
+  PREFERENCE_SUBMISSIONS_CHANGED,
+  setEmployeePreferenceSubmissions,
+} from "../../api/preferenceSubmissions";
+import { useAuth } from "../../hooks/useAuth";
 import type { Company as CompanyType, SignalConfig } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { usePlan } from "../../hooks/usePlan";
@@ -10,6 +16,8 @@ import { text, border, bg } from "../../theme";
 export default function Company() {
   const { t } = useLanguage();
   const { plan } = usePlan();
+  const { isAdmin } = useAuth();
+  const [togglingPrefs, setTogglingPrefs] = useState(false);
   const [company, setCompany] = useState<CompanyType | null>(null);
   const [name, setName] = useState("");
   const [overtimeThresholdHours, setOvertimeThresholdHours] = useState("");
@@ -63,6 +71,22 @@ export default function Company() {
       setError(err instanceof Error ? err.message : "Failed to update company");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Admin-only switch (#189), saved on its own rather than with the form.
+  const handlePreferenceSubmissions = async (enabled: boolean) => {
+    setError("");
+    setSuccess("");
+    setTogglingPrefs(true);
+    try {
+      const updated = await setEmployeePreferenceSubmissions(enabled);
+      setCompany(updated);
+      window.dispatchEvent(new Event(PREFERENCE_SUBMISSIONS_CHANGED));
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to update company"));
+    } finally {
+      setTogglingPrefs(false);
     }
   };
 
@@ -166,6 +190,30 @@ export default function Company() {
           </DemoGuard>
         </form>
       </div>
+      {isAdmin && company && (
+        <div className="glass-card p-6 max-w-lg mt-6">
+          <DemoGuard>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={company.employee_preference_submissions_enabled}
+                disabled={togglingPrefs}
+                onChange={(e) => handlePreferenceSubmissions(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-current"
+              />
+              <span>
+                <span className={`block text-sm font-medium ${text.heading}`}>
+                  {t.companyPage.preferenceSubmissionsLabel}
+                </span>
+                <span className={`block text-xs ${text.muted} mt-0.5`}>
+                  {t.companyPage.preferenceSubmissionsHint}
+                </span>
+              </span>
+            </label>
+          </DemoGuard>
+        </div>
+      )}
     </div>
   );
 }

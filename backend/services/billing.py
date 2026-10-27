@@ -1370,6 +1370,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.models.employee_check_in import EmployeeCheckIn
     from backend.models.payroll_export import PayrollExport
     from backend.models.time_entry import TimeEntry
+    from backend.models.preference_submission import EmployeePreferenceSubmission
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1390,6 +1391,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     it was matched to, so it has to go before the shift does. Runs
         #     after time_entries, which point at check-ins in turn.
         await db.execute(delete(EmployeeCheckIn).where(EmployeeCheckIn.company_id.in_(company_ids)))
+        # 0d. employee_preference_submissions — refs companies, employees,
+        #     users (#189). company_id has no cascade, so go before companies.
+        await db.execute(delete(EmployeePreferenceSubmission).where(
+            EmployeePreferenceSubmission.company_id.in_(company_ids)))
         # 1. shifts — refs shift_schedules, employees, locations, roles
         await db.execute(delete(Shift).where(Shift.company_id.in_(company_ids)))
         # 2. shift_schedules — self-FK, refs employees/locations/roles

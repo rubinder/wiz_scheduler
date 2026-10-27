@@ -1,10 +1,12 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_current_user, get_db, get_ownership_group_company_ids, require_admin, require_manager
 from backend.models import Company, User
-from backend.schemas.company import CompanyResponse, CompanyUpdate
+from backend.schemas.company import CompanyResponse, CompanyUpdate, PreferenceSubmissionsToggle
 from backend.services.plan import assert_paid_plan
 
 router = APIRouter(prefix="/company", tags=["company"])
@@ -69,6 +71,30 @@ async def update_company(
             await assert_paid_plan(db, str(current_user.company_id), "signal_weight_scheduling")
         company.signal_config = body.signal_config
 
+    await db.commit()
+    await db.refresh(company)
+    return CompanyResponse.model_validate(company)
+
+
+@router.put("/settings/employee-preference-submissions", response_model=CompanyResponse)
+async def set_employee_preference_submissions(
+    body: PreferenceSubmissionsToggle,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> CompanyResponse:
+    """Admin-only on/off switch for employee preference submissions (#189).
+
+    Turning it off hides and freezes pending submissions; it never deletes
+    or decides them.
+    """
+    company = (await db.execute(
+        select(Company).where(Company.id == current_user.company_id)
+    )).scalar_one_or_none()
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    company.employee_preference_submissions_enabled = body.enabled
+    company.employee_preference_submissions_toggled_at = datetime.now(timezone.utc)
+    company.employee_preference_submissions_toggled_by = current_user.id
     await db.commit()
     await db.refresh(company)
     return CompanyResponse.model_validate(company)

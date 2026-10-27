@@ -32,6 +32,7 @@ from backend.routers import (
     open_shifts,
     ownership_group,
     payroll,
+    preference_submissions,
     public,
     regions,
     roles,
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     api_prefix = "/api/v1"
     app.include_router(auth.router, prefix=api_prefix)
     app.include_router(company.router, prefix=api_prefix)
+    app.include_router(preference_submissions.router, prefix=api_prefix)
     app.include_router(ownership_group.router, prefix=api_prefix)
     app.include_router(regions.router, prefix=api_prefix)
     app.include_router(locations.router, prefix=api_prefix)

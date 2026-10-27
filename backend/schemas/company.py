@@ -12,6 +12,7 @@ class CompanyResponse(BaseModel):
     overtime_threshold_hours: float | None = None
     overtime_premium_multiplier: float | None = None
     signal_config: dict | None = None  # Default signal weights for this company
+    employee_preference_submissions_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -21,3 +22,7 @@ class CompanyUpdate(BaseModel):
     overtime_threshold_hours: float | None = Field(default=None, gt=0)
     overtime_premium_multiplier: float | None = Field(default=None, ge=1)
     signal_config: dict | None = None  # Default signal weights {seniority, pay, overtime, affinity}
+
+
+class PreferenceSubmissionsToggle(BaseModel):
+    enabled: bool
