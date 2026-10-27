@@ -18,7 +18,7 @@ const MODULES = import.meta.glob("./*.ts", { import: "default", eager: true }) a
 
 type Tree = { [k: string]: string | Tree };
 
-const CHECKED_SECTIONS = ["team", "access", "myPreferences", "preferenceReviews"] as const;
+const CHECKED_SECTIONS = ["team", "access", "myPreferences", "preferenceReviews", "payroll"] as const;
 
 function flatten(node: Tree, prefix = ""): Record<string, string> {
   const out: Record<string, string> = {};

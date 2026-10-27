@@ -1274,6 +1274,12 @@ const vi = {
     paidPlanOnly: "Xuất bảng lương là tính năng của gói trả phí. Nâng cấp để bật.",
     loadFailed: "Không tải được giờ công tính lương. Vui lòng thử lại.",
     approveFailed: "Không thể phê duyệt số giờ đó. Vui lòng thử lại.",
+    historyDownload: "Tải xuống toàn bộ lịch sử",
+    historyDownloadDesc: "Mọi hồ sơ lương chúng tôi lưu giữ, để bạn lưu trữ.",
+    historyEmpty: "Không có hồ sơ lương nào để tải xuống.",
+    historyFailed: "Không thể tải xuống lịch sử lương của bạn. Vui lòng thử lại.",
+    historyOnly: "Gói đăng ký của bạn đã kết thúc nên mục bảng lương đã đóng. Cho đến khi dữ liệu của bạn bị xóa, bạn vẫn có thể tải xuống mọi hồ sơ lương chúng tôi lưu giữ.",
+    retentionWarning: "{count} hồ sơ lương có ngày trước {cutoff} sẽ bị xóa vĩnh viễn vào {date} theo chính sách lưu giữ 7 năm. Hãy tải xuống toàn bộ lịch sử để giữ một bản sao.",
   },
 
   // ── My Preferences (employee, #189) ──

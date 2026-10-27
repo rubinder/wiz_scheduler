@@ -1274,6 +1274,12 @@ const pt = {
     paidPlanOnly: "A exportação da folha é um recurso de plano pago. Faça upgrade para ativar.",
     loadFailed: "Não foi possível carregar as horas da folha. Tente novamente.",
     approveFailed: "Não foi possível aprovar essas horas. Tente novamente.",
+    historyDownload: "Baixar histórico completo",
+    historyDownloadDesc: "Todos os registros de pagamento que mantemos, para seus arquivos.",
+    historyEmpty: "Não há registros de pagamento para baixar.",
+    historyFailed: "Não foi possível baixar seu histórico de pagamentos. Tente novamente.",
+    historyOnly: "Sua assinatura terminou, então a folha de pagamento está fechada. Até que seus dados sejam excluídos, você ainda pode baixar todos os registros de pagamento que mantemos.",
+    retentionWarning: "{count} registros de pagamento com data anterior a {cutoff} serão excluídos permanentemente em {date} de acordo com a política de retenção de 7 anos. Baixe seu histórico completo para guardar uma cópia.",
   },
 
   // ── My Preferences (employee, #189) ──

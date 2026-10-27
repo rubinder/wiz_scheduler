@@ -1274,6 +1274,12 @@ const zh = {
     paidPlanOnly: "薪资导出是付费套餐功能。升级后即可使用。",
     loadFailed: "无法加载薪资工时。请重试。",
     approveFailed: "无法批准这些工时。请重试。",
+    historyDownload: "下载完整历史",
+    historyDownloadDesc: "我们保存的所有工资记录，供您存档。",
+    historyEmpty: "没有可下载的工资记录。",
+    historyFailed: "无法下载您的工资历史。请重试。",
+    historyOnly: "您的订阅已结束，因此工资功能已关闭。在您的数据被删除之前，您仍可以下载我们保存的所有工资记录。",
+    retentionWarning: "根据 7 年保留政策，{cutoff} 之前的 {count} 条工资记录将于 {date} 被永久删除。请下载完整历史以保留副本。",
   },
 
   // ── My Preferences (employee, #189) ──

@@ -578,6 +578,21 @@ export interface PayrollApproveResult {
   already_approved: number;
 }
 
+/** GET /payroll/retention (#172). Every date is a UTC calendar date,
+ *  "YYYY-MM-DD". */
+export interface PayrollRetentionInfo {
+  retention_days: number;
+  /** The oldest pay date a sweep run today would keep. */
+  cutoff_date: string;
+  next_sweep_date: string;
+  /** Pay records dated strictly before this go at the next sweep. */
+  next_sweep_cutoff_date: string;
+  oldest_pay_date: string | null;
+  due_count: number;
+  /** due_count > 0 and the next sweep is at most 30 days away. */
+  warn: boolean;
+}
+
 // ── Employee preference submissions (#189) ──
 // Employee-side shapes never carry a weight or an affinity level; the
 // manager adds them on approval (Approved* below).

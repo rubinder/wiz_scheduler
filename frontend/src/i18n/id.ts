@@ -1274,6 +1274,12 @@ const ind = {
     paidPlanOnly: "Ekspor penggajian adalah fitur paket berbayar. Tingkatkan untuk mengaktifkannya.",
     loadFailed: "Tidak bisa memuat jam penggajian. Coba lagi.",
     approveFailed: "Tidak dapat menyetujui jam tersebut. Coba lagi.",
+    historyDownload: "Unduh seluruh riwayat",
+    historyDownloadDesc: "Semua catatan gaji yang kami simpan, untuk arsip Anda.",
+    historyEmpty: "Tidak ada catatan gaji untuk diunduh.",
+    historyFailed: "Tidak dapat mengunduh riwayat gaji Anda. Coba lagi.",
+    historyOnly: "Langganan Anda telah berakhir, jadi penggajian ditutup. Sampai data Anda dihapus, Anda masih dapat mengunduh semua catatan gaji yang kami simpan.",
+    retentionWarning: "{count} catatan gaji bertanggal sebelum {cutoff} akan dihapus permanen pada {date} sesuai kebijakan retensi 7 tahun. Unduh seluruh riwayat Anda untuk menyimpan salinannya.",
   },
 
   // ── My Preferences (employee, #189) ──

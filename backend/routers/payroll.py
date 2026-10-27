@@ -1,6 +1,9 @@
 """Payable hours: derivation, the exception queue, attestation, approval, CSV.
 
-Paid-only in every direction via assert_paid_plan, admin-manager-only via
+Paid-only via assert_paid_plan — except the retention info and full-history
+export, which a canceled group inside its grace period can also reach so it
+can take its records before deletion (assert_payroll_history_access, #172).
+Admin-manager-only via
 require_admin (a location-scoped regular manager is refused, #149), and
 every query filtered by the caller's company_id.
 
@@ -9,10 +12,10 @@ backend/services/time_entries.py and backend/services/payroll_export.py.
 """
 
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,10 +32,15 @@ from backend.schemas.payroll import (
     PayrollExceptionsResponse,
     PayrollExportRequest,
     PayrollRangeRequest,
+    PayrollRetentionResponse,
     TimeEntryRowSchema,
 )
-from backend.services.payroll_export import export_approved
-from backend.services.plan import assert_paid_plan
+from backend.services.data_retention import payroll_retention_info
+from backend.services.payroll_export import export_approved, export_history
+from backend.services.plan import (
+    assert_paid_plan,
+    assert_payroll_history_access,
+)
 from backend.services.time_entries import (
     approve_entries,
     attest_shift,
@@ -42,6 +50,11 @@ from backend.services.time_entries import (
 )
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
+
+
+def _utc_now() -> datetime:
+    """The clock for the retention info; a seam so tests can freeze it."""
+    return datetime.now(timezone.utc)
 
 
 def _validate_range(range_start: date, range_end: date) -> None:
@@ -206,6 +219,52 @@ async def export_csv(
     )
     return Response(
         content=content.encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/retention", response_model=PayrollRetentionResponse)
+async def get_retention(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollRetentionResponse:
+    """When the seven-year sweep next runs and how many of this company's pay
+    records it will delete. warn is true within 30 days of a sweep that
+    deletes any (#172)."""
+    company_id = str(current_user.company_id)
+    await assert_payroll_history_access(db, company_id)
+    info = await payroll_retention_info(db, company_id, now=_utc_now())
+    return PayrollRetentionResponse(**info)
+
+
+@router.post("/export/history", response_class=StreamingResponse)
+async def export_history_csv(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Download every retained pay record as CSV (#172).
+
+    All locations, approved or not, exported or not, with an `approved`
+    column. Stamps nothing; writes one PayrollExport audit row. A POST for
+    the same reasons as /export: it writes an audit row, and the credential
+    stays in a header.
+    """
+    company_id = str(current_user.company_id)
+    await assert_payroll_history_access(db, company_id)
+    slug = (await db.execute(
+        select(Company.slug).where(Company.id == company_id)
+    )).scalar_one()
+
+    chunks, export = await export_history(db, company_id, current_user)
+    filename = (
+        f"payroll_history_{slug}_{export.range_start.isoformat()}_"
+        f"{export.range_end.isoformat()}.csv"
+    )
+    # The file is already rendered; the stream only drains in-memory chunks,
+    # so nothing here touches the session after the handler returns.
+    return StreamingResponse(
+        iter(chunks),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -1,7 +1,7 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -23,6 +23,67 @@ from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
+
+
+def time_entry_cutoff(now: datetime) -> date:
+    """The oldest pay_date a sweep at ``now`` keeps; earlier dates go."""
+    return (now - timedelta(days=settings.RETENTION_TIME_ENTRIES_DAYS)).date()
+
+
+# The monthly sweep's schedule: 03:00 UTC on the 1st
+# (terraform/retention_schedule.tf, cron(0 3 1 * ? *)).
+SWEEP_HOUR_UTC = 3
+# How far ahead of a sweep that will delete pay records admins are warned.
+TIME_ENTRY_WARNING_DAYS = 30
+
+
+def next_sweep_date(now: datetime) -> date:
+    """The UTC date of the next monthly retention run at or after ``now``."""
+    today = now.date()
+    if today.day == 1 and now.hour < SWEEP_HOUR_UTC:
+        return today
+    if today.month == 12:
+        return date(today.year + 1, 1, 1)
+    return date(today.year, today.month + 1, 1)
+
+
+async def payroll_retention_info(
+    db: AsyncSession, company_id: str, *, now: datetime
+) -> dict:
+    """What the seven-year sweep means for one company's pay records (#172).
+
+    due_count uses the sweep's own comparison (pay_date strictly before the
+    cutoff) at the next sweep's cutoff, so the warning names exactly the rows
+    that run will delete — barring records written or exported in between.
+    """
+    sweep = next_sweep_date(now)
+    sweep_cutoff = sweep - timedelta(days=settings.RETENTION_TIME_ENTRIES_DAYS)
+    oldest, due = (await db.execute(
+        select(
+            func.min(TimeEntry.pay_date),
+            func.count(TimeEntry.id).filter(TimeEntry.pay_date < sweep_cutoff),
+        ).where(TimeEntry.company_id == company_id)
+    )).one()
+    due_count = int(due or 0)
+    return {
+        "retention_days": settings.RETENTION_TIME_ENTRIES_DAYS,
+        "cutoff_date": time_entry_cutoff(now),
+        "next_sweep_date": sweep,
+        "next_sweep_cutoff_date": sweep_cutoff,
+        "oldest_pay_date": oldest,
+        "due_count": due_count,
+        "warn": (
+            due_count > 0
+            and (sweep - now.date()).days <= TIME_ENTRY_WARNING_DAYS
+        ),
+    }
+
+
+async def delete_expired_time_entries(db: AsyncSession, *, now: datetime) -> int:
+    result = await db.execute(
+        delete(TimeEntry).where(TimeEntry.pay_date < time_entry_cutoff(now))
+    )
+    return result.rowcount
 
 
 async def run_data_retention(db: AsyncSession) -> dict:
@@ -185,9 +246,8 @@ async def run_data_retention(db: AsyncSession) -> dict:
         #    describe are NOT deleted — exported_at is the idempotency marker and
         #    outliving the log is the point. Only the link is cleared, and the
         #    UPDATE must run before the DELETE or the FK blocks it.
-        #
-        #    time_entries themselves are never swept: they are pay records, and no
-        #    retention period for them was decided in #78.
+        #    The pay records themselves have their own, much longer window (step
+        #    10, #172).
         cutoff_payroll_logs = now - timedelta(
             days=settings.RETENTION_PAYROLL_EXPORT_LOGS_DAYS
         )
@@ -207,6 +267,16 @@ async def run_data_retention(db: AsyncSession) -> dict:
             )
         )
         summary["payroll_export_logs_deleted"] = result.rowcount
+
+        # 10. Pay records past the seven-year window (#172). By pay_date, a
+        #     calendar date, strictly before the cutoff — the same comparison
+        #     GET /payroll/retention uses for due_count, so the warning and the
+        #     sweep agree on the boundary day (it is kept). Archived and erased
+        #     employees' rows age out like any other. Nothing has a foreign key
+        #     into time_entries, so this is a plain bulk delete.
+        summary["time_entries_deleted"] = await delete_expired_time_entries(
+            db, now=now
+        )
 
         await db.commit()
 
