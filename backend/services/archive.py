@@ -19,6 +19,7 @@ from backend.models import (
     EmployeeInvite, EmployeeRole, EmployeeRoleMinutes, Location, Role, Shift, ShiftSchedule,
     TimeEntry,
 )
+from backend.models.preference_submission import EmployeePreferenceSubmission
 from backend.services.check_in import local_date_for
 
 
@@ -162,7 +163,8 @@ async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
     # The row stays, so the ON DELETE CASCADE tables do not fire: delete explicitly.
     for model in (EmployeeAvailability, EmployeeDayBlackout, EmployeeDayPreference,
                   EmployeeHourRangeCap, EmployeeHourRangePreference, EmployeeRole,
-                  EmployeeRoleMinutes, EmployeeCompany, EmployeeInvite):
+                  EmployeeRoleMinutes, EmployeeCompany, EmployeeInvite,
+                  EmployeePreferenceSubmission):
         await db.execute(delete(model).where(model.employee_id == emp_id)
                          .execution_options(synchronize_session=False))
     await db.execute(

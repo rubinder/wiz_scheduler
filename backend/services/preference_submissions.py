@@ -4,10 +4,11 @@ Used by the employee routes and the manager review routes. Nothing here
 commits; callers own the transaction.
 """
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
@@ -20,7 +21,9 @@ from backend.models import (
     EmployeeHourRangePreference,
 )
 from backend.models.preference_submission import EmployeePreferenceSubmission
+from backend.schemas.preference_submission import ApprovedPayload
 from backend.services.archive import active
+from backend.services.location_scope import LocationScope, require_employee_visible
 
 DISABLED_CODE = "employee_preference_submissions_disabled"
 
@@ -240,4 +243,183 @@ async def build_my_state(db: AsyncSession, employee: Employee) -> dict[str, Any]
             "payload": pending.submitted_payload,
         },
         "last_decision": await get_last_decision(db, employee),
+    }
+
+
+# ── Manager review (#189, Task 3) ──
+
+ALREADY_DECIDED_CODE = "submission_already_decided"
+_NOT_FOUND = "Preference submission not found"
+
+
+async def list_pending_for_review(
+    db: AsyncSession, company_id: str, scope: LocationScope
+) -> list[dict[str, Any]]:
+    """Pending submissions of the caller's company that the scope can see.
+
+    Empty while the company has the feature off. Archived employees are
+    excluded. Ordered by submitted_at.
+    """
+    if not await is_enabled(db, company_id):
+        return []
+    rows = (await db.execute(
+        select(EmployeePreferenceSubmission, Employee)
+        .join(Employee, Employee.id == EmployeePreferenceSubmission.employee_id)
+        .where(
+            EmployeePreferenceSubmission.company_id == company_id,
+            EmployeePreferenceSubmission.status == "pending",
+            Employee.company_id == company_id,
+            active(Employee),
+        )
+        .order_by(EmployeePreferenceSubmission.submitted_at, EmployeePreferenceSubmission.id)
+    )).all()
+    return [
+        {
+            "id": sub.id,
+            "employee_id": emp.id,
+            "employee_name": emp.full_name,
+            "location_ids": list(emp.location_ids or []),
+            "submitted_at": sub.submitted_at,
+        }
+        for sub, emp in rows
+        if scope.allows_any(emp.location_ids)
+    ]
+
+
+async def load_for_review(
+    db: AsyncSession,
+    submission_id: str,
+    company_id: str,
+    scope: LocationScope,
+    *,
+    lock: bool = False,
+) -> tuple[EmployeePreferenceSubmission, Employee]:
+    """The submission and its employee, else 404.
+
+    404 when the feature is off for the company, the id is unknown or belongs
+    to another company, the employee is archived, or none of the employee's
+    locations is in scope. `lock=True` takes SELECT ... FOR UPDATE on the
+    submission row (decisions); populate_existing so a row already in the
+    session is re-read after the lock is granted.
+    """
+    if not await is_enabled(db, company_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
+    stmt = select(EmployeePreferenceSubmission).where(
+        EmployeePreferenceSubmission.id == submission_id,
+        EmployeePreferenceSubmission.company_id == company_id,
+    ).execution_options(populate_existing=True)
+    if lock:
+        stmt = stmt.with_for_update()
+    sub = (await db.execute(stmt)).scalars().first()
+    if sub is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
+    emp = (await db.execute(
+        select(Employee).where(
+            Employee.id == sub.employee_id,
+            Employee.company_id == company_id,
+            active(Employee),
+        )
+    )).scalars().first()
+    if emp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
+    require_employee_visible(scope, emp, what="Preference submission")
+    return sub, emp
+
+
+def require_pending(sub: EmployeePreferenceSubmission) -> None:
+    if sub.status != "pending":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"code": ALREADY_DECIDED_CODE, "status": sub.status},
+        )
+
+
+async def build_review_detail(
+    db: AsyncSession, sub: EmployeePreferenceSubmission, employee: Employee
+) -> dict[str, Any]:
+    return {
+        "id": sub.id,
+        "status": sub.status,
+        "employee": {
+            "id": employee.id,
+            "full_name": employee.full_name,
+            "location_ids": list(employee.location_ids or []),
+        },
+        "submitted_payload": sub.submitted_payload,
+        "current": await build_current_view(db, employee, include_values=True),
+        "submitted_at": sub.submitted_at,
+        "reviewed_at": sub.reviewed_at,
+        "reviewed_by": sub.reviewed_by,
+        "denial_reason": sub.denial_reason,
+        "approved_payload": sub.approved_payload,
+    }
+
+
+async def apply_approved(
+    db: AsyncSession, employee: Employee, payload: ApprovedPayload
+) -> dict[str, Any]:
+    """Replace the employee's rows in the six live sections with `payload`.
+
+    Outgoing affinities to archived targets are kept: the manager's view
+    (build_current_view) never showed them, so the approval cannot have
+    meant to drop them. Incoming affinities are untouched. Returns the
+    approved payload as stored (affinity entry_date defaulted to today, UTC).
+    Does not commit.
+    """
+    await validate_affinity_targets(
+        db, employee, [a.target_employee_id for a in payload.affinities]
+    )
+    cid, eid = employee.company_id, employee.id
+    today = datetime.now(timezone.utc).date()
+    for model in (EmployeeDayBlackout, EmployeeDayPreference,
+                  EmployeeHourRangePreference, EmployeeHourRangeCap):
+        await db.execute(
+            delete(model).where(model.company_id == cid, model.employee_id == eid)
+            .execution_options(synchronize_session=False)
+        )
+    active_targets = select(Employee.id).where(Employee.company_id == cid, active(Employee))
+    await db.execute(
+        delete(EmployeeAffinity).where(
+            EmployeeAffinity.company_id == cid,
+            EmployeeAffinity.employee_id == eid,
+            EmployeeAffinity.target_employee_id.in_(active_targets),
+        ).execution_options(synchronize_session=False)
+    )
+    for a in payload.affinities:
+        if a.entry_date is None:
+            a.entry_date = today
+    db.add_all([
+        *[EmployeeDayBlackout(company_id=cid, employee_id=eid, day_of_week=b.day_of_week,
+                              start_time=b.start_time, end_time=b.end_time)
+          for b in payload.blackouts],
+        *[EmployeeDayPreference(company_id=cid, employee_id=eid, day_of_week=d.day_of_week,
+                                weight=d.weight)
+          for d in payload.day_preferences],
+        *[EmployeeHourRangePreference(company_id=cid, employee_id=eid, start_time=r.start_time,
+                                      end_time=r.end_time, weight=r.weight)
+          for r in payload.hour_range_preferences],
+        *[EmployeeHourRangeCap(company_id=cid, employee_id=eid, start_time=c.start_time,
+                               end_time=c.end_time, max_per_week=c.max_per_week, weight=c.weight)
+          for c in payload.caps],
+        *[EmployeeAffinity(company_id=cid, employee_id=eid,
+                           target_employee_id=a.target_employee_id, level=a.level,
+                           entry_date=a.entry_date, expiration_date=a.expiration_date)
+          for a in payload.affinities],
+    ])
+    employee.max_hours_per_week = payload.max_hours_per_week
+    await db.flush()
+    return payload.model_dump(mode="json")
+
+
+async def coworker_names(
+    db: AsyncSession, company_id: str, target_ids: Iterable[str]
+) -> dict[str, str]:
+    ids = list(target_ids)
+    if not ids:
+        return {}
+    return {
+        e.id: e.full_name
+        for e in (await db.execute(
+            select(Employee).where(Employee.company_id == company_id, Employee.id.in_(ids))
+        )).scalars().all()
     }

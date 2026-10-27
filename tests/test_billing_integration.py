@@ -2307,6 +2307,7 @@ async def test_delete_og_and_dependents_removes_full_subtree(
     from backend.models.condensed_role import CondensedRole
     from backend.models.schedule import ShiftSchedule
     from backend.models.token_usage import TokenUsage
+    from backend.models.preference_submission import EmployeePreferenceSubmission
 
     # Seed dependent rows under the existing og_with_card's company.
     user = User(
@@ -2338,7 +2339,12 @@ async def test_delete_og_and_dependents_removes_full_subtree(
         id=_id(), ownership_group_id=OG_ID, year=2026, month=5,
         input_tokens=1000, output_tokens=500, cost_usd=0.05,
     )
-    db_session.add_all([schedule, usage])
+    # #189: references companies (no cascade), employees and users.
+    submission = EmployeePreferenceSubmission(
+        company_id=COMPANY_ID, employee_id=employee.id, status="approved",
+        submitted_payload={}, approved_payload={}, reviewed_by=user.id,
+    )
+    db_session.add_all([schedule, usage, submission])
     await db_session.commit()
 
     # Sanity check
@@ -2356,6 +2362,8 @@ async def test_delete_og_and_dependents_removes_full_subtree(
     assert (await db_session.execute(select(Employee).where(Employee.id == employee.id))).scalar_one_or_none() is None
     assert (await db_session.execute(select(ShiftSchedule).where(ShiftSchedule.id == schedule.id))).scalar_one_or_none() is None
     assert (await db_session.execute(select(TokenUsage).where(TokenUsage.id == usage.id))).scalar_one_or_none() is None
+    assert (await db_session.execute(select(EmployeePreferenceSubmission).where(
+        EmployeePreferenceSubmission.id == submission.id))).scalar_one_or_none() is None
 
 
 async def test_delete_og_and_dependents_removes_payroll_rows(

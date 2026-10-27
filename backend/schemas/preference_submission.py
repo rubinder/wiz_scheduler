@@ -252,3 +252,63 @@ class MySubmissionState(BaseModel):
 class Coworker(BaseModel):
     id: str
     full_name: str
+
+
+# ── Manager review (list, detail, deny) ──
+class DenyBody(BaseModel):
+    model_config = _FORBID
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class ReviewListItem(BaseModel):
+    id: str
+    employee_id: str
+    employee_name: str
+    location_ids: list[str]
+    submitted_at: datetime
+
+
+class ReviewEmployee(BaseModel):
+    id: str
+    full_name: str
+    location_ids: list[str]
+
+
+class ReviewAffinity(MyAffinity):
+    level: float
+
+
+class ReviewDayPreference(MyDayPreference):
+    weight: float
+
+
+class ReviewHourRangePreference(MyHourRangePreference):
+    weight: float
+
+
+class ReviewCap(MyCap):
+    weight: float
+
+
+class ReviewCurrentView(BaseModel):
+    """The employee's live values as the manager sees them: with weights and levels."""
+
+    max_hours_per_week: float | None = None
+    affinities: list[ReviewAffinity] = []
+    blackouts: list[MyBlackout] = []
+    day_preferences: list[ReviewDayPreference] = []
+    hour_range_preferences: list[ReviewHourRangePreference] = []
+    caps: list[ReviewCap] = []
+
+
+class SubmissionDetail(BaseModel):
+    id: str
+    status: Literal["pending", "approved", "denied", "superseded"]
+    employee: ReviewEmployee
+    submitted_payload: PreferenceSubmissionPayload
+    current: ReviewCurrentView
+    submitted_at: datetime
+    reviewed_at: datetime | None = None
+    reviewed_by: str | None = None
+    denial_reason: str | None = None
+    approved_payload: ApprovedPayload | None = None
