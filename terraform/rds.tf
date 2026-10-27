@@ -48,6 +48,33 @@ resource "aws_security_group" "rds" {
 # role's policy in ecs.tf, and the backend reading it) is #183.
 # -----------------------------------------------------------------------------
 
+# Server-side TLS enforcement (#203). The app already verifies the server
+# certificate and hostname (DB_SSL_ROOT_CERT in ecs.tf); rds.force_ssl makes the
+# server refuse any plaintext connection, whatever the client asks for.
+# Moving the instance onto a new parameter group only takes effect after a
+# reboot: Terraform leaves the change pending, and it is applied with
+#   aws rds modify-db-instance --db-instance-identifier <id> \
+#     --db-parameter-group-name <name> --apply-immediately
+#   aws rds reboot-db-instance --db-instance-identifier <id>
+# The family must follow a MAJOR engine upgrade (postgres15 -> postgres16 ...).
+resource "aws_db_parameter_group" "main" {
+  name        = "${var.app_name}-postgres15"
+  family      = "postgres15"
+  description = "WizScheduler: require TLS for every connection"
+
+  parameter {
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = { Name = "${var.app_name}-postgres15" }
+}
+
 resource "aws_db_instance" "main" {
   identifier = "${var.app_name}-db"
 
@@ -65,6 +92,7 @@ resource "aws_db_instance" "main" {
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
+  parameter_group_name   = aws_db_parameter_group.main.name
 
   multi_az            = false
   publicly_accessible = false
