@@ -67,6 +67,14 @@ resource "aws_lb_target_group" "app" {
   vpc_id      = aws_vpc.main.id
   target_type = "ip"
 
+  # How long a deploy waits for in-flight requests on the old task before ECS
+  # stops it (AWS default 300 s, which was about 5 of a 13-minute main run).
+  # ALB access logs from 2026-07-29 to 2026-10-27 (23,492 API requests): no
+  # request over 30 s, schedule generation at most 3.3 s. Generation streams one
+  # NDJSON line per location and is the request this protects; raise this if
+  # real multi-location runs approach it. (#139)
+  deregistration_delay = 90
+
   health_check {
     enabled             = true
     path                = var.health_check_path
