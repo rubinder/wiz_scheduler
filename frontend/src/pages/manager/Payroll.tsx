@@ -7,16 +7,38 @@ import {
   attestShift,
   deriveTimeEntries,
   downloadPayrollCsv,
+  downloadPayrollHistoryCsv,
+  getPayrollRetention,
   listPayrollExceptions,
   listTimeEntries,
   type PayrollRange,
 } from "../../api/payroll";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
-import type { Location, PayrollExceptionRow, TimeEntryRow } from "../../types";
+import type {
+  Location,
+  PayrollExceptionRow,
+  PayrollRetentionInfo,
+  TimeEntryRow,
+} from "../../types";
 import { formatLateness, formatPaidHours } from "../../utils/payrollHours";
 import { formatTime } from "../../utils/shiftTime";
 import { withArchivedMark } from "../../utils/archived";
+import { retentionWarningText } from "../../utils/payrollRetention";
+
+/** Hand a downloaded file to the browser. */
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  // Revoking synchronously after click() races the browser: Safari and
+  // Firefox have not started reading the blob yet when the call returns,
+  // and the download silently fails. A short delay is the standard
+  // work-around; the URL is still released, so nothing leaks.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 /** "YYYY-MM-DD" from a browser-local Date, without going through toISOString
  *  (which converts to UTC and can hand back yesterday). */
@@ -75,6 +97,14 @@ export default function Payroll() {
   const [paidPlanOnly, setPaidPlanOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [includeExported, setIncludeExported] = useState(false);
+  // The seven-year retention sweep (#172). undefined while loading; null when
+  // the endpoint refused (a free group that never paid). A canceled group in
+  // its grace period gets it while every other payroll call 402s — that is
+  // what selects the history-only view below.
+  const [retention, setRetention] = useState<
+    PayrollRetentionInfo | null | undefined
+  >(undefined);
+  const [downloadingHistory, setDownloadingHistory] = useState(false);
 
   /** "Confirmed by Dana on 12/09/2026 — Phone battery died".
    *
@@ -105,6 +135,9 @@ export default function Payroll() {
     // Archived too (#126): the filter reads history, and archived
     // locations' time entries are still there.
     listLocations(true).then(setLocations).catch(() => setLocations([]));
+    getPayrollRetention()
+      .then(setRetention)
+      .catch(() => setRetention(null));
   }, []);
 
   const reload = useCallback(async () => {
@@ -211,16 +244,7 @@ export default function Payroll() {
         locationId || undefined,
         includeExported
       );
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      // Revoking synchronously after click() races the browser: Safari and
-      // Firefox have not started reading the blob yet when the call returns,
-      // and the download silently fails. A short delay is the standard
-      // work-around; the URL is still released, so nothing leaks.
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveBlob(blob, filename);
       await reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -231,15 +255,86 @@ export default function Payroll() {
     }
   };
 
+  /** Every retained pay record (#172). Stamps nothing, so no reload. */
+  const downloadHistory = async () => {
+    setDownloadingHistory(true);
+    try {
+      const { blob, filename } = await downloadPayrollHistoryCsv();
+      saveBlob(blob, filename);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setError(t.payroll.historyEmpty);
+      } else {
+        setError(t.payroll.historyFailed);
+      }
+    } finally {
+      setDownloadingHistory(false);
+    }
+  };
+
+  const retentionWarning = retentionWarningText(
+    t.payroll.retentionWarning,
+    retention ?? null
+  );
+
+  const historyButton = (
+    <button
+      type="button"
+      className="glass-btn-secondary"
+      disabled={downloadingHistory}
+      onClick={() => void downloadHistory()}
+    >
+      {t.payroll.historyDownload}
+    </button>
+  );
+
+  const warningBanner = retentionWarning && (
+    <div
+      role="alert"
+      className="glass-alert-warning mb-6 flex flex-wrap gap-3 items-center"
+    >
+      <span className="flex-1 min-w-[16rem]">{retentionWarning}</span>
+      {historyButton}
+    </div>
+  );
+
+  const historySection = (
+    <div className="flex flex-wrap gap-3 items-center mt-4">
+      {historyButton}
+      <span className={`text-sm ${text.muted}`}>
+        {t.payroll.historyDownloadDesc}
+      </span>
+    </div>
+  );
+
   if (paidPlanOnly) {
+    // A canceled group inside its grace period can still take its records
+    // with it before deletion; everything else under payroll 402s for it.
+    if (retention) {
+      return (
+        <div className="p-6">
+          <h1 className={`text-2xl font-semibold mb-1 ${text.body}`}>
+            {t.payroll.title}
+          </h1>
+          <p className={`mb-6 max-w-2xl ${text.muted}`}>
+            {t.payroll.historyOnly}
+          </p>
+          {warningBanner}
+          {error && <div className="glass-alert-error mb-4">{error}</div>}
+          {historySection}
+        </div>
+      );
+    }
     return (
       <div className="p-6">
         <h1 className={`text-2xl font-semibold mb-1 ${text.body}`}>
           {t.payroll.title}
         </h1>
-        <p className={`mt-4 max-w-2xl ${text.muted}`}>
-          {t.payroll.paidPlanOnly}
-        </p>
+        {retention === null && (
+          <p className={`mt-4 max-w-2xl ${text.muted}`}>
+            {t.payroll.paidPlanOnly}
+          </p>
+        )}
       </div>
     );
   }
@@ -250,6 +345,8 @@ export default function Payroll() {
         {t.payroll.title}
       </h1>
       <p className={`mb-6 max-w-2xl ${text.muted}`}>{t.payroll.desc}</p>
+
+      {warningBanner}
 
       {/* Range + location */}
       <div className="flex flex-wrap gap-4 mb-6">
@@ -546,6 +643,7 @@ export default function Payroll() {
             : t.payroll.downloadDesc}
         </span>
       </div>
+      {historySection}
     </div>
   );
 }

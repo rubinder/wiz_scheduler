@@ -1274,6 +1274,12 @@ const fr = {
     paidPlanOnly: "L'export de paie est réservé aux forfaits payants. Passez à un forfait supérieur pour l'activer.",
     loadFailed: "Impossible de charger les heures de paie. Réessayez.",
     approveFailed: "Impossible d'approuver ces heures. Réessayez.",
+    historyDownload: "Télécharger tout l'historique",
+    historyDownloadDesc: "Tous les relevés de paie que nous conservons, pour vos archives.",
+    historyEmpty: "Aucun relevé de paie à télécharger.",
+    historyFailed: "Impossible de télécharger votre historique de paie. Réessayez.",
+    historyOnly: "Votre abonnement a pris fin, la paie est donc fermée. Jusqu'à la suppression de vos données, vous pouvez encore télécharger tous les relevés de paie que nous conservons.",
+    retentionWarning: "{count} relevés de paie datés d'avant le {cutoff} seront définitivement supprimés le {date} en vertu de la politique de conservation de 7 ans. Téléchargez tout votre historique pour en garder une copie.",
   },
 
   // ── My Preferences (employee, #189) ──

@@ -1274,6 +1274,12 @@ const de = {
     paidPlanOnly: "Der Lohnexport ist eine Funktion kostenpflichtiger Tarife. Upgraden, um ihn zu aktivieren.",
     loadFailed: "Abrechnungsstunden konnten nicht geladen werden. Erneut versuchen.",
     approveFailed: "Diese Stunden konnten nicht genehmigt werden. Versuchen Sie es erneut.",
+    historyDownload: "Gesamten Verlauf herunterladen",
+    historyDownloadDesc: "Alle Lohnunterlagen, die wir speichern, für Ihre Unterlagen.",
+    historyEmpty: "Es gibt keine Lohnunterlagen zum Herunterladen.",
+    historyFailed: "Ihr Lohnverlauf konnte nicht heruntergeladen werden. Versuchen Sie es erneut.",
+    historyOnly: "Ihr Abonnement ist beendet, daher ist die Lohnabrechnung geschlossen. Bis Ihre Daten gelöscht werden, können Sie weiterhin alle Lohnunterlagen herunterladen, die wir speichern.",
+    retentionWarning: "{count} Lohnunterlagen mit Datum vor dem {cutoff} werden am {date} gemäß der 7-jährigen Aufbewahrungsrichtlinie endgültig gelöscht. Laden Sie Ihren gesamten Verlauf herunter, um eine Kopie zu behalten.",
   },
 
   // ── My Preferences (employee, #189) ──

@@ -9,7 +9,9 @@ import csv
 import io
 from datetime import date, datetime, timedelta, timezone
 
-from backend.services.payroll_export import CSV_HEADER, PayrollCsvRow, render_csv
+from backend.services.payroll_export import (
+    CSV_HEADER, HISTORY_CSV_HEADER, PayrollCsvRow, render_csv,
+)
 
 NY = timezone(timedelta(hours=-4))
 
@@ -157,3 +159,61 @@ def test_ids_dates_numbers_and_source_are_never_neutralized():
     happen to look formula-shaped."""
     row = _parse(render_csv([_row(employee_id="=1+1")]))[1]
     assert row[CSV_HEADER.index("employee_id")] == "=1+1"
+
+
+# --- byte-identical pin (#172) -------------------------------------------------
+
+def test_the_per_range_export_is_byte_identical():
+    """The full-history export (#172) shares this renderer. Adding its
+    `approved` column must not move a single byte of the per-range file a
+    payroll bureau already imports."""
+    content = render_csv([
+        _row(),
+        _row(source="manager_attested", checked_in_at=None,
+             lateness_minutes=None, employee_name="=x"),
+    ])
+    assert content == (
+        "\ufeffemployee_id,employee_name,pay_date,location_id,location_name,"
+        "role_id,role_name,start_time,end_time,paid_hours,source,"
+        "checked_in_at,lateness_minutes\r\n"
+        "m1m2m3m4,Dana Okafor,2026-09-15,ab12cd34,Flatbush Ave,r1r2r3r4,"
+        "Role A,2026-09-15T22:00:00-04:00,2026-09-16T06:00:00-04:00,8.00,"
+        "checked_in,2026-09-15T21:56:00-04:00,-4\r\n"
+        "m1m2m3m4,'=x,2026-09-15,ab12cd34,Flatbush Ave,r1r2r3r4,Role A,"
+        "2026-09-15T22:00:00-04:00,2026-09-16T06:00:00-04:00,8.00,"
+        "manager_attested,,\r\n"
+    )
+
+
+# --- full-history export (#172) -----------------------------------------------
+
+def test_the_history_header_appends_approved_at_the_end():
+    assert HISTORY_CSV_HEADER == [*CSV_HEADER, "approved"]
+    assert _parse(render_csv([], history=True))[0] == HISTORY_CSV_HEADER
+
+
+def test_the_history_export_marks_each_row_approved_or_not():
+    rows = _parse(render_csv(
+        [_row(approved=True), _row(approved=False)], history=True
+    ))
+    assert rows[1][-1] == "yes"
+    assert rows[2][-1] == "no"
+    # Every other column is exactly the per-range one.
+    assert rows[1][:-1] == _parse(render_csv([_row()]))[1]
+
+
+def test_the_history_export_keeps_the_bom_and_crlf():
+    content = render_csv([_row(approved=True)], history=True)
+    assert content.startswith("\ufeff")
+    assert content.endswith("\r\n")
+
+
+def test_the_history_export_neutralizes_formulas_too():
+    row = _parse(render_csv(
+        [_row(employee_name="=cmd", location_name="@x", role_name="+1",
+              approved=False)],
+        history=True,
+    ))[1]
+    assert row[HISTORY_CSV_HEADER.index("employee_name")] == "'=cmd"
+    assert row[HISTORY_CSV_HEADER.index("location_name")] == "'@x"
+    assert row[HISTORY_CSV_HEADER.index("role_name")] == "'+1"

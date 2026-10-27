@@ -1282,6 +1282,12 @@ const en = {
     paidPlanOnly: "Payroll export is a paid-plan feature. Upgrade to enable it.",
     loadFailed: "Could not load payroll hours. Try again.",
     approveFailed: "Could not approve those hours. Try again.",
+    historyDownload: "Download full history",
+    historyDownloadDesc: "Every pay record we hold, for your records.",
+    historyEmpty: "There are no pay records to download.",
+    historyFailed: "Could not download your pay history. Try again.",
+    historyOnly: "Your subscription has ended, so payroll is closed. Until your data is deleted you can still download every pay record we hold.",
+    retentionWarning: "{count} pay records dated before {cutoff} will be permanently deleted on {date} under the 7-year retention policy. Download your full history to keep a copy.",
   },
 
   // ── My Preferences (employee, #189) ──

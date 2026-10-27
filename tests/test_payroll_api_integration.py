@@ -128,6 +128,14 @@ _GATED_ENDPOINTS = [
     ("POST", "/payroll/export", "export"),
 ]
 
+# Reachable by a canceled group still inside its grace period (#172): a
+# customer who canceled must be able to take their pay records with them
+# before deletion. Nothing else under /payroll is.
+_HISTORY_ENDPOINTS = [
+    ("GET", "/payroll/retention", "retention"),
+    ("POST", "/payroll/export/history", "history"),
+]
+
 
 def _sweep_call(client: AsyncClient, t: SimpleNamespace, headers: dict,
                 method: str, path: str, kind: str):
@@ -137,6 +145,8 @@ def _sweep_call(client: AsyncClient, t: SimpleNamespace, headers: dict,
             method, f"{url}?range_start={WEEK_AGO}&range_end={TODAY}",
             headers=headers,
         )
+    if kind in ("retention", "history"):
+        return client.request(method, url, headers=headers)
     if kind == "attest":
         json = {"shift_id": _id()}
     elif kind == "export":
@@ -146,7 +156,8 @@ def _sweep_call(client: AsyncClient, t: SimpleNamespace, headers: dict,
     return client.request(method, url, json=json, headers=headers)
 
 
-@pytest.mark.parametrize("method,path,kind", _GATED_ENDPOINTS)
+@pytest.mark.parametrize("method,path,kind",
+                         _GATED_ENDPOINTS + _HISTORY_ENDPOINTS)
 async def test_every_endpoint_is_paid_only(
     client: AsyncClient, free: SimpleNamespace, method: str, path: str, kind: str
 ):
@@ -155,7 +166,8 @@ async def test_every_endpoint_is_paid_only(
     assert resp.json()["detail"]["code"] == "payroll_requires_paid_plan"
 
 
-@pytest.mark.parametrize("method,path,kind", _GATED_ENDPOINTS)
+@pytest.mark.parametrize("method,path,kind",
+                         _GATED_ENDPOINTS + _HISTORY_ENDPOINTS)
 async def test_every_endpoint_is_manager_only(
     client: AsyncClient, paid: SimpleNamespace, method: str, path: str, kind: str
 ):
@@ -669,3 +681,294 @@ async def test_include_exported_redownloads_without_restamping(
     assert entry.payroll_export_id == first_export_id
     exports = (await db_session.execute(_select(PayrollExport))).scalars().all()
     assert len(exports) == 2
+
+
+# --- retention and full-history export (#172) --------------------------------
+
+async def _canceled(db: AsyncSession, *, days_ago: int = 10) -> SimpleNamespace:
+    """A group that paid, then canceled, and is still inside its grace
+    period: the row exists until process_cancellation_lifecycle deletes it."""
+    t = await _tenant(db, paid=True)
+    og = await db.get(OwnershipGroup, t.og_id)
+    og.canceled_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    await db.commit()
+    return t
+
+
+def _regular_manager_headers(db: AsyncSession, t: SimpleNamespace) -> dict:
+    user_id = _id()
+    db.add(User(id=user_id, company_id=t.company_id,
+                email=f"{user_id}@example.com", hashed_password="x",
+                full_name="Reg", user_role="manager", manager_type="regular"))
+    return {"Authorization":
+            f"Bearer {_make_token(user_id, t.company_id, 'manager')}"}
+
+
+async def _entry(
+    db: AsyncSession, t: SimpleNamespace, *, pay_date: date,
+    location_id: str | None = None, approved: bool = False,
+    exported: bool = False, employee_name: str = "Dana Okafor",
+) -> str:
+    """A pay record written straight to the table, at any age — derivation
+    only reaches shifts inside a 62-day range."""
+    from backend.models import TimeEntry
+    from backend.models.time_entry import TIME_ENTRY_CHECKED_IN
+
+    loc = location_id or t.location_id
+    start = datetime.combine(pay_date, datetime.min.time(),
+                             tzinfo=timezone.utc).replace(hour=13)
+    schedule_id, shift_id, entry_id = _id(), _id(), _id()
+    db.add(ShiftSchedule(id=schedule_id, company_id=t.company_id,
+                         location_id=loc, week_start_date=pay_date,
+                         status="approved"))
+    await db.flush()
+    db.add(Shift(id=shift_id, company_id=t.company_id,
+                 shift_schedule_id=schedule_id, location_id=loc,
+                 employee_id=t.employee_id, role_id=t.role_id,
+                 role_name=t.role_name, date=pay_date, start_time=start,
+                 end_time=start + timedelta(hours=8)))
+    await db.flush()
+    now = datetime.now(timezone.utc)
+    db.add(TimeEntry(
+        id=entry_id, company_id=t.company_id, location_id=loc,
+        employee_id=t.employee_id, shift_id=shift_id, role_id=t.role_id,
+        role_name=t.role_name, employee_name=employee_name,
+        location_name="Flatbush Ave", location_timezone="America/New_York",
+        pay_date=pay_date, start_time=start,
+        end_time=start + timedelta(hours=8), paid_minutes=480,
+        source=TIME_ENTRY_CHECKED_IN, checked_in_at=start, lateness_minutes=0,
+        approved_at=now if approved else None,
+        exported_at=now if exported else None,
+    ))
+    await db.commit()
+    return entry_id
+
+
+async def _second_location(db: AsyncSession, t: SimpleNamespace) -> str:
+    from sqlalchemy import select as _select
+
+    region_id = (await db.execute(
+        _select(Region.id).where(Region.company_id == t.company_id)
+    )).scalar_one()
+    location_id = _id()
+    db.add(Location(id=location_id, company_id=t.company_id,
+                    region_id=region_id, name="Atlantic Ave",
+                    timezone="America/New_York"))
+    await db.commit()
+    return location_id
+
+
+@pytest.mark.parametrize("method,path,kind", _HISTORY_ENDPOINTS)
+async def test_a_regular_manager_cannot_reach_the_history_endpoints(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace,
+    method: str, path: str, kind: str,
+):
+    headers = _regular_manager_headers(db_session, paid)
+    await db_session.commit()
+    resp = await _sweep_call(client, paid, headers, method, path, kind)
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.parametrize("method,path,kind", _GATED_ENDPOINTS)
+async def test_a_canceled_group_still_cannot_run_payroll(
+    client: AsyncClient, db_session: AsyncSession,
+    method: str, path: str, kind: str,
+):
+    """Canceled-in-grace reaches the two history endpoints and nothing else."""
+    t = await _canceled(db_session)
+    resp = await _sweep_call(client, t, t.manager_headers, method, path, kind)
+    assert resp.status_code == 402, resp.text
+
+
+async def test_a_canceled_group_in_grace_can_download_its_history(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """The point of #172: a customer who canceled takes their pay records
+    with them before the day-90 deletion."""
+    t = await _canceled(db_session)
+    await _entry(db_session, t, pay_date=TODAY - timedelta(days=400))
+
+    history = await client.post("/api/v1/payroll/export/history",
+                                headers=t.manager_headers)
+    retention = await client.get("/api/v1/payroll/retention",
+                                 headers=t.manager_headers)
+
+    assert history.status_code == 200, history.text
+    assert "Dana Okafor" in history.text
+    assert retention.status_code == 200, retention.text
+
+
+async def test_the_history_export_holds_every_record_and_stamps_nothing(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    from sqlalchemy import select as _select
+
+    from backend.models import PayrollExport, TimeEntry
+
+    second = await _second_location(db_session, paid)
+    oldest = TODAY - timedelta(days=2000)
+    newest = TODAY - timedelta(days=1)
+    unapproved = await _entry(db_session, paid, pay_date=oldest)
+    exported = await _entry(db_session, paid, pay_date=TODAY - timedelta(days=90),
+                            approved=True, exported=True)
+    approved = await _entry(db_session, paid, pay_date=newest,
+                            location_id=second, approved=True,
+                            employee_name="=HYPERLINK(1)")
+    other = await _tenant(db_session, paid=True)
+    await _entry(db_session, other, pay_date=TODAY - timedelta(days=3),
+                 employee_name="Someone Else")
+
+    resp = await client.post("/api/v1/payroll/export/history",
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert resp.headers["content-disposition"] == (
+        f'attachment; filename="payroll_history_slug-{paid.company_id}_'
+        f'{oldest.isoformat()}_{newest.isoformat()}.csv"'
+    )
+    import csv as _csv
+    import io as _io
+    lines = list(_csv.reader(_io.StringIO(resp.text.lstrip("\ufeff"))))
+    assert lines[0][-1] == "approved"
+    body = lines[1:]
+    assert len(body) == 3
+    assert "Someone Else" not in resp.text
+    # Ordered by pay_date: unapproved, exported, approved.
+    assert [r[2] for r in body] == sorted(r[2] for r in body)
+    assert [r[-1] for r in body] == ["no", "yes", "yes"]
+    assert {r[3] for r in body} == {paid.location_id, second}
+    assert body[2][1] == "'=HYPERLINK(1)"
+
+    entries = {e.id: e for e in (await db_session.execute(
+        _select(TimeEntry).where(TimeEntry.company_id == paid.company_id)
+    )).scalars().all()}
+    for e in entries.values():
+        await db_session.refresh(e)
+    assert entries[unapproved].exported_at is None
+    assert entries[approved].exported_at is None
+    assert entries[unapproved].payroll_export_id is None
+    assert entries[exported].payroll_export_id is None
+
+    exports = (await db_session.execute(_select(PayrollExport).where(
+        PayrollExport.company_id == paid.company_id
+    ))).scalars().all()
+    assert len(exports) == 1
+    assert exports[0].location_id is None
+    assert exports[0].range_start == oldest
+    assert exports[0].range_end == newest
+    assert exports[0].entry_count == 3
+    assert exports[0].paid_minutes_total == 1440
+    assert exports[0].exported_by_user_id == paid.manager_id
+
+
+async def test_an_empty_history_export_is_refused_without_an_audit_row(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace
+):
+    from sqlalchemy import select as _select
+
+    from backend.models import PayrollExport
+
+    resp = await client.post("/api/v1/payroll/export/history",
+                             headers=paid.manager_headers)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "nothing_to_export"
+    assert (await db_session.execute(_select(PayrollExport))).scalars().all() == []
+
+
+def _freeze(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
+    import backend.routers.payroll as payroll_router
+
+    monkeypatch.setattr(payroll_router, "_utc_now", lambda: now)
+
+
+async def test_retention_warns_inside_thirty_days_of_a_sweep_that_deletes(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from backend.config import settings
+
+    now = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+    _freeze(monkeypatch, now)
+    days = settings.RETENTION_TIME_ENTRIES_DAYS
+    next_sweep = date(2026, 11, 1)
+    next_cutoff = next_sweep - timedelta(days=days)
+    # Due at the next sweep: one day before its cutoff.
+    await _entry(db_session, paid, pay_date=next_cutoff - timedelta(days=1))
+    # The cutoff day itself is kept, by the sweep and therefore here.
+    await _entry(db_session, paid, pay_date=next_cutoff)
+    other = await _tenant(db_session, paid=True)
+    await _entry(db_session, other, pay_date=next_cutoff - timedelta(days=5))
+
+    resp = await client.get("/api/v1/payroll/retention",
+                            headers=paid.manager_headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "retention_days": days,
+        "cutoff_date": (now.date() - timedelta(days=days)).isoformat(),
+        "next_sweep_date": next_sweep.isoformat(),
+        "next_sweep_cutoff_date": next_cutoff.isoformat(),
+        "oldest_pay_date": (next_cutoff - timedelta(days=1)).isoformat(),
+        "due_count": 1,
+        "warn": True,
+    }
+
+
+async def test_retention_does_not_warn_when_nothing_is_due(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _freeze(monkeypatch, datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc))
+    await _entry(db_session, paid, pay_date=date(2026, 10, 1))
+
+    body = (await client.get("/api/v1/payroll/retention",
+                             headers=paid.manager_headers)).json()
+
+    assert body["due_count"] == 0
+    assert body["warn"] is False
+    assert body["oldest_pay_date"] == "2026-10-01"
+
+
+async def test_retention_with_no_records_reports_a_null_oldest_date(
+    client: AsyncClient, paid: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
+):
+    _freeze(monkeypatch, datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc))
+    body = (await client.get("/api/v1/payroll/retention",
+                             headers=paid.manager_headers)).json()
+    assert body["oldest_pay_date"] is None
+    assert body["due_count"] == 0
+    assert body["warn"] is False
+
+
+async def test_retention_does_not_warn_when_the_sweep_is_over_thirty_days_away(
+    client: AsyncClient, db_session: AsyncSession, paid: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Just after the 1 December sweep the next is 1 January, 31 days out.
+    Records are due then, but it is not yet time to say so."""
+    from backend.config import settings
+
+    _freeze(monkeypatch, datetime(2026, 12, 1, 4, 0, tzinfo=timezone.utc))
+    next_cutoff = date(2027, 1, 1) - timedelta(
+        days=settings.RETENTION_TIME_ENTRIES_DAYS
+    )
+    await _entry(db_session, paid, pay_date=next_cutoff - timedelta(days=1))
+
+    body = (await client.get("/api/v1/payroll/retention",
+                             headers=paid.manager_headers)).json()
+
+    assert body["next_sweep_date"] == "2027-01-01"
+    assert body["due_count"] == 1
+    assert body["warn"] is False
+
+
+async def test_before_three_on_the_first_the_next_sweep_is_today(
+    client: AsyncClient, paid: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
+):
+    """The sweep runs at 03:00 UTC on the 1st (terraform/retention_schedule.tf)."""
+    _freeze(monkeypatch, datetime(2026, 11, 1, 1, 0, tzinfo=timezone.utc))
+    body = (await client.get("/api/v1/payroll/retention",
+                             headers=paid.manager_headers)).json()
+    assert body["next_sweep_date"] == "2026-11-01"

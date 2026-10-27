@@ -1274,6 +1274,12 @@ const es = {
     paidPlanOnly: "La exportación de nómina es una función de pago. Mejora tu plan para activarla.",
     loadFailed: "No se pudieron cargar las horas de nómina. Inténtalo de nuevo.",
     approveFailed: "No se pudieron aprobar esas horas. Inténtalo de nuevo.",
+    historyDownload: "Descargar historial completo",
+    historyDownloadDesc: "Todos los registros de pago que guardamos, para sus archivos.",
+    historyEmpty: "No hay registros de pago para descargar.",
+    historyFailed: "No se pudo descargar tu historial de pagos. Inténtalo de nuevo.",
+    historyOnly: "Tu suscripción ha terminado, así que la nómina está cerrada. Hasta que se eliminen tus datos, aún puedes descargar todos los registros de pago que guardamos.",
+    retentionWarning: "{count} registros de pago con fecha anterior al {cutoff} se eliminarán de forma permanente el {date} según la política de conservación de 7 años. Descarga tu historial completo para guardar una copia.",
   },
 
   // ── My Preferences (employee, #189) ──

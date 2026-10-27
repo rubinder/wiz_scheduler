@@ -4,6 +4,7 @@ import type {
   PayrollDeriveResult,
   PayrollEntriesResponse,
   PayrollExceptionsResponse,
+  PayrollRetentionInfo,
   TimeEntryRow,
 } from "../types";
 
@@ -88,17 +89,18 @@ export function approveTimeEntries(
   });
 }
 
-/** The one call that cannot go through apiFetch, which ends in res.json().
+/** POST and read the reply as a file download. Cannot go through apiFetch,
+ *  which ends in res.json().
  *
  *  Uses fetch directly with the same Authorization: Bearer header, reads
  *  res.blob(), parses the filename out of Content-Disposition, and throws
  *  ApiError on a non-OK status so the page's error handling is unchanged.
- *  This is why export is a POST — it keeps the credential in a header instead
- *  of a query string. */
-export async function downloadPayrollCsv(
-  range: PayrollRange,
-  locationId?: string,
-  includeExported = false
+ *  This is why the exports are POSTs — it keeps the credential in a header
+ *  instead of a query string. */
+async function postForCsv(
+  path: string,
+  body: Record<string, unknown> | null,
+  fallbackName: string
 ): Promise<{ blob: Blob; filename: string }> {
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = {
@@ -106,18 +108,15 @@ export async function downloadPayrollCsv(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch("/api/v1/payroll/export", {
+  const res = await fetch(`/api/v1${path}`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      ...rangeBody(range, locationId),
-      include_exported: includeExported,
-    }),
+    body: body === null ? undefined : JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    const detail = body.detail;
+    const errBody = await res.json().catch(() => ({ detail: res.statusText }));
+    const detail = errBody.detail;
     const message =
       typeof detail === "string" ? detail : detail?.message || res.statusText;
     throw new ApiError(res.status, message, detail);
@@ -127,6 +126,32 @@ export async function downloadPayrollCsv(
   const match = disposition.match(/filename="([^"]+)"/);
   return {
     blob: await res.blob(),
-    filename: match ? match[1] : "payroll.csv",
+    filename: match ? match[1] : fallbackName,
   };
+}
+
+export function downloadPayrollCsv(
+  range: PayrollRange,
+  locationId?: string,
+  includeExported = false
+): Promise<{ blob: Blob; filename: string }> {
+  return postForCsv(
+    "/payroll/export",
+    { ...rangeBody(range, locationId), include_exported: includeExported },
+    "payroll.csv"
+  );
+}
+
+/** Every retained pay record, all locations, approved or not (#172). Stamps
+ *  nothing. Reachable by a canceled group still inside its grace period. */
+export function downloadPayrollHistoryCsv(): Promise<{
+  blob: Blob;
+  filename: string;
+}> {
+  return postForCsv("/payroll/export/history", null, "payroll_history.csv");
+}
+
+/** The seven-year retention sweep as it affects this company (#172). */
+export function getPayrollRetention(): Promise<PayrollRetentionInfo> {
+  return apiFetch<PayrollRetentionInfo>("/payroll/retention");
 }

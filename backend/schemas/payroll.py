@@ -106,3 +106,17 @@ class PayrollExportRequest(BaseModel):
     range_end: date
     location_id: str | None = None
     include_exported: bool = False
+
+
+class PayrollRetentionResponse(BaseModel):
+    """GET /payroll/retention (#172). Dates are UTC calendar dates."""
+
+    retention_days: int
+    # The oldest pay_date a sweep run today would keep.
+    cutoff_date: date
+    next_sweep_date: date
+    # Records dated strictly before this go at the next sweep.
+    next_sweep_cutoff_date: date
+    oldest_pay_date: date | None
+    due_count: int
+    warn: bool

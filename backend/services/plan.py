@@ -352,3 +352,24 @@ async def assert_paid_plan(
             "attempted": None,
         },
     )
+
+
+async def assert_payroll_history_access(db: AsyncSession, company_id: str) -> None:
+    """Gate the payroll retention info and full-history export (#172).
+
+    Wider than assert_paid_plan by exactly one case: a group that canceled
+    and is still inside its grace period. Its records are deleted with the
+    group at SUBSCRIPTION_GRACE_DAYS (services/billing.py
+    process_cancellation_lifecycle), and the whole point of the history
+    export is that a customer can take their pay records with them first.
+    canceled_at is set only by the subscription-deleted webhook, so it
+    implies the group once paid; the row existing means it is not yet
+    deleted. A free group that never paid gets the same 402 as every other
+    payroll endpoint.
+    """
+    og_id = await get_ownership_group_id(db, str(company_id))
+    if og_id is not None:
+        og = await db.get(OwnershipGroup, og_id)
+        if og is not None and og.canceled_at is not None:
+            return
+    await assert_paid_plan(db, company_id, "payroll")

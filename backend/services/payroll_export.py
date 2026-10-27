@@ -9,6 +9,7 @@ protocol — see "Future Adapter Seam" in the spec.
 import csv
 import io
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -29,6 +30,11 @@ CSV_HEADER = [
     "start_time", "end_time", "paid_hours",
     "source", "checked_in_at", "lateness_minutes",
 ]
+
+# The full-history export (#172) is every retained record, approved or not,
+# so it says which. Appended, never inserted: the per-range file a payroll
+# bureau already imports keeps CSV_HEADER byte for byte.
+HISTORY_CSV_HEADER = [*CSV_HEADER, "approved"]
 
 # Leading characters a spreadsheet application treats as the start of a
 # formula. A name, location or role name that starts with one of these opens
@@ -73,6 +79,8 @@ class PayrollCsvRow:
     checked_in_at: datetime | None
     lateness_minutes: int | None
     timezone: str
+    # Rendered only by the full-history export (render_csv(history=True)).
+    approved: bool = False
 
 
 def _local_iso(dt: datetime, tz_name: str) -> str:
@@ -85,7 +93,47 @@ def _local_iso(dt: datetime, tz_name: str) -> str:
     return _as_utc(dt).astimezone(ZoneInfo(tz_name)).isoformat()
 
 
-def render_csv(rows: list[PayrollCsvRow]) -> str:
+def _csv_fields(row: PayrollCsvRow, history: bool) -> list[str]:
+    fields = [
+        row.employee_id,
+        _neutralize(row.employee_name),
+        row.pay_date.isoformat(),
+        row.location_id,
+        _neutralize(row.location_name),
+        row.role_id,
+        _neutralize(row.role_name),
+        _local_iso(row.start_time, row.timezone),
+        _local_iso(row.end_time, row.timezone),
+        f"{row.paid_minutes / 60:.2f}",
+        row.source,
+        _local_iso(row.checked_in_at, row.timezone) if row.checked_in_at else "",
+        "" if row.lateness_minutes is None else str(row.lateness_minutes),
+    ]
+    if history:
+        fields.append("yes" if row.approved else "no")
+    return fields
+
+
+def csv_preamble(history: bool = False) -> str:
+    """The BOM and the header line — everything before the first row."""
+    buf = io.StringIO()
+    csv.writer(buf, lineterminator="\r\n").writerow(
+        HISTORY_CSV_HEADER if history else CSV_HEADER
+    )
+    return "\ufeff" + buf.getvalue()
+
+
+def render_csv_rows(rows: Iterable[PayrollCsvRow], history: bool = False) -> str:
+    """Rows only, no BOM or header, so a long export can be rendered a chunk
+    at a time and the chunks concatenated."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    for row in rows:
+        writer.writerow(_csv_fields(row, history))
+    return buf.getvalue()
+
+
+def render_csv(rows: Iterable[PayrollCsvRow], *, history: bool = False) -> str:
     """Pure. RFC 4180 line endings and a UTF-8 BOM.
 
     The BOM is not decoration: we ship in 19 locales including Arabic,
@@ -98,27 +146,12 @@ def render_csv(rows: list[PayrollCsvRow]) -> str:
     an attested row: we did not observe an on-time arrival, we observed
     nothing. Free-text columns are run through _neutralize to defuse CSV
     formula injection.
+
+    history=True is the full-history export (#172): HISTORY_CSV_HEADER and a
+    trailing approved yes/no column. history=False is byte-identical to the
+    per-range export as it was before #172.
     """
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\r\n")
-    writer.writerow(CSV_HEADER)
-    for row in rows:
-        writer.writerow([
-            row.employee_id,
-            _neutralize(row.employee_name),
-            row.pay_date.isoformat(),
-            row.location_id,
-            _neutralize(row.location_name),
-            row.role_id,
-            _neutralize(row.role_name),
-            _local_iso(row.start_time, row.timezone),
-            _local_iso(row.end_time, row.timezone),
-            f"{row.paid_minutes / 60:.2f}",
-            row.source,
-            _local_iso(row.checked_in_at, row.timezone) if row.checked_in_at else "",
-            "" if row.lateness_minutes is None else str(row.lateness_minutes),
-        ])
-    return "﻿" + buf.getvalue()
+    return csv_preamble(history) + render_csv_rows(rows, history)
 
 
 async def export_approved(
@@ -259,3 +292,104 @@ async def _count_already_exported(
     if location_id:
         query = query.where(TimeEntry.location_id == location_id)
     return (await db.execute(query)).scalar_one()
+
+
+# Rows rendered per chunk of the full-history export. Each chunk is encoded
+# as soon as it is rendered, so the response never holds the ORM rows, the
+# text and the bytes of the whole file at once.
+_HISTORY_CHUNK_ROWS = 2000
+
+
+async def export_history(
+    db: AsyncSession, company_id: str, user: User
+) -> tuple[list[bytes], PayrollExport]:
+    """Every retained pay record for one company, as CSV chunks (#172).
+
+    All locations, approved or not, exported or not: this is the "take your
+    records with you" file, offered before the seven-year sweep and to a
+    canceled group inside its grace period. It is a read: nothing on the
+    entries is stamped — exported_at means "sent to payroll", and a history
+    download is not that. One PayrollExport row records that it happened,
+    with location_id NULL and the range spanning the oldest to newest record.
+
+    Scoped to the caller's company only, like the per-range export, even
+    where the ownership group owns several companies.
+
+    Columns, not entities, read through a server-side cursor in partitions:
+    seven years can be ~360k rows, and the rows are rendered and encoded as
+    they arrive rather than materialised as ORM objects. Peak memory is the
+    encoded file (roughly 250 bytes a row, so ~90 MB at that size) — bounded,
+    and released as the StreamingResponse drains it.
+    """
+    query = (
+        select(
+            TimeEntry.employee_id, TimeEntry.employee_name, TimeEntry.pay_date,
+            TimeEntry.location_id, TimeEntry.location_name, TimeEntry.role_id,
+            TimeEntry.role_name, TimeEntry.start_time, TimeEntry.end_time,
+            TimeEntry.paid_minutes, TimeEntry.source, TimeEntry.checked_in_at,
+            TimeEntry.lateness_minutes, TimeEntry.location_timezone,
+            TimeEntry.approved_at,
+        )
+        .where(TimeEntry.company_id == company_id)
+        .order_by(TimeEntry.pay_date, TimeEntry.start_time, TimeEntry.id)
+        .execution_options(yield_per=_HISTORY_CHUNK_ROWS)
+    )
+
+    chunks: list[bytes] = [csv_preamble(history=True).encode("utf-8")]
+    count = 0
+    minutes = 0
+    first: date | None = None
+    last: date | None = None
+    result = await db.stream(query)
+    async for partition in result.partitions(_HISTORY_CHUNK_ROWS):
+        rows = [
+            PayrollCsvRow(
+                employee_id=r.employee_id, employee_name=r.employee_name,
+                pay_date=r.pay_date, location_id=r.location_id,
+                location_name=r.location_name, role_id=r.role_id,
+                role_name=r.role_name, start_time=r.start_time,
+                end_time=r.end_time, paid_minutes=r.paid_minutes,
+                source=r.source, checked_in_at=r.checked_in_at,
+                lateness_minutes=r.lateness_minutes,
+                timezone=r.location_timezone,
+                approved=r.approved_at is not None,
+            )
+            for r in partition
+        ]
+        if first is None:
+            first = rows[0].pay_date
+        last = rows[-1].pay_date
+        count += len(rows)
+        minutes += sum(r.paid_minutes for r in rows)
+        chunks.append(render_csv_rows(rows, history=True).encode("utf-8"))
+
+    if count == 0 or first is None or last is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "nothing_to_export",
+                "message": "There are no pay records to download.",
+            },
+        )
+
+    # A full-history export: every retained record, all locations, so no
+    # location and a range from the oldest pay date to the newest.
+    export = PayrollExport(
+        company_id=company_id,
+        ownership_group_id=await get_ownership_group_id(db, company_id),
+        exported_by_user_id=user.id,
+        format="csv",
+        location_id=None,
+        location_name=None,
+        range_start=first,
+        range_end=last,
+        entry_count=count,
+        paid_minutes_total=minutes,
+    )
+    db.add(export)
+    await db.commit()
+    logger.info(
+        "payroll.export_history company_id=%s export_id=%s entries=%d",
+        company_id, export.id, count,
+    )
+    return chunks, export

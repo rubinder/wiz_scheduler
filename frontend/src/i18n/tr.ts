@@ -1274,6 +1274,12 @@ const trLang = {
     paidPlanOnly: "Bordro dışa aktarma ücretli plan özelliğidir. Etkinleştirmek için yükseltin.",
     loadFailed: "Bordro saatleri yüklenemedi. Tekrar deneyin.",
     approveFailed: "Bu saatler onaylanamadı. Tekrar deneyin.",
+    historyDownload: "Tüm geçmişi indir",
+    historyDownloadDesc: "Sakladığımız tüm ücret kayıtları, arşiviniz için.",
+    historyEmpty: "İndirilecek ücret kaydı yok.",
+    historyFailed: "Ücret geçmişiniz indirilemedi. Tekrar deneyin.",
+    historyOnly: "Aboneliğiniz sona erdi, bu yüzden bordro kapalı. Verileriniz silinene kadar sakladığımız tüm ücret kayıtlarını yine de indirebilirsiniz.",
+    retentionWarning: "{cutoff} tarihinden önceki {count} ücret kaydı, 7 yıllık saklama politikası uyarınca {date} tarihinde kalıcı olarak silinecek. Bir kopyasını saklamak için tüm geçmişinizi indirin.",
   },
 
   // ── My Preferences (employee, #189) ──
