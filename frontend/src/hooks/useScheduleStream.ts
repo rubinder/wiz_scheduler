@@ -5,10 +5,25 @@ export class ScheduleLockedError extends Error {
   constructor(
     public readonly lockedBy: string,
     public readonly expiresAt: Date,
+    // The busy location (#180). Absent from older servers' 409s.
+    public readonly locationName: string | null = null,
   ) {
     super(`Schedule locked by ${lockedBy} until ${expiresAt.toISOString()}`);
     this.name = "ScheduleLockedError";
   }
+}
+
+/** The 409 `schedule_locked` detail as a ScheduleLockedError. */
+export function scheduleLockedErrorFromDetail(detail: {
+  locked_by?: unknown;
+  expires_at?: unknown;
+  location_name?: unknown;
+}): ScheduleLockedError {
+  return new ScheduleLockedError(
+    String(detail.locked_by ?? "another manager"),
+    new Date(String(detail.expires_at ?? Date.now())),
+    typeof detail.location_name === "string" && detail.location_name ? detail.location_name : null,
+  );
 }
 
 interface GenerateOptions {
@@ -112,10 +127,7 @@ export function useScheduleStream(): UseScheduleStreamReturn {
             const body = await response.json().catch(() => null);
             const detail = body?.detail ?? {};
             if (detail.code === "schedule_locked") {
-              throw new ScheduleLockedError(
-                String(detail.locked_by ?? "another manager"),
-                new Date(String(detail.expires_at ?? Date.now())),
-              );
+              throw scheduleLockedErrorFromDetail(detail);
             }
           }
 

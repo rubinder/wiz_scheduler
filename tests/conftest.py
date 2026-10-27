@@ -263,6 +263,21 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
+@pytest_asyncio.fixture
+async def isolated_client() -> AsyncGenerator[AsyncClient, None]:
+    """A client whose every request gets its own session, as in production,
+    so concurrent requests hold separate transactions. Use it for tests that
+    race requests with asyncio.gather; `client` shares one session."""
+    async def _fresh_db() -> AsyncGenerator[AsyncSession, None]:
+        async with get_test_session_factory()() as s:
+            yield s
+
+    app.dependency_overrides[get_db] = _fresh_db
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
 # ---------------------------------------------------------------------------
 # Deterministic IDs for fixtures
 # ---------------------------------------------------------------------------

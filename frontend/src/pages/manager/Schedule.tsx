@@ -35,6 +35,7 @@ import type {
   SpecialHoursDay,
 } from "../../types";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
+import { scheduleLockedMessage } from "../../utils/scheduleLock";
 import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { isOpenShift, toOpenAssignment, countOpen, openSlotTimes, weekDates } from "../../utils/openShifts";
 
@@ -229,10 +230,12 @@ function daysBetween(startStr: string, endStr: string): number {
 function LockedToast({
   lockedBy,
   expiresAt,
+  locationName,
   onExpired,
 }: {
   lockedBy: string;
   expiresAt: Date;
+  locationName: string | null;
   onExpired: () => void;
 }) {
   const { t } = useLanguage();
@@ -249,9 +252,12 @@ function LockedToast({
   }, [expiresAt, onExpired]);
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
-  const body = t.schedule.lockedToastBody
-    .replace("{locked_by}", lockedBy)
-    .replace("{countdown}", `${mm}:${ss}`);
+  const body = scheduleLockedMessage(
+    t.schedule.lockedToastBody,
+    t.schedule.lockedToastBodyLocation,
+    { locked_by: lockedBy, countdown: `${mm}:${ss}` },
+    locationName,
+  );
   return (
     <div className="fixed bottom-4 right-4 max-w-sm rounded-lg bg-amber-100 border border-amber-400 text-amber-900 p-4 shadow-lg z-50">
       <div className="font-semibold">{t.schedule.lockedToastTitle}</div>
@@ -322,12 +328,14 @@ export default function Schedule() {
   // (generate path) or the approve handler.
   const [lockedBy, setLockedBy] = useState<string | null>(null);
   const [lockExpiresAt, setLockExpiresAt] = useState<Date | null>(null);
+  const [lockLocation, setLockLocation] = useState<string | null>(null);
   const lockActive = lockedBy !== null && lockExpiresAt !== null;
 
   useEffect(() => {
     if (lockedError) {
       setLockedBy(lockedError.lockedBy);
       setLockExpiresAt(lockedError.expiresAt);
+      setLockLocation(lockedError.locationName);
     }
   }, [lockedError]);
 
@@ -716,6 +724,7 @@ export default function Schedule() {
         if (err instanceof ScheduleLockedError) {
           setLockedBy(err.lockedBy);
           setLockExpiresAt(err.expiresAt);
+          setLockLocation(err.locationName);
           return;
         }
         setActionError(
@@ -1894,9 +1903,11 @@ export default function Schedule() {
         <LockedToast
           lockedBy={lockedBy!}
           expiresAt={lockExpiresAt}
+          locationName={lockLocation}
           onExpired={() => {
             setLockedBy(null);
             setLockExpiresAt(null);
+            setLockLocation(null);
           }}
         />
       )}

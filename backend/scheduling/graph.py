@@ -19,7 +19,6 @@ from backend.models import (
     Role,
     Shift,
     ShiftSchedule,
-    ShiftTemplate,
 )
 from backend.scheduling.employee_time import instant_to_employee_face
 from backend.utils.tz import is_valid_timezone
@@ -37,6 +36,7 @@ from backend.scheduling.nodes import (
     validate_and_update_availability,
 )
 from backend.scheduling.state import FailureEntry, LocationResult, SchedulingState
+from backend.scheduling.pipeline_locations import recurring_templates_by_location
 from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
@@ -601,13 +601,12 @@ async def _load_initial_state(
     # schedule" from the recurring templates that match template_ids (or all
     # recurring templates if none provided), then call resolve_templates_for_
     # week per location to fuse in any overrides.
-    recurring_q = select(ShiftTemplate).where(
-        ShiftTemplate.company_id == company_id,
-        ShiftTemplate.specific_date.is_(None),
+    #
+    # The generate route resolves the same set to decide what to lock (#180),
+    # so the resolution lives in one helper both call.
+    location_to_template_ids = await recurring_templates_by_location(
+        db, company_id, template_ids,
     )
-    if template_ids:
-        recurring_q = recurring_q.where(ShiftTemplate.id.in_(template_ids))
-    recurring_rows = (await db.execute(recurring_q)).scalars().all()
 
     # Build the list of dates in the schedule window once; we'll use it per
     # location for resolver lookups and per-day fusion.
@@ -616,14 +615,9 @@ async def _load_initial_state(
         week_start_d + timedelta(days=i) for i in range(num_days)
     ]
 
-    # Group recurring template ids per location. Each location should normally
-    # have at most one selected recurring template, but the resolver picks the
-    # first deterministically if there are several.
-    location_to_template_ids: Dict[str, List[str]] = {}
-    for tmpl in recurring_rows:
-        loc_id = str(tmpl.location_id)
-        location_to_template_ids.setdefault(loc_id, []).append(str(tmpl.id))
-
+    # Each location should normally have at most one selected recurring
+    # template, but the resolver picks the first deterministically if there
+    # are several.
     selected_location_ids: set[str] = set(location_to_template_ids.keys())
 
     pipeline_errors: List[str] = []

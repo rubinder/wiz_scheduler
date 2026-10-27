@@ -542,9 +542,19 @@ async def test_generate_error_then_ok_records_exactly_once(
 ):
     """A PARSE_ERROR result followed by an ok result in the same run
     records the milestone once, from the ok result."""
+    # The ok result is for a second location: a run yields one result per
+    # location, and a second write for the same location in one month is
+    # refused by the free plan's write-time quota re-check (#180).
+    second_location = _id()
+    db_session.add(Location(
+        id=second_location, company_id=og_tenant["company_id"],
+        region_id=og_tenant["region_id"], name="Annex", timezone="UTC",
+    ))
+    await db_session.commit()
+
     async def fake_pipeline(**kwargs):
         yield _location_result("PARSE_ERROR", og_tenant["location_id"])
-        yield _location_result("ok", og_tenant["location_id"])
+        yield _location_result("ok", second_location)
 
     monkeypatch.setattr(
         "backend.scheduling.graph.run_scheduling_pipeline", fake_pipeline

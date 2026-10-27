@@ -255,8 +255,8 @@ async def approved_shift(
 
 @pytest_asyncio.fixture
 async def held_lock(db_session: AsyncSession, seed_manager) -> None:
-    """Acquires the company schedule lock as a different user, simulating a
-    second manager already mid-edit. `approve_schedule` and this endpoint
+    """Holds the schedule lock on LOCATION_ID as a different user, simulating
+    a second manager already mid-edit. `approve_schedule` and this endpoint
     both take this same lock, so an edit request made while it is held must
     be refused rather than silently racing the other manager's changes."""
     from backend.models import ScheduleLock
@@ -671,6 +671,8 @@ async def test_two_concurrent_edits_conflict(
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "schedule_locked"
+    assert resp.json()["detail"]["locked_by"] == "Other Manager"
+    assert resp.json()["detail"]["location_id"] == LOCATION_ID
 
 
 async def test_reassigning_to_another_companys_employee_is_not_found(

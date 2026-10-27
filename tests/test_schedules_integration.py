@@ -445,6 +445,9 @@ async def test_generate_returns_409_when_locked(
     assert body["detail"]["code"] == "schedule_locked"
     assert "locked_by" in body["detail"]
     assert "expires_at" in body["detail"]
+    # #180: the 409 names the busy location.
+    assert body["detail"]["location_id"] == seeded_company.location_id
+    assert body["detail"]["location_name"] == "Downtown Store"
 
 
 async def test_generate_releases_lock_after_stream(
@@ -547,6 +550,7 @@ async def test_approve_returns_409_when_locked(
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "schedule_locked"
+    assert resp.json()["detail"]["location_name"] == "Downtown Store"
 
 
 async def test_approve_releases_lock_on_success(
