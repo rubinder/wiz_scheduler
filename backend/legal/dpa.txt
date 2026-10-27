@@ -1,7 +1,7 @@
 DATA PROCESSING AGREEMENT FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 12, 2026
+Last Updated: October 27, 2026
 
 1. SCOPE AND PURPOSE
 This Data Processing Agreement ("DPA") forms part of the Terms of Service between Suggestival LLC, operating as WizScheduler ("Processor") and the customer organization ("Controller"). It governs the processing of personal data by the Processor on behalf of the Controller in connection with the WizScheduler scheduling service, in accordance with the General Data Protection Regulation (GDPR), CCPA, and other applicable data protection laws.
@@ -37,7 +37,7 @@ C. CATEGORIES OF DATA SUBJECTS
 
 D. DURATION
 - During active subscription: Data is retained and processed.
-- After termination: Data is deleted within 30 days unless retention is legally required.
+- After termination: When the subscription is cancelled, the account becomes read-only for 90 days, during which the Controller can reactivate it or export its data. At the end of those 90 days all Personal Data is deleted, except as set out in Section 12B.
 
 4. OBLIGATIONS OF THE PROCESSOR
 
@@ -218,13 +218,15 @@ Liability for all other claims remains subject to the limitation of liability in
 12. TERMINATION
 
 A. UPON EXPIRATION OR TERMINATION OF AGREEMENT
-Within 30 days of termination, the Processor shall, at the Controller's written choice:
+Within 90 days of termination (the read-only period that follows cancellation), the Processor shall, at the Controller's written choice:
 - Permanently delete all Personal Data
 - Return all Personal Data in a structured, machine-readable format
 - Certify deletion or return in writing
 
 B. DATA RETENTION FOR LEGAL COMPLIANCE
 The Processor may retain limited Personal Data for as long as required by applicable law (e.g., for tax compliance, audit trails, legal holds).
+
+Pay records (the time and attendance entries used for payroll) are retained on the Controller's instruction for seven (7) years from their pay date, including after an individual's account is deleted, and are then deleted automatically. The Controller can export them at any time, including during the 90-day period after cancellation. When the Controller's account is deleted at the end of that period, its pay records are deleted with it.
 
 C. BACKUP RETENTION
 Encrypted database backups may be retained for an additional 30 days for disaster recovery purposes, after which they must be securely destroyed.

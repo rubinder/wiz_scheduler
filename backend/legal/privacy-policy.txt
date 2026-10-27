@@ -1,7 +1,7 @@
 PRIVACY POLICY FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 12, 2026
+Last Updated: October 27, 2026
 
 1. INTRODUCTION
 WizScheduler ("we", "our", "us") is a multi-tenant AI-powered employee scheduling platform operated by Suggestival LLC. This Privacy Policy explains how we collect, use, disclose, and safeguard your personal data when you use our service. We are committed to protecting your privacy in compliance with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), the New York SHIELD Act, and other applicable data protection laws.
@@ -115,6 +115,8 @@ We do not sell your personal data to advertisers or third parties.
 We retain your personal data for as long as your account is active or as needed to provide services:
 - Active Account: All data retained during the service period
 - After Account Deletion: All personal data is permanently deleted within 30 days, including employee profiles, availability, affinities, shift history, check-ins, and consent records
+- Pay Records: Time and attendance entries used for payroll are kept for 7 years from their pay date on your employer's instruction, including after an individual account is deleted (the pay record keeps the employee's name), and are then deleted automatically
+- After Subscription Cancellation: The employer's account is read-only for 90 days, then deleted together with all of its data, including pay records
 - Compliance Records: We may retain limited audit logs for up to 1 year to comply with legal obligations
 - Backups: Data in database backups is encrypted and retained per our backup policy (typically 30 days)
 
