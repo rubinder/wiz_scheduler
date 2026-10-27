@@ -3,6 +3,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_
@@ -189,6 +190,20 @@ async def _lock_locations(
     return handle
 
 
+async def _relock_schedule(db: AsyncSession, schedule_id: str, company_id: str) -> ShiftSchedule:
+    """The schedule re-read FOR UPDATE, overwriting the stale identity-map
+    copy, for a status check made under the schedule lock (#180)."""
+    schedule = (await db.execute(
+        select(ShiftSchedule).where(
+            ShiftSchedule.id == schedule_id,
+            ShiftSchedule.company_id == company_id,
+        ).with_for_update().execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return schedule
+
+
 async def _relock_for_write(
     db: AsyncSession,
     handle: LockHandle | None,
@@ -202,11 +217,12 @@ async def _relock_for_write(
 
     The lock set was computed before the run; an employee may have been
     given another location since, widening the pool. Recompute the set
-    for this location and acquire whatever the run's group does not hold
-    (re-inserting any of its own rows that expired and were swept). Raises
-    LockHeld when another operation holds part of it: the caller then
-    skips this location's write. Commits any new rows, for the reason
-    given in `_lock_locations`.
+    for this location and acquire whatever the run's group does not hold.
+    It is also the run's heartbeat: every row the group holds gets a fresh
+    expiry, so a run longer than the TTL keeps its lock between writes.
+    Raises LockHeld when another operation holds part of it, or swept one
+    of the run's own expired rows: the caller then skips this location's
+    write. Commits, for the reason given in `_lock_locations`.
     """
     needed = await expand_lock_set(db, company_id, {location_id})
     if not needed:
@@ -405,7 +421,9 @@ async def generate_schedule(
                     version="1.0",
                     ip_address=client_ip,
                 ))
-                await db.flush()
+                # Committed now: the cleanup below rolls back whatever a
+                # cancelled or failed run left pending.
+                await db.commit()
 
             try:
                 async for chunk in run_scheduling_pipeline(
@@ -424,7 +442,14 @@ async def generate_schedule(
                 ):
                     # Persist a ShiftSchedule row so approve/reject have a record to find
                     loc_id = chunk.get("location_id", "")
-                    if loc_id:
+                    # A location the pipeline itself refused for quota is
+                    # reported as is: no relock, no re-check, no row. Its
+                    # refusal is a batch verdict - the starts it denied it
+                    # reserved for this run's other locations - so
+                    # re-checking it alone, before those are written, would
+                    # wrongly pass it and spend their start on an empty
+                    # draft.
+                    if loc_id and chunk.get("status") != "QUOTA_EXCEEDED":
                         # The pool may have widened since the lock was
                         # taken (#180): an employee given another location
                         # mid-run. Never write a location whose lock set
@@ -523,6 +548,8 @@ async def generate_schedule(
                             )
 
                     yield json.dumps(chunk) + "\n"
+                # Token usage the pipeline recorded after its last result.
+                await db.commit()
             except Exception as exc:
                 from backend.services.failure_logger import log_failure
 
@@ -546,17 +573,44 @@ async def generate_schedule(
                 }
                 yield json.dumps(error_result) + "\n"
         finally:
-            try:
-                if lock is not None:
-                    await release_lock(db, lock.group)
-                await db.commit()
-            except Exception:
-                logger.exception(
-                    "Failed to release schedule lock for company=%s",
-                    current_user.company_id,
-                )
+            if lock is not None:
+                # Shielded: on a client disconnect Starlette cancels the
+                # task running this stream, and anyio cancellation is
+                # level-triggered, so every unshielded await here would be
+                # cancelled again and the committed rows would outlive the
+                # request for the whole TTL.
+                with anyio.CancelScope(shield=True):
+                    await _release_generate_lock(
+                        db, lock.group, str(current_user.company_id),
+                    )
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+
+async def _release_generate_lock(db: AsyncSession, group: str, company_id: str) -> None:
+    """Release generate's lock group whatever state the run left `db` in.
+
+    Rolls back first: a cancelled run may have stopped mid-write and a
+    failed one may have aborted the transaction, and neither must block the
+    release. If the request session cannot be used at all (cancelled mid
+    query), a fresh session on the same engine releases instead.
+    """
+    try:
+        await db.rollback()
+        await release_lock(db, group)
+        await db.commit()
+        return
+    except Exception:
+        logger.warning(
+            "Releasing schedule lock on the request session failed for company=%s; "
+            "retrying on a fresh session", company_id, exc_info=True,
+        )
+    try:
+        async with AsyncSession(db.bind, expire_on_commit=False) as fresh:
+            await release_lock(fresh, group)
+            await fresh.commit()
+    except Exception:
+        logger.exception("Failed to release schedule lock for company=%s", company_id)
 
 
 @router.put("/{schedule_id}/shifts")
@@ -719,6 +773,14 @@ async def edit_approved_shifts(
     )
 
     try:
+        # Re-read under the lock: the pre-lock status check may be stale.
+        schedule = await _relock_schedule(db, schedule_id, str(current_user.company_id))
+        if schedule.status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "not_approved", "message": "This endpoint edits approved schedules only."},
+            )
+
         from backend.models import Role
         from backend.services.edit_warnings import collect_edit_warnings
 
@@ -1067,6 +1129,14 @@ async def approve_schedule(
     )
 
     try:
+        # The status was read before the lock: a concurrent approve may have
+        # finished since. Re-read it under the lock, row-locked, so the same
+        # draft is never materialised twice.
+        schedule = await _relock_schedule(db, schedule_id, str(current_user.company_id))
+        if schedule.status == "approved":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Schedule already approved")
+        _refuse_discarded(schedule)
+
         # Checked under the schedule lock, and with the location row locked
         # FOR UPDATE: archive_location takes the same row lock first, so it
         # either finished before this read or waits until we commit (#126).

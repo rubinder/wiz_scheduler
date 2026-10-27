@@ -431,3 +431,87 @@ async def test_expand_drops_ids_that_are_not_this_companys_locations(
     db_session.add(_employee([locs.a, "gone0001"]))
     await db_session.commit()
     assert await expand_lock_set(db_session, locs.company_id, {locs.a}) == [locs.a]
+
+
+# ---------------------------------------------------------------------------
+# Final-review fix round
+# ---------------------------------------------------------------------------
+
+
+async def test_extending_a_group_refreshes_every_row_it_holds(
+    db_session: AsyncSession, locs,
+):
+    """M1. A relock is the run's heartbeat: rows the group already holds,
+    in the requested set or not, get the new expiry."""
+    handle = await _acquire(db_session, locs, [locs.a, locs.c], ttl_seconds=60)
+    past = datetime.now(timezone.utc) - timedelta(seconds=1)
+    for row in await _rows(db_session, locs.company_id):
+        row.expires_at = past
+    await db_session.commit()
+
+    grown = await _acquire(db_session, locs, [locs.a, locs.b], group=handle.group,
+                           ttl_seconds=60)
+    db_session.expire_all()
+    rows = await _rows(db_session, locs.company_id)
+    assert [r.location_id for r in rows] == [locs.a, locs.b, locs.c]
+    assert all(r.expires_at == grown.expires_at for r in rows)
+    assert grown.expires_at > datetime.now(timezone.utc)
+    assert grown.location_ids == [locs.a, locs.b, locs.c]
+
+
+async def test_a_swept_row_of_the_group_is_lost_not_silently_retaken(
+    db_session: AsyncSession, locs,
+):
+    """M1. Another acquirer swept the group's expired row and took the
+    location: extending the group must raise, naming that holder."""
+    handle = await _acquire(db_session, locs, [locs.a], ttl_seconds=60)
+    await db_session.execute(delete(ScheduleLock).where(ScheduleLock.lock_group == handle.group))
+    db_session.add(ScheduleLock(
+        company_id=locs.company_id, location_id=locs.a, lock_group=_id(),
+        locked_by_user_id=locs.user_id, operation="approve",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    ))
+    await db_session.commit()
+    with pytest.raises(LockHeld) as exc:
+        await _acquire(db_session, locs, [locs.a], group=handle.group)
+    assert exc.value.location_id == locs.a
+
+
+async def test_release_and_a_concurrent_sweep_never_deadlock(locs):
+    """M2. Group G holds expired B and C, then A added later (a relock), so
+    A sits after B and C on disk. A second session sweeps A, then B, the
+    way acquire({A, B}) does, while G is released. Release must take its
+    rows in location_id order (A first, where it waits) rather than disk
+    order (B and C, then wait on A while the sweeper waits on B)."""
+    factory = get_test_session_factory()
+    group = _id()
+    past = datetime.now(timezone.utc) - timedelta(seconds=1)
+    async with factory() as s:
+        for lid in (locs.b, locs.c):
+            s.add(ScheduleLock(company_id=locs.company_id, location_id=lid,
+                               lock_group=group, locked_by_user_id=locs.user_id,
+                               operation="generate", expires_at=past))
+        await s.commit()
+        s.add(ScheduleLock(company_id=locs.company_id, location_id=locs.a,
+                           lock_group=group, locked_by_user_id=locs.user_id,
+                           operation="generate", expires_at=past))
+        await s.commit()
+
+    def sweep(location_id: str):
+        return delete(ScheduleLock).where(
+            ScheduleLock.company_id == locs.company_id,
+            ScheduleLock.location_id == location_id,
+            ScheduleLock.expires_at < datetime.now(timezone.utc),
+        )
+
+    async with factory() as sweeper, factory() as releaser:
+        await sweeper.execute(sweep(locs.a))  # holds A's row lock
+        releasing = asyncio.create_task(release(releaser, group))
+        await asyncio.sleep(0.5)  # release now waits on A (and, unfixed, holds B)
+        await asyncio.wait_for(sweeper.execute(sweep(locs.b)), 10)
+        await sweeper.commit()
+        await asyncio.wait_for(releasing, 10)
+        await releaser.commit()
+
+    async with factory() as s:
+        assert await _rows(s, locs.company_id) == []

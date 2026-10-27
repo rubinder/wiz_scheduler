@@ -22,7 +22,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,7 +112,12 @@ async def acquire(
 
     ``ttl_seconds`` overrides ``settings.SCHEDULE_LOCK_TTL_SECONDS``.
     ``group`` extends an already-held lock set: locations that group holds
-    are not a conflict, and the new rows join it.
+    are not a conflict, and the new rows join it. It is also a heartbeat:
+    every row the group still holds gets the new ``expires_at``, so a long
+    run does not lose its lock between writes. A wanted location whose
+    group row has vanished (another acquirer swept it after it expired)
+    is lost: LockHeld, not a silent re-insert, because that acquirer may
+    have written there meanwhile.
 
     Steps:
       1. Fast path: a live row of another group on any location in the set
@@ -147,8 +152,33 @@ async def acquire(
         raise await _lock_held(db, conflict.locked_by_user_id, conflict.expires_at,
                                conflict.location_id)
 
+    refreshed: set[str] = set()
     async with db.begin_nested():
-        for location_id in to_insert:
+        # One pass in ascending location_id order, so every row-level effect
+        # - refreshing one of our rows, sweeping and inserting another -
+        # keeps the module's lock order (see the module docstring).
+        for location_id in sorted(held_by_group | set(to_insert)):
+            if location_id in held_by_group:
+                updated = (await db.execute(
+                    update(ScheduleLock).where(
+                        ScheduleLock.company_id == company_id,
+                        ScheduleLock.location_id == location_id,
+                        ScheduleLock.lock_group == lock_group,
+                    ).values(expires_at=expires_at)
+                    .execution_options(synchronize_session=False)
+                )).rowcount
+                if updated:
+                    refreshed.add(location_id)
+                elif location_id in wanted:
+                    holder = await _row_at(db, company_id, location_id)
+                    if holder is not None:
+                        raise await _lock_held(db, holder.locked_by_user_id,
+                                               holder.expires_at, location_id)
+                    raise LockHeld(_FALLBACK_HOLDER, expires_at, location_id,
+                                   await _location_name(db, location_id))
+                # A vanished row outside this call's set is simply dropped:
+                # the write that needs it re-acquires it then.
+                continue
             await _insert_one(
                 db,
                 company_id=company_id,
@@ -162,7 +192,7 @@ async def acquire(
 
     return LockHandle(
         group=lock_group,
-        location_ids=sorted(held_by_group | set(wanted)),
+        location_ids=sorted(refreshed | set(wanted)),
         expires_at=expires_at,
     )
 
@@ -273,6 +303,17 @@ async def _location_name(db: AsyncSession, location_id: str) -> str | None:
 
 
 async def release(db: AsyncSession, group: str) -> None:
-    """Delete every row of the lock group. No-op if already gone."""
+    """Delete every row of the lock group. No-op if already gone.
+
+    The rows are row-locked in ascending location_id order first, as
+    acquire touches them. A bare DELETE locks them in physical order, and a
+    row added later by a relock sits later on disk: release could then hold
+    B while waiting on A, which a concurrent acquirer sweeping A then B
+    turns into a deadlock.
+    """
+    await db.execute(
+        select(ScheduleLock.id).where(ScheduleLock.lock_group == group)
+        .order_by(ScheduleLock.location_id).with_for_update()
+    )
     await db.execute(delete(ScheduleLock).where(ScheduleLock.lock_group == group))
     await db.flush()

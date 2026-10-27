@@ -652,3 +652,188 @@ async def test_quota_recheck_waits_for_a_concurrent_write_in_the_group(
     assert line["status"] == "QUOTA_EXCEEDED", line
     started = await _started_locations([tenant.company_id, free_group.sibling_id])
     assert started == {tenant.b, free_group.delta}
+
+
+# ---------------------------------------------------------------------------
+# Final-review fix round
+# ---------------------------------------------------------------------------
+
+
+async def test_pipeline_quota_refusal_passes_through_and_the_generated_location_is_written(
+    isolated_client, db_session, tenant, monkeypatch,
+):
+    """C1. The pipeline's quota verdict is per batch: with one start left it
+    allows Alpha and refuses Charlie, yielding Charlie's refusal first. That
+    refusal must reach the stream as is. Re-checking Charlie on its own,
+    before Alpha is written, passed it, saved an empty draft that spent the
+    start, and then refused the schedule Alpha really generated."""
+    from backend.services.location_quota import resolve_location_quota
+
+    og_id, sibling_id, delta = _id(), _id(), _id()
+    db_session.add(OwnershipGroup(id=og_id, name="Free G"))
+    await db_session.flush()
+    await db_session.execute(update(Company).where(Company.id == tenant.company_id)
+                             .values(ownership_group_id=og_id))
+    db_session.add(Company(id=sibling_id, name="Sib", slug=_id(), ownership_group_id=og_id))
+    await db_session.flush()
+    sibling_region = _id()
+    db_session.add(Region(id=sibling_region, company_id=sibling_id, name="R2"))
+    await db_session.flush()
+    # The sibling's archived Delta already started this month: 1 of 2 starts.
+    db_session.add(Location(id=delta, company_id=sibling_id, region_id=sibling_region,
+                            name="Delta", timezone="UTC",
+                            archived_at=datetime.now(timezone.utc)))
+    await db_session.execute(update(Location).where(Location.id == tenant.b)
+                             .values(archived_at=datetime.now(timezone.utc)))
+    await db_session.flush()
+    db_session.add(ShiftSchedule(
+        id=_id(), company_id=sibling_id, location_id=delta,
+        week_start_date=date.fromisoformat(WEEK), status="draft",
+        created_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+    assert settings.FREE_PLAN_MAX_LOCATIONS == 2
+
+    async def batch_pipeline(*, company_id: str, db: AsyncSession, **_: Any
+                             ) -> AsyncIterator[dict]:
+        # As graph.run_scheduling_pipeline: one verdict for the batch,
+        # refusals yielded before any result.
+        order = [tenant.a, tenant.c]
+        quota = await resolve_location_quota(db, company_id, order, WEEK)
+        assert [quota[lid]["allowed"] for lid in order] == [True, False], quota
+        for lid in order:
+            if not quota[lid]["allowed"]:
+                yield {"location_id": lid, "location_name": tenant.names[lid], "shifts": [],
+                       "errors": [quota[lid]["message"]], "status": "QUOTA_EXCEEDED"}
+        for lid in order:
+            if quota[lid]["allowed"]:
+                yield {"location_id": lid, "location_name": tenant.names[lid],
+                       "shifts": [], "errors": [], "status": "ok"}
+
+    monkeypatch.setattr("backend.scheduling.graph.run_scheduling_pipeline", batch_pipeline)
+    resp = await _generate(isolated_client, tenant.admin_token, tenant=tenant)
+    assert resp.status_code == 200, resp.text
+    lines = {line["location_id"]: line for line in _lines(resp.text)}
+    assert lines[tenant.c]["status"] == "QUOTA_EXCEEDED"
+    assert "schedule_id" not in lines[tenant.c]
+    assert lines[tenant.a]["status"] == "ok"
+    assert "schedule_id" in lines[tenant.a]
+    assert [s.location_id for s in await _schedules(tenant.company_id)] == [tenant.a]
+    assert await _lock_rows(tenant.company_id) == []
+
+
+async def test_lock_released_on_an_asgi_client_disconnect(db_session, tenant, gate):
+    """I1. Driven through Starlette's StreamingResponse as uvicorn does
+    (ASGI spec 2.3): a disconnect cancels the task running the stream, and
+    anyio cancellation is level-triggered, so an unshielded release in the
+    stream's finally is itself cancelled and the committed rows leak for
+    the whole TTL."""
+    admin = await db_session.get(User, tenant.admin_id)
+    async with get_test_session_factory()() as request_db:
+        response = await _call_generate(request_db, admin, tenant)
+
+        async def receive() -> dict:
+            await gate.reached(tenant.a)  # the pipeline is in flight
+            assert {r.location_id for r in await _lock_rows(tenant.company_id)} == {
+                tenant.a, tenant.b}
+            return {"type": "http.disconnect"}
+
+        async def send(_message: dict) -> None:
+            pass
+
+        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"}}
+        await asyncio.wait_for(response(scope, receive, send), 10)
+        # Released by the stream's own cleanup, not by the session closing.
+        assert await _lock_rows(tenant.company_id) == []
+    assert await _schedules(tenant.company_id) == []
+
+
+async def test_lock_released_when_the_pipeline_aborts_the_transaction(
+    isolated_client, tenant, monkeypatch,
+):
+    """I1. A DB error leaves the request transaction aborted; the cleanup
+    rolls back before releasing instead of failing the release too."""
+    from sqlalchemy import text
+
+    async def db_error(*, db: AsyncSession, **_: Any) -> AsyncIterator[dict]:
+        await db.execute(text("SELECT 1/0"))
+        yield {}  # pragma: no cover
+
+    monkeypatch.setattr("backend.scheduling.graph.run_scheduling_pipeline", db_error)
+    resp = await _generate(isolated_client, tenant.admin_token, tenant.a, tenant=tenant)
+    assert resp.status_code == 200
+    assert _lines(resp.text)[0]["status"] == "PIPELINE_ERROR"
+    assert await _lock_rows(tenant.company_id) == []
+
+
+async def test_each_write_refreshes_the_runs_whole_lock(isolated_client, tenant, gate):
+    """M1. The per-write relock is a heartbeat: after a write every row the
+    run holds has a fresh expiry, even ones that had already expired and
+    ones outside the written location's own set."""
+    seen: list[str] = []
+    after_first_write: list[ScheduleLock] = []
+
+    async def expire_then_snapshot(location_id: str) -> None:
+        seen.append(location_id)
+        if len(seen) == 1:
+            async with get_test_session_factory()() as s:
+                await s.execute(update(ScheduleLock).where(
+                    ScheduleLock.company_id == tenant.company_id,
+                ).values(expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)))
+                await s.commit()
+        else:
+            after_first_write.extend(await _lock_rows(tenant.company_id))
+
+    gate.before_yield = expire_then_snapshot
+    gate.go.set()
+    resp = await _generate(isolated_client, tenant.admin_token, tenant.a, tenant.c,
+                           tenant=tenant)
+    assert resp.status_code == 200, resp.text
+    assert [line["status"] for line in _lines(resp.text)] == ["ok", "ok"]
+    assert {r.location_id for r in after_first_write} == {tenant.a, tenant.b, tenant.c}
+    now = datetime.now(timezone.utc)
+    assert all(r.expires_at > now for r in after_first_write), [
+        (r.location_id, r.expires_at) for r in after_first_write]
+    assert await _lock_rows(tenant.company_id) == []
+
+
+async def test_a_draft_is_never_approved_twice(
+    isolated_client, db_session, tenant, monkeypatch,
+):
+    """M7. The second approve read `draft` before the first took the lock,
+    then waited until the first had approved and released. Its status
+    check must be redone under the lock: 400, and the shifts are not
+    materialised a second time."""
+    from backend.routers import schedules as schedules_router
+
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid, company_id=tenant.company_id, location_id=tenant.c,
+        week_start_date=date.fromisoformat(WEEK), status="draft",
+        raw_llm_output="[]", created_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    real_lock = schedules_router._lock_locations
+    late_is_waiting, first_done = asyncio.Event(), asyncio.Event()
+    calls = 0
+
+    async def lock_after_first(*args: Any, **kwargs: Any):
+        nonlocal calls
+        calls += 1
+        if calls == 1:  # the late request: read status, now held back
+            late_is_waiting.set()
+            await asyncio.wait_for(first_done.wait(), 10)
+        return await real_lock(*args, **kwargs)
+
+    monkeypatch.setattr(schedules_router, "_lock_locations", lock_after_first)
+    url = f"/api/v1/schedules/{sid}/approve"
+    late = asyncio.create_task(isolated_client.post(url, headers=_h(tenant.admin_token)))
+    await asyncio.wait_for(late_is_waiting.wait(), 10)
+    first = await isolated_client.post(url, headers=_h(tenant.admin_token))
+    first_done.set()
+    second = await late
+    assert first.status_code == 200, first.text
+    assert second.status_code == 400, second.text
+    assert second.json()["detail"] == "Schedule already approved"
+    assert await _lock_rows(tenant.company_id) == []

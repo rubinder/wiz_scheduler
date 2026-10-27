@@ -1009,6 +1009,32 @@ async def run_scheduling_pipeline(
     )
 
     if not initial_state["locations"]:
+        if initial_state["errors"]:
+            # Every location the filter matched failed template resolution,
+            # so nothing is scheduled (a filter never widens to every
+            # location). Say so rather than end with an empty stream, in the
+            # run-level error shape the frontend already renders.
+            logger.warning(
+                "No location scheduled for company=%s week=%s: %s",
+                company_id, week_start_date, "; ".join(initial_state["errors"]),
+            )
+            from backend.services.failure_logger import log_failure_batch
+
+            failures = initial_state["failure_entries"]
+            for entry in failures:
+                entry["company_id"] = company_id
+            await log_failure_batch(failures)
+            yield LocationResult(
+                location_id="",
+                location_name="Pipeline Error",
+                shifts=[],
+                errors=[
+                    "No schedule was generated: none of the selected templates "
+                    "could be resolved for this week.",
+                    *initial_state["errors"],
+                ],
+                status="PIPELINE_ERROR",
+            )
         return
 
     # Free-plan allowance, applied per location (services/location_quota.py).
