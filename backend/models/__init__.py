@@ -35,8 +35,10 @@ from backend.models.time_entry import TimeEntry
 from backend.models.activation_event import ActivationEvent
 from backend.models.manager_location import ManagerLocation
 from backend.models.feedback_submission import FeedbackSubmission
+from backend.models.preference_submission import EmployeePreferenceSubmission
 
 __all__ = [
+    "EmployeePreferenceSubmission",
     "OwnershipGroup",
     "Company",
     "User",

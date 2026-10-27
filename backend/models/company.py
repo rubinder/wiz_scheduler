@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, JSON, String, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, JSON, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -34,6 +34,25 @@ class Company(Base):
     # {"seniority_weight": 0.0, "pay_weight": 0.0, "overtime_weight": 0.0, "affinity_weight": 0.0}
     # NULL = no defaults set; location can still have its own defaults or schedules can override.
     signal_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Employees may submit preference changes for manager approval (#189).
+    # Off by default; only admin managers toggle it.
+    employee_preference_submissions_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    employee_preference_submissions_toggled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    employee_preference_submissions_toggled_by: Mapped[str | None] = mapped_column(
+        String(8),
+        # users.company_id already points back here, so the cycle needs a
+        # named, deferred (use_alter) constraint for create_all/drop_all.
+        ForeignKey(
+            "users.id", ondelete="SET NULL", use_alter=True,
+            name="fk_companies_pref_submissions_toggled_by",
+        ),
+        nullable=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
