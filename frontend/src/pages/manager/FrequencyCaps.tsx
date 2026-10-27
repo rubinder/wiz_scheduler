@@ -8,6 +8,8 @@ import {
   updateHourRangeCap,
 } from "../../api/schedulingPreferences";
 import WeightSlider from "../../components/shared/WeightSlider";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { action, bg, border, text } from "../../theme";
 import type { Employee, EmployeeHourRangeCap } from "../../types";
@@ -55,6 +57,9 @@ function toDraft(cap: EmployeeHourRangeCap): DraftRow {
 
 export default function FrequencyCaps() {
   const { t } = useLanguage();
+  // A regular manager may write only for employees whose every location
+  // they manage (#206); shared employees' rows stay visible, read-only.
+  const { canEditEmployee } = useManagerPermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +101,13 @@ export default function FrequencyCaps() {
     employees.forEach((e) => m.set(e.id, e));
     return m;
   }, [employees]);
+
+  const editableEmployees = useMemo(
+    () => employees.filter((e) => canEditEmployee(e.location_ids)),
+    [employees, canEditEmployee],
+  );
+  const canEditRow = (employeeId: string) =>
+    canEditEmployee(empById.get(employeeId)?.location_ids);
 
   const filteredRows = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -274,7 +286,7 @@ export default function FrequencyCaps() {
               className="glass-input w-full"
             >
               <option value="">{t.common.select}</option>
-              {employees.map((emp) => (
+              {editableEmployees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.full_name}
                 </option>
@@ -379,6 +391,7 @@ export default function FrequencyCaps() {
             )}
             {filteredRows.map((row) => {
               const empName = empById.get(row.employee_id)?.full_name ?? row.employee_id;
+              const editable = canEditRow(row.employee_id);
               const dirty = isDirty(row);
               return (
                 <tr key={row.id} className={bg.rowHover}>
@@ -394,7 +407,7 @@ export default function FrequencyCaps() {
                       value={row.max_per_week}
                       onChange={(e) => handleMaxChange(row.id, e.target.value)}
                       className="glass-input w-20"
-                      disabled={row.saving}
+                      disabled={row.saving || !editable}
                     />
                   </td>
                   <td className="px-4 py-3 min-w-[16rem]">
@@ -403,28 +416,33 @@ export default function FrequencyCaps() {
                       onChange={(v) => handleWeightChange(row.id, v)}
                       label=""
                       hardWarning={t.frequencyCaps.hardWarning}
+                      disabled={!editable}
                     />
                     {row.error && (
                       <div className="text-xs text-red-500 mt-1">{row.error}</div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleSave(row.id)}
-                        disabled={!dirty || row.saving}
-                        className={`${action.edit} disabled:opacity-30 disabled:cursor-not-allowed`}
-                      >
-                        {row.saving ? t.common.saving ?? "Saving..." : t.common.save}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(row.id)}
-                        disabled={row.saving}
-                        className={`${action.delete} disabled:opacity-30 disabled:cursor-not-allowed`}
-                      >
-                        {t.common.delete}
-                      </button>
-                    </div>
+                    {!editable ? (
+                      <SharedReadOnlyNote />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSave(row.id)}
+                          disabled={!dirty || row.saving}
+                          className={`${action.edit} disabled:opacity-30 disabled:cursor-not-allowed`}
+                        >
+                          {row.saving ? t.common.saving ?? "Saving..." : t.common.save}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(row.id)}
+                          disabled={row.saving}
+                          className={`${action.delete} disabled:opacity-30 disabled:cursor-not-allowed`}
+                        >
+                          {t.common.delete}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

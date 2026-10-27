@@ -17,7 +17,9 @@ import { listLocations } from "../../api/locations";
 import { listRoles } from "../../api/roles";
 import DemoGuard from "../../components/shared/DemoGuard";
 import EmployeeSearchBox from "../../components/shared/EmployeeSearchBox";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
 import { useAuth } from "../../hooks/useAuth";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type {
   Employee,
@@ -51,6 +53,9 @@ const ONBOARDING_URL = "https://app.wizscheduler.com/manager/employee-onboarding
 export default function EmployeeAvailability() {
   const { t } = useLanguage();
   const { isAdmin } = useAuth();
+  // Availability writes need an employee whose every location this manager
+  // manages (#206); shared employees' windows stay visible, read-only.
+  const { canEditEmployee } = useManagerPermissions();
   // onboardingHint contains a "{link}" placeholder for the onboarding link text
   const [hintBefore, hintAfter] = t.employeeAvailability.onboardingHint.split("{link}");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -338,6 +343,11 @@ export default function EmployeeAvailability() {
       return e.full_name.toLowerCase().includes(q) || (e.email ?? "").toLowerCase().includes(q);
     });
   }, [employees, availFilter]);
+
+  const editableEmployees = useMemo(
+    () => employees.filter((e) => canEditEmployee(e.location_ids)),
+    [employees, canEditEmployee],
+  );
 
   // The zone an employee's availability is entered in, or null (the default:
   // no employee timezone, or every location shares it) to say nothing.
@@ -679,7 +689,7 @@ export default function EmployeeAvailability() {
                   {t.common.employee}
                 </label>
                 <EmployeeSearchBox
-                  employees={employees}
+                  employees={editableEmployees}
                   value={availForm.employee_id}
                   onChange={(id) =>
                     setAvailForm((f) => ({ ...f, employee_id: id }))
@@ -798,6 +808,7 @@ export default function EmployeeAvailability() {
               const windows = availByEmployee.get(emp.id) || [];
               if (windows.length === 0) return null;
               const zoneNote = zoneNoteFor(emp);
+              const editable = canEditEmployee(emp.location_ids);
 
               return (
                 <div
@@ -826,6 +837,7 @@ export default function EmployeeAvailability() {
                           {t.common.timesInZone.replace("{zone}", zoneNote)}
                         </span>
                       )}
+                      {!editable && <SharedReadOnlyNote />}
                     </div>
                     <span className={`text-xs ${text.muted}`}>
                       {windows.length} {windows.length !== 1 ? t.association.windows : t.association.window}
@@ -860,12 +872,14 @@ export default function EmployeeAvailability() {
                                 </span>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleDeleteAvailability(w.id)}
-                              className="text-red-400 hover:text-red-300 text-xs font-medium"
-                            >
-                              {t.common.remove}
-                            </button>
+                            {editable && (
+                              <button
+                                onClick={() => handleDeleteAvailability(w.id)}
+                                className="text-red-400 hover:text-red-300 text-xs font-medium"
+                              >
+                                {t.common.remove}
+                              </button>
+                            )}
                           </div>
                         ))}
                     </div>

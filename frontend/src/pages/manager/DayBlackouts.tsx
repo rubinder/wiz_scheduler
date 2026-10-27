@@ -6,6 +6,8 @@ import {
   listEmployees,
 } from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
 import { action, bg, border, text } from "../../theme";
 import type { Employee, EmployeeDayBlackout } from "../../types";
 
@@ -22,6 +24,9 @@ const DAY_NAMES = [
 
 export default function DayBlackouts() {
   const { t } = useLanguage();
+  // A regular manager may write only for employees whose every location
+  // they manage (#206); shared employees' rows stay visible, read-only.
+  const { canEditEmployee } = useManagerPermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [blackouts, setBlackouts] = useState<EmployeeDayBlackout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +65,13 @@ export default function DayBlackouts() {
     employees.forEach((e) => m.set(e.id, e));
     return m;
   }, [employees]);
+
+  const editableEmployees = useMemo(
+    () => employees.filter((e) => canEditEmployee(e.location_ids)),
+    [employees, canEditEmployee],
+  );
+  const canEditRow = (employeeId: string) =>
+    canEditEmployee(empById.get(employeeId)?.location_ids);
 
   // Sort blackouts: employee name, then day, then start time
   const sortedBlackouts = useMemo(() => {
@@ -144,7 +156,7 @@ export default function DayBlackouts() {
               className="glass-input w-full"
             >
               <option value="">{t.common.select}</option>
-              {employees.map((emp) => (
+              {editableEmployees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.full_name}
                 </option>
@@ -245,12 +257,16 @@ export default function DayBlackouts() {
                     {bo.start_time} – {bo.end_time}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(bo.id)}
-                      className={action.delete}
-                    >
-                      {t.common.delete}
-                    </button>
+                    {canEditRow(bo.employee_id) ? (
+                      <button
+                        onClick={() => handleDelete(bo.id)}
+                        className={action.delete}
+                      >
+                        {t.common.delete}
+                      </button>
+                    ) : (
+                      <SharedReadOnlyNote />
+                    )}
                   </td>
                 </tr>
               );

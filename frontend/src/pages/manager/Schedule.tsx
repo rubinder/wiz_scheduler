@@ -1015,9 +1015,6 @@ export default function Schedule() {
                   buying them could not unblock a free tenant. Shown disabled
                   rather than removed, with the reason, so the path stays
                   visible; the plan banner offers Upgrade. */}
-              {!isAdmin && !scheduleQuota.can_generate && (
-                <span className="text-xs">{t.access.billingAdminOnly}</span>
-              )}
               {isAdmin && scheduleQuota.is_over_included && !scheduleQuota.can_generate && (
                 <div className="flex items-center gap-2">
                   {scheduleQuota.plan === "free" && (
@@ -1057,9 +1054,6 @@ export default function Schedule() {
                   </span>
                 )}
               </div>
-              {!isAdmin && creditStatus.purchase_required && (
-                <span className="text-xs">{t.access.billingAdminOnly}</span>
-              )}
               {isAdmin && creditStatus.purchase_required && (
                 <button
                   onClick={() => { setPurchaseReason("ai"); setPurchaseError(""); setShowBillingModal(true); }}
@@ -1070,6 +1064,16 @@ export default function Schedule() {
               )}
             </div>
           )}
+          {/* A regular manager cannot buy credits (#149): one ask-an-admin
+              note for either blocked row. On a free plan the plan banner
+              carries the (upgrade) note instead, since credits cannot help. */}
+          {!isAdmin &&
+            plan?.plan !== "free" &&
+            scheduleQuota?.plan !== "free" &&
+            ((scheduleQuota && !scheduleQuota.can_generate) ||
+              creditStatus?.purchase_required) && (
+              <p className="text-xs text-red-700">{t.access.billingAdminOnly}</p>
+            )}
         </div>
       )}
 

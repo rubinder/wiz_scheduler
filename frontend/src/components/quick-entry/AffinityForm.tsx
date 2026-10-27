@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as affinitiesApi from "../../api/affinities";
 import type { Employee } from "../../types";
 import { text } from "../../theme";
 import EmployeeSearchBox from "../shared/EmployeeSearchBox";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 
 interface Props {
   employees: Employee[];
@@ -11,6 +12,12 @@ interface Props {
 }
 
 export default function AffinityForm({ employees, type, onSuccess }: Props) {
+  // An affinity write needs both employees editable (#206).
+  const { canEditEmployee } = useManagerPermissions();
+  const pickable = useMemo(
+    () => employees.filter((e) => canEditEmployee(e.location_ids)),
+    [employees, canEditEmployee],
+  );
   const [employeeA, setEmployeeA] = useState("");
   const [employeeB, setEmployeeB] = useState("");
   const [expirationDays, setExpirationDays] = useState(14);
@@ -100,7 +107,7 @@ export default function AffinityForm({ employees, type, onSuccess }: Props) {
           </label>
           <div className="mt-2">
             <EmployeeSearchBox
-              employees={employees}
+              employees={pickable}
               value={employeeA}
               onChange={setEmployeeA}
               excludeIds={employeeB ? [employeeB] : []}
@@ -118,7 +125,7 @@ export default function AffinityForm({ employees, type, onSuccess }: Props) {
           </label>
           <div className="mt-2">
             <EmployeeSearchBox
-              employees={employees}
+              employees={pickable}
               value={employeeB}
               onChange={setEmployeeB}
               excludeIds={employeeA ? [employeeA] : []}

@@ -172,6 +172,12 @@ const en = {
     restrictedTo: "Restricted to: {locations}",
     noLocations: "No locations assigned yet. Ask a company admin to assign one.",
     billingAdminOnly: "Only a company admin can buy credits or change billing. Ask an admin to top up.",
+    sharedReadOnly: "Shared — read only",
+    sharedReadOnlyHint: "Also works at a location you don't manage; ask an admin to change this employee.",
+    otherLocation: "Other location",
+    upgradeAdminOnly: "Only a company admin can upgrade the plan. Ask an admin to upgrade.",
+    overtimeAdminOnly: "Overtime settings need a paid plan. Ask a company admin to upgrade.",
+    youWillManage: "You'll manage: {locations}",
   },
 
   // ─�� Login ──

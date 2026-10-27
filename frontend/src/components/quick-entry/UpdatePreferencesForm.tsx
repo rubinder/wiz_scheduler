@@ -3,6 +3,7 @@ import * as employeesApi from "../../api/employees";
 import type { Employee, Location, Role } from "../../types";
 import { text, action } from "../../theme";
 import EmployeeFormFields from "./EmployeeFormFields";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 
 interface Props {
   employees: Employee[];
@@ -19,6 +20,8 @@ export default function UpdatePreferencesForm({
   locations,
   onSuccess,
 }: Props) {
+  // Only employees this manager may edit can be selected (#206).
+  const { canEditEmployee } = useManagerPermissions();
   const [step, setStep] = useState<Step>("select");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
@@ -29,16 +32,17 @@ export default function UpdatePreferencesForm({
 
   // Filter employees by selected location
   useEffect(() => {
+    const editable = employees.filter((e) => canEditEmployee(e.location_ids));
     if (selectedLocationId) {
-      const filtered = employees.filter((e) =>
+      const filtered = editable.filter((e) =>
         e.location_ids?.includes(selectedLocationId)
       );
       setFilteredEmployees(filtered);
     } else {
-      setFilteredEmployees(employees);
+      setFilteredEmployees(editable);
     }
     setSearchQuery("");
-  }, [selectedLocationId, employees]);
+  }, [selectedLocationId, employees, canEditEmployee]);
 
   // Filter search results
   const searchResults = useMemo(() => {

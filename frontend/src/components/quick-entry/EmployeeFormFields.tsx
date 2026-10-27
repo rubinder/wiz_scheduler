@@ -9,6 +9,8 @@ import type {
   EmployeeHourRangeCap,
 } from "../../types";
 import { text } from "../../theme";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
+import SharedReadOnlyNote from "../shared/SharedReadOnlyNote";
 import * as schedulingPreferencesApi from "../../api/schedulingPreferences";
 import * as affinitiesApi from "../../api/affinities";
 
@@ -64,6 +66,8 @@ export default function EmployeeFormFieldsEnhanced({
     }
   );
   const [error, setError] = useState("");
+  // An affinity write needs both employees editable (#206).
+  const { canEditEmployee } = useManagerPermissions();
 
   // Preference state
   const [affinities, setAffinities] = useState<EmployeeAffinity[]>([]);
@@ -610,19 +614,24 @@ export default function EmployeeFormFieldsEnhanced({
               <div className="space-y-3 mb-6">
                 {affinities.map((aff) => {
                   const targetEmployee = employees.find((e) => e.id === aff.target_employee_id);
+                  const locked = !canEditEmployee(targetEmployee?.location_ids);
                   return (
                     <div key={aff.target_employee_id} className="border border-sage/20 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className={`text-sm font-medium ${text.body}`}>
                           {targetEmployee?.full_name}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => removeAffinity(aff.target_employee_id)}
-                          className="text-xs text-red-600 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
+                        {locked ? (
+                          <SharedReadOnlyNote />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removeAffinity(aff.target_employee_id)}
+                            className="text-xs text-red-600 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
                       <div className="space-y-3">
                         <div>
@@ -643,6 +652,7 @@ export default function EmployeeFormFieldsEnhanced({
                               );
                               setAffinities(newAffs);
                             }}
+                            disabled={locked}
                             className="w-full"
                           />
                           <div className={`text-xs ${text.muted} text-center mt-1`}>
@@ -659,6 +669,7 @@ export default function EmployeeFormFieldsEnhanced({
                             onChange={(e) =>
                               updateAffinityExpiration(aff.target_employee_id, e.target.value || null)
                             }
+                            disabled={locked}
                             className="glass-input w-full"
                           />
                         </div>
@@ -685,6 +696,7 @@ export default function EmployeeFormFieldsEnhanced({
                     <option value="">Select an employee</option>
                     {employees.map((emp) => {
                       if (emp.id === employeeId) return null;
+                      if (!canEditEmployee(emp.location_ids)) return null;
                       if (affinities.some((a) => a.target_employee_id === emp.id)) return null;
                       return (
                         <option key={emp.id} value={emp.id}>

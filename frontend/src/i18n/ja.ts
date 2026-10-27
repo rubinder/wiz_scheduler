@@ -171,6 +171,12 @@ const ja = {
     restrictedTo: "対象拠点: {locations}",
     noLocations: "まだ拠点が割り当てられていません。会社の管理者に割り当てを依頼してください。",
     billingAdminOnly: "クレジットの購入や請求の変更は会社の管理者のみが行えます。管理者にチャージを依頼してください。",
+    sharedReadOnly: "共有 — 閲覧のみ",
+    sharedReadOnlyHint: "あなたが管理していない拠点でも勤務しています。この従業員の変更は管理者に依頼してください。",
+    otherLocation: "その他の拠点",
+    upgradeAdminOnly: "プランのアップグレードは会社の管理者のみが行えます。管理者にアップグレードを依頼してください。",
+    overtimeAdminOnly: "残業設定には有料プランが必要です。会社の管理者にアップグレードを依頼してください。",
+    youWillManage: "管理する拠点: {locations}",
   },
 
   // ── Login ──

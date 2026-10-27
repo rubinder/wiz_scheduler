@@ -5,8 +5,10 @@ import * as locationsApi from "../../api/locations";
 import * as companyApi from "../../api/company";
 import DemoGuard from "../../components/shared/DemoGuard";
 import ImportModal from "../../components/shared/ImportModal";
+import SharedReadOnlyNote from "../../components/shared/SharedReadOnlyNote";
 import { usePlan } from "../../hooks/usePlan";
 import { useAuth } from "../../hooks/useAuth";
+import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 import type {
   Company,
   Employee,
@@ -29,6 +31,9 @@ export default function Employees() {
   const { plan, refresh: refreshPlan } = usePlan();
   // Bulk upload is admin-only (#149).
   const { isAdmin } = useAuth();
+  // A regular manager sees shared employees but may edit only those whose
+  // every location they manage (#206); the API refuses the rest.
+  const { canEditEmployee } = useManagerPermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   // Archived roles/locations are fetched too: employees keep their
   // assignments to them, so badges need the names. Pickers use the active
@@ -118,7 +123,9 @@ export default function Employees() {
 
   const locationName = (locId: string) => {
     const l = allLocations.find((x) => x.id === locId);
-    return l ? withArchivedMark(l.name, l) : locId.slice(0, 8);
+    // GET /locations omits a regular manager's out-of-scope locations, so a
+    // shared employee's other location is named neutrally, never by id.
+    return l ? withArchivedMark(l.name, l) : t.access.otherLocation;
   };
 
   // Read-only chips for assignments the pickers cannot offer. They are still
@@ -736,6 +743,8 @@ export default function Employees() {
                           {t.common.cancel}
                         </button>
                       </>
+                    ) : !canEditEmployee(emp.location_ids) ? (
+                      <SharedReadOnlyNote />
                     ) : archived ? (
                       <DemoGuard>
                         <button

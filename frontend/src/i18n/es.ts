@@ -171,6 +171,12 @@ const es = {
     restrictedTo: "Restringido a: {locations}",
     noLocations: "Aún no tienes ubicaciones asignadas. Pide a un administrador de la empresa que te asigne una.",
     billingAdminOnly: "Solo un administrador de la empresa puede comprar créditos o cambiar la facturación. Pide a un administrador que recargue.",
+    sharedReadOnly: "Compartido — solo lectura",
+    sharedReadOnlyHint: "También trabaja en una ubicación que no gestionas; pide a un administrador que modifique a este empleado.",
+    otherLocation: "Otra ubicación",
+    upgradeAdminOnly: "Solo un administrador de la empresa puede mejorar el plan. Pide a un administrador que lo mejore.",
+    overtimeAdminOnly: "La configuración de horas extra requiere un plan de pago. Pide a un administrador de la empresa que mejore el plan.",
+    youWillManage: "Gestionarás: {locations}",
   },
 
   // ── Login ──

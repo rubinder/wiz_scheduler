@@ -38,6 +38,10 @@ class ManagerInviteInfoResponse(BaseModel):
     group_name: str
     expired: bool
     companies: list[CompanyChoice]
+    # A regular invite is limited to these locations (#206), so the accept
+    # page can say so before the account exists. Empty for an admin invite.
+    manager_type: str = "admin"
+    location_names: list[str] = []
 
 
 class AcceptManagerInviteRequest(BaseModel):

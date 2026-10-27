@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Company, ManagerInvite, OwnershipGroup, User
+from backend.models import Company, Location, ManagerInvite, OwnershipGroup, Region, User
 
 
 @pytest.mark.asyncio
@@ -80,6 +80,51 @@ async def test_info_returns_companies(
     assert body["expired"] is False
     company_names = {c["name"] for c in body["companies"]}
     assert "Sister Co" in company_names
+    # An admin invite is not limited to any location.
+    assert body["manager_type"] == "admin"
+    assert body["location_names"] == []
+
+
+@pytest.mark.asyncio
+async def test_info_names_a_regular_invites_locations(
+    client: AsyncClient, db_session: AsyncSession, seeded_company
+):
+    """The accept page tells a regular invitee which locations they will
+    manage (#206): names only, and never a location outside the invite's
+    ownership group."""
+    og = OwnershipGroup(name="Acme OG")
+    db_session.add(og)
+    await db_session.flush()
+    co = await db_session.get(Company, seeded_company.company_id)
+    co.ownership_group_id = og.id
+    other_co = Company(name="Elsewhere Co", slug="elsewhere-co")
+    db_session.add(other_co)
+    await db_session.flush()
+    region = Region(company_id=other_co.id, name="Elsewhere")
+    db_session.add(region)
+    await db_session.flush()
+    foreign = Location(
+        company_id=other_co.id, region_id=region.id, name="Foreign Store", timezone="UTC",
+    )
+    db_session.add(foreign)
+    await db_session.flush()
+    invite = ManagerInvite(
+        ownership_group_id=og.id,
+        invited_by_user_id=seeded_company.manager_user_id,
+        email="regular@acme.test",
+        token="t_" + "r" * 40,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        manager_type="regular",
+        location_ids=[seeded_company.location_id, foreign.id],
+    )
+    db_session.add(invite)
+    await db_session.commit()
+
+    resp = await client.get(f"/api/v1/manager-invites/info?token={invite.token}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["manager_type"] == "regular"
+    assert body["location_names"] == ["Downtown Store"]
 
 
 @pytest.mark.asyncio

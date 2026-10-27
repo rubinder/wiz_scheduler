@@ -84,7 +84,7 @@ export default function PlanBanner({ plan }: PlanBannerProps) {
           {loading ? t.planBanner.upgrading : t.planBanner.upgradeButton}
         </button>
       ) : (
-        <p className="text-xs">{t.access.billingAdminOnly}</p>
+        <p className="text-xs">{t.access.upgradeAdminOnly}</p>
       )}
     </div>
   );

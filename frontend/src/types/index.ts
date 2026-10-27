@@ -415,6 +415,9 @@ export interface ManagerInviteInfo {
   group_name: string;
   expired: boolean;
   companies: { id: string; name: string }[];
+  /** "regular" invites are limited to `location_names` (#206). */
+  manager_type?: ManagerType;
+  location_names?: string[];
 }
 
 // ── Special Hours ──

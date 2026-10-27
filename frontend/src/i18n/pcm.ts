@@ -171,6 +171,12 @@ const pcm = {
     restrictedTo: "Na only: {locations}",
     noLocations: "Dem never assign any location to you. Abeg ask company admin make e assign one.",
     billingAdminOnly: "Na only company admin fit buy credits or change billing. Abeg ask admin make e top up.",
+    sharedReadOnly: "Shared — you fit only look am",
+    sharedReadOnlyHint: "E still dey work for location wey you no dey manage; abeg ask admin make e change this worker.",
+    otherLocation: "Another location",
+    upgradeAdminOnly: "Na only company admin fit upgrade the plan. Abeg ask admin make e upgrade.",
+    overtimeAdminOnly: "Overtime settings need paid plan. Abeg ask company admin make e upgrade.",
+    youWillManage: "Na you go manage: {locations}",
   },
 
   // ── Login ──

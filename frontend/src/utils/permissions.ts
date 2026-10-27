@@ -44,6 +44,21 @@ export function canAccessLocation(access: ManagerAccess, locationId: string): bo
 }
 
 /**
+ * Employee edit rule (spec Q2, mirrors backend `LocationScope.allows_all`):
+ * an unrestricted manager may edit anyone; a regular manager only an
+ * employee whose every location is in scope, and who has at least one.
+ * Shared employees (some location out of scope) stay visible but read-only.
+ */
+export function canEditEmployee(
+  access: ManagerAccess,
+  employeeLocationIds: string[] | null | undefined,
+): boolean {
+  if (access.isAdmin || access.accessibleLocationIds === null) return true;
+  const ids = employeeLocationIds ?? [];
+  return ids.length > 0 && ids.every((id) => canAccessLocation(access, id));
+}
+
+/**
  * Company-wide pages (spec Q1): company settings, regions, roles, role
  * equivalents, the team, and payroll. Hidden from regular managers'
  * navigation and redirected to the dashboard by the route guard.
