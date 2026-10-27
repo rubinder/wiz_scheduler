@@ -3,6 +3,7 @@ import * as employeesApi from "../../api/employees";
 import type { Employee, Location, Role } from "../../types";
 import { text, action } from "../../theme";
 import EmployeeFormFields from "./EmployeeFormFields";
+import SharedReadOnlyNote from "../shared/SharedReadOnlyNote";
 import { useManagerPermissions } from "../../hooks/useManagerPermissions";
 
 interface Props {
@@ -28,8 +29,9 @@ export default function EmployeeSearchForm({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
 
+  // Shared employees stay in the results (read-only) so a regular manager
+  // sees the person already exists instead of creating a duplicate.
   const filtered = employees.filter((e) =>
-    canEditEmployee(e.location_ids) &&
     e.full_name.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -148,16 +150,23 @@ export default function EmployeeSearchForm({
         <div className="mb-6">
           <div className={`text-sm font-medium ${text.body}`}>Found employees</div>
           <div className="border border-sage/20 rounded-lg p-4 space-y-2 mt-2">
-            {filtered.map((emp) => (
-              <button
-                key={emp.id}
-                onClick={() => handleSelectExisting(emp)}
-                className="w-full text-start px-4 py-3 rounded-lg hover:bg-sage/10 transition-colors"
-              >
-                <div className={`text-sm ${text.body}`}>{emp.full_name}</div>
-                {emp.email && <div className={`text-xs ${text.muted}`}>{emp.email}</div>}
-              </button>
-            ))}
+            {filtered.map((emp) =>
+              canEditEmployee(emp.location_ids) ? (
+                <button
+                  key={emp.id}
+                  onClick={() => handleSelectExisting(emp)}
+                  className="w-full text-start px-4 py-3 rounded-lg hover:bg-sage/10 transition-colors"
+                >
+                  <div className={`text-sm ${text.body}`}>{emp.full_name}</div>
+                  {emp.email && <div className={`text-xs ${text.muted}`}>{emp.email}</div>}
+                </button>
+              ) : (
+                <div key={emp.id} className="px-4 py-3">
+                  <div className={`text-sm ${text.body}`}>{emp.full_name}</div>
+                  <SharedReadOnlyNote />
+                </div>
+              ),
+            )}
           </div>
         </div>
       )}
