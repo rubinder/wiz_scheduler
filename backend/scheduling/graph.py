@@ -19,7 +19,6 @@ from backend.models import (
     Role,
     Shift,
     ShiftSchedule,
-    ShiftTemplate,
 )
 from backend.scheduling.employee_time import instant_to_employee_face
 from backend.utils.tz import is_valid_timezone
@@ -37,6 +36,7 @@ from backend.scheduling.nodes import (
     validate_and_update_availability,
 )
 from backend.scheduling.state import FailureEntry, LocationResult, SchedulingState
+from backend.scheduling.pipeline_locations import recurring_templates_by_location
 from backend.scheduling.template_resolver import (
     LocationMissingTemplate,
     resolve_templates_for_week,
@@ -601,13 +601,12 @@ async def _load_initial_state(
     # schedule" from the recurring templates that match template_ids (or all
     # recurring templates if none provided), then call resolve_templates_for_
     # week per location to fuse in any overrides.
-    recurring_q = select(ShiftTemplate).where(
-        ShiftTemplate.company_id == company_id,
-        ShiftTemplate.specific_date.is_(None),
+    #
+    # The generate route resolves the same set to decide what to lock (#180),
+    # so the resolution lives in one helper both call.
+    location_to_template_ids = await recurring_templates_by_location(
+        db, company_id, template_ids,
     )
-    if template_ids:
-        recurring_q = recurring_q.where(ShiftTemplate.id.in_(template_ids))
-    recurring_rows = (await db.execute(recurring_q)).scalars().all()
 
     # Build the list of dates in the schedule window once; we'll use it per
     # location for resolver lookups and per-day fusion.
@@ -616,14 +615,9 @@ async def _load_initial_state(
         week_start_d + timedelta(days=i) for i in range(num_days)
     ]
 
-    # Group recurring template ids per location. Each location should normally
-    # have at most one selected recurring template, but the resolver picks the
-    # first deterministically if there are several.
-    location_to_template_ids: Dict[str, List[str]] = {}
-    for tmpl in recurring_rows:
-        loc_id = str(tmpl.location_id)
-        location_to_template_ids.setdefault(loc_id, []).append(str(tmpl.id))
-
+    # Each location should normally have at most one selected recurring
+    # template, but the resolver picks the first deterministically if there
+    # are several.
     selected_location_ids: set[str] = set(location_to_template_ids.keys())
 
     pipeline_errors: List[str] = []
@@ -707,7 +701,13 @@ async def _load_initial_state(
     loc_query = select(Location).where(
         Location.company_id == company_id, active(Location),
     )
-    if selected_location_ids:
+    # A template filter always restricts the run: if it matched no recurring
+    # template, or every match failed to resolve for the week, nothing is
+    # scheduled. It used to fall back to every active location, ignoring the
+    # caller's choice - and a regular manager's location scope, since the
+    # route turns their "no filter" into their in-scope template ids. Only an
+    # unfiltered run (an admin's) keeps the every-active-location fallback.
+    if template_ids or selected_location_ids:
         loc_query = loc_query.where(Location.id.in_(selected_location_ids))
     loc_result = await db.execute(loc_query)
     locations_orm = loc_result.scalars().all()
@@ -1009,6 +1009,32 @@ async def run_scheduling_pipeline(
     )
 
     if not initial_state["locations"]:
+        if initial_state["errors"]:
+            # Every location the filter matched failed template resolution,
+            # so nothing is scheduled (a filter never widens to every
+            # location). Say so rather than end with an empty stream, in the
+            # run-level error shape the frontend already renders.
+            logger.warning(
+                "No location scheduled for company=%s week=%s: %s",
+                company_id, week_start_date, "; ".join(initial_state["errors"]),
+            )
+            from backend.services.failure_logger import log_failure_batch
+
+            failures = initial_state["failure_entries"]
+            for entry in failures:
+                entry["company_id"] = company_id
+            await log_failure_batch(failures)
+            yield LocationResult(
+                location_id="",
+                location_name="Pipeline Error",
+                shifts=[],
+                errors=[
+                    "No schedule was generated: none of the selected templates "
+                    "could be resolved for this week.",
+                    *initial_state["errors"],
+                ],
+                status="PIPELINE_ERROR",
+            )
         return
 
     # Free-plan allowance, applied per location (services/location_quota.py).

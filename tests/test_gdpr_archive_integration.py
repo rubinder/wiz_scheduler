@@ -157,7 +157,8 @@ async def test_manager_erasure_nulls_attribution(client, db_session: AsyncSessio
                            range_end=NOW.date(), entry_count=1, paid_minutes_total=480)
     db_session.add_all([
         entry, export,
-        ScheduleLock(id=_id(), company_id=COMPANY_ID, locked_by_user_id=MANAGER_USER_ID,
+        ScheduleLock(id=_id(), company_id=COMPANY_ID, location_id=loc.id,
+                     lock_group=_id(), locked_by_user_id=MANAGER_USER_ID,
                      operation="generate", expires_at=NOW + timedelta(minutes=5)),
         PasswordResetToken(id=_id(), user_id=MANAGER_USER_ID, token=_id() * 4,
                            expires_at=NOW + timedelta(minutes=30)),

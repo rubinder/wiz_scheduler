@@ -11,6 +11,7 @@ import CandidatePicker from "./CandidatePicker";
 import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { getDayLabel } from "./ScheduleGrid";
 import { extractTime, extractOffset } from "../../utils/shiftTime";
+import { scheduleLockedMessage } from "../../utils/scheduleLock";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, border } from "../../theme";
 import type { Employee, Role } from "../../types";
@@ -50,10 +51,12 @@ export default function EditShiftModal({
   const [warnings, setWarnings] = useState<EditWarning[]>([]);
   const [error, setError] = useState("");
   const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const [lockLocation, setLockLocation] = useState<string | null>(null);
 
   const handleError = (err: unknown) => {
     if (err instanceof ScheduleLockedError) {
       setLockedBy(err.lockedBy);
+      setLockLocation(err.locationName);
       return;
     }
     if (err instanceof ApiError) {
@@ -176,7 +179,14 @@ export default function EditShiftModal({
           {lockedBy && (
             <div className="glass-alert-warning">
               <div className="font-medium">{t.approvedSchedules.scheduleLockedTitle}</div>
-              <div>{t.approvedSchedules.scheduleLockedBody.replace("{name}", lockedBy)}</div>
+              <div>
+                {scheduleLockedMessage(
+                  t.approvedSchedules.scheduleLockedBody,
+                  t.approvedSchedules.scheduleLockedBodyLocation,
+                  { name: lockedBy },
+                  lockLocation,
+                )}
+              </div>
             </div>
           )}
 

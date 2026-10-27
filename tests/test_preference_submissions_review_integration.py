@@ -2,19 +2,15 @@
 decision notification."""
 import asyncio
 import sys
-from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.dependencies import get_db
-from backend.main import app
 from backend.models import (
     Company, Employee, EmployeeAffinity, EmployeeDayBlackout, EmployeeDayPreference,
     EmployeeHourRangeCap, EmployeeHourRangePreference, User,
@@ -24,7 +20,7 @@ from backend.models.ownership_group import OwnershipGroup
 from backend.models.preference_submission import EmployeePreferenceSubmission
 from tests.conftest import (
     COMPANY2_ID, COMPANY_ID, EMPLOYEE_USER_ID, LOCATION_ID, MANAGER_USER_ID,
-    OTHER_LOCATION_ID, _id, _make_token, get_test_session_factory,
+    OTHER_LOCATION_ID, _id, _make_token,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -497,20 +493,6 @@ async def test_second_decision_and_superseded_409(client, db_session, setup, man
         r = await client.post(f"{URL}/{sub.id}/{action}", json=body, headers=_h(manager_token))
         assert r.status_code == 409, r.text
         assert r.json()["detail"]["code"] == "submission_already_decided"
-
-
-@pytest_asyncio.fixture
-async def isolated_client() -> AsyncGenerator[AsyncClient, None]:
-    """A client whose every request gets its own session, as in production,
-    so concurrent requests hold separate transactions."""
-    async def _fresh_db() -> AsyncGenerator[AsyncSession, None]:
-        async with get_test_session_factory()() as s:
-            yield s
-
-    app.dependency_overrides[get_db] = _fresh_db
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        yield ac
-    app.dependency_overrides.clear()
 
 
 async def test_concurrent_approves_one_wins(db_session, setup, manager_token, isolated_client):

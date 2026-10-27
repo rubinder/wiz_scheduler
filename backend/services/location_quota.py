@@ -329,3 +329,49 @@ async def any_location_available(
         db, company_id, location_ids, week_start_date
     )
     return any(q["allowed"] for q in quota.values())
+
+
+async def lock_group_and_recheck(
+    db: AsyncSession,
+    company_id: str,
+    location_id: str,
+    week_start_date: str,
+) -> str | None:
+    """Write-time quota re-check for one location's generated schedule (#180).
+
+    The route checks the quota before a run and the pipeline checks it
+    before scheduling, but a concurrent run on a disjoint set of locations
+    (no longer serialised by a company-wide lock) can commit schedules in
+    between. Called inside the transaction that will insert the
+    ShiftSchedule, this takes the ownership group row FOR UPDATE, then
+    re-runs the per-location verdict, so two such writes in one group are
+    serialised and the second sees the first. The lock is held until the
+    caller's commit or rollback. Quotas are per ownership group while
+    schedule locks are per company, so this also covers sibling companies.
+
+    Returns the refusal message, or None when the write may proceed.
+    `deduct_credits_for_schedule_overage` locks the same row later in the
+    same transaction, which Postgres treats as a no-op.
+    """
+    from backend.models.ownership_group import OwnershipGroup
+
+    og_id = await get_ownership_group_id(db, str(company_id))
+    if not og_id:
+        return None
+    await db.execute(
+        select(OwnershipGroup.id).where(OwnershipGroup.id == og_id).with_for_update()
+    )
+
+    if is_demo_group(og_id):
+        # The demo keeps its pooled cap (see free_plan_usage).
+        used = await count_schedules_this_month(db, og_id)
+        if used >= settings.DEMO_PLAN_MAX_SCHEDULES_PER_MONTH:
+            return "The demo's schedule allowance for this month is used up."
+        return None
+
+    verdict = (await resolve_location_quota(
+        db, company_id, [location_id], week_start_date
+    )).get(str(location_id))
+    if verdict is None or verdict["allowed"]:
+        return None
+    return verdict["message"] or "Free plan allowance used."

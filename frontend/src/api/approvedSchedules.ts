@@ -1,6 +1,6 @@
 import type { PreferenceSummary, PreferenceViolation, ShiftAssignment } from "../types";
 import { apiFetch, ApiError } from "./client";
-import { ScheduleLockedError } from "../hooks/useScheduleStream";
+import { scheduleLockedErrorFromDetail } from "../hooks/useScheduleStream";
 
 /** One location's schedule for a week, as stored after generation. */
 export interface WeekSchedule {
@@ -109,12 +109,11 @@ export async function editApprovedShifts(
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
-      const data = err.data as { code?: string; locked_by?: string; expires_at?: string } | undefined;
+      const data = err.data as
+        | { code?: string; locked_by?: string; expires_at?: string; location_name?: string | null }
+        | undefined;
       if (data?.code === "schedule_locked") {
-        throw new ScheduleLockedError(
-          String(data.locked_by ?? "another manager"),
-          new Date(String(data.expires_at ?? Date.now())),
-        );
+        throw scheduleLockedErrorFromDetail(data);
       }
     }
     throw err;
