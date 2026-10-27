@@ -9,6 +9,8 @@ export interface NavItem {
   labelKey: string;
   /** Hidden until the company has at least one employee. */
   requiresEmployees?: boolean;
+  /** Hidden while the company has employee preference submissions off (#189). */
+  requiresPreferenceSubmissions?: boolean;
 }
 
 export interface NavGroup {
@@ -67,6 +69,11 @@ export const managerNav: NavEntry[] = [
       { to: "/manager/day-preferences", labelKey: "dayPreferences" },
       { to: "/manager/hour-range-preferences", labelKey: "hourRangePreferences" },
       { to: "/manager/frequency-caps", labelKey: "frequencyCaps" },
+      {
+        to: "/manager/preference-reviews",
+        labelKey: "preferenceReviews",
+        requiresPreferenceSubmissions: true,
+      },
     ],
   },
   {
@@ -91,6 +98,7 @@ export const managerNav: NavEntry[] = [
 
 export const employeeNav: NavEntry[] = [
   { to: "/employee/availability", labelKey: "myAvailability" },
+  { to: "/employee/preferences", labelKey: "myPreferences", requiresPreferenceSubmissions: true },
   { to: "/employee/check-in", labelKey: "checkIn" },
   { to: "/employee/data-privacy", labelKey: "dataPrivacy" },
 ];
@@ -99,15 +107,17 @@ export const employeeNav: NavEntry[] = [
  * The manager entries this manager should see: company-wide pages
  * (utils/permissions ADMIN_ONLY_PATHS) are dropped for regular managers,
  * items needing employees wait for the first one, and a group left with no
- * children is dropped.
+ * children is dropped. Preference reviews wait for the company switch.
  */
 export function visibleManagerNav(
   access: Pick<ManagerAccess, "isAdmin">,
   hasEmployees: boolean,
+  preferenceSubmissionsEnabled = false,
 ): NavEntry[] {
   const show = (item: NavItem) =>
     (access.isAdmin || !isAdminOnlyPath(item.to)) &&
-    (!item.requiresEmployees || hasEmployees);
+    (!item.requiresEmployees || hasEmployees) &&
+    (!item.requiresPreferenceSubmissions || preferenceSubmissionsEnabled);
   const out: NavEntry[] = [];
   for (const entry of managerNav) {
     if (isGroup(entry)) {
@@ -118,4 +128,11 @@ export function visibleManagerNav(
     }
   }
   return out;
+}
+
+/** The employee entries: "My Preferences" only while the company switch is on. */
+export function visibleEmployeeNav(preferenceSubmissionsEnabled: boolean): NavItem[] {
+  return (employeeNav as NavItem[]).filter(
+    (item) => !item.requiresPreferenceSubmissions || preferenceSubmissionsEnabled,
+  );
 }

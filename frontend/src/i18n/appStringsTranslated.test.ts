@@ -18,7 +18,7 @@ const MODULES = import.meta.glob("./*.ts", { import: "default", eager: true }) a
 
 type Tree = { [k: string]: string | Tree };
 
-const CHECKED_SECTIONS = ["team", "access"] as const;
+const CHECKED_SECTIONS = ["team", "access", "myPreferences", "preferenceReviews"] as const;
 
 function flatten(node: Tree, prefix = ""): Record<string, string> {
   const out: Record<string, string> = {};
@@ -42,7 +42,10 @@ const KEPT_IN_ENGLISH_ALL = new Set<string>([
 ]);
 
 /** Per-locale strings deliberately left identical to English, reviewed by hand. */
-const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {};
+const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {
+  // Nigerian Pidgin writes the weekdays as in English.
+  pcm: new Set(["myPreferences.dayNames"]),
+};
 
 const EN = checkedStrings(en);
 

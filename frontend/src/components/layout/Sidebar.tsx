@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { getCompany } from "../../api/company";
 import { listEmployees } from "../../api/employees";
 import { getOpenShiftCount, OPEN_SHIFTS_CHANGED } from "../../api/openShifts";
+import { PREFERENCE_SUBMISSIONS_CHANGED } from "../../api/preferenceSubmissions";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, nav } from "../../theme";
 import {
-  employeeNav,
   isGroup,
+  visibleEmployeeNav,
   visibleManagerNav,
   type NavGroup,
 } from "./navItems";
@@ -26,6 +28,25 @@ export default function Sidebar() {
       .then((emps) => setHasEmployees(emps.length > 0))
       .catch(() => setHasEmployees(false));
   }, [isManager]);
+
+  // Employee preference submissions (#189) are a per-company switch; both
+  // roles can read it from GET /company. Refetched when an admin flips it.
+  const [prefSubmissions, setPrefSubmissions] = useState(false);
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const load = () =>
+      getCompany()
+        .then((c) => !cancelled && setPrefSubmissions(!!c.employee_preference_submissions_enabled))
+        .catch(() => !cancelled && setPrefSubmissions(false));
+    load();
+    window.addEventListener(PREFERENCE_SUBMISSIONS_CHANGED, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PREFERENCE_SUBMISSIONS_CHANGED, load);
+    };
+  }, [userId]);
 
   const [openShiftCount, setOpenShiftCount] = useState(0);
 
@@ -54,8 +75,11 @@ export default function Sidebar() {
     ) : null;
 
   const entries = useMemo(
-    () => (isManager ? visibleManagerNav({ isAdmin }, hasEmployees) : employeeNav),
-    [isManager, isAdmin, hasEmployees],
+    () =>
+      isManager
+        ? visibleManagerNav({ isAdmin }, hasEmployees, prefSubmissions)
+        : visibleEmployeeNav(prefSubmissions),
+    [isManager, isAdmin, hasEmployees, prefSubmissions],
   );
 
   // Auto-expand whichever group owns the active route, so a deep link never

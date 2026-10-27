@@ -6,6 +6,7 @@ import TopBar from "./components/layout/TopBar";
 import { useAuth } from "./hooks/useAuth";
 import Availability from "./pages/employee/Availability";
 import CheckIn from "./pages/employee/CheckIn";
+import MyPreferences from "./pages/employee/MyPreferences";
 import CheckInQr from "./pages/manager/CheckInQr";
 import CheckInReport from "./pages/manager/CheckInReport";
 import Company from "./pages/manager/Company";
@@ -31,6 +32,7 @@ import ShiftTemplates from "./pages/manager/ShiftTemplates";
 import SpecialHours from "./pages/manager/SpecialHours";
 import Team from "./pages/manager/Team";
 import QuickEntry from "./pages/manager/QuickEntry";
+import PreferenceReviews from "./pages/manager/PreferenceReviews";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
 import CancellationBanner from "./components/shared/CancellationBanner";
@@ -137,6 +139,7 @@ export default function App() {
             <Route path="day-preferences" element={<DayPreferences />} />
             <Route path="hour-range-preferences" element={<HourRangePreferences />} />
             <Route path="frequency-caps" element={<FrequencyCaps />} />
+            <Route path="preference-reviews" element={<PreferenceReviews />} />
             <Route path="employee-onboarding" element={<EmployeeOnboarding />} />
             <Route path="employee-availability" element={<EmployeeAvailability />} />
             <Route path="employee-association" element={<EmployeeAssociation />} />
@@ -154,6 +157,7 @@ export default function App() {
           {/* Employee routes */}
           <Route path="/employee">
             <Route path="availability" element={<Availability />} />
+            <Route path="preferences" element={<MyPreferences />} />
             <Route path="check-in" element={<CheckIn />} />
             <Route path="data-privacy" element={<EmployeeDataPrivacy />} />
           </Route>

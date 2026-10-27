@@ -62,6 +62,8 @@ export interface Company {
   overtime_threshold_hours: number | null;
   overtime_premium_multiplier: number | null;
   signal_config: SignalConfig | null;
+  /** Employees may submit their own preferences for review (#189). */
+  employee_preference_submissions_enabled: boolean;
 }
 
 // ── Ownership Group ──
@@ -574,4 +576,159 @@ export interface PayrollDeriveResult {
 export interface PayrollApproveResult {
   approved: number;
   already_approved: number;
+}
+
+// ── Employee preference submissions (#189) ──
+// Employee-side shapes never carry a weight or an affinity level; the
+// manager adds them on approval (Approved* below).
+
+export type PreferenceImportance = "low" | "medium" | "high";
+export type CoworkerRelationship = "prefer_with" | "prefer_apart" | "never_together";
+
+export interface SubmittedAffinity {
+  target_employee_id: string;
+  relationship: CoworkerRelationship;
+  entry_date?: string | null;
+  expiration_date?: string | null;
+}
+
+export interface SubmittedBlackout {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface SubmittedDayPreference {
+  day_of_week: number;
+  employee_importance: PreferenceImportance;
+}
+
+export interface SubmittedHourRangePreference {
+  start_time: string;
+  end_time: string;
+  employee_importance: PreferenceImportance;
+}
+
+export interface SubmittedCap {
+  start_time: string;
+  end_time: string;
+  max_per_week: number;
+  employee_importance: PreferenceImportance;
+}
+
+export interface PreferenceSubmissionPayload {
+  max_hours_per_week: number | null;
+  affinities: SubmittedAffinity[];
+  blackouts: SubmittedBlackout[];
+  day_preferences: SubmittedDayPreference[];
+  hour_range_preferences: SubmittedHourRangePreference[];
+  caps: SubmittedCap[];
+}
+
+export interface ApprovedAffinity extends SubmittedAffinity {
+  level: number;
+}
+
+export interface ApprovedDayPreference {
+  day_of_week: number;
+  weight: number;
+  employee_importance?: PreferenceImportance | null;
+}
+
+export interface ApprovedHourRangePreference {
+  start_time: string;
+  end_time: string;
+  weight: number;
+  employee_importance?: PreferenceImportance | null;
+}
+
+export interface ApprovedCap {
+  start_time: string;
+  end_time: string;
+  max_per_week: number;
+  weight: number;
+  employee_importance?: PreferenceImportance | null;
+}
+
+export interface ApprovedPayload {
+  max_hours_per_week: number | null;
+  affinities: ApprovedAffinity[];
+  blackouts: SubmittedBlackout[];
+  day_preferences: ApprovedDayPreference[];
+  hour_range_preferences: ApprovedHourRangePreference[];
+  caps: ApprovedCap[];
+}
+
+export interface MyAffinity {
+  target_employee_id: string;
+  target_name: string;
+  relationship: CoworkerRelationship;
+  entry_date: string | null;
+  expiration_date: string | null;
+}
+
+export interface MyPreferencesView {
+  max_hours_per_week: number | null;
+  affinities: MyAffinity[];
+  blackouts: SubmittedBlackout[];
+  day_preferences: { day_of_week: number }[];
+  hour_range_preferences: { start_time: string; end_time: string }[];
+  caps: { start_time: string; end_time: string; max_per_week: number }[];
+}
+
+export interface ApprovedSummary {
+  max_hours_per_week: number | null;
+  coworkers: { target_name: string }[];
+  blackouts: SubmittedBlackout[];
+  day_preferences: { day_of_week: number }[];
+  hour_range_preferences: { start_time: string; end_time: string }[];
+  caps: { start_time: string; end_time: string; max_per_week: number }[];
+}
+
+export interface MySubmissionState {
+  enabled: boolean;
+  current: MyPreferencesView;
+  pending: { id: string; submitted_at: string; payload: PreferenceSubmissionPayload } | null;
+  last_decision: {
+    status: "approved" | "denied";
+    reviewed_at: string | null;
+    denial_reason: string | null;
+    approved: ApprovedSummary | null;
+  } | null;
+}
+
+export interface Coworker {
+  id: string;
+  full_name: string;
+}
+
+export interface PreferenceReviewListItem {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  location_ids: string[];
+  submitted_at: string;
+}
+
+/** The employee's live values as a manager sees them: with weights and levels. */
+export interface ReviewCurrentView {
+  max_hours_per_week: number | null;
+  affinities: (MyAffinity & { level: number })[];
+  blackouts: SubmittedBlackout[];
+  day_preferences: { day_of_week: number; weight: number }[];
+  hour_range_preferences: { start_time: string; end_time: string; weight: number }[];
+  caps: { start_time: string; end_time: string; max_per_week: number; weight: number }[];
+}
+
+export interface PreferenceSubmissionDetail {
+  id: string;
+  status: "pending" | "approved" | "denied" | "superseded";
+  employee: { id: string; full_name: string; location_ids: string[] };
+  submitted_payload: PreferenceSubmissionPayload;
+  current: ReviewCurrentView;
+  submitted_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  denial_reason: string | null;
+  approved_payload: ApprovedPayload | null;
 }

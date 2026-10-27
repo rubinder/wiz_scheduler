@@ -6,7 +6,14 @@
  */
 import { describe, expect, it } from "vitest";
 import { ADMIN_ONLY_PATHS } from "../../utils/permissions";
-import { isGroup, managerNav, visibleManagerNav, type NavEntry } from "./navItems";
+import {
+  employeeNav,
+  isGroup,
+  managerNav,
+  visibleEmployeeNav,
+  visibleManagerNav,
+  type NavEntry,
+} from "./navItems";
 
 const paths = (entries: NavEntry[]) =>
   entries.flatMap((e) => (isGroup(e) ? e.children.map((c) => c.to) : [e.to]));
@@ -19,7 +26,7 @@ const APP_SOURCE = import.meta.glob("../../App.tsx", {
 
 describe("manager navigation", () => {
   it("shows an admin every page", () => {
-    expect(paths(visibleManagerNav({ isAdmin: true }, true))).toEqual(paths(managerNav));
+    expect(paths(visibleManagerNav({ isAdmin: true }, true, true))).toEqual(paths(managerNav));
   });
 
   it("hides every admin-only page from a regular manager", () => {
@@ -49,6 +56,18 @@ describe("manager navigation", () => {
     for (const p of ADMIN_ONLY_PATHS) expect(all).toContain(p);
   });
 
+  it("shows preference reviews only while the company switch is on (#189)", () => {
+    for (const isAdmin of [true, false]) {
+      expect(paths(visibleManagerNav({ isAdmin }, true, false))).not.toContain(
+        "/manager/preference-reviews",
+      );
+      expect(paths(visibleManagerNav({ isAdmin }, true, true))).toContain(
+        "/manager/preference-reviews",
+      );
+    }
+    expect(ADMIN_ONLY_PATHS).not.toContain("/manager/preference-reviews");
+  });
+
   it("guards admin-only routes in App.tsx with the same list", () => {
     const source = Object.values(APP_SOURCE)[0];
     expect(source).toMatch(/!isAdmin && isAdminOnlyPath\(pathname\)/);
@@ -56,5 +75,20 @@ describe("manager navigation", () => {
     for (const p of ADMIN_ONLY_PATHS) {
       expect(source).toContain(`path="${p.replace("/manager/", "")}"`);
     }
+  });
+});
+
+describe("employee navigation", () => {
+  it("shows My Preferences only while the company switch is on (#189)", () => {
+    expect(paths(visibleEmployeeNav(false))).not.toContain("/employee/preferences");
+    expect(paths(visibleEmployeeNav(true))).toEqual(paths(employeeNav));
+    expect(paths(visibleEmployeeNav(true))).toContain("/employee/preferences");
+    expect(paths(visibleEmployeeNav(false))).toContain("/employee/availability");
+  });
+
+  it("routes both preference pages in App.tsx", () => {
+    const source = Object.values(APP_SOURCE)[0];
+    expect(source).toContain('path="preferences"');
+    expect(source).toContain('path="preference-reviews"');
   });
 });
