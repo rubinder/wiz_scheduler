@@ -270,6 +270,8 @@ async def held_lock(db_session: AsyncSession, seed_manager) -> None:
     await db_session.flush()
     db_session.add(ScheduleLock(
         company_id=COMPANY_ID,
+        location_id=LOCATION_ID,
+        lock_group="heldgrp1",
         locked_by_user_id=other_manager_id,
         operation="edit_approved",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),

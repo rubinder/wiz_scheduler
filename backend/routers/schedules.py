@@ -31,7 +31,9 @@ from backend.services.preference_loader import load_employee_preferences
 from backend.services.archive import DISCARDED, active, lock_employees
 from backend.services.location_scope import LocationScope, require_employees_visible
 from backend.services.ownership import assert_owned
-from backend.services.schedule_lock import LockHeld, acquire as acquire_lock, release as release_lock
+from backend.services.schedule_lock import (
+    LockHandle, LockHeld, acquire as acquire_lock, expand_lock_set, release as release_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +127,31 @@ async def get_schedule_quota(
     from backend.services.billing import check_schedule_quota
 
     return await check_schedule_quota(db, str(current_user.company_id))
+
+
+async def _acquire_whole_company_lock(
+    db: AsyncSession,
+    *,
+    company_id: str,
+    user_id: str,
+    operation: str,
+    ttl_seconds: int | None = None,
+) -> LockHandle | None:
+    """INTERIM (#180 Task 1): lock every location of the company, keeping
+    today's whole-company behaviour on the new per-location lock rows.
+    Task 2 replaces this with per-operation seeds. A company with no
+    locations has nothing to lock (generate streams nothing for it)."""
+    location_ids = await expand_lock_set(db, company_id, None)
+    if not location_ids:
+        return None
+    return await acquire_lock(
+        db,
+        company_id=company_id,
+        user_id=user_id,
+        operation=operation,
+        location_ids=location_ids,
+        ttl_seconds=ttl_seconds,
+    )
 
 
 @router.post("/generate")
@@ -252,7 +279,7 @@ async def generate_schedule(
         else _settings.SCHEDULE_LOCK_TTL_AI_GENERATE_SECONDS
     )
     try:
-        lock = await acquire_lock(
+        lock = await _acquire_whole_company_lock(
             db,
             company_id=str(current_user.company_id),
             user_id=str(current_user.id),
@@ -384,7 +411,8 @@ async def generate_schedule(
                 yield json.dumps(error_result) + "\n"
         finally:
             try:
-                await release_lock(db, lock.id)
+                if lock is not None:
+                    await release_lock(db, lock.group)
                 await db.commit()
             except Exception:
                 logger.exception(
@@ -526,7 +554,7 @@ async def edit_approved_shifts(
             )
 
     try:
-        lock = await acquire_lock(
+        lock = await _acquire_whole_company_lock(
             db,
             company_id=str(current_user.company_id),
             user_id=str(current_user.id),
@@ -813,7 +841,8 @@ async def edit_approved_shifts(
         await db.rollback()
         raise
     finally:
-        await release_lock(db, lock.id)
+        if lock is not None:
+            await release_lock(db, lock.group)
         await db.commit()
 
     return result
@@ -868,7 +897,7 @@ async def approve_schedule(
     _refuse_discarded(schedule)
 
     try:
-        lock = await acquire_lock(
+        lock = await _acquire_whole_company_lock(
             db,
             company_id=str(current_user.company_id),
             user_id=str(current_user.id),
@@ -1121,7 +1150,8 @@ async def approve_schedule(
         await db.rollback()
         raise
     finally:
-        await release_lock(db, lock.id)
+        if lock is not None:
+            await release_lock(db, lock.group)
         await db.commit()
 
     return resp

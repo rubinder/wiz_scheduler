@@ -427,6 +427,8 @@ async def test_generate_returns_409_when_locked(
 
     db_session.add(ScheduleLock(
         company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        lock_group="heldgrp1",
         locked_by_user_id=seeded_company.manager_user_id,
         operation="generate",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
@@ -531,6 +533,8 @@ async def test_approve_returns_409_when_locked(
     db_session.add(sched)
     db_session.add(ScheduleLock(
         company_id=seeded_company.company_id,
+        location_id=seeded_company.location_id,
+        lock_group="heldgrp1",
         locked_by_user_id=seeded_company.manager_user_id,
         operation="generate",
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),

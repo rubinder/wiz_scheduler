@@ -47,29 +47,38 @@ async def test_manager_invite_round_trip(db_session: AsyncSession, seeded_compan
 
 
 @pytest.mark.asyncio
-async def test_schedule_lock_unique_per_company(
+async def test_schedule_lock_unique_per_company_location(
     db_session: AsyncSession, seeded_company
 ):
-    """Cannot have two active locks for the same company."""
+    """One live lock row per (company, location) (#180); a second location
+    of the same company locks independently."""
+    from backend.models import Location
+    from tests.conftest import REGION_ID
+
     user_id = seeded_company.manager_user_id
     company_id = seeded_company.company_id
+    location_id = seeded_company.location_id
     now = datetime.now(timezone.utc)
 
-    lock1 = ScheduleLock(
-        company_id=company_id,
-        locked_by_user_id=user_id,
-        operation="generate",
-        expires_at=now + timedelta(minutes=5),
-    )
-    db_session.add(lock1)
+    other = Location(company_id=company_id, region_id=REGION_ID,
+                     name="Second", timezone="America/New_York")
+    db_session.add(other)
+    await db_session.flush()
+
+    db_session.add_all([
+        ScheduleLock(company_id=company_id, location_id=location_id,
+                     lock_group="grp00001", locked_by_user_id=user_id,
+                     operation="generate", expires_at=now + timedelta(minutes=5)),
+        ScheduleLock(company_id=company_id, location_id=other.id,
+                     lock_group="grp00002", locked_by_user_id=user_id,
+                     operation="generate", expires_at=now + timedelta(minutes=5)),
+    ])
     await db_session.commit()
 
-    lock2 = ScheduleLock(
-        company_id=company_id,
-        locked_by_user_id=user_id,
-        operation="approve",
-        expires_at=now + timedelta(minutes=5),
-    )
-    db_session.add(lock2)
+    db_session.add(ScheduleLock(
+        company_id=company_id, location_id=location_id,
+        lock_group="grp00003", locked_by_user_id=user_id,
+        operation="approve", expires_at=now + timedelta(minutes=5),
+    ))
     with pytest.raises(sa.exc.IntegrityError):
         await db_session.commit()
