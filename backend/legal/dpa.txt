@@ -1,7 +1,7 @@
 DATA PROCESSING AGREEMENT FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 27, 2026
+Last Updated: October 28, 2026
 
 1. SCOPE AND PURPOSE
 This Data Processing Agreement ("DPA") forms part of the Terms of Service between Suggestival LLC, operating as WizScheduler ("Processor") and the customer organization ("Controller"). It governs the processing of personal data by the Processor on behalf of the Controller in connection with the WizScheduler scheduling service, in accordance with the General Data Protection Regulation (GDPR), CCPA, and other applicable data protection laws.

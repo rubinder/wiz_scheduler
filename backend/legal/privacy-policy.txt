@@ -1,7 +1,7 @@
 PRIVACY POLICY FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 27, 2026
+Last Updated: October 28, 2026
 
 1. INTRODUCTION
 WizScheduler ("we", "our", "us") is a multi-tenant AI-powered employee scheduling platform operated by Suggestival LLC. This Privacy Policy explains how we collect, use, disclose, and safeguard your personal data when you use our service. We are committed to protecting your privacy in compliance with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), the New York SHIELD Act, and other applicable data protection laws.

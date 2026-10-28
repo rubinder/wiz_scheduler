@@ -322,7 +322,7 @@ def _legal_text(name: str) -> str:
 async def privacy_policy() -> dict:
     return {
         "version": "2.1",
-        "effective_date": "2026-10-27",
+        "effective_date": "2026-10-28",
         "content": _legal_text("privacy-policy.txt"),
     }
 
@@ -340,7 +340,7 @@ async def terms_of_service() -> dict:
 async def data_processing_agreement() -> dict:
     return {
         "version": "2.1",
-        "effective_date": "2026-10-27",
+        "effective_date": "2026-10-28",
         "processors": json.loads(_legal_text("dpa-processors.json")),
         "content": _legal_text("dpa.txt"),
     }
