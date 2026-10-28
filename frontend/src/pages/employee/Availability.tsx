@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
-import { availabilityZoneNote } from "../../utils/timezones";
+import { locationZoneNote } from "../../utils/timezones";
 import { text, bg, border, badge } from "../../theme";
 import type { EmployeeAvailability, EmployeeMeProfile } from "../../types";
 
@@ -113,13 +113,13 @@ export default function Availability() {
     <div>
       <h1 className={`text-2xl font-bold ${text.heading} mb-4`}>{t.availability.title}</h1>
       {(() => {
-        const zone = availabilityZoneNote(
-          profile.timezone,
+        // Availability is always the location's local time (#171).
+        const zone = locationZoneNote(
           profile.locations.map((l) => l.timezone).filter((z): z is string => !!z),
         );
         return zone ? (
           <p className={`mb-4 text-sm ${text.muted}`}>
-            {t.common.timesInZone.replace("{zone}", zone)}
+            {t.common.availabilityLocalTime.replace("{zone}", zone)}
           </p>
         ) : null;
       })()}

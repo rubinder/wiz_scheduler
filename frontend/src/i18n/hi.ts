@@ -6,7 +6,7 @@ const hi = {
     archived: "संग्रहित",
     showArchived: "संग्रहित दिखाएँ",
     appName: "Wiz Scheduler",
-    timesInZone: "समय {zone} में है",
+    availabilityLocalTime: "समय स्थान के स्थानीय समय में है ({zone})।",
     loading: "लोड हो रहा है...",
     save: "सहेजें",
     saving: "सहेज रहे हैं...",
@@ -477,8 +477,6 @@ const hi = {
     csvLimitError: "इस फ़ाइल में {rows} कर्मचारी हैं, लेकिन आपके फ्री प्लान में केवल {remaining} के लिए जगह है। पूरी फ़ाइल अस्वीकार कर दी जाएगी — अपग्रेड करें, या कोई छोटी फ़ाइल अपलोड करें।",
     payRate: "वेतन दर ($/घंटा)",
     payRateGatedHint: "लागत-जागरूक शेड्यूलिंग के लिए वेतन दर सेट करने हेतु पेड प्लान में अपग्रेड करें।",
-    availabilityTimezone: "उपलब्धता का टाइमज़ोन",
-    availabilityTimezoneNone: "कोई नहीं (स्थान का स्थानीय समय)",
     hireDate: "नियुक्ति तिथि",
     seniorityRank: "वरिष्ठता रैंक",
     seniorityRankHint: "मैन्युअल ओवरराइड — नियुक्ति तिथि के अनुसार रैंक करने के लिए खाली छोड़ें।",
@@ -580,6 +578,7 @@ const hi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "सारी उपलब्धता, 7shifts या Deputy से आयात की गई उपलब्धता सहित, हर स्थान के स्थानीय समय में है।",
     onboardingHint: "किसी दूसरे सिस्टम से उपलब्धता आयात नहीं कर रहे? {link} पेज पर आयात किए गए कर्मचारियों को आमंत्रण लिंक भेजें, ताकि वे लॉगिन बनाकर अपनी उपलब्धता खुद प्रबंधित कर सकें।",
     onboardingLink: "कर्मचारी ऑनबोर्डिंग",
     quickSetLabel: "त्वरित सेट (9–5):",

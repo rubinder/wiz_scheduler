@@ -6,7 +6,7 @@ const zh = {
     archived: "已归档",
     showArchived: "显示已归档",
     appName: "Wiz Scheduler",
-    timesInZone: "时间为 {zone} 时区",
+    availabilityLocalTime: "时间为地点当地时间（{zone}）。",
     loading: "加载中...",
     save: "保存",
     saving: "保存中...",
@@ -477,8 +477,6 @@ const zh = {
     csvLimitError: "此文件包含 {rows} 名员工，但您的免费版仅剩 {remaining} 个名额。整个文件将被拒绝——请升级，或上传更小的文件。",
     payRate: "薪资 ($/小时)",
     payRateGatedHint: "升级到付费计划以设置薪资，用于成本感知排班。",
-    availabilityTimezone: "可用时间的时区",
-    availabilityTimezoneNone: "无（地点当地时间）",
     hireDate: "入职日期",
     seniorityRank: "资历排名",
     seniorityRankHint: "手动覆盖 — 留空则按入职日期排名。",
@@ -580,6 +578,7 @@ const zh = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "所有可用时间（包括从 7shifts 或 Deputy 导入的）均为各地点的当地时间。",
     onboardingHint: "没有从其他系统导入可用时间？请在{link}页面向已导入的员工发送邀请链接，让他们创建登录账号并自行管理可用时间。",
     onboardingLink: "员工入职",
     quickSetLabel: "快速设置 (9–5):",

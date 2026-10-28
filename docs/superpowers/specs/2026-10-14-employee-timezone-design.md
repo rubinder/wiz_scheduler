@@ -1,5 +1,11 @@
 # Employee timezone for availability
 
+> **Superseded by #171 (2026-10-28).** The product decision is that availability
+> is always the location's local time: whoever enters it (the employee, a
+> manager, an import) is assumed to know the location's zone. The per-employee
+> conversion was removed and `employees.timezone` was dropped (migration 0055).
+> This document is kept as history only.
+
 **Date:** 2026-10-14
 **Branch / PR:** `feat/employee-timezone` / #170 (draft)
 **Status:** Design approved in conversation; spec awaiting review

@@ -6,7 +6,7 @@ const ar = {
     archived: "مؤرشف",
     showArchived: "عرض المؤرشف",
     appName: "Wiz Scheduler",
-    timesInZone: "الأوقات بتوقيت {zone}",
+    availabilityLocalTime: "الأوقات بالتوقيت المحلي للموقع ({zone}).",
     loading: "جارٍ التحميل...",
     save: "حفظ",
     saving: "جارٍ الحفظ...",
@@ -477,8 +477,6 @@ const ar = {
     csvLimitError: "يحتوي هذا الملف على {rows} موظفين، لكن خطتك المجانية تتسع لـ {remaining} فقط. سيتم رفض الملف بالكامل — قم بالترقية أو حمّل ملفًا أصغر.",
     payRate: "الأجر ($/ساعة)",
     payRateGatedHint: "قم بالترقية إلى خطة مدفوعة لتعيين الأجر من أجل جدولة واعية بالتكلفة.",
-    availabilityTimezone: "المنطقة الزمنية للتوفر",
-    availabilityTimezoneNone: "لا شيء (التوقيت المحلي للموقع)",
     hireDate: "تاريخ التعيين",
     seniorityRank: "ترتيب الأقدمية",
     seniorityRankHint: "تجاوز يدوي — اتركه فارغًا للترتيب حسب تاريخ التعيين.",
@@ -580,6 +578,7 @@ const ar = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "جميع أوقات التوفر، بما فيها المستوردة من 7shifts أو Deputy، بالتوقيت المحلي لكل موقع.",
     onboardingHint: "لا تستورد التوافر من نظام آخر؟ أرسل روابط الدعوة إلى موظفيك المستوردين من صفحة {link} ليتمكنوا من إنشاء تسجيل دخول وإدارة توافرهم بأنفسهم.",
     onboardingLink: "تأهيل الموظفين",
     quickSetLabel: "إتاحة سريعة (9–5):",

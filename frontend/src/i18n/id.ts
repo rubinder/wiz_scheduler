@@ -6,7 +6,7 @@ const ind = {
     archived: "Diarsipkan",
     showArchived: "Tampilkan yang diarsipkan",
     appName: "Wiz Scheduler",
-    timesInZone: "Waktu dalam {zone}",
+    availabilityLocalTime: "Waktu dalam waktu lokal lokasi ({zone}).",
     loading: "Memuat...",
     save: "Simpan",
     saving: "Menyimpan...",
@@ -477,8 +477,6 @@ const ind = {
     csvLimitError: "File ini berisi {rows} karyawan, tetapi paket gratis Anda hanya memiliki ruang untuk {remaining}. Seluruh file akan ditolak — upgrade, atau unggah file yang lebih kecil.",
     payRate: "Tarif Gaji ($/jam)",
     payRateGatedHint: "Upgrade ke paket berbayar untuk mengatur tarif gaji demi penjadwalan yang memperhitungkan biaya.",
-    availabilityTimezone: "Zona waktu ketersediaan",
-    availabilityTimezoneNone: "Tidak ada (waktu lokal lokasi)",
     hireDate: "Tanggal Perekrutan",
     seniorityRank: "Peringkat Senioritas",
     seniorityRankHint: "Penggantian manual — biarkan kosong untuk mengurutkan berdasarkan tanggal perekrutan.",
@@ -580,6 +578,7 @@ const ind = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "Semua ketersediaan, termasuk yang diimpor dari 7shifts atau Deputy, menggunakan waktu lokal masing-masing lokasi.",
     onboardingHint: "Tidak mengimpor ketersediaan dari sistem lain? Kirim tautan undangan kepada karyawan yang diimpor di halaman {link} agar mereka bisa membuat login dan mengelola ketersediaan mereka sendiri.",
     onboardingLink: "Orientasi Karyawan",
     quickSetLabel: "Atur cepat (9–17):",

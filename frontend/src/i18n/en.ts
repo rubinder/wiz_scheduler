@@ -6,7 +6,7 @@ const en = {
     archived: "Archived",
     showArchived: "Show archived",
     appName: "Wiz Scheduler",
-    timesInZone: "Times are in {zone}",
+    availabilityLocalTime: "Times are in the location's local time ({zone}).",
     loading: "Loading...",
     save: "Save",
     saving: "Saving...",
@@ -478,8 +478,6 @@ const en = {
     csvLimitError: "This file has {rows} employees but your free plan has room for {remaining}. The whole file would be rejected — upgrade, or upload a smaller file.",
     payRate: "Pay Rate ($/hr)",
     payRateGatedHint: "Upgrade to a paid plan to set pay rate for cost-aware scheduling.",
-    availabilityTimezone: "Availability timezone",
-    availabilityTimezoneNone: "None (location's local time)",
     hireDate: "Hire Date",
     seniorityRank: "Seniority Rank (1 = most senior)",
     seniorityRankHint: "Positive integer (1 = most senior). Leave blank to auto-rank by hire date.",
@@ -582,6 +580,7 @@ const en = {
 
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "All availability, including availability imported from 7shifts or Deputy, is in each location's local time.",
     onboardingHint: "Not importing availability from another system? Send invite links to your imported employees on the {link} page so they can create a login and manage their own availability.",
     onboardingLink: "Employee Onboarding",
     quickSetLabel: "Quick set (9–5):",

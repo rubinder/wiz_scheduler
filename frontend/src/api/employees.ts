@@ -32,7 +32,6 @@ export function createEmployee(body: {
   pay_rate?: number | null;
   hire_date?: string | null;
   seniority_rank?: number | null;
-  timezone?: string | null;
 }): Promise<Employee> {
   return apiFetch<Employee>("/employees/", {
     method: "POST",
@@ -53,7 +52,6 @@ export function updateEmployee(
     pay_rate?: number | null;
     hire_date?: string | null;
     seniority_rank?: number | null;
-    timezone?: string | null;
   }
 ): Promise<Employee> {
   return apiFetch<Employee>(`/employees/${id}`, {

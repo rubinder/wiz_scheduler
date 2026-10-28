@@ -188,7 +188,6 @@ async def get_my_employee_profile(
         id=employee.id,
         full_name=employee.full_name,
         email=employee.email,
-        timezone=employee.timezone,
         roles=roles,
         locations=locations,
     )
@@ -236,7 +235,6 @@ async def create_employee(
         pay_rate=body.pay_rate,
         hire_date=body.hire_date,
         seniority_rank=body.seniority_rank,
-        timezone=body.timezone,
     )
     db.add(employee)
     await db.flush()
@@ -326,8 +324,6 @@ async def update_employee(
         employee.seniority_rank = body.seniority_rank
     # Clearable: {"timezone": null} returns the employee to location-local
     # availability. Absent = unchanged.
-    if "timezone" in body.model_fields_set:
-        employee.timezone = body.timezone
 
     if body.roles is not None:
         await _sync_employee_roles(db, employee.id, current_user.company_id, body.roles)

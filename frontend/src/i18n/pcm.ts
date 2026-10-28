@@ -6,7 +6,7 @@ const pcm = {
     archived: "Don archive",
     showArchived: "Show di ones wey dem archive",
     appName: "Wiz Scheduler",
-    timesInZone: "Time dey for {zone}",
+    availabilityLocalTime: "Time dey for the location local time ({zone}).",
     loading: "E dey load...",
     save: "Save",
     saving: "E dey save...",
@@ -477,8 +477,6 @@ const pcm = {
     csvLimitError: "This file get {rows} workers but your free plan get space for only {remaining}. Dem go reject the whole file — upgrade, or bring in one smaller file.",
     payRate: "Pay Rate ($/hr)",
     payRateGatedHint: "Upgrade go paid plan to set pay rate for cost-aware scheduling.",
-    availabilityTimezone: "Availability timezone",
-    availabilityTimezoneNone: "None (location local time)",
     hireDate: "Hire Date",
     seniorityRank: "Seniority Rank",
     seniorityRankHint: "Manual override — leave am blank make e rank by hire date.",
@@ -580,6 +578,7 @@ const pcm = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "All availability, plus the one wey dem import from 7shifts or Deputy, dey for each location local time.",
     onboardingHint: "No dey import availability from another system? Send invite links to di employees wey you import for di {link} page so dem fit create login and manage dem own availability.",
     onboardingLink: "Employee Onboarding",
     quickSetLabel: "Quick set (9–5):",

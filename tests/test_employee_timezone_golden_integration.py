@@ -1,7 +1,8 @@
-"""Golden test: the employee-timezone feature leaves NULL-timezone schedules unchanged.
+"""Golden test: local-scheduler output is pinned against a snapshot.
 
-Every employee starts with `timezone = NULL`, and the spec (§5, §6) promises
-that schedules generated before and after the feature are identical. This
+Written for the employee-timezone feature (#170), which promised that
+schedules for employees without a timezone were unchanged; #171 dropped
+employee timezones, so it now pins the scheduler as a whole. This
 pins that: it builds the demo seed (backend/seed.py -- its roster, roles,
 location split, both shift templates, and its 09:00-17:00 availability) for
 one fixed week, runs the LOCAL scheduler pipeline with a fixed RNG seed for

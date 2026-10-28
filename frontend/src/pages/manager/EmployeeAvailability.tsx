@@ -26,7 +26,7 @@ import type {
   EmployeeAvailability,
 } from "../../types";
 import { action, text, bg, border, spinner as spinnerClass } from "../../theme";
-import { availabilityZoneNote, employeeLocationZones } from "../../utils/timezones";
+import { employeeLocationZones, locationZoneNote } from "../../utils/timezones";
 import {
   formatDate,
   formatTime,
@@ -151,7 +151,7 @@ export default function EmployeeAvailability() {
       const [employeeData, rolesData, locationData] = await Promise.all([
         listEmployees(),
         listRoles(),
-        // Only feeds the optional timezone note: a failure here must not
+        // Only feeds the location-time note: a failure here must not
         // cost the page its employee list.
         listLocations().catch(() => []),
       ]);
@@ -349,12 +349,10 @@ export default function EmployeeAvailability() {
     [employees, canEditEmployee],
   );
 
-  // The zone an employee's availability is entered in, or null (the default:
-  // no employee timezone, or every location shares it) to say nothing.
+  // The zone(s) an employee's availability is in: always their locations'
+  // local time (#171), or null when no location zone is known.
   const zoneNoteFor = (emp: Employee | undefined): string | null =>
-    emp
-      ? availabilityZoneNote(emp.timezone, employeeLocationZones(emp.location_ids, zoneByLocationId))
-      : null;
+    emp ? locationZoneNote(employeeLocationZones(emp.location_ids, zoneByLocationId)) : null;
   const formZoneNote = zoneNoteFor(employees.find((e) => e.id === availForm.employee_id));
 
   // ── Render ──
@@ -396,6 +394,7 @@ export default function EmployeeAvailability() {
           </a>
           {hintAfter}
         </p>
+        <p className={`mt-1 text-sm ${text.muted}`}>{t.employeeAvailability.localTimeNote}</p>
       </div>
 
       {error && (
@@ -761,7 +760,7 @@ export default function EmployeeAvailability() {
             </div>
             {formZoneNote && (
               <p className={`mt-3 text-sm ${text.muted}`}>
-                {t.common.timesInZone.replace("{zone}", formZoneNote)}
+                {t.common.availabilityLocalTime.replace("{zone}", formZoneNote)}
               </p>
             )}
             <DemoGuard>
@@ -834,7 +833,7 @@ export default function EmployeeAvailability() {
                       )}
                       {zoneNote && (
                         <span className={`text-xs ${text.muted}`}>
-                          {t.common.timesInZone.replace("{zone}", zoneNote)}
+                          {t.common.availabilityLocalTime.replace("{zone}", zoneNote)}
                         </span>
                       )}
                       {!editable && <SharedReadOnlyNote />}

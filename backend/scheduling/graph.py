@@ -20,8 +20,6 @@ from backend.models import (
     Shift,
     ShiftSchedule,
 )
-from backend.scheduling.employee_time import instant_to_employee_face
-from backend.utils.tz import is_valid_timezone
 from backend.scheduling.local_scheduler import Strategy, local_schedule
 from backend.scheduling.cost_seniority import resolve_overtime_threshold
 from backend.scheduling.nodes import (
@@ -335,27 +333,11 @@ def _shift_local_face(
     return start, end
 
 
-def _shift_employee_face(shift: Shift, emp_tz: str) -> Tuple[datetime, datetime] | None:
-    """A committed Shift on the employee's own clock (employee has a timezone).
-
-    Falls back to None on a bad zone or value; the caller then uses the
-    location face, as for an employee without a timezone.
-    """
-    try:
-        return (
-            instant_to_employee_face(shift.start_time, emp_tz),
-            instant_to_employee_face(shift.end_time, emp_tz),
-        )
-    except (AttributeError, ValueError, TypeError, ZoneInfoNotFoundError, OSError):
-        return None
-
-
 async def _committed_shifts_by_employee(
     db: AsyncSession,
     company_id: str,
     week_start: datetime,
     week_end: datetime,
-    employee_timezones: Dict[str, str | None] | None = None,
 ) -> Dict[str, List[Tuple[datetime, datetime]]]:
     """Already-committed shift spans for the week, per employee.
 
@@ -388,17 +370,11 @@ async def _committed_shifts_by_employee(
 
     by_emp: Dict[str, List[Tuple[datetime, datetime]]] = {}
     for s, loc in rows:
-        emp_tz = (employee_timezones or {}).get(str(s.employee_id))
-        face = _shift_employee_face(s, emp_tz) if emp_tz else None
-        if face is None:
-            face = _shift_local_face(s, loc)
+        face = _shift_local_face(s, loc)
         if face is None:
             continue
         start, end = face
-        # An employee with a timezone also has availability one day outside
-        # the week (conversion can carry it in), so their holds widen too.
-        pad = timedelta(days=1) if emp_tz else timedelta(0)
-        if start < naive_week_start - pad or start >= naive_week_end + pad:
+        if start < naive_week_start or start >= naive_week_end:
             continue
         by_emp.setdefault(str(s.employee_id), []).append((start, end))
     return by_emp
@@ -447,7 +423,6 @@ async def _load_employee_availability(
     week_start_date: str,
     num_days: int,
     all_employee_ids: set[str] | None = None,
-    employee_timezones: Dict[str, str | None] | None = None,
 ) -> Dict[str, List[Dict[str, str]]]:
     """Employee availability for the week, minus hours already committed.
 
@@ -458,6 +433,9 @@ async def _load_employee_availability(
 
     Both scheduling paths load availability through this one function, so
     neither can bypass it.
+
+    Availability is always the location's local wall clock and is never
+    converted per employee (#171).
     """
     week_start = datetime.strptime(week_start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     week_end = week_start + timedelta(days=num_days)
@@ -465,20 +443,14 @@ async def _load_employee_availability(
     avail_result = await db.execute(
         select(EmployeeAvailability).where(
             EmployeeAvailability.company_id == company_id,
-            # Widened by a day each side: for an employee with a timezone,
-            # conversion can carry a window from just outside the week into it.
-            EmployeeAvailability.start_time >= week_start - timedelta(days=1),
-            EmployeeAvailability.start_time < week_end + timedelta(days=1),
+            EmployeeAvailability.start_time >= week_start,
+            EmployeeAvailability.start_time < week_end,
         )
     )
-    # A bad zone degrades to the no-timezone path everywhere below.
-    employee_timezones = {
-        k: (v if is_valid_timezone(v) else None)
-        for k, v in (employee_timezones or {}).items()
-    }
     emp_avail_map: Dict[str, List[Dict[str, str]]] = {}
     for av in avail_result.scalars().all():
         eid = str(av.employee_id)
+        emp_avail_map.setdefault(eid, [])
 
         start_dt = av.start_time
         end_dt = av.end_time
@@ -496,16 +468,6 @@ async def _load_employee_availability(
         if start_dt and end_dt and end_dt <= start_dt:
             end_dt = start_dt.replace(hour=23, minute=59, second=0, microsecond=0)
 
-        # Outside the week only an employee with a timezone keeps the window;
-        # for everyone else the result is exactly the unwidened query's.
-        if (
-            start_dt is not None
-            and not (week_start <= start_dt < week_end)
-            and not employee_timezones.get(eid)
-        ):
-            continue
-        emp_avail_map.setdefault(eid, [])
-
         emp_avail_map[eid].append({
             "start": start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt),
             "end": end_dt.isoformat() if hasattr(end_dt, "isoformat") else str(end_dt),
@@ -513,9 +475,7 @@ async def _load_employee_availability(
 
     emp_avail_map = _subtract_committed_shifts(
         emp_avail_map,
-        await _committed_shifts_by_employee(
-            db, company_id, week_start, week_end, employee_timezones,
-        ),
+        await _committed_shifts_by_employee(db, company_id, week_start, week_end),
     )
 
     # Employees with NO availability records are treated as "not available".
@@ -772,14 +732,9 @@ async def _load_initial_state(
 
     # Load employee availability for the relevant week, minus hours already
     # committed to a Shift row (see _load_employee_availability).
-    employee_tz_map: Dict[str, str | None] = {
-        str(emp.id): emp.timezone if is_valid_timezone(emp.timezone) else None
-        for emp in employees_orm
-    }
     emp_avail_map = await _load_employee_availability(
         db, company_id, week_start_date, num_days,
         all_employee_ids={str(emp.id) for emp in employees_orm},
-        employee_timezones=employee_tz_map,
     )
 
     # Load day blackouts (recurring per-day-of-week time ranges during which
@@ -838,7 +793,6 @@ async def _load_initial_state(
             "pay_rate": float(emp.pay_rate) if emp.pay_rate is not None else None,
             "hire_date": emp.hire_date,
             "seniority_rank": emp.seniority_rank,
-            "timezone": employee_tz_map[str(emp.id)],
             "day_blackouts": emp_blackout_map.get(eid, []),
             "day_preferences": loaded_prefs.get(eid, {}).get("day_preferences", []),
             "hour_range_preferences": loaded_prefs.get(eid, {}).get("hour_range_preferences", []),

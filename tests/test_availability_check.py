@@ -17,10 +17,10 @@ def _win(start_h, end_h, day=31):
     }
 
 
-def _check(windows, other=(), blackouts=(), emp_tz=None, loc_tz=None):
+def _check(windows, other=(), blackouts=()):
     return is_available(
         windows=list(windows), other_spans=list(other), blackouts=list(blackouts),
-        span_start=SPAN[0], span_end=SPAN[1], emp_tz=emp_tz, loc_tz=loc_tz,
+        span_start=SPAN[0], span_end=SPAN[1],
     )
 
 
@@ -50,22 +50,6 @@ def test_a_blackout_on_another_weekday_does_not():
 
 def test_a_blackout_touching_the_span_does_not():
     assert _check([_win(8, 18)], blackouts=[{"day": "Monday", "start": "17:00", "end": "19:00"}])
-
-
-def test_employee_zone_windows_are_converted_to_the_location():
-    # 06:00-14:00 in Los Angeles is 09:00-17:00 in New York.
-    la = [_win(6, 14)]
-    assert _check(la, emp_tz="America/Los_Angeles", loc_tz="America/New_York")
-    assert not _check(la)
-
-
-def test_employee_zone_blackouts_are_converted_to_the_location():
-    # 06:00-07:00 in Los Angeles is 09:00-10:00 in New York: inside the span.
-    blackout = [{"day": "Monday", "start": "06:00", "end": "07:00"}]
-    assert not _check(
-        [_win(0, 23)], blackouts=blackout,
-        emp_tz="America/Los_Angeles", loc_tz="America/New_York",
-    )
 
 
 def test_window_dict_reads_a_midnight_end_as_end_of_day():

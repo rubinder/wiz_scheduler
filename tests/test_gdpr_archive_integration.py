@@ -61,7 +61,6 @@ async def test_employee_erasure_keeps_shifts_and_pay(client, db_session: AsyncSe
     emp.pay_rate = 20
     emp.hire_date = date(2024, 1, 1)
     emp.seniority_rank = 2
-    emp.timezone = "America/New_York"
     emp.location_ids = [loc.id]
     past = await _shift(db_session, emp_id=emp.id, loc_id=loc.id, role=role,
                         start=NOW - timedelta(days=3))
@@ -111,7 +110,7 @@ async def test_employee_erasure_keeps_shifts_and_pay(client, db_session: AsyncSe
     assert erased is not None
     assert erased.archived_at is not None and erased.erased_at is not None
     assert erased.email is None and erased.user_id is None and erased.external_id is None
-    assert erased.pay_rate is None and erased.timezone is None
+    assert erased.pay_rate is None
     assert erased.hire_date is None and erased.seniority_rank is None
     assert erased.location_ids is None
     assert erased.full_name == full_name

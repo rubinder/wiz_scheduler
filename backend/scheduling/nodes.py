@@ -3,17 +3,10 @@ import json
 import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Tuple
-from zoneinfo import ZoneInfoNotFoundError
 
 import anthropic
 
 from backend.config import settings
-from backend.scheduling.employee_time import (
-    availability_to_location,
-    blackouts_to_location,
-    instant_to_employee_face,
-    needs_conversion,
-)
 from backend.scheduling.local_scheduler import _build_affinity_lookup
 from backend.scheduling.open_shifts import OPEN_STATUS, is_open_entry, to_open_entry
 from backend.scheduling.preferences import (
@@ -30,7 +23,6 @@ from backend.scheduling.prompts import (
     eligible_for_slot,
 )
 from backend.scheduling.rest_rules import _min_rest_violation
-from backend.utils.tz import is_valid_timezone
 from backend.scheduling.state import LocationResult, SchedulingState, ShiftAssignment
 
 logger = logging.getLogger(__name__)
@@ -109,7 +101,7 @@ def _filter_availability_against_draft(
     whole — keeping it whole is what allowed the same hours to be booked twice.
 
     Comparison is done on wall-clock faces, never on instants; see _wall_clock.
-    For an employee with a timezone, both sides are on the employee's clock (see employee_time).
+    Availability is always location-local, never converted per employee (#171).
     Output timestamps are rebuilt with each window's own original offset so the
     shape handed downstream is unchanged.
     """
@@ -120,22 +112,11 @@ def _filter_availability_against_draft(
     if not consumed_raw:
         return windows
 
-    emp_tz = employee.get("timezone")
-    if not is_valid_timezone(emp_tz):
-        emp_tz = None  # a bad zone degrades to the no-timezone path
     consumed: List[Tuple[datetime, datetime]] = []
     for c in consumed_raw:
         try:
-            if emp_tz:
-                # Draft spans are real instants (generated shifts carry their
-                # location's offset); read them on the employee's clock.
-                consumed.append((
-                    instant_to_employee_face(datetime.fromisoformat(c["start"]), emp_tz),
-                    instant_to_employee_face(datetime.fromisoformat(c["end"]), emp_tz),
-                ))
-            else:
-                consumed.append((_wall_clock(c["start"]), _wall_clock(c["end"])))
-        except (KeyError, ValueError, TypeError, ZoneInfoNotFoundError, OSError):
+            consumed.append((_wall_clock(c["start"]), _wall_clock(c["end"])))
+        except (KeyError, ValueError, TypeError):
             # A window we cannot parse is skipped rather than raised on: the
             # scheduling graph degrades, it never throws.
             continue
@@ -218,39 +199,19 @@ def load_location_context(state: SchedulingState) -> Dict[str, Any]:
         "[SCHED-TRACE]   role-relevant employees: %d", len(location_employees),
     )
 
-    # Availability stays on the employee's clock on the shared employee dict
-    # (the draft filter is cumulative and idempotent). For an employee with a
-    # timezone, THIS location gets a converted COPY -- converting in place
-    # would make the next location convert already-converted times.
-    loc_tz = location.get("timezone")
-    week_start_date = state["week_start_date"]
-    num_days = state.get("num_days", 7)
-    converted_employees: List[Dict[str, Any]] = []
+    # Availability and blackouts are always the location's local wall clock,
+    # never converted per employee (#171).
     for emp in location_employees:
         windows_before = len(emp.get("available_windows", []))
         emp["available_windows"] = _filter_availability_against_draft(
             emp, state["availability_draft"]
         )
-        emp_tz = emp.get("timezone")
-        if needs_conversion(emp_tz, loc_tz):
-            emp = {
-                **emp,
-                "available_windows": availability_to_location(
-                    emp["available_windows"], emp_tz, loc_tz,
-                ),
-                "day_blackouts": blackouts_to_location(
-                    emp.get("day_blackouts", []), week_start_date, num_days,
-                    emp_tz, loc_tz,
-                ),
-            }
-        converted_employees.append(emp)
+        windows_after = len(emp["available_windows"])
         emp_roles = [r.get("role_name", "") for r in emp.get("roles", [])]
         logger.warning(
-            "[SCHED-TRACE]   employee %s: roles=%s, avail_windows=%d (was %d before draft filter), tz=%s",
-            emp.get("id", ""), emp_roles, len(emp["available_windows"]), windows_before,
-            emp_tz or "-",
+            "[SCHED-TRACE]   employee %s: roles=%s, avail_windows=%d (was %d before draft filter)",
+            emp.get("id", ""), emp_roles, windows_after, windows_before,
         )
-    location_employees = converted_employees
 
     return {
         "current_location": location,

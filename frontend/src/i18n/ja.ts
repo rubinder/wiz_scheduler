@@ -6,7 +6,7 @@ const ja = {
     archived: "アーカイブ済み",
     showArchived: "アーカイブ済みを表示",
     appName: "Wiz Scheduler",
-    timesInZone: "時刻は{zone}です",
+    availabilityLocalTime: "時刻は店舗の現地時間（{zone}）です。",
     loading: "読み込み中...",
     save: "保存",
     saving: "保存中...",
@@ -477,8 +477,6 @@ const ja = {
     csvLimitError: "このファイルには{rows}人の従業員が含まれていますが、無料プランの残り枠は{remaining}人分です。ファイル全体が拒否されます。アップグレードするか、より小さいファイルをアップロードしてください。",
     payRate: "時給 ($/時)",
     payRateGatedHint: "コストを考慮したスケジューリングのために時給を設定するには、有料プランにアップグレードしてください。",
-    availabilityTimezone: "勤務可能時間のタイムゾーン",
-    availabilityTimezoneNone: "なし（店舗の現地時間）",
     hireDate: "採用日",
     seniorityRank: "勤続順位",
     seniorityRankHint: "手動上書き — 空欄のままにすると採用日順にランク付けされます。",
@@ -580,6 +578,7 @@ const ja = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "7shifts や Deputy から取り込んだものを含め、勤務可能時間はすべて各店舗の現地時間です。",
     onboardingHint: "他のシステムから空き状況をインポートしていない場合は、{link}ページからインポートした従業員に招待リンクを送信してください。従業員はログインを作成し、自分で空き状況を管理できます。",
     onboardingLink: "従業員オンボーディング",
     quickSetLabel: "クイック設定 (9–5):",

@@ -6,7 +6,7 @@ const vi = {
     archived: "Đã lưu trữ",
     showArchived: "Hiện mục đã lưu trữ",
     appName: "Wiz Scheduler",
-    timesInZone: "Thời gian theo {zone}",
+    availabilityLocalTime: "Thời gian theo giờ địa phương của địa điểm ({zone}).",
     loading: "Đang tải...",
     save: "Lưu",
     saving: "Đang lưu...",
@@ -477,8 +477,6 @@ const vi = {
     csvLimitError: "Tệp này có {rows} nhân viên, nhưng gói miễn phí của bạn chỉ còn chỗ cho {remaining}. Toàn bộ tệp sẽ bị từ chối — hãy nâng cấp, hoặc tải lên tệp nhỏ hơn.",
     payRate: "Mức lương ($/giờ)",
     payRateGatedHint: "Nâng cấp lên gói trả phí để đặt mức lương cho việc lập lịch có cân nhắc chi phí.",
-    availabilityTimezone: "Múi giờ của lịch rảnh",
-    availabilityTimezoneNone: "Không có (giờ địa phương của địa điểm)",
     hireDate: "Ngày tuyển dụng",
     seniorityRank: "Thứ hạng thâm niên",
     seniorityRankHint: "Ghi đè thủ công — để trống để xếp hạng theo ngày tuyển dụng.",
@@ -580,6 +578,7 @@ const vi = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "Mọi lịch rảnh, kể cả lịch nhập từ 7shifts hoặc Deputy, đều theo giờ địa phương của từng địa điểm.",
     onboardingHint: "Không nhập lịch rảnh từ hệ thống khác? Gửi liên kết mời cho các nhân viên đã nhập tại trang {link} để họ tạo tài khoản và tự quản lý lịch rảnh của mình.",
     onboardingLink: "Đưa nhân viên vào làm",
     quickSetLabel: "Đặt nhanh (9–17):",

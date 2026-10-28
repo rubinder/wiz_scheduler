@@ -13,9 +13,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Employee, EmployeeAvailability, EmployeeDayBlackout, Location, Shift
+from backend.models import EmployeeAvailability, EmployeeDayBlackout, Location, Shift
 from backend.scheduling.graph import _shift_local_face
-from backend.scheduling.employee_time import needs_conversion
 from backend.scheduling.nodes import _wall_clock
 from backend.services.availability_check import blackout_dicts, is_available, window_dict
 
@@ -133,36 +132,12 @@ async def collect_edit_warnings(
                     span_start, span_end = face
 
         if emp_id is not None and span_start is not None and span_end is not None:
-            emp_tz = (await db.execute(
-                select(Employee.timezone).where(
-                    Employee.id == emp_id, Employee.company_id == company_id,
-                )
-            )).scalar_one_or_none()
-            # An employee with a timezone is compared in the edited shift's
-            # location zone: availability converted emp->loc, other shifts read
-            # in that zone. Without one (or with no known location), today's
-            # per-location faces are used unchanged.
-            #
-            # A new shift (no shift_id) has no row to join, but it is created
-            # at the schedule's own location, so that is the zone it is read
-            # in. `zone_location` serves only the conversion path; `location`
-            # keeps its existing meaning, so the no-timezone path is untouched.
-            zone_location = location
-            if zone_location is None and emp_tz is not None:
-                zone_location = (await db.execute(
-                    select(Location).where(
-                        Location.id == schedule.location_id,
-                        Location.company_id == company_id,
-                    )
-                )).scalar_one_or_none()
-            convert = zone_location is not None and needs_conversion(
-                emp_tz, zone_location.timezone
-            )
-
             # 1. no_availability -- the employee's windows, minus their other
             #    shifts, must cover the span, and the span must miss their
             #    blackouts. The one definition, shared with the scheduler and
             #    the candidate ranking (services/availability_check.py).
+            #    Availability is location-local and never converted per
+            #    employee (#171).
             windows = [
                 window_dict(w) for w in (await db.execute(
                     select(EmployeeAvailability).where(
@@ -194,7 +169,7 @@ async def collect_edit_warnings(
             )).all()
             other_spans: list[tuple[datetime, datetime]] = []
             for s, loc in other_rows:
-                face = _shift_local_face(s, zone_location if convert else loc)
+                face = _shift_local_face(s, loc)
                 if face is None:
                     # Bad/missing location.timezone: degrade rather than
                     # raise, same convention as graph.py. This drops the
@@ -209,10 +184,6 @@ async def collect_edit_warnings(
                 blackouts=blackouts,
                 span_start=span_start,
                 span_end=span_end,
-                # Without conversion, windows and blackouts are already this
-                # location's wall clock: pass no zones so nothing converts.
-                emp_tz=emp_tz if convert else None,
-                loc_tz=zone_location.timezone if convert else None,
             ):
                 warnings.append({
                     "code": "no_availability",
