@@ -53,6 +53,7 @@ const zh = {
     shifts: "班次",
     week: "周",
     logout: "退出登录",
+    openMenu: "打开菜单",
     dismiss: "关闭",
     errors: "错误",
     warnings: "警告",

@@ -53,6 +53,7 @@ const de = {
     shifts: "Schichten",
     week: "Woche",
     logout: "Abmelden",
+    openMenu: "Menü öffnen",
     dismiss: "schließen",
     errors: "Fehler",
     warnings: "Warnungen",

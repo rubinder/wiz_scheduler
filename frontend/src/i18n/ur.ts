@@ -53,6 +53,7 @@ const ur = {
     shifts: "شفٹیں",
     week: "ہفتہ",
     logout: "لاگ آؤٹ",
+    openMenu: "مینو کھولیں",
     dismiss: "برخاست",
     errors: "خرابیاں",
     warnings: "انتباہات",

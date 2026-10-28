@@ -53,6 +53,7 @@ const ar = {
     shifts: "ورديات",
     week: "أسبوع",
     logout: "تسجيل الخروج",
+    openMenu: "فتح القائمة",
     dismiss: "تجاهل",
     errors: "أخطاء",
     warnings: "تحذيرات",

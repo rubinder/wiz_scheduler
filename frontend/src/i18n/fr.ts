@@ -53,6 +53,7 @@ const fr = {
     shifts: "quarts",
     week: "Semaine",
     logout: "Déconnexion",
+    openMenu: "Ouvrir le menu",
     dismiss: "fermer",
     errors: "Erreurs",
     warnings: "Avertissements",

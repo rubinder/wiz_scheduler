@@ -7,7 +7,12 @@ import LanguageSelector from "../shared/LanguageSelector";
 import FeedbackForm from "../FeedbackForm";
 import { text, bg, border } from "../../theme";
 
-export default function TopBar() {
+interface TopBarProps {
+  /** Opens the sidebar drawer; the button only shows below md (#215). */
+  onMenuClick: () => void;
+}
+
+export default function TopBar({ onMenuClick }: TopBarProps) {
   const { user, logout, switchCompany } = useAuth();
   const { t } = useLanguage();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -37,12 +42,23 @@ export default function TopBar() {
   const currentCompany = companies.find((c) => c.id === user?.company_id);
 
   return (
-    <header className={`h-14 ${bg.topbar} border-b ${border.default} relative flex items-center px-6`}>
-      <h2 className={`text-lg font-semibold ${text.primary}`}>{t.common.appName}</h2>
-      <div
-        className="flex items-center gap-4"
-        style={{ position: "absolute", left: 294 }}
+    // A flex row in document order, never a physical offset: in RTL the
+    // sidebar sits on the right and a fixed `left` put these controls on
+    // top of it (#215).
+    <header className={`min-h-14 ${bg.topbar} border-b ${border.default} flex items-center gap-3 px-4 md:px-6 py-2`}>
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label={t.common.openMenu}
+        aria-controls="app-sidebar"
+        className={`md:hidden -ms-1 p-1.5 rounded ${text.primary} hover:opacity-80`}
       >
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <h2 className={`text-lg font-semibold ${text.primary} whitespace-nowrap`}>{t.common.appName}</h2>
+      <div className="ms-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1 min-w-0">
         {companies.length > 1 && (
           <select
             value={user?.company_id ?? ""}
@@ -58,10 +74,10 @@ export default function TopBar() {
           </select>
         )}
         {companies.length <= 1 && currentCompany && (
-          <span className={`text-sm ${text.muted}`}>{currentCompany.name}</span>
+          <span className={`hidden sm:inline text-sm ${text.muted}`}>{currentCompany.name}</span>
         )}
         {user && (
-          <span className={`text-sm ${text.secondary}`}>
+          <span className={`hidden sm:inline text-sm ${text.secondary}`}>
             {user.full_name ?? user.email}
           </span>
         )}

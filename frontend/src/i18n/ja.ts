@@ -53,6 +53,7 @@ const ja = {
     shifts: "シフト",
     week: "週",
     logout: "ログアウト",
+    openMenu: "メニューを開く",
     dismiss: "閉じる",
     errors: "エラー",
     warnings: "警告",

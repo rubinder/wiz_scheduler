@@ -53,6 +53,7 @@ const ta = {
     shifts: "பணிநேரங்கள்",
     week: "வாரம்",
     logout: "வெளியேறு",
+    openMenu: "மெனுவைத் திற",
     dismiss: "நிராகரி",
     errors: "பிழைகள்",
     warnings: "எச்சரிக்கைகள்",

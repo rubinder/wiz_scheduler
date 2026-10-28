@@ -53,6 +53,7 @@ const trLang = {
     shifts: "vardiya",
     week: "Hafta",
     logout: "Çıkış Yap",
+    openMenu: "Menüyü aç",
     dismiss: "kapat",
     errors: "Hatalar",
     warnings: "Uyarılar",

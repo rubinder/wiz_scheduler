@@ -53,6 +53,7 @@ const te = {
     shifts: "షిఫ్ట్‌లు",
     week: "వారం",
     logout: "లాగ్ అవుట్",
+    openMenu: "మెనూ తెరవండి",
     dismiss: "తీసివేయి",
     errors: "లోపాలు",
     warnings: "హెచ్చరికలు",
