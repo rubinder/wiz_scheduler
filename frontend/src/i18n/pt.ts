@@ -1027,6 +1027,22 @@ const pt = {
     featRoleEquivDesc: "Agrupe funções semelhantes para que funcionários possam cobrir turnos em posições equivalentes automaticamente.",
     featLangsTitle: "19 idiomas",
     featLangsDesc: "Localização completa da interface em inglês, chinês, hindi, espanhol, francês, árabe, japonês e mais 12 idiomas.",
+    featManagersTitle: "Vários gestores",
+    featManagersDesc: "Convide administradores que gerenciam toda a empresa e gestores de unidade que veem e editam apenas as próprias unidades. Funcionários compartilhados com outras unidades ficam somente leitura para eles.",
+    featConcurrentTitle: "Feito para equipes movimentadas",
+    featConcurrentDesc: "Vários gestores podem gerar, aprovar e editar escalas ao mesmo tempo. Só as unidades envolvidas, e as que compartilham funcionários, ficam bloqueadas, então ninguém sobrescreve o trabalho de ninguém e ninguém fica escalado duas vezes.",
+    featPrefRequestsTitle: "Solicitações de preferência",
+    featPrefRequestsDesc: "Os funcionários propõem os dias, horários e colegas que preferem, e um gestor aprova ou recusa cada solicitação. O funcionário recebe a decisão por e-mail. Desativado até você ativar.",
+    featOpenShiftsTitle: "Turnos em aberto",
+    featOpenShiftsDesc: "Uma vaga que ninguém pôde cobrir fica na escala como turno em aberto, sinalizada no menu, com uma lista classificada de quem está disponível, qualificado e ainda não escalado.",
+    featSafeEditsTitle: "Edições seguras de escala",
+    featSafeEditsDesc: "Ao editar uma escala aprovada, você é avisado quando alguém não está disponível, já está escalado em outro lugar ou o turno já foi enviado ao 7shifts. Um turno em que alguém já fez check-in não pode ser alterado.",
+    featPayRecordsTitle: "Sete anos de registros de pagamento",
+    featPayRecordsDesc: "Os registros de pagamento são mantidos por sete anos e podem ser exportados por completo a qualquer momento, inclusive por 90 dias após o cancelamento. Os administradores são avisados antes de registros antigos serem excluídos.",
+    featArchiveTitle: "Arquive, nunca exclua",
+    featArchiveDesc: "Arquive funcionários, unidades e funções em vez de excluí-los. Escalas anteriores, exportações e folha de pagamento continuam intactas, e tudo o que foi arquivado pode ser restaurado.",
+    featMobileTitle: "Funciona no seu celular",
+    featMobileDesc: "O app se ajusta à tela do celular, com menu deslizante, nos 19 idiomas, incluindo árabe e urdu, escritos da direita para a esquerda.",
     stratRotation: "Rotação",
     stratRotationTag: "GRÁTIS",
     stratRotationDesc: "Distribui turnos uniformemente entre funcionários dentro da escala atual. Penaliza atribuições repetidas à mesma função. Respeita afinidades de funcionários: restrições rígidas são aplicadas, preferências flexíveis influenciam a pontuação.",
@@ -1111,11 +1127,11 @@ const pt = {
       },
       employees: {
         title: "Funcionários",
-        desc: "A lista principal. Defina as funções, nível de habilidade, unidades em que pode trabalhar, limites de horas e disponibilidade de cada pessoa. A edição inline torna atualizações em massa rápidas.",
+        desc: "A lista principal. Defina as funções, nível de habilidade, unidades em que pode trabalhar, limites de horas e disponibilidade de cada pessoa. A edição inline torna atualizações em massa rápidas. Arquive quem sai em vez de excluir: o histórico é mantido e a pessoa pode ser restaurada.",
       },
       team: {
         title: "Equipe",
-        desc: "Convide outros gestores para ajudar a administrar a conta. Acompanhe convites pendentes e veja quem já aceitou, tudo em um só lugar.",
+        desc: "Convide outros gestores para ajudar a administrar a conta: administradores que gerenciam tudo ou gestores de unidade limitados às unidades que você escolher. Acompanhe convites pendentes e veja quem já aceitou, tudo em um só lugar.",
       },
       "hour-restrictions": {
         title: "Restrições de horas",
@@ -1127,7 +1143,7 @@ const pt = {
       },
       "day-preferences": {
         title: "Preferências de dias",
-        desc: "Pondere de 0 a 1 quais dias da semana cada funcionário prefere trabalhar. O escalador favorece mais esse funcionário para turnos nesse dia — uma preferência flexível que cede quando não há mais ninguém disponível.",
+        desc: "Pondere de 0 a 1 quais dias da semana cada funcionário prefere trabalhar. O escalador favorece mais esse funcionário para turnos nesse dia — uma preferência flexível que cede quando não há mais ninguém disponível. Ative as solicitações de preferência e os funcionários poderão propor as próprias, para um gestor aprovar.",
       },
       "hour-range-preferences": {
         title: "Preferências de faixa horária",
@@ -1163,7 +1179,7 @@ const pt = {
       },
       payroll: {
         title: "Folha de pagamento",
-        desc: "Transforme automaticamente turnos aprovados e com check-in em horas pagáveis. Confirme o turno raro que ninguém escaneou, aprove um período de pagamento e exporte direto para CSV.",
+        desc: "Transforme automaticamente turnos aprovados e com check-in em horas pagáveis. Confirme o turno raro que ninguém escaneou, aprove um período de pagamento e exporte direto para CSV. Os registros de pagamento são mantidos por sete anos, com exportação do histórico completo a qualquer momento.",
       },
       "special-hours": {
         title: "Horários especiais",
@@ -1171,7 +1187,7 @@ const pt = {
       },
       schedule: {
         title: "Escala",
-        desc: "Gere escalas semanais otimizadas com um clique. Escolha uma estratégia algorítmica (Rotação, Horas Máx., Aleatória) ou IA. Revise resultados por unidade, edite inline e publique.",
+        desc: "Gere escalas semanais otimizadas com um clique. Escolha uma estratégia algorítmica (Rotação, Horas Máx., Aleatória) ou IA. Revise resultados por unidade, edite inline e publique. Vários gestores podem montar escalas ao mesmo tempo: só as unidades em edição, e as que compartilham funcionários, ficam bloqueadas.",
       },
       "export-schedules": {
         title: "Exportar escalas",
@@ -1179,7 +1195,7 @@ const pt = {
       },
       "approved-schedules": {
         title: "Escalas aprovadas",
-        desc: "Navegue por qualquer semana passada exatamente como ela ficou no momento da aprovação — o registro permanente sobre o qual o restante do app, incluindo a folha de pagamento, é construído.",
+        desc: "Navegue pela escala aprovada de qualquer semana passada — o registro sobre o qual o restante do app, incluindo a folha de pagamento, é construído. Vagas não preenchidas aparecem como turnos em aberto com uma lista classificada de quem poderia assumi-las, e as edições avisam sobre disponibilidade e escalas duplicadas.",
       },
       "data-privacy": {
         title: "Privacidade de dados",

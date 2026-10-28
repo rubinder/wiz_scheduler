@@ -1028,6 +1028,22 @@ const en = {
     featRoleEquivDesc: "Group similar roles so employees can fill shifts across equivalent positions automatically.",
     featLangsTitle: "19 Languages",
     featLangsDesc: "Full UI localization in English, Chinese, Hindi, Spanish, French, Arabic, Japanese, and 12 more.",
+    featManagersTitle: "Multiple Managers",
+    featManagersDesc: "Invite admins who run the whole company and location managers who see and edit only their own locations. Employees shared with other locations stay read-only to them.",
+    featConcurrentTitle: "Built for Busy Teams",
+    featConcurrentDesc: "Several managers can generate, approve and edit schedules at the same time. Only the locations involved, and any that share staff, are locked, so nobody overwrites anyone and no one gets double-booked.",
+    featPrefRequestsTitle: "Preference Requests",
+    featPrefRequestsDesc: "Employees propose the days, hours and coworkers they prefer, and a manager approves or denies each request. The employee is emailed the decision. Off until you switch it on.",
+    featOpenShiftsTitle: "Open Shifts",
+    featOpenShiftsDesc: "A slot nobody could fill stays on the schedule as an open shift, flagged in the menu, with a ranked list of who is available, qualified and not already booked.",
+    featSafeEditsTitle: "Safe Schedule Edits",
+    featSafeEditsDesc: "Editing an approved schedule warns you when someone isn't available, is already booked elsewhere, or the shift was already sent to 7shifts. A shift someone has checked in to can't be changed.",
+    featPayRecordsTitle: "Seven Years of Pay Records",
+    featPayRecordsDesc: "Pay records are kept for seven years and can be exported in full at any time, including for 90 days after you cancel. Admins are warned before old records are deleted.",
+    featArchiveTitle: "Archive, Never Delete",
+    featArchiveDesc: "Archive employees, locations and roles instead of deleting them. Past schedules, exports and payroll stay intact, and anything archived can be restored.",
+    featMobileTitle: "Works on Your Phone",
+    featMobileDesc: "The app fits a phone screen, with a slide-out menu, in all 19 languages, including right-to-left Arabic and Urdu.",
     // Strategies
     stratRotation: "Rotation",
     stratRotationTag: "FREE",
@@ -1114,11 +1130,11 @@ const en = {
       },
       employees: {
         title: "Employees",
-        desc: "The master roster. Set each person's assigned roles, skill level, locations they can work at, hour limits, and availability. Inline editing makes bulk updates fast.",
+        desc: "The master roster. Set each person's assigned roles, skill level, locations they can work at, hour limits, and availability. Inline editing makes bulk updates fast. Archive people who leave instead of deleting them: their history stays, and they can be restored.",
       },
       team: {
         title: "Team",
-        desc: "Invite other managers to help run the account. Track pending invites and see who has already accepted, all in one place.",
+        desc: "Invite other managers to help run the account: admins who manage everything, or location managers limited to the locations you choose. Track pending invites and see who has already accepted, all in one place.",
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
@@ -1130,7 +1146,7 @@ const en = {
       },
       "day-preferences": {
         title: "Day Preferences",
-        desc: "Weight which days of the week each employee prefers to work, from 0 to 1. The scheduler favors that employee more strongly for shifts on that day — a soft preference that yields when no one else is available.",
+        desc: "Weight which days of the week each employee prefers to work, from 0 to 1. The scheduler favors that employee more strongly for shifts on that day — a soft preference that yields when no one else is available. Switch on preference requests and employees can propose their own, for a manager to approve.",
       },
       "hour-range-preferences": {
         title: "Hour Range Preferences",
@@ -1166,7 +1182,7 @@ const en = {
       },
       payroll: {
         title: "Payroll",
-        desc: "Turn approved, checked-in shifts into payable hours automatically. Confirm the rare shift nobody scanned for, approve a pay period, and export straight to CSV.",
+        desc: "Turn approved, checked-in shifts into payable hours automatically. Confirm the rare shift nobody scanned for, approve a pay period, and export straight to CSV. Pay records are kept for seven years, with a full-history export at any time.",
       },
       "special-hours": {
         title: "Special Hours",
@@ -1174,7 +1190,7 @@ const en = {
       },
       schedule: {
         title: "Schedule",
-        desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish.",
+        desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish. Several managers can schedule at once: only the locations being worked on, and any that share staff, are locked.",
       },
       "export-schedules": {
         title: "Export Schedules",
@@ -1182,7 +1198,7 @@ const en = {
       },
       "approved-schedules": {
         title: "Approved Schedules",
-        desc: "Browse any past week exactly as it looked the moment it was approved — the permanent record the rest of the app, including payroll, is built on.",
+        desc: "Browse the approved schedule for any past week — the record the rest of the app, including payroll, is built on. Unfilled slots show as open shifts with a ranked list of who could take them, and edits warn you about availability and double-booking.",
       },
       "data-privacy": {
         title: "Data Privacy",

@@ -1027,6 +1027,22 @@ const de = {
     featRoleEquivDesc: "Gruppieren Sie ähnliche Rollen, damit Mitarbeiter automatisch Schichten in gleichwertigen Positionen übernehmen können.",
     featLangsTitle: "19 Sprachen",
     featLangsDesc: "Vollständige UI-Lokalisierung in Englisch, Chinesisch, Hindi, Spanisch, Französisch, Arabisch, Japanisch und 12 weiteren Sprachen.",
+    featManagersTitle: "Mehrere Manager",
+    featManagersDesc: "Laden Sie Admins ein, die das gesamte Unternehmen verwalten, und Standortmanager, die nur ihre eigenen Standorte sehen und bearbeiten. Mitarbeiter, die mit anderen Standorten geteilt werden, bleiben für sie schreibgeschützt.",
+    featConcurrentTitle: "Für viel beschäftigte Teams gemacht",
+    featConcurrentDesc: "Mehrere Manager können gleichzeitig Dienstpläne erstellen, genehmigen und bearbeiten. Gesperrt werden nur die betroffenen Standorte und solche, die Personal mit ihnen teilen — so überschreibt niemand die Arbeit anderer und niemand wird doppelt eingeplant.",
+    featPrefRequestsTitle: "Präferenzanfragen",
+    featPrefRequestsDesc: "Mitarbeiter schlagen die Tage, Uhrzeiten und Kollegen vor, die sie bevorzugen, und ein Manager genehmigt oder lehnt jede Anfrage ab. Die Entscheidung erhält der Mitarbeiter per E-Mail. Ausgeschaltet, bis Sie die Funktion aktivieren.",
+    featOpenShiftsTitle: "Offene Schichten",
+    featOpenShiftsDesc: "Ein Platz, den niemand besetzen konnte, bleibt als offene Schicht im Plan — im Menü markiert und mit einer Rangliste aller, die verfügbar, qualifiziert und noch nicht eingeplant sind.",
+    featSafeEditsTitle: "Sichere Planänderungen",
+    featSafeEditsDesc: "Beim Bearbeiten eines genehmigten Plans werden Sie gewarnt, wenn jemand nicht verfügbar ist, bereits anderswo eingeplant ist oder die Schicht schon an 7shifts gesendet wurde. Eine Schicht, für die jemand eingecheckt hat, kann nicht geändert werden.",
+    featPayRecordsTitle: "Sieben Jahre Lohnunterlagen",
+    featPayRecordsDesc: "Lohnunterlagen werden sieben Jahre lang aufbewahrt und können jederzeit vollständig exportiert werden, auch noch 90 Tage nach Ihrer Kündigung. Admins werden gewarnt, bevor alte Unterlagen gelöscht werden.",
+    featArchiveTitle: "Archivieren statt löschen",
+    featArchiveDesc: "Archivieren Sie Mitarbeiter, Standorte und Rollen, statt sie zu löschen. Frühere Pläne, Exporte und Lohnabrechnungen bleiben unverändert, und alles Archivierte lässt sich wiederherstellen.",
+    featMobileTitle: "Funktioniert auf dem Smartphone",
+    featMobileDesc: "Die App passt sich dem Smartphone-Bildschirm an, mit ausklappbarem Menü, in allen 19 Sprachen — auch in Arabisch und Urdu, die von rechts nach links geschrieben werden.",
     stratRotation: "Rotation",
     stratRotationTag: "KOSTENLOS",
     stratRotationDesc: "Verteilt Schichten gleichmäßig auf Mitarbeiter innerhalb des aktuellen Dienstplans. Bestraft wiederholte Zuweisungen zur gleichen Rolle. Berücksichtigt Mitarbeiter-Affinitäten: harte Einschränkungen werden durchgesetzt, weiche Präferenzen beeinflussen die Bewertung.",
@@ -1111,11 +1127,11 @@ const de = {
       },
       employees: {
         title: "Mitarbeiter",
-        desc: "Die Stammliste. Legen Sie für jede Person Rollen, Qualifikationsniveau, Einsatzstandorte, Stundengrenzen und Verfügbarkeit fest. Inline-Bearbeitung macht Massenänderungen schnell.",
+        desc: "Die Stammliste. Legen Sie für jede Person Rollen, Qualifikationsniveau, Einsatzstandorte, Stundengrenzen und Verfügbarkeit fest. Inline-Bearbeitung macht Massenänderungen schnell. Archivieren Sie Mitarbeiter, die das Unternehmen verlassen, statt sie zu löschen: ihr Verlauf bleibt erhalten, und sie lassen sich wiederherstellen.",
       },
       team: {
         title: "Team",
-        desc: "Laden Sie weitere Manager ein, die das Konto mitverwalten. Behalten Sie offene Einladungen im Blick und sehen Sie, wer bereits angenommen hat — alles an einem Ort.",
+        desc: "Laden Sie weitere Manager ein, die das Konto mitverwalten: Admins, die alles verwalten, oder Standortmanager, die auf die von Ihnen gewählten Standorte beschränkt sind. Behalten Sie offene Einladungen im Blick und sehen Sie, wer bereits angenommen hat — alles an einem Ort.",
       },
       "hour-restrictions": {
         title: "Stundenbegrenzungen",
@@ -1127,7 +1143,7 @@ const de = {
       },
       "day-preferences": {
         title: "Tagespräferenzen",
-        desc: "Gewichten Sie von 0 bis 1, an welchen Wochentagen ein Mitarbeiter bevorzugt arbeitet. Der Planer bevorzugt diesen Mitarbeiter stärker für Schichten an diesem Tag — eine weiche Präferenz, die zurücktritt, wenn niemand sonst verfügbar ist.",
+        desc: "Gewichten Sie von 0 bis 1, an welchen Wochentagen ein Mitarbeiter bevorzugt arbeitet. Der Planer bevorzugt diesen Mitarbeiter stärker für Schichten an diesem Tag — eine weiche Präferenz, die zurücktritt, wenn niemand sonst verfügbar ist. Schalten Sie Präferenzanfragen ein, dann können Mitarbeiter eigene Präferenzen vorschlagen, die ein Manager genehmigt.",
       },
       "hour-range-preferences": {
         title: "Uhrzeit-Präferenzen",
@@ -1163,7 +1179,7 @@ const de = {
       },
       payroll: {
         title: "Lohnabrechnung",
-        desc: "Wandeln Sie genehmigte, eingecheckte Schichten automatisch in abrechenbare Stunden um. Bestätigen Sie die seltene Schicht, für die niemand gescannt hat, genehmigen Sie einen Abrechnungszeitraum und exportieren Sie direkt als CSV.",
+        desc: "Wandeln Sie genehmigte, eingecheckte Schichten automatisch in abrechenbare Stunden um. Bestätigen Sie die seltene Schicht, für die niemand gescannt hat, genehmigen Sie einen Abrechnungszeitraum und exportieren Sie direkt als CSV. Lohnunterlagen werden sieben Jahre lang aufbewahrt und lassen sich jederzeit mit vollständigem Verlauf exportieren.",
       },
       "special-hours": {
         title: "Sonderöffnungszeiten",
@@ -1171,7 +1187,7 @@ const de = {
       },
       schedule: {
         title: "Plan",
-        desc: "Erstellen Sie mit einem Klick optimierte Wochenpläne. Wählen Sie eine algorithmische Strategie (Rotation, Max Stunden, Zufall) oder KI. Prüfen Sie Ergebnisse pro Standort, bearbeiten Sie inline und veröffentlichen Sie.",
+        desc: "Erstellen Sie mit einem Klick optimierte Wochenpläne. Wählen Sie eine algorithmische Strategie (Rotation, Max Stunden, Zufall) oder KI. Prüfen Sie Ergebnisse pro Standort, bearbeiten Sie inline und veröffentlichen Sie. Mehrere Manager können gleichzeitig planen: Gesperrt werden nur die Standorte, an denen gerade gearbeitet wird, und solche, die Personal mit ihnen teilen.",
       },
       "export-schedules": {
         title: "Pläne exportieren",
@@ -1179,7 +1195,7 @@ const de = {
       },
       "approved-schedules": {
         title: "Genehmigte Pläne",
-        desc: "Sehen Sie sich jede vergangene Woche genau so an, wie sie im Moment der Genehmigung aussah — die dauerhafte Aufzeichnung, auf der der Rest der App, einschließlich der Lohnabrechnung, aufbaut.",
+        desc: "Sehen Sie sich den genehmigten Plan jeder vergangenen Woche an — die Aufzeichnung, auf der der Rest der App, einschließlich der Lohnabrechnung, aufbaut. Unbesetzte Plätze erscheinen als offene Schichten mit einer Rangliste, wer sie übernehmen könnte, und beim Bearbeiten werden Sie vor Verfügbarkeitsproblemen und Doppelbuchungen gewarnt.",
       },
       "data-privacy": {
         title: "Datenschutz",

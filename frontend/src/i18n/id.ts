@@ -1027,6 +1027,22 @@ const ind = {
     featRoleEquivDesc: "Kelompokkan peran serupa agar karyawan dapat mengisi shift di posisi setara secara otomatis.",
     featLangsTitle: "19 Bahasa",
     featLangsDesc: "Lokalisasi UI penuh dalam bahasa Inggris, Mandarin, Hindi, Spanyol, Prancis, Arab, Jepang, dan 12 bahasa lainnya.",
+    featManagersTitle: "Banyak Manajer",
+    featManagersDesc: "Undang admin yang mengelola seluruh perusahaan dan manajer cabang yang hanya bisa melihat dan mengedit cabang mereka sendiri. Karyawan yang dibagi dengan cabang lain tetap hanya-baca bagi mereka.",
+    featConcurrentTitle: "Dibuat untuk Tim yang Sibuk",
+    featConcurrentDesc: "Beberapa manajer bisa membuat, menyetujui, dan mengedit jadwal pada saat yang sama. Hanya cabang yang terlibat, dan cabang yang berbagi staf dengannya, yang dikunci, jadi tidak ada yang menimpa pekerjaan orang lain dan tidak ada yang terjadwal ganda.",
+    featPrefRequestsTitle: "Permintaan Preferensi",
+    featPrefRequestsDesc: "Karyawan mengusulkan hari, jam, dan rekan kerja yang mereka sukai, lalu manajer menyetujui atau menolak setiap permintaan. Karyawan menerima keputusannya lewat email. Nonaktif sampai Anda mengaktifkannya.",
+    featOpenShiftsTitle: "Shift Kosong",
+    featOpenShiftsDesc: "Slot yang tidak bisa diisi siapa pun tetap ada di jadwal sebagai shift kosong, ditandai di menu, dengan daftar peringkat siapa saja yang tersedia, memenuhi syarat, dan belum terjadwal.",
+    featSafeEditsTitle: "Edit Jadwal yang Aman",
+    featSafeEditsDesc: "Saat mengedit jadwal yang sudah disetujui, Anda diperingatkan jika seseorang tidak tersedia, sudah terjadwal di tempat lain, atau shift itu sudah dikirim ke 7shifts. Shift yang sudah di-check-in tidak bisa diubah.",
+    featPayRecordsTitle: "Catatan Gaji Tujuh Tahun",
+    featPayRecordsDesc: "Catatan gaji disimpan selama tujuh tahun dan bisa diekspor lengkap kapan saja, termasuk selama 90 hari setelah Anda berhenti berlangganan. Admin diperingatkan sebelum catatan lama dihapus.",
+    featArchiveTitle: "Arsipkan, Jangan Hapus",
+    featArchiveDesc: "Arsipkan karyawan, cabang, dan peran alih-alih menghapusnya. Jadwal lama, ekspor, dan penggajian tetap utuh, dan apa pun yang diarsipkan bisa dipulihkan.",
+    featMobileTitle: "Bisa di Ponsel Anda",
+    featMobileDesc: "Aplikasi menyesuaikan layar ponsel, dengan menu geser, dalam ke-19 bahasa, termasuk bahasa Arab dan Urdu yang ditulis dari kanan ke kiri.",
     stratRotation: "Rotasi",
     stratRotationTag: "GRATIS",
     stratRotationDesc: "Mendistribusikan shift secara merata di antara karyawan dalam jadwal saat ini. Memberikan penalti untuk penugasan berulang ke peran yang sama. Menghormati afinitas karyawan: batasan keras ditegakkan, preferensi lunak memengaruhi penilaian.",
@@ -1111,11 +1127,11 @@ const ind = {
       },
       employees: {
         title: "Karyawan",
-        desc: "Daftar utama. Atur peran yang ditugaskan, tingkat keterampilan, cabang tempat bekerja, batas jam, dan ketersediaan setiap orang. Pengeditan inline membuat pembaruan massal cepat.",
+        desc: "Daftar utama. Atur peran yang ditugaskan, tingkat keterampilan, cabang tempat bekerja, batas jam, dan ketersediaan setiap orang. Pengeditan inline membuat pembaruan massal cepat. Arsipkan orang yang keluar alih-alih menghapusnya: riwayat mereka tetap tersimpan, dan mereka bisa dipulihkan.",
       },
       team: {
         title: "Tim",
-        desc: "Undang manajer lain untuk membantu menjalankan akun. Pantau undangan yang tertunda dan lihat siapa yang sudah menerima, semua di satu tempat.",
+        desc: "Undang manajer lain untuk membantu menjalankan akun: admin yang mengelola semuanya, atau manajer cabang yang terbatas pada cabang pilihan Anda. Pantau undangan yang tertunda dan lihat siapa yang sudah menerima, semua di satu tempat.",
       },
       "hour-restrictions": {
         title: "Pembatasan jam",
@@ -1127,7 +1143,7 @@ const ind = {
       },
       "day-preferences": {
         title: "Preferensi hari",
-        desc: "Beri bobot hari-hari dalam seminggu yang lebih disukai setiap karyawan, dari 0 sampai 1. Penjadwal lebih mengutamakan karyawan itu untuk shift pada hari tersebut — preferensi lunak yang mengalah bila tidak ada orang lain yang tersedia.",
+        desc: "Beri bobot hari-hari dalam seminggu yang lebih disukai setiap karyawan, dari 0 sampai 1. Penjadwal lebih mengutamakan karyawan itu untuk shift pada hari tersebut — preferensi lunak yang mengalah bila tidak ada orang lain yang tersedia. Aktifkan permintaan preferensi, dan karyawan bisa mengusulkan preferensi mereka sendiri untuk disetujui manajer.",
       },
       "hour-range-preferences": {
         title: "Preferensi rentang jam",
@@ -1163,7 +1179,7 @@ const ind = {
       },
       payroll: {
         title: "Penggajian",
-        desc: "Ubah shift yang disetujui dan sudah check-in menjadi jam yang bisa dibayar secara otomatis. Konfirmasi shift langka yang tidak dipindai siapa pun, setujui satu periode gaji, dan ekspor langsung ke CSV.",
+        desc: "Ubah shift yang disetujui dan sudah check-in menjadi jam yang bisa dibayar secara otomatis. Konfirmasi shift langka yang tidak dipindai siapa pun, setujui satu periode gaji, dan ekspor langsung ke CSV. Catatan gaji disimpan selama tujuh tahun, dengan ekspor riwayat lengkap kapan saja.",
       },
       "special-hours": {
         title: "Jam khusus",
@@ -1171,7 +1187,7 @@ const ind = {
       },
       schedule: {
         title: "Jadwal",
-        desc: "Buat jadwal mingguan yang dioptimalkan dengan satu klik. Pilih strategi algoritma (Rotasi, Jam Maks, Acak) atau AI. Tinjau hasil per cabang, edit inline, dan publikasikan.",
+        desc: "Buat jadwal mingguan yang dioptimalkan dengan satu klik. Pilih strategi algoritma (Rotasi, Jam Maks, Acak) atau AI. Tinjau hasil per cabang, edit inline, dan publikasikan. Beberapa manajer bisa menyusun jadwal sekaligus: hanya cabang yang sedang dikerjakan, dan cabang yang berbagi staf dengannya, yang dikunci.",
       },
       "export-schedules": {
         title: "Ekspor jadwal",
@@ -1179,7 +1195,7 @@ const ind = {
       },
       "approved-schedules": {
         title: "Jadwal yang disetujui",
-        desc: "Telusuri minggu mana pun di masa lalu persis seperti tampilannya saat disetujui — catatan permanen yang menjadi dasar bagian lain aplikasi ini, termasuk penggajian.",
+        desc: "Telusuri jadwal yang disetujui untuk minggu mana pun di masa lalu — catatan yang menjadi dasar bagian lain aplikasi ini, termasuk penggajian. Slot yang tidak terisi tampil sebagai shift kosong dengan daftar peringkat siapa yang bisa mengambilnya, dan setiap edit memperingatkan Anda soal ketersediaan dan jadwal ganda.",
       },
       "data-privacy": {
         title: "Privasi data",
