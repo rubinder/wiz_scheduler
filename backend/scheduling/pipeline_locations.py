@@ -45,12 +45,12 @@ async def generation_lock_seed(
 
     None means "the whole company", which is what a run with no template
     filter is (acceptance criterion 3 of #180). A filter matching no
-    recurring template schedules nothing; it also returns None, which
-    over-locks harmlessly for the moment the empty run takes. A restricted
+    recurring template schedules nothing, so it locks nothing: an empty set
+    (#222), which `_lock_locations` turns into no lock at all. A restricted
     manager never reaches this with None for "no filter": the route has
     already replaced it with their in-scope template ids.
     """
     if not template_ids:
         return None
     by_location = await recurring_templates_by_location(db, company_id, template_ids)
-    return set(by_location) or None
+    return set(by_location)

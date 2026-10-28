@@ -128,6 +128,7 @@ const mr = {
     scheduleLockedTitle: "वेळापत्रक लॉक आहे",
     scheduleLockedBody: "{name} सध्या हे वेळापत्रक संपादित करत आहेत. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
     scheduleLockedBodyLocation: "{name} सध्या {location} चे वेळापत्रक तयार करत आहेत. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
+    scheduleLockedBodyShared: "{name} सध्या {location} चे वेळापत्रक तयार करत आहेत, ज्याचे कर्मचारी या वेळापत्रकातही आहेत. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
     invalidEdit: "हे संपादन लागू करता आले नाही. काहीही बदलले नाही.",
   },
 
@@ -755,6 +756,7 @@ const mr = {
     lockedToastTitle: "वेळापत्रकाचे काम सुरू आहे",
     lockedToastBody: "{locked_by} सध्या वेळापत्रक तयार किंवा मंजूर करत आहेत. {countdown} नंतर पुन्हा प्रयत्न करा.",
     lockedToastBodyLocation: "{locked_by} सध्या {location} चे वेळापत्रक तयार करत आहेत, ज्याचे कर्मचारी या वेळापत्रकातही आहेत. {countdown} नंतर पुन्हा प्रयत्न करा.",
+    lockedToastBodyHere: "{locked_by} आधीच {location} चे वेळापत्रक तयार करत आहेत. {countdown} नंतर पुन्हा प्रयत्न करा.",
     forLabel: "साठी",
     rotationHistory: "रोटेशन (3 महिन्यांचा इतिहास)",
     rotationHistoryDesc: "मागील 3 महिन्यांत प्रत्येक भूमिकेसाठी काम केलेले तास विचारात घेते. समायोज्य न्याय्यता वजन.",

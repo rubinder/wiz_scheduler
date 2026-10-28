@@ -128,6 +128,7 @@ const de = {
     scheduleLockedTitle: "Plan gesperrt",
     scheduleLockedBody: "{name} bearbeitet diesen Plan gerade. Versuchen Sie es in Kürze erneut.",
     scheduleLockedBodyLocation: "{name} plant gerade den Standort {location}. Versuchen Sie es in Kürze erneut.",
+    scheduleLockedBodyShared: "{name} plant gerade den Standort {location}, der Mitarbeiter mit diesem Plan teilt. Versuchen Sie es in Kürze erneut.",
     invalidEdit: "Diese Änderung konnte nicht angewendet werden. Es wurde nichts geändert.",
   },
 
@@ -755,6 +756,7 @@ const de = {
     lockedToastTitle: "Planungsvorgang läuft",
     lockedToastBody: "{locked_by} erstellt oder genehmigt gerade einen Plan. Versuchen Sie es in {countdown} erneut.",
     lockedToastBodyLocation: "{locked_by} plant gerade den Standort {location}, der Mitarbeiter mit diesem Plan teilt. Versuchen Sie es in {countdown} erneut.",
+    lockedToastBodyHere: "{locked_by} plant bereits den Standort {location}. Versuchen Sie es in {countdown} erneut.",
     forLabel: "für",
     rotationHistory: "Rotation (3-Monats-Verlauf)",
     rotationHistoryDesc: "Berücksichtigt geleistete Stunden pro Rolle der letzten 3 Monate. Einstellbare Fairness-Gewichtung.",

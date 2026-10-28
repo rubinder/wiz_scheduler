@@ -128,6 +128,7 @@ const zh = {
     scheduleLockedTitle: "排班已锁定",
     scheduleLockedBody: "{name} 正在编辑此排班，请稍后重试。",
     scheduleLockedBodyLocation: "{name} 正在为 {location} 排班，请稍后重试。",
+    scheduleLockedBodyShared: "{name} 正在为 {location} 排班，该地点与此排班有共同员工。请稍后重试。",
     invalidEdit: "无法应用此编辑，未做任何更改。",
   },
 
@@ -755,6 +756,7 @@ const zh = {
     lockedToastTitle: "排班操作进行中",
     lockedToastBody: "{locked_by} 正在生成或审批排班，请在 {countdown} 后重试。",
     lockedToastBodyLocation: "{locked_by} 正在为 {location} 排班，该地点与此排班有共同员工。请在 {countdown} 后重试。",
+    lockedToastBodyHere: "{locked_by} 已在为 {location} 排班。请在 {countdown} 后重试。",
     forLabel: "用于",
     rotationHistory: "轮换（3个月历史）",
     rotationHistoryDesc: "考虑过去3个月每个岗位的工作时长。可调节公平权重。",

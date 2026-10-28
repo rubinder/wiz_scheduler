@@ -7,6 +7,9 @@ export class ScheduleLockedError extends Error {
     public readonly expiresAt: Date,
     // The busy location (#180). Absent from older servers' 409s.
     public readonly locationName: string | null = null,
+    // The busy location is locked only because it shares employees with
+    // the one asked for (#222). False from older servers.
+    public readonly sharedStaff: boolean = false,
   ) {
     super(`Schedule locked by ${lockedBy} until ${expiresAt.toISOString()}`);
     this.name = "ScheduleLockedError";
@@ -18,11 +21,13 @@ export function scheduleLockedErrorFromDetail(detail: {
   locked_by?: unknown;
   expires_at?: unknown;
   location_name?: unknown;
+  shared_staff?: unknown;
 }): ScheduleLockedError {
   return new ScheduleLockedError(
     String(detail.locked_by ?? "another manager"),
     new Date(String(detail.expires_at ?? Date.now())),
     typeof detail.location_name === "string" && detail.location_name ? detail.location_name : null,
+    detail.shared_staff === true,
   );
 }
 

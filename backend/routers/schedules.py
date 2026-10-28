@@ -130,8 +130,14 @@ async def get_schedule_quota(
     return await check_schedule_quota(db, str(current_user.company_id))
 
 
-def _schedule_locked(e: LockHeld) -> HTTPException:
-    """The 409 every lock-taking route returns (#180: names the location)."""
+def _schedule_locked(e: LockHeld, own: set[str] | None = None) -> HTTPException:
+    """The 409 every lock-taking route returns (#180: names the location).
+
+    `shared_staff` says the busy location is not one the operation itself
+    schedules (`own`) but one locked only because it shares employees with
+    them (#222), so the client can word the two cases differently. `own`
+    None (the whole company) never reports shared staff.
+    """
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={
@@ -140,6 +146,10 @@ def _schedule_locked(e: LockHeld) -> HTTPException:
             "expires_at": e.expires_at.isoformat(),
             "location_id": e.location_id,
             "location_name": e.location_name,
+            "shared_staff": (
+                own is not None and e.location_id is not None
+                and e.location_id not in own
+            ),
         },
     )
 
@@ -153,11 +163,14 @@ async def _lock_locations(
     seed: set[str] | None,
     ttl_seconds: int | None = None,
     commit: bool = True,
+    own: set[str] | None = None,
 ) -> LockHandle | None:
     """Lock the seed's lock set (#180) and commit it, or raise the 409.
 
     `seed` None means the whole company. An empty lock set (a company with
-    no locations) locks nothing and returns None.
+    no locations, or a generate filter matching none) locks nothing and
+    returns None. `own` is the locations the operation itself schedules,
+    for the 409's `shared_staff` (#222); it defaults to `seed`.
 
     The rows are committed at once rather than left pending in the
     request's transaction: a concurrent request then sees them and gets
@@ -184,7 +197,7 @@ async def _lock_locations(
             ttl_seconds=ttl_seconds,
         )
     except LockHeld as e:
-        raise _schedule_locked(e)
+        raise _schedule_locked(e, seed if own is None else own)
     if commit:
         await db.commit()
     return handle
@@ -466,11 +479,19 @@ async def generate_schedule(
                             # acquire rolled its own savepoint back; the
                             # transaction (and the consent row) stays valid.
                             where = held.location_name or held.location_id or "a location"
+                            if held.location_id == chunk.get("location_id"):
+                                reason = (
+                                    f"Not saved: {held.locked_by_full_name} is already "
+                                    f"working on this location's schedule."
+                                )
+                            else:
+                                reason = (
+                                    f"Not saved: {held.locked_by_full_name} is scheduling "
+                                    f"{where}, which shares employees with this location."
+                                )
                             yield json.dumps(_skipped(
                                 chunk, "CONFLICT",
-                                f"Not saved: {held.locked_by_full_name} is scheduling "
-                                f"{where}, which shares employees with this location. "
-                                f"Generate this location again once they finish.",
+                                f"{reason} Generate this location again once they finish.",
                             )) + "\n"
                             continue
 
@@ -755,6 +776,7 @@ async def edit_approved_shifts(
                 Shift.id.in_(touched_ids),
             )
         )).scalars().all()}
+    own: set[str] = set(seed)
     assigned_ids = sorted({e.employee_id for e in body.edits if e.employee_id})
     if assigned_ids:
         for location_ids in (await db.execute(
@@ -770,6 +792,7 @@ async def edit_approved_shifts(
         user_id=str(current_user.id),
         operation="edit_approved",
         seed=seed,
+        own=own,
     )
 
     try:
@@ -1120,12 +1143,32 @@ async def approve_schedule(
             str(e["location_id"]) for e in entries
             if isinstance(e, dict) and isinstance(e.get("location_id"), str)
         }
+    own: set[str] = set(seed)
+    if isinstance(entries, list):
+        # And every location of every employee the approval gives a shift
+        # (#222), as edit already does for the employees it assigns: an
+        # employee whose locations no longer include the schedule's would
+        # otherwise leave their other locations unlocked.
+        employee_ids = sorted({
+            e["employee_id"] for e in entries
+            if isinstance(e, dict) and isinstance(e.get("employee_id"), str)
+            and not is_open_entry(e)
+        })
+        if employee_ids:
+            for location_ids in (await db.execute(
+                select(Employee.location_ids).where(
+                    Employee.company_id == current_user.company_id,
+                    Employee.id.in_(employee_ids),
+                )
+            )).scalars().all():
+                seed |= {str(lid) for lid in (location_ids or [])}
     lock = await _lock_locations(
         db,
         company_id=str(current_user.company_id),
         user_id=str(current_user.id),
         operation="approve",
         seed=seed,
+        own=own,
     )
 
     try:

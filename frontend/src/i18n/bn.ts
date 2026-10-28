@@ -128,6 +128,7 @@ const bn = {
     scheduleLockedTitle: "শিডিউল লক করা আছে",
     scheduleLockedBody: "{name} বর্তমানে এই শিডিউলটি সম্পাদনা করছেন। একটু পরে আবার চেষ্টা করুন।",
     scheduleLockedBodyLocation: "{name} এখন {location}-এর শিডিউল তৈরি করছেন। একটু পরে আবার চেষ্টা করুন।",
+    scheduleLockedBodyShared: "{name} এখন {location}-এর শিডিউল তৈরি করছেন, যার কর্মীরা এই শিডিউলেও আছেন। একটু পরে আবার চেষ্টা করুন।",
     invalidEdit: "এই সম্পাদনা প্রয়োগ করা যায়নি। কিছুই পরিবর্তিত হয়নি।",
   },
 
@@ -755,6 +756,7 @@ const bn = {
     lockedToastTitle: "শিডিউলের কাজ চলছে",
     lockedToastBody: "{locked_by} এখন একটি শিডিউল তৈরি বা অনুমোদন করছেন। {countdown} পরে আবার চেষ্টা করুন।",
     lockedToastBodyLocation: "{locked_by} এখন {location}-এর শিডিউল তৈরি করছেন, যার কর্মীরা এই শিডিউলেও আছেন। {countdown} পরে আবার চেষ্টা করুন।",
+    lockedToastBodyHere: "{locked_by} ইতিমধ্যে {location}-এর শিডিউল তৈরি করছেন। {countdown} পরে আবার চেষ্টা করুন।",
     forLabel: "এর জন্য",
     rotationHistory: "রোটেশন (৩ মাসের ইতিহাস)",
     rotationHistoryDesc: "গত ৩ মাসে প্রতিটি ভূমিকায় কাজের ঘণ্টা বিবেচনা করে। সামঞ্জস্যযোগ্য ন্যায্যতা ওজন।",

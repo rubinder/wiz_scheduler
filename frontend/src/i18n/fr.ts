@@ -128,6 +128,7 @@ const fr = {
     scheduleLockedTitle: "Planning verrouillé",
     scheduleLockedBody: "{name} modifie actuellement ce planning. Réessayez dans un instant.",
     scheduleLockedBodyLocation: "{name} planifie {location}. Réessayez dans un instant.",
+    scheduleLockedBodyShared: "{name} planifie {location}, qui partage des employés avec ce planning. Réessayez dans un instant.",
     invalidEdit: "Cette modification n'a pas pu être appliquée. Rien n'a changé.",
   },
 
@@ -755,6 +756,7 @@ const fr = {
     lockedToastTitle: "Planification en cours",
     lockedToastBody: "{locked_by} génère ou approuve un planning. Réessayez dans {countdown}.",
     lockedToastBodyLocation: "{locked_by} planifie {location}, qui partage des employés avec ce planning. Réessayez dans {countdown}.",
+    lockedToastBodyHere: "{locked_by} planifie déjà {location}. Réessayez dans {countdown}.",
     forLabel: "pour",
     rotationHistory: "Rotation (Historique 3 mois)",
     rotationHistoryDesc: "Prend en compte les heures travaillées par rôle sur les 3 derniers mois. Poids d'équité ajustable.",

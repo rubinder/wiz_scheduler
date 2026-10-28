@@ -128,6 +128,7 @@ const en = {
     scheduleLockedTitle: "Schedule locked",
     scheduleLockedBody: "{name} is currently editing this schedule. Try again shortly.",
     scheduleLockedBodyLocation: "{name} is scheduling {location}. Try again shortly.",
+    scheduleLockedBodyShared: "{name} is scheduling {location}, which shares employees with this schedule. Try again shortly.",
     invalidEdit: "This edit could not be applied. Nothing was changed.",
   },
 
@@ -756,6 +757,7 @@ const en = {
     lockedToastTitle: "Schedule activity in progress",
     lockedToastBody: "{locked_by} is generating or approving a schedule. Try again in {countdown}.",
     lockedToastBodyLocation: "{locked_by} is scheduling {location}, which shares employees with this schedule. Try again in {countdown}.",
+    lockedToastBodyHere: "{locked_by} is already scheduling {location}. Try again in {countdown}.",
     forLabel: "for",
     rotationHistory: "Rotation (3-Month History)",
     rotationHistoryDesc: "Considers hours worked per role over the past 3 months. Adjustable fairness weight.",

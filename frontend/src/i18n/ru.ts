@@ -128,6 +128,7 @@ const ru = {
     scheduleLockedTitle: "Расписание заблокировано",
     scheduleLockedBody: "{name} сейчас редактирует это расписание. Повторите попытку чуть позже.",
     scheduleLockedBodyLocation: "{name} составляет расписание для {location}. Повторите попытку чуть позже.",
+    scheduleLockedBodyShared: "{name} составляет расписание для {location}, где работают те же сотрудники. Повторите попытку чуть позже.",
     invalidEdit: "Не удалось применить это изменение. Ничего не изменено.",
   },
 
@@ -755,6 +756,7 @@ const ru = {
     lockedToastTitle: "Идёт работа с расписанием",
     lockedToastBody: "{locked_by} создаёт или утверждает расписание. Повторите попытку через {countdown}.",
     lockedToastBodyLocation: "{locked_by} составляет расписание для {location}, где работают те же сотрудники. Повторите попытку через {countdown}.",
+    lockedToastBodyHere: "{locked_by} уже составляет расписание для {location}. Повторите попытку через {countdown}.",
     forLabel: "для",
     rotationHistory: "Ротация (история за 3 месяца)",
     rotationHistoryDesc: "Учитывает отработанные часы по ролям за последние 3 месяца. Регулируемый вес справедливости.",
