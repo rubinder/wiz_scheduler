@@ -129,6 +129,7 @@ const es = {
     scheduleLockedTitle: "Horario bloqueado",
     scheduleLockedBody: "{name} está editando este horario en este momento. Vuelve a intentarlo en breve.",
     scheduleLockedBodyLocation: "{name} está programando {location}. Vuelve a intentarlo en breve.",
+    scheduleLockedBodyShared: "{name} está programando {location}, que comparte empleados con este horario. Vuelve a intentarlo en breve.",
     invalidEdit: "No se pudo aplicar esta edición. No se cambió nada.",
   },
 
@@ -756,6 +757,7 @@ const es = {
     lockedToastTitle: "Actividad de horario en curso",
     lockedToastBody: "{locked_by} está generando o aprobando un horario. Vuelve a intentarlo en {countdown}.",
     lockedToastBodyLocation: "{locked_by} está programando {location}, que comparte empleados con este horario. Vuelve a intentarlo en {countdown}.",
+    lockedToastBodyHere: "{locked_by} ya está programando {location}. Vuelve a intentarlo en {countdown}.",
     forLabel: "para",
     rotationHistory: "Rotación (Historial de 3 Meses)",
     rotationHistoryDesc: "Considera las horas trabajadas por rol en los últimos 3 meses. Peso de equidad ajustable.",

@@ -129,6 +129,7 @@ const ind = {
     scheduleLockedTitle: "Jadwal terkunci",
     scheduleLockedBody: "{name} sedang mengedit jadwal ini. Coba lagi sebentar.",
     scheduleLockedBodyLocation: "{name} sedang menyusun jadwal {location}. Coba lagi sebentar.",
+    scheduleLockedBodyShared: "{name} sedang menyusun jadwal {location}, yang berbagi karyawan dengan jadwal ini. Coba lagi sebentar.",
     invalidEdit: "Perubahan ini tidak dapat diterapkan. Tidak ada yang berubah.",
   },
 
@@ -756,6 +757,7 @@ const ind = {
     lockedToastTitle: "Aktivitas jadwal sedang berlangsung",
     lockedToastBody: "{locked_by} sedang membuat atau menyetujui jadwal. Coba lagi dalam {countdown}.",
     lockedToastBodyLocation: "{locked_by} sedang menyusun jadwal {location}, yang berbagi karyawan dengan jadwal ini. Coba lagi dalam {countdown}.",
+    lockedToastBodyHere: "{locked_by} sudah sedang menyusun jadwal {location}. Coba lagi dalam {countdown}.",
     forLabel: "untuk",
     rotationHistory: "Rotasi (Riwayat 3 Bulan)",
     rotationHistoryDesc: "Mempertimbangkan jam kerja per peran selama 3 bulan terakhir. Bobot keadilan dapat disesuaikan.",

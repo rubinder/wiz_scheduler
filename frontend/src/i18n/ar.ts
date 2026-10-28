@@ -129,6 +129,7 @@ const ar = {
     scheduleLockedTitle: "الجدول مقفل",
     scheduleLockedBody: "يقوم {name} حاليًا بتعديل هذا الجدول. حاول مرة أخرى بعد قليل.",
     scheduleLockedBodyLocation: "يقوم {name} بجدولة {location}. حاول مرة أخرى بعد قليل.",
+    scheduleLockedBodyShared: "يقوم {name} بجدولة {location}، الذي يشترك في موظفين مع هذا الجدول. حاول مرة أخرى بعد قليل.",
     invalidEdit: "تعذّر تطبيق هذا التعديل. لم يتم تغيير أي شيء.",
   },
 
@@ -756,6 +757,7 @@ const ar = {
     lockedToastTitle: "عملية جدولة قيد التنفيذ",
     lockedToastBody: "يقوم {locked_by} بإنشاء جدول أو اعتماده. حاول مرة أخرى بعد {countdown}.",
     lockedToastBodyLocation: "يقوم {locked_by} بجدولة {location}، الذي يشترك في موظفين مع هذا الجدول. حاول مرة أخرى بعد {countdown}.",
+    lockedToastBodyHere: "يقوم {locked_by} بجدولة {location} بالفعل. حاول مرة أخرى بعد {countdown}.",
     forLabel: "لـ",
     rotationHistory: "تناوب (سجل 3 أشهر)",
     rotationHistoryDesc: "يأخذ بعين الاعتبار ساعات العمل لكل دور خلال الأشهر الثلاثة الماضية. وزن العدالة قابل للتعديل.",

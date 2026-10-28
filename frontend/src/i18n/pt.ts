@@ -129,6 +129,7 @@ const pt = {
     scheduleLockedTitle: "Escala bloqueada",
     scheduleLockedBody: "{name} está editando esta escala no momento. Tente novamente em breve.",
     scheduleLockedBodyLocation: "{name} está montando a escala de {location}. Tente novamente em breve.",
+    scheduleLockedBodyShared: "{name} está montando a escala de {location}, que compartilha funcionários com esta escala. Tente novamente em breve.",
     invalidEdit: "Não foi possível aplicar esta edição. Nada foi alterado.",
   },
 
@@ -756,6 +757,7 @@ const pt = {
     lockedToastTitle: "Atividade de escala em andamento",
     lockedToastBody: "{locked_by} está gerando ou aprovando uma escala. Tente novamente em {countdown}.",
     lockedToastBodyLocation: "{locked_by} está montando a escala de {location}, que compartilha funcionários com esta escala. Tente novamente em {countdown}.",
+    lockedToastBodyHere: "{locked_by} já está montando a escala de {location}. Tente novamente em {countdown}.",
     forLabel: "para",
     rotationHistory: "Rotação (Histórico de 3 Meses)",
     rotationHistoryDesc: "Considera as horas trabalhadas por função nos últimos 3 meses. Peso de equidade ajustável.",

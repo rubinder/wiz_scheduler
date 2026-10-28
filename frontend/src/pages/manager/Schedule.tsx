@@ -231,11 +231,13 @@ function LockedToast({
   lockedBy,
   expiresAt,
   locationName,
+  sharedStaff,
   onExpired,
 }: {
   lockedBy: string;
   expiresAt: Date;
   locationName: string | null;
+  sharedStaff: boolean;
   onExpired: () => void;
 }) {
   const { t } = useLanguage();
@@ -254,9 +256,11 @@ function LockedToast({
   const ss = String(remaining % 60).padStart(2, "0");
   const body = scheduleLockedMessage(
     t.schedule.lockedToastBody,
-    t.schedule.lockedToastBodyLocation,
+    t.schedule.lockedToastBodyHere,
     { locked_by: lockedBy, countdown: `${mm}:${ss}` },
     locationName,
+    t.schedule.lockedToastBodyLocation,
+    sharedStaff,
   );
   return (
     <div className="fixed bottom-4 right-4 max-w-sm rounded-lg bg-amber-100 border border-amber-400 text-amber-900 p-4 shadow-lg z-50">
@@ -329,6 +333,7 @@ export default function Schedule() {
   const [lockedBy, setLockedBy] = useState<string | null>(null);
   const [lockExpiresAt, setLockExpiresAt] = useState<Date | null>(null);
   const [lockLocation, setLockLocation] = useState<string | null>(null);
+  const [lockShared, setLockShared] = useState(false);
   const lockActive = lockedBy !== null && lockExpiresAt !== null;
 
   useEffect(() => {
@@ -336,6 +341,7 @@ export default function Schedule() {
       setLockedBy(lockedError.lockedBy);
       setLockExpiresAt(lockedError.expiresAt);
       setLockLocation(lockedError.locationName);
+      setLockShared(lockedError.sharedStaff);
     }
   }, [lockedError]);
 
@@ -725,6 +731,7 @@ export default function Schedule() {
           setLockedBy(err.lockedBy);
           setLockExpiresAt(err.expiresAt);
           setLockLocation(err.locationName);
+          setLockShared(err.sharedStaff);
           return;
         }
         setActionError(
@@ -1904,6 +1911,7 @@ export default function Schedule() {
           lockedBy={lockedBy!}
           expiresAt={lockExpiresAt}
           locationName={lockLocation}
+          sharedStaff={lockShared}
           onExpired={() => {
             setLockedBy(null);
             setLockExpiresAt(null);

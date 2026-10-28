@@ -129,6 +129,7 @@ const pcm = {
     scheduleLockedTitle: "Schedule don lock",
     scheduleLockedBody: "{name} dey edit dis schedule right now. Try again small time.",
     scheduleLockedBodyLocation: "{name} dey arrange schedule for {location}. Try again small time.",
+    scheduleLockedBodyShared: "{name} dey arrange schedule for {location}, wey get the same workers as dis schedule. Try again small time.",
     invalidEdit: "Dis edit no fit apply. Nothing no change.",
   },
 
@@ -756,6 +757,7 @@ const pcm = {
     lockedToastTitle: "Schedule work dey go on",
     lockedToastBody: "{locked_by} dey make or approve schedule now. Try again for {countdown}.",
     lockedToastBodyLocation: "{locked_by} dey arrange schedule for {location}, wey get the same workers as dis schedule. Try again for {countdown}.",
+    lockedToastBodyHere: "{locked_by} don already dey arrange schedule for {location}. Try again for {countdown}.",
     forLabel: "for",
     rotationHistory: "Rotation (3-Month History)",
     rotationHistoryDesc: "E dey look how many hours each person don work for each role for the past 3 months. You fit adjust the fairness.",

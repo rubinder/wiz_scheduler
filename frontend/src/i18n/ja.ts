@@ -129,6 +129,7 @@ const ja = {
     scheduleLockedTitle: "スケジュールはロックされています",
     scheduleLockedBody: "{name} が現在このスケジュールを編集中です。しばらくしてから再試行してください。",
     scheduleLockedBodyLocation: "{name} が {location} のスケジュールを作成中です。しばらくしてから再試行してください。",
+    scheduleLockedBodyShared: "{name} が {location} のスケジュールを作成中です（このスケジュールと従業員が共通しています）。しばらくしてから再試行してください。",
     invalidEdit: "この編集は適用できませんでした。変更はありません。",
   },
 
@@ -756,6 +757,7 @@ const ja = {
     lockedToastTitle: "スケジュール処理中",
     lockedToastBody: "{locked_by} がスケジュールを作成または承認しています。{countdown} 後に再試行してください。",
     lockedToastBodyLocation: "{locked_by} が {location} のスケジュールを作成中です（このスケジュールと従業員が共通しています）。{countdown} 後に再試行してください。",
+    lockedToastBodyHere: "{locked_by} がすでに {location} のスケジュールを作成中です。{countdown} 後に再試行してください。",
     forLabel: "対象：",
     rotationHistory: "ローテーション（3ヶ月履歴）",
     rotationHistoryDesc: "過去3ヶ月間の役割ごとの勤務時間を考慮します。公平性の重みを調整可能。",

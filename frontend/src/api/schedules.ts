@@ -29,7 +29,7 @@ export async function approveSchedule(id: string): Promise<ShiftSchedule> {
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
       const data = err.data as
-        | { code?: string; locked_by?: string; expires_at?: string; location_name?: string | null }
+        | { code?: string; locked_by?: string; expires_at?: string; location_name?: string | null; shared_staff?: boolean }
         | undefined;
       if (data?.code === "schedule_locked") {
         throw scheduleLockedErrorFromDetail(data);

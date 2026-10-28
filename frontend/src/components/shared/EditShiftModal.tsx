@@ -52,11 +52,13 @@ export default function EditShiftModal({
   const [error, setError] = useState("");
   const [lockedBy, setLockedBy] = useState<string | null>(null);
   const [lockLocation, setLockLocation] = useState<string | null>(null);
+  const [lockShared, setLockShared] = useState(false);
 
   const handleError = (err: unknown) => {
     if (err instanceof ScheduleLockedError) {
       setLockedBy(err.lockedBy);
       setLockLocation(err.locationName);
+      setLockShared(err.sharedStaff);
       return;
     }
     if (err instanceof ApiError) {
@@ -185,6 +187,8 @@ export default function EditShiftModal({
                   t.approvedSchedules.scheduleLockedBodyLocation,
                   { name: lockedBy },
                   lockLocation,
+                  t.approvedSchedules.scheduleLockedBodyShared,
+                  lockShared,
                 )}
               </div>
             </div>

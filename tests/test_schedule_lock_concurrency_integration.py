@@ -219,6 +219,37 @@ async def test_generate_409s_naming_the_location_that_shares_an_employee(
     assert detail["location_id"] == tenant.b
     assert detail["location_name"] == "Bravo"
     assert "expires_at" in detail
+    # Bravo was pulled in through Sam, not asked for (#222).
+    assert detail["shared_staff"] is True
+
+
+async def test_409_on_the_requested_location_is_not_shared_staff(
+    isolated_client, tenant, gate,
+):
+    await _hold(tenant, tenant.a)
+    resp = await _generate(isolated_client, tenant.admin_token, tenant.a, tenant=tenant)
+    assert resp.status_code == 409
+    detail = resp.json()["detail"]
+    assert detail["location_id"] == tenant.a
+    assert detail["shared_staff"] is False
+
+
+async def test_filter_matching_no_template_locks_nothing(
+    isolated_client, tenant, gate,
+):
+    """A filter that resolves to no location schedules nothing, so it must
+    not lock (or 409 on) the whole company (#222)."""
+    await _hold(tenant, tenant.c)
+    gate.go.set()
+    resp = await isolated_client.post(
+        GENERATE,
+        json={"week_start_date": WEEK, "use_local": True, "template_ids": [_id()]},
+        headers=_h(tenant.admin_token),
+    )
+    assert resp.status_code != 409, resp.text
+    assert [(r.location_id, r.lock_group) for r in await _lock_rows(tenant.company_id)] == [
+        (tenant.c, "heldgrp1"),
+    ]
 
 
 async def test_archived_employee_does_not_widen_the_set(
@@ -410,6 +441,35 @@ async def test_edit_locks_the_locations_of_an_assigned_employee(
                          "end_time": f"{WEEK}T17:00:00+00:00"}]},
         headers=_h(tenant.admin_token))
     assert edit.status_code == 409, edit.text
+    gate.go.set()
+    await running
+
+
+async def test_approve_locks_the_locations_of_its_employees(
+    isolated_client, db_session, tenant, gate,
+):
+    """A Charlie draft that gives Sam a shift (Sam's locations are Alpha and
+    Bravo, not Charlie) must lock Sam's locations too, so it conflicts with
+    a generate on Alpha (#222)."""
+    sid = _id()
+    db_session.add(ShiftSchedule(
+        id=sid, company_id=tenant.company_id, location_id=tenant.c,
+        week_start_date=date.fromisoformat(WEEK), status="draft",
+        raw_llm_output=json.dumps([{
+            "employee_id": tenant.sam, "location_id": tenant.c, "status": "ok",
+            "role_id": "nope", "date": WEEK,
+            "start_time": f"{WEEK}T09:00:00+00:00", "end_time": f"{WEEK}T17:00:00+00:00",
+        }]),
+        created_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+    running = asyncio.create_task(
+        _generate(isolated_client, tenant.admin_token, tenant.a, tenant=tenant))
+    await gate.reached(tenant.a)
+    approve = await isolated_client.post(
+        f"/api/v1/schedules/{sid}/approve", headers=_h(tenant.admin_token))
+    assert approve.status_code == 409, approve.text
+    assert approve.json()["detail"]["shared_staff"] is True
     gate.go.set()
     await running
 

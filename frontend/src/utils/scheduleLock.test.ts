@@ -3,26 +3,39 @@ import en from "../i18n/en";
 import { scheduleLockedErrorFromDetail } from "../hooks/useScheduleStream";
 import { scheduleLockedMessage } from "./scheduleLock";
 
-const modal = (name: string, location?: string | null) =>
+const modal = (name: string, location?: string | null, shared = false) =>
   scheduleLockedMessage(
     en.approvedSchedules.scheduleLockedBody,
     en.approvedSchedules.scheduleLockedBodyLocation,
     { name },
     location,
+    en.approvedSchedules.scheduleLockedBodyShared,
+    shared,
   );
 
-const toast = (lockedBy: string, countdown: string, location?: string | null) =>
+const toast = (lockedBy: string, countdown: string, location?: string | null, shared = false) =>
   scheduleLockedMessage(
     en.schedule.lockedToastBody,
-    en.schedule.lockedToastBodyLocation,
+    en.schedule.lockedToastBodyHere,
     { locked_by: lockedBy, countdown },
     location,
+    en.schedule.lockedToastBodyLocation,
+    shared,
   );
 
 describe("schedule lock message", () => {
   it("names the location when the 409 carries one", () => {
     expect(modal("Ben Boss", "Bravo")).toBe("Ben Boss is scheduling Bravo. Try again shortly.");
     expect(toast("Ben Boss", "01:05", "Bravo")).toBe(
+      "Ben Boss is already scheduling Bravo. Try again in 01:05.",
+    );
+  });
+
+  it("says the location shares employees only when the server says so (#222)", () => {
+    expect(modal("Ben Boss", "Bravo", true)).toBe(
+      "Ben Boss is scheduling Bravo, which shares employees with this schedule. Try again shortly.",
+    );
+    expect(toast("Ben Boss", "01:05", "Bravo", true)).toBe(
       "Ben Boss is scheduling Bravo, which shares employees with this schedule. Try again in 01:05.",
     );
   });
@@ -50,7 +63,16 @@ describe("scheduleLockedErrorFromDetail", () => {
     });
     expect(err.lockedBy).toBe("Ben Boss");
     expect(err.locationName).toBe("Bravo");
+    expect(err.sharedStaff).toBe(false);
     expect(err.expiresAt.toISOString()).toBe("2026-10-27T12:00:00.000Z");
+  });
+
+  it("reads shared_staff from the 409 detail (#222)", () => {
+    const err = scheduleLockedErrorFromDetail({
+      locked_by: "Ben Boss", expires_at: "2026-10-27T12:00:00+00:00",
+      location_name: "Bravo", shared_staff: true,
+    });
+    expect(err.sharedStaff).toBe(true);
   });
 
   it("keeps working with an older detail that has no location", () => {
@@ -72,7 +94,9 @@ const LOCK_KEYS = [
   ["schedule", "lockedToastTitle"],
   ["schedule", "lockedToastBody"],
   ["schedule", "lockedToastBodyLocation"],
+  ["schedule", "lockedToastBodyHere"],
   ["approvedSchedules", "scheduleLockedBodyLocation"],
+  ["approvedSchedules", "scheduleLockedBodyShared"],
 ] as const;
 
 const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort();

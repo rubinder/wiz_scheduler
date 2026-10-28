@@ -129,6 +129,7 @@ const trLang = {
     scheduleLockedTitle: "Program kilitli",
     scheduleLockedBody: "{name} şu anda bu programı düzenliyor. Kısa süre sonra tekrar deneyin.",
     scheduleLockedBodyLocation: "{name} şu anda {location} için program hazırlıyor. Kısa süre sonra tekrar deneyin.",
+    scheduleLockedBodyShared: "{name} şu anda {location} için program hazırlıyor; bu konum bu programla çalışan paylaşıyor. Kısa süre sonra tekrar deneyin.",
     invalidEdit: "Bu düzenleme uygulanamadı. Hiçbir şey değişmedi.",
   },
 
@@ -756,6 +757,7 @@ const trLang = {
     lockedToastTitle: "Program işlemi sürüyor",
     lockedToastBody: "{locked_by} şu anda bir program oluşturuyor veya onaylıyor. {countdown} sonra tekrar deneyin.",
     lockedToastBodyLocation: "{locked_by} şu anda {location} için program hazırlıyor; bu konum bu programla çalışan paylaşıyor. {countdown} sonra tekrar deneyin.",
+    lockedToastBodyHere: "{locked_by} zaten {location} için program hazırlıyor. {countdown} sonra tekrar deneyin.",
     forLabel: "için",
     rotationHistory: "Rotasyon (3 Aylık Geçmiş)",
     rotationHistoryDesc: "Son 3 aydaki rol başına çalışılan saatleri dikkate alır. Ayarlanabilir adalet ağırlığı.",

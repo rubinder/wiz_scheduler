@@ -129,6 +129,7 @@ const hi = {
     scheduleLockedTitle: "शेड्यूल लॉक है",
     scheduleLockedBody: "{name} वर्तमान में इस शेड्यूल को संपादित कर रहे हैं। कृपया थोड़ी देर बाद पुनः प्रयास करें।",
     scheduleLockedBodyLocation: "{name} अभी {location} का शेड्यूल बना रहे हैं। कृपया थोड़ी देर बाद पुनः प्रयास करें।",
+    scheduleLockedBodyShared: "{name} अभी {location} का शेड्यूल बना रहे हैं, जिसके कर्मचारी इस शेड्यूल में भी हैं। कृपया थोड़ी देर बाद पुनः प्रयास करें।",
     invalidEdit: "यह संपादन लागू नहीं किया जा सका। कोई परिवर्तन नहीं हुआ।",
   },
 
@@ -756,6 +757,7 @@ const hi = {
     lockedToastTitle: "शेड्यूल पर काम चल रहा है",
     lockedToastBody: "{locked_by} अभी शेड्यूल बना रहे हैं या स्वीकृत कर रहे हैं। {countdown} बाद पुनः प्रयास करें।",
     lockedToastBodyLocation: "{locked_by} अभी {location} का शेड्यूल बना रहे हैं, जिसके कर्मचारी इस शेड्यूल में भी हैं। {countdown} बाद पुनः प्रयास करें।",
+    lockedToastBodyHere: "{locked_by} पहले से {location} का शेड्यूल बना रहे हैं। {countdown} बाद पुनः प्रयास करें।",
     forLabel: "के लिए",
     rotationHistory: "रोटेशन (3 महीने का इतिहास)",
     rotationHistoryDesc: "पिछले 3 महीनों में प्रति भूमिका काम किए गए घंटों पर विचार करता है। समायोज्य निष्पक्षता भार।",

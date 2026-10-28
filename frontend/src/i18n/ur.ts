@@ -129,6 +129,7 @@ const ur = {
     scheduleLockedTitle: "شیڈول مقفل ہے",
     scheduleLockedBody: "{name} فی الحال اس شیڈول میں ترمیم کر رہے ہیں۔ براہ کرم تھوڑی دیر بعد دوبارہ کوشش کریں۔",
     scheduleLockedBodyLocation: "{name} اس وقت {location} کا شیڈول بنا رہے ہیں۔ براہ کرم تھوڑی دیر بعد دوبارہ کوشش کریں۔",
+    scheduleLockedBodyShared: "{name} اس وقت {location} کا شیڈول بنا رہے ہیں، جس کے ملازمین اس شیڈول میں بھی شامل ہیں۔ براہ کرم تھوڑی دیر بعد دوبارہ کوشش کریں۔",
     invalidEdit: "یہ ترمیم لاگو نہیں کی جا سکی۔ کچھ بھی تبدیل نہیں ہوا۔",
   },
 
@@ -756,6 +757,7 @@ const ur = {
     lockedToastTitle: "شیڈول پر کام جاری ہے",
     lockedToastBody: "{locked_by} اس وقت شیڈول بنا رہے ہیں یا منظور کر رہے ہیں۔ {countdown} بعد دوبارہ کوشش کریں۔",
     lockedToastBodyLocation: "{locked_by} اس وقت {location} کا شیڈول بنا رہے ہیں، جس کے ملازمین اس شیڈول میں بھی شامل ہیں۔ {countdown} بعد دوبارہ کوشش کریں۔",
+    lockedToastBodyHere: "{locked_by} پہلے ہی {location} کا شیڈول بنا رہے ہیں۔ {countdown} بعد دوبارہ کوشش کریں۔",
     forLabel: "کے لیے",
     rotationHistory: "گردش (3 ماہ کی تاریخ)",
     rotationHistoryDesc: "پچھلے 3 مہینوں میں ہر کردار کے لیے کام کیے گئے گھنٹوں پر غور کرتا ہے۔ ایڈجسٹ ایبل انصاف وزن۔",

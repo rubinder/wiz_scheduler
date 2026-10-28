@@ -129,6 +129,7 @@ const vi = {
     scheduleLockedTitle: "Lịch làm việc đã bị khóa",
     scheduleLockedBody: "{name} đang chỉnh sửa lịch làm việc này. Vui lòng thử lại sau ít phút.",
     scheduleLockedBodyLocation: "{name} đang xếp lịch cho {location}. Vui lòng thử lại sau ít phút.",
+    scheduleLockedBodyShared: "{name} đang xếp lịch cho {location}, nơi có chung nhân viên với lịch này. Vui lòng thử lại sau ít phút.",
     invalidEdit: "Không thể áp dụng chỉnh sửa này. Không có gì thay đổi.",
   },
 
@@ -756,6 +757,7 @@ const vi = {
     lockedToastTitle: "Đang có thao tác trên lịch làm việc",
     lockedToastBody: "{locked_by} đang tạo hoặc phê duyệt lịch làm việc. Vui lòng thử lại sau {countdown}.",
     lockedToastBodyLocation: "{locked_by} đang xếp lịch cho {location}, nơi có chung nhân viên với lịch này. Vui lòng thử lại sau {countdown}.",
+    lockedToastBodyHere: "{locked_by} đang xếp lịch cho {location} rồi. Vui lòng thử lại sau {countdown}.",
     forLabel: "cho",
     rotationHistory: "Luân chuyển (Lịch sử 3 tháng)",
     rotationHistoryDesc: "Xem xét số giờ làm việc theo vai trò trong 3 tháng qua. Trọng số công bằng có thể điều chỉnh.",
