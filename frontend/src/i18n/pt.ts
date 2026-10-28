@@ -53,6 +53,7 @@ const pt = {
     shifts: "turnos",
     week: "Semana",
     logout: "Sair",
+    openMenu: "Abrir menu",
     dismiss: "dispensar",
     errors: "Erros",
     warnings: "Avisos",

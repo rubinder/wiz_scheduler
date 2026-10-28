@@ -53,6 +53,7 @@ const pcm = {
     shifts: "shifts",
     week: "Week",
     logout: "Log Out",
+    openMenu: "Open menu",
     dismiss: "close am",
     errors: "Errors",
     warnings: "Warnings",

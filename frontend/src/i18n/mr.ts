@@ -53,6 +53,7 @@ const mr = {
     shifts: "शिफ्ट्स",
     week: "आठवडा",
     logout: "बाहेर पडा",
+    openMenu: "मेनू उघडा",
     dismiss: "बंद करा",
     errors: "त्रुटी",
     warnings: "इशारे",

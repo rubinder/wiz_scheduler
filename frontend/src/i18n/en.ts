@@ -53,6 +53,7 @@ const en = {
     shifts: "shifts",
     week: "Week",
     logout: "Logout",
+    openMenu: "Open menu",
     dismiss: "dismiss",
     errors: "Errors",
     warnings: "Warnings",

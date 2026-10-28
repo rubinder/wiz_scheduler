@@ -53,6 +53,7 @@ const vi = {
     shifts: "ca làm",
     week: "Tuần",
     logout: "Đăng xuất",
+    openMenu: "Mở menu",
     dismiss: "bỏ qua",
     errors: "Lỗi",
     warnings: "Cảnh báo",

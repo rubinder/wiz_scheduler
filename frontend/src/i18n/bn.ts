@@ -53,6 +53,7 @@ const bn = {
     shifts: "শিফটসমূহ",
     week: "সপ্তাহ",
     logout: "লগআউট",
+    openMenu: "মেনু খুলুন",
     dismiss: "বাতিল করুন",
     errors: "ত্রুটিসমূহ",
     warnings: "সতর্কতাসমূহ",

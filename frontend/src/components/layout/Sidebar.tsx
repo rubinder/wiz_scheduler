@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, useLocation } from "react-router-dom";
 import { getCompany } from "../../api/company";
 import { listEmployees } from "../../api/employees";
@@ -14,10 +15,29 @@ import {
   type NavGroup,
 } from "./navItems";
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Below md the sidebar is an off-canvas drawer (#215); whether it shows. */
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
   const { pathname } = useLocation();
+
+  // Navigating closes the drawer, as does Escape.
+  useEffect(() => {
+    onClose();
+    // onClose is a fresh closure each render; only a route change should close.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   const isManager = user?.user_role === "manager";
   const [hasEmployees, setHasEmployees] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -101,10 +121,39 @@ export default function Sidebar() {
       isActive ? nav.active : nav.inactive
     }`;
 
+  // md and up: a static column. Below md: a drawer pinned to the inline
+  // start edge (left in LTR, right in RTL), slid off-screen when closed.
+  const drawer = open
+    ? "translate-x-0"
+    : "-translate-x-full rtl:translate-x-full";
   return (
-    <aside className={`w-64 ${bg.sidebar} border-e ${border.default} ${text.primary} min-h-screen flex flex-col`}>
-      <div className={`p-5 border-b ${border.default}`}>
+    <>
+      {/* Portaled: see layoutOverlays.test.ts. */}
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            aria-hidden="true"
+            onClick={onClose}
+          />,
+          document.body,
+        )}
+    <aside
+      id="app-sidebar"
+      className={`w-64 shrink-0 ${bg.sidebar} border-e ${border.default} ${text.primary} flex flex-col
+        fixed inset-y-0 start-0 z-40 overflow-y-auto max-md:bg-white/95 transition-transform duration-200 ${drawer}
+        md:static md:z-auto md:min-h-screen md:translate-x-0 md:rtl:translate-x-0 md:transition-none`}
+    >
+      <div className={`p-5 border-b ${border.default} flex items-center justify-between gap-2`}>
         <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">{t.common.appName} <img src="/favicon.svg" alt="" className="w-7 h-7" /></h1>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t.common.close}
+          className={`md:hidden p-1 rounded ${text.muted} hover:opacity-80`}
+        >
+          <span aria-hidden="true" className="text-xl leading-none">×</span>
+        </button>
       </div>
       <nav className="flex-1 p-4 space-y-1">
         {entries.map((entry) => {
@@ -135,7 +184,7 @@ export default function Sidebar() {
                     entry.children.some((c) => c.to === "/manager/approved-schedules") &&
                     badge(openShiftCount)}
                 </span>
-                <span aria-hidden="true" className="text-xs">{isOpen ? "▾" : "▸"}</span>
+                <span aria-hidden="true" className={`text-xs ${isOpen ? "" : "rtl:-scale-x-100"}`}>{isOpen ? "▾" : "▸"}</span>
               </button>
               {isOpen && (
                 <div className={`ms-3 ps-2 border-s ${border.default} space-y-1 mt-1`}>
@@ -157,5 +206,6 @@ export default function Sidebar() {
         </div>
       )}
     </aside>
+    </>
   );
 }

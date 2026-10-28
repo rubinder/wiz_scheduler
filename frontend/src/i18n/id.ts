@@ -53,6 +53,7 @@ const ind = {
     shifts: "shift",
     week: "Minggu",
     logout: "Keluar",
+    openMenu: "Buka menu",
     dismiss: "tutup",
     errors: "Kesalahan",
     warnings: "Peringatan",

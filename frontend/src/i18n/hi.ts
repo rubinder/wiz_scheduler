@@ -53,6 +53,7 @@ const hi = {
     shifts: "शिफ्टें",
     week: "सप्ताह",
     logout: "लॉग आउट",
+    openMenu: "मेनू खोलें",
     dismiss: "खारिज करें",
     errors: "त्रुटियां",
     warnings: "चेतावनियां",

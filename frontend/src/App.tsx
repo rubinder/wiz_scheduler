@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import ExternalRedirect from "./components/shared/ExternalRedirect";
 import Sidebar from "./components/layout/Sidebar";
@@ -49,6 +49,8 @@ const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
+  // Below md the sidebar is a drawer (#215); this is whether it is showing.
+  const [navOpen, setNavOpen] = useState(false);
 
   if (loading) {
     return (
@@ -64,11 +66,13 @@ function ProtectedLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <TopBar />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      {/* min-w-0 lets this column shrink below its content's width, so a
+          wide table scrolls inside <main> instead of widening the page. */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopBar onMenuClick={() => setNavOpen(true)} />
         <CancellationBanner />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 md:p-6 overflow-x-auto">
           <RestrictedLocationsBadge />
           <Outlet />
         </main>

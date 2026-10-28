@@ -53,6 +53,7 @@ const ru = {
     shifts: "смены",
     week: "Неделя",
     logout: "Выйти",
+    openMenu: "Открыть меню",
     dismiss: "закрыть",
     errors: "Ошибки",
     warnings: "Предупреждения",

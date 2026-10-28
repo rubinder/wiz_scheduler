@@ -53,6 +53,7 @@ const es = {
     shifts: "turnos",
     week: "Semana",
     logout: "Cerrar sesión",
+    openMenu: "Abrir menú",
     dismiss: "descartar",
     errors: "Errores",
     warnings: "Advertencias",
