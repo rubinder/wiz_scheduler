@@ -1027,6 +1027,22 @@ const fr = {
     featRoleEquivDesc: "Regroupez les rôles similaires pour que les employés puissent automatiquement couvrir des postes équivalents.",
     featLangsTitle: "19 langues",
     featLangsDesc: "Localisation complète de l'interface en anglais, chinois, hindi, espagnol, français, arabe, japonais et 12 autres langues.",
+    featManagersTitle: "Plusieurs gestionnaires",
+    featManagersDesc: "Invitez des administrateurs qui gèrent toute l'entreprise et des gestionnaires de site qui ne voient et ne modifient que leurs propres lieux. Les employés partagés avec d'autres lieux restent en lecture seule pour eux.",
+    featConcurrentTitle: "Pensé pour les équipes chargées",
+    featConcurrentDesc: "Plusieurs gestionnaires peuvent générer, approuver et modifier des plannings en même temps. Seuls les lieux concernés, et ceux qui partagent du personnel, sont verrouillés : personne n'écrase le travail d'un autre et personne n'est planifié deux fois.",
+    featPrefRequestsTitle: "Demandes de préférences",
+    featPrefRequestsDesc: "Les employés proposent les jours, les horaires et les collègues qu'ils préfèrent, et un gestionnaire approuve ou refuse chaque demande. L'employé reçoit la décision par e-mail. Désactivé jusqu'à ce que vous l'activiez.",
+    featOpenShiftsTitle: "Postes à pourvoir",
+    featOpenShiftsDesc: "Un créneau que personne n'a pu couvrir reste dans le planning comme poste à pourvoir, signalé dans le menu, avec une liste classée des personnes disponibles, qualifiées et pas encore planifiées.",
+    featSafeEditsTitle: "Modifications de planning sécurisées",
+    featSafeEditsDesc: "Lorsque vous modifiez un planning approuvé, vous êtes averti si quelqu'un n'est pas disponible, est déjà planifié ailleurs, ou si le quart a déjà été envoyé à 7shifts. Un quart pour lequel quelqu'un a pointé ne peut pas être modifié.",
+    featPayRecordsTitle: "Sept ans de registres de paie",
+    featPayRecordsDesc: "Les registres de paie sont conservés sept ans et peuvent être exportés intégralement à tout moment, y compris pendant 90 jours après votre résiliation. Les administrateurs sont avertis avant la suppression des anciens registres.",
+    featArchiveTitle: "Archiver, jamais supprimer",
+    featArchiveDesc: "Archivez les employés, les lieux et les rôles au lieu de les supprimer. Les plannings passés, les exports et la paie restent intacts, et tout élément archivé peut être restauré.",
+    featMobileTitle: "Fonctionne sur votre téléphone",
+    featMobileDesc: "L'application s'adapte à l'écran du téléphone, avec un menu coulissant, dans les 19 langues, y compris l'arabe et l'ourdou, qui s'écrivent de droite à gauche.",
     stratRotation: "Rotation",
     stratRotationTag: "GRATUIT",
     stratRotationDesc: "Répartit les postes équitablement entre les employés dans le planning actuel. Pénalise les affectations répétées au même rôle. Respecte les affinités : les contraintes strictes sont appliquées, les préférences souples influencent le score.",
@@ -1111,11 +1127,11 @@ const fr = {
       },
       employees: {
         title: "Employés",
-        desc: "La liste maîtresse. Définissez pour chacun les rôles attribués, le niveau de compétence, les lieux où il peut travailler, les limites d'heures et la disponibilité. L'édition en ligne accélère les mises à jour groupées.",
+        desc: "La liste maîtresse. Définissez pour chacun les rôles attribués, le niveau de compétence, les lieux où il peut travailler, les limites d'heures et la disponibilité. L'édition en ligne accélère les mises à jour groupées. Archivez les personnes qui partent au lieu de les supprimer : leur historique est conservé et elles peuvent être restaurées.",
       },
       team: {
         title: "Équipe",
-        desc: "Invitez d'autres gestionnaires à vous aider à administrer le compte. Suivez les invitations en attente et voyez qui a déjà accepté, le tout au même endroit.",
+        desc: "Invitez d'autres gestionnaires à vous aider à administrer le compte : des administrateurs qui gèrent tout, ou des gestionnaires de site limités aux lieux que vous choisissez. Suivez les invitations en attente et voyez qui a déjà accepté, le tout au même endroit.",
       },
       "hour-restrictions": {
         title: "Restrictions d'heures",
@@ -1127,7 +1143,7 @@ const fr = {
       },
       "day-preferences": {
         title: "Préférences de jours",
-        desc: "Pondérez de 0 à 1 les jours de la semaine que chaque employé préfère travailler. Le planificateur favorise davantage cet employé pour les quarts ce jour-là — une préférence souple qui s'efface quand personne d'autre n'est disponible.",
+        desc: "Pondérez de 0 à 1 les jours de la semaine que chaque employé préfère travailler. Le planificateur favorise davantage cet employé pour les quarts ce jour-là — une préférence souple qui s'efface quand personne d'autre n'est disponible. Activez les demandes de préférences et les employés pourront proposer les leurs, à faire approuver par un gestionnaire.",
       },
       "hour-range-preferences": {
         title: "Préférences de plage horaire",
@@ -1163,7 +1179,7 @@ const fr = {
       },
       payroll: {
         title: "Paie",
-        desc: "Transformez automatiquement les quarts approuvés et pointés en heures payables. Confirmez le rare quart que personne n'a scanné, approuvez une période de paie et exportez directement en CSV.",
+        desc: "Transformez automatiquement les quarts approuvés et pointés en heures payables. Confirmez le rare quart que personne n'a scanné, approuvez une période de paie et exportez directement en CSV. Les registres de paie sont conservés sept ans, avec un export de l'historique complet à tout moment.",
       },
       "special-hours": {
         title: "Horaires spéciaux",
@@ -1171,7 +1187,7 @@ const fr = {
       },
       schedule: {
         title: "Planning",
-        desc: "Générez des plannings hebdomadaires optimisés en un clic. Choisissez une stratégie algorithmique (Rotation, Heures Max, Aléatoire) ou l'IA. Examinez les résultats par lieu, éditez en ligne et publiez.",
+        desc: "Générez des plannings hebdomadaires optimisés en un clic. Choisissez une stratégie algorithmique (Rotation, Heures Max, Aléatoire) ou l'IA. Examinez les résultats par lieu, éditez en ligne et publiez. Plusieurs gestionnaires peuvent planifier en même temps : seuls les lieux en cours de traitement, et ceux qui partagent du personnel, sont verrouillés.",
       },
       "export-schedules": {
         title: "Exporter les plannings",
@@ -1179,7 +1195,7 @@ const fr = {
       },
       "approved-schedules": {
         title: "Plannings approuvés",
-        desc: "Consultez n'importe quelle semaine passée exactement telle qu'elle était au moment de son approbation — l'enregistrement permanent sur lequel repose le reste de l'application, y compris la paie.",
+        desc: "Consultez le planning approuvé de n'importe quelle semaine passée — l'enregistrement sur lequel repose le reste de l'application, y compris la paie. Les créneaux non pourvus apparaissent comme postes à pourvoir avec une liste classée des personnes qui pourraient les prendre, et les modifications vous avertissent en cas d'indisponibilité ou de double planification.",
       },
       "data-privacy": {
         title: "Confidentialité des données",

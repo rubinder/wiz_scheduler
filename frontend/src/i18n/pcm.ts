@@ -1027,6 +1027,22 @@ const pcm = {
     featRoleEquivDesc: "Group similar roles so workers fit fill shifts across equivalent positions automatically.",
     featLangsTitle: "19 Languages",
     featLangsDesc: "Full UI localization for English, Chinese, Hindi, Spanish, French, Arabic, Japanese, and 12 more.",
+    featManagersTitle: "Plenty Managers",
+    featManagersDesc: "Invite admins wey dey run the whole company, and location managers wey fit see and edit only dia own locations. Workers wey dem share with other locations go dey read-only for dem.",
+    featConcurrentTitle: "Made for Teams Wey Busy",
+    featConcurrentDesc: "Plenty managers fit generate, approve and edit schedules at the same time. Na only the locations wey dey involved, plus any one wey share staff with dem, go lock, so nobody go overwrite anybody work and nobody go get double booking.",
+    featPrefRequestsTitle: "Request Wetin You Prefer",
+    featPrefRequestsDesc: "Workers go propose the days, hours and coworkers wey dem like, and manager go approve or reject each request. Dem go email the worker the decision. E dey off until you switch am on.",
+    featOpenShiftsTitle: "Shift Wey Dey Open",
+    featOpenShiftsDesc: "Slot wey nobody fit fill go still dey the schedule as open shift, dem go flag am for the menu, with ranked list of who dey available, qualified and never book already.",
+    featSafeEditsTitle: "Edit Schedule Without Wahala",
+    featSafeEditsDesc: "When you dey edit approved schedule, e go warn you if person no dey available, don already book for another place, or dem don already send the shift go 7shifts. Shift wey person don check in for, nobody fit change am.",
+    featPayRecordsTitle: "Pay Records Wey Last Seven Years",
+    featPayRecordsDesc: "We dey keep pay records for seven years, and you fit export all of dem anytime, even for 90 days after you cancel. Admins go get warning before dem delete old records.",
+    featArchiveTitle: "Archive Am, No Delete Am",
+    featArchiveDesc: "Archive workers, locations and roles instead of to delete dem. Past schedules, exports and payroll go remain as dem dey, and anything wey you archive, you fit restore am.",
+    featMobileTitle: "E Dey Work for Your Phone",
+    featMobileDesc: "The app fit phone screen well well, with menu wey dey slide comot, for all 19 languages, including Arabic and Urdu wey dem dey write from right to left.",
     stratRotation: "Rotation",
     stratRotationTag: "FREE",
     stratRotationDesc: "E dey distribute shifts evenly among workers within di current schedule. E dey penalize repeat assignments to di same role. E dey respect worker affinities: hard constraints dey enforced, soft preferences dey influence scoring.",
@@ -1111,11 +1127,11 @@ const pcm = {
       },
       employees: {
         title: "Employees",
-        desc: "The main roster. For every person, set the roles wey dem fit do, skill level, locations wey dem fit work, hour limits, and availability. Inline editing dey sharp for bulk updates.",
+        desc: "The main roster. For every person, set the roles wey dem fit do, skill level, locations wey dem fit work, hour limits, and availability. Inline editing dey sharp for bulk updates. Archive people wey comot instead of to delete dem: dia history go remain, and you fit restore dem.",
       },
       team: {
         title: "Team",
-        desc: "Invite other managers make dem help run the account. Track invites wey still dey pending and see who don already accept, everything for one place.",
+        desc: "Invite other managers make dem help run the account: admins wey dey manage everything, or location managers wey only fit handle the locations wey you choose. Track invites wey still dey pending and see who don already accept, everything for one place.",
       },
       "hour-restrictions": {
         title: "Hour Restrictions",
@@ -1127,7 +1143,7 @@ const pcm = {
       },
       "day-preferences": {
         title: "Day Preferences",
-        desc: "Weight which days for the week each worker like to work, from 0 to 1. Scheduler go favor that worker pass for shift wey dey that day — na soft preference wey go step aside if nobody else dey available.",
+        desc: "Weight which days for the week each worker like to work, from 0 to 1. Scheduler go favor that worker pass for shift wey dey that day — na soft preference wey go step aside if nobody else dey available. Switch on preference requests and workers fit propose dia own, make manager approve am.",
       },
       "hour-range-preferences": {
         title: "Hour Range Preferences",
@@ -1163,7 +1179,7 @@ const pcm = {
       },
       payroll: {
         title: "Payroll",
-        desc: "Turn approved shifts wey get check-in into payable hours automatically. Confirm the rare shift wey nobody scan for, approve one pay period, and export straight to CSV.",
+        desc: "Turn approved shifts wey get check-in into payable hours automatically. Confirm the rare shift wey nobody scan for, approve one pay period, and export straight to CSV. We dey keep pay records for seven years, and you fit export the full history anytime.",
       },
       "special-hours": {
         title: "Special Hours",
@@ -1171,7 +1187,7 @@ const pcm = {
       },
       schedule: {
         title: "Schedule",
-        desc: "Generate optimised weekly schedule with one click. Pick algorithmic strategy (Rotation, Max Hours, Random) or AI. Review results per location, edit inline, and publish.",
+        desc: "Generate optimised weekly schedule with one click. Pick algorithmic strategy (Rotation, Max Hours, Random) or AI. Review results per location, edit inline, and publish. Plenty managers fit schedule at the same time: na only the locations wey dem dey work on, plus any one wey share staff with dem, go lock.",
       },
       "export-schedules": {
         title: "Export Schedules",
@@ -1179,7 +1195,7 @@ const pcm = {
       },
       "approved-schedules": {
         title: "Approved Schedules",
-        desc: "Browse any past week exactly as e be the moment wey e approve am — na the permanent record wey the rest of the app, payroll included, dey built on.",
+        desc: "Browse the approved schedule for any past week — na the record wey the rest of the app, payroll included, dey built on. Slots wey nobody fill go show as open shifts with ranked list of who fit take dem, and when you edit, e go warn you about availability and double booking.",
       },
       "data-privacy": {
         title: "Data Privacy",

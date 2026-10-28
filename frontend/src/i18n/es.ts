@@ -1027,6 +1027,22 @@ const es = {
     featRoleEquivDesc: "Agrupa roles similares para que los empleados puedan cubrir turnos en posiciones equivalentes automáticamente.",
     featLangsTitle: "19 idiomas",
     featLangsDesc: "Localización completa de la interfaz en inglés, chino, hindi, español, francés, árabe, japonés y 12 idiomas más.",
+    featManagersTitle: "Varios gerentes",
+    featManagersDesc: "Invita a administradores que gestionan toda la empresa y a gerentes de ubicación que solo ven y editan sus propias ubicaciones. Los empleados compartidos con otras ubicaciones son de solo lectura para ellos.",
+    featConcurrentTitle: "Hecho para equipos con mucho movimiento",
+    featConcurrentDesc: "Varios gerentes pueden generar, aprobar y editar horarios al mismo tiempo. Solo se bloquean las ubicaciones involucradas y las que comparten personal, así nadie sobrescribe el trabajo de otro y nadie queda asignado dos veces.",
+    featPrefRequestsTitle: "Solicitudes de preferencias",
+    featPrefRequestsDesc: "Los empleados proponen los días, horas y compañeros que prefieren, y un gerente aprueba o rechaza cada solicitud. El empleado recibe la decisión por correo. Desactivado hasta que lo actives.",
+    featOpenShiftsTitle: "Turnos abiertos",
+    featOpenShiftsDesc: "Un puesto que nadie pudo cubrir queda en el horario como turno abierto, señalado en el menú, con una lista ordenada de quién está disponible, calificado y aún sin asignar.",
+    featSafeEditsTitle: "Edición segura de horarios",
+    featSafeEditsDesc: "Al editar un horario aprobado, te avisa si alguien no está disponible, ya tiene turno en otro lugar o el turno ya se envió a 7shifts. Un turno en el que alguien ya registró su entrada no se puede cambiar.",
+    featPayRecordsTitle: "Siete años de registros de pago",
+    featPayRecordsDesc: "Los registros de pago se conservan siete años y se pueden exportar completos en cualquier momento, incluso durante 90 días después de cancelar. Los administradores reciben un aviso antes de que se eliminen los registros antiguos.",
+    featArchiveTitle: "Archiva, nunca borres",
+    featArchiveDesc: "Archiva empleados, ubicaciones y roles en lugar de eliminarlos. Los horarios pasados, las exportaciones y la nómina quedan intactos, y todo lo archivado se puede restaurar.",
+    featMobileTitle: "Funciona en tu teléfono",
+    featMobileDesc: "La app se adapta a la pantalla del teléfono, con un menú deslizable, en los 19 idiomas, incluidos el árabe y el urdu, que se escriben de derecha a izquierda.",
     stratRotation: "Rotación",
     stratRotationTag: "GRATIS",
     stratRotationDesc: "Distribuye turnos equitativamente entre empleados dentro del horario actual. Penaliza asignaciones repetidas al mismo rol. Respeta las afinidades de empleados: las restricciones duras se aplican, las preferencias blandas influyen en la puntuación.",
@@ -1111,11 +1127,11 @@ const es = {
       },
       employees: {
         title: "Empleados",
-        desc: "El listado maestro. Establece los roles asignados, nivel de habilidad, ubicaciones donde puede trabajar, límites de horas y disponibilidad de cada persona. La edición en línea agiliza las actualizaciones masivas.",
+        desc: "El listado maestro. Establece los roles asignados, nivel de habilidad, ubicaciones donde puede trabajar, límites de horas y disponibilidad de cada persona. La edición en línea agiliza las actualizaciones masivas. Archiva a quienes se van en lugar de eliminarlos: su historial se conserva y se pueden restaurar.",
       },
       team: {
         title: "Equipo",
-        desc: "Invita a otros gerentes para que ayuden a administrar la cuenta. Sigue las invitaciones pendientes y quién ya las aceptó, todo en un solo lugar.",
+        desc: "Invita a otros gerentes para que ayuden a administrar la cuenta: administradores que gestionan todo o gerentes de ubicación limitados a las ubicaciones que elijas. Sigue las invitaciones pendientes y quién ya las aceptó, todo en un solo lugar.",
       },
       "hour-restrictions": {
         title: "Restricciones de horas",
@@ -1127,7 +1143,7 @@ const es = {
       },
       "day-preferences": {
         title: "Preferencias de días",
-        desc: "Pondera qué días de la semana prefiere trabajar cada empleado, de 0 a 1. El planificador favorece más a ese empleado para turnos ese día — una preferencia suave que cede cuando no hay nadie más disponible.",
+        desc: "Pondera qué días de la semana prefiere trabajar cada empleado, de 0 a 1. El planificador favorece más a ese empleado para turnos ese día — una preferencia suave que cede cuando no hay nadie más disponible. Activa las solicitudes de preferencias y los empleados podrán proponer las suyas para que un gerente las apruebe.",
       },
       "hour-range-preferences": {
         title: "Preferencias de franja horaria",
@@ -1163,7 +1179,7 @@ const es = {
       },
       payroll: {
         title: "Nómina",
-        desc: "Convierte automáticamente los turnos aprobados y registrados en horas pagables. Confirma el turno excepcional que nadie escaneó, aprueba un período de pago y exporta directo a CSV.",
+        desc: "Convierte automáticamente los turnos aprobados y registrados en horas pagables. Confirma el turno excepcional que nadie escaneó, aprueba un período de pago y exporta directo a CSV. Los registros de pago se conservan siete años, con exportación del historial completo en cualquier momento.",
       },
       "special-hours": {
         title: "Horarios especiales",
@@ -1171,7 +1187,7 @@ const es = {
       },
       schedule: {
         title: "Horario",
-        desc: "Genera horarios semanales optimizados con un clic. Elige una estrategia algorítmica (Rotación, Máximas horas, Aleatoria) o IA. Revisa los resultados por ubicación, edita en línea y publica.",
+        desc: "Genera horarios semanales optimizados con un clic. Elige una estrategia algorítmica (Rotación, Máximas horas, Aleatoria) o IA. Revisa los resultados por ubicación, edita en línea y publica. Varios gerentes pueden planificar a la vez: solo se bloquean las ubicaciones en las que se está trabajando y las que comparten personal.",
       },
       "export-schedules": {
         title: "Exportar horarios",
@@ -1179,7 +1195,7 @@ const es = {
       },
       "approved-schedules": {
         title: "Horarios aprobados",
-        desc: "Consulta cualquier semana pasada tal como quedó en el momento de su aprobación — el registro permanente sobre el que se basa el resto de la app, incluida la nómina.",
+        desc: "Consulta el horario aprobado de cualquier semana pasada — el registro sobre el que se basa el resto de la app, incluida la nómina. Los puestos sin cubrir aparecen como turnos abiertos con una lista ordenada de quién podría tomarlos, y al editar recibes avisos sobre disponibilidad y asignaciones dobles.",
       },
       "data-privacy": {
         title: "Privacidad de datos",

@@ -1027,6 +1027,22 @@ const vi = {
     featRoleEquivDesc: "Nhóm các vai trò tương tự để nhân viên có thể tự động đảm nhận ca ở các vị trí tương đương.",
     featLangsTitle: "19 ngôn ngữ",
     featLangsDesc: "Bản địa hóa UI đầy đủ bằng tiếng Anh, Trung, Hindi, Tây Ban Nha, Pháp, Ả Rập, Nhật và 12 ngôn ngữ khác.",
+    featManagersTitle: "Nhiều quản lý",
+    featManagersDesc: "Mời quản trị viên điều hành toàn bộ công ty và quản lý chi nhánh chỉ xem và chỉnh sửa chi nhánh của mình. Nhân viên dùng chung với chi nhánh khác chỉ ở chế độ xem đối với họ.",
+    featConcurrentTitle: "Dành cho đội ngũ bận rộn",
+    featConcurrentDesc: "Nhiều quản lý có thể tạo, duyệt và chỉnh sửa lịch cùng lúc. Chỉ những chi nhánh liên quan, và chi nhánh dùng chung nhân sự, bị khóa, nên không ai ghi đè lên công việc của người khác và không ai bị xếp trùng ca.",
+    featPrefRequestsTitle: "Yêu cầu nguyện vọng",
+    featPrefRequestsDesc: "Nhân viên đề xuất ngày, giờ và đồng nghiệp mình muốn, và quản lý duyệt hoặc từ chối từng yêu cầu. Nhân viên nhận kết quả qua email. Tắt cho đến khi bạn bật.",
+    featOpenShiftsTitle: "Ca trống",
+    featOpenShiftsDesc: "Vị trí không ai đảm nhận được vẫn nằm trên lịch dưới dạng ca trống, được đánh dấu trong menu, kèm danh sách xếp hạng những người sẵn sàng, đủ điều kiện và chưa được xếp ca.",
+    featSafeEditsTitle: "Chỉnh sửa lịch an toàn",
+    featSafeEditsDesc: "Khi chỉnh sửa lịch đã duyệt, bạn sẽ được cảnh báo nếu ai đó không sẵn sàng, đã được xếp ca ở nơi khác, hoặc ca đã được gửi sang 7shifts. Ca mà ai đó đã điểm danh thì không thể thay đổi.",
+    featPayRecordsTitle: "Lưu hồ sơ lương bảy năm",
+    featPayRecordsDesc: "Hồ sơ lương được lưu bảy năm và có thể xuất đầy đủ bất cứ lúc nào, kể cả trong 90 ngày sau khi bạn hủy. Quản trị viên được cảnh báo trước khi hồ sơ cũ bị xóa.",
+    featArchiveTitle: "Lưu trữ, không bao giờ xóa",
+    featArchiveDesc: "Lưu trữ nhân viên, chi nhánh và vai trò thay vì xóa. Lịch cũ, dữ liệu xuất và bảng lương vẫn nguyên vẹn, và mọi thứ đã lưu trữ đều có thể khôi phục.",
+    featMobileTitle: "Dùng được trên điện thoại",
+    featMobileDesc: "Ứng dụng vừa với màn hình điện thoại, có menu trượt, bằng cả 19 ngôn ngữ, kể cả tiếng Ả Rập và tiếng Urdu viết từ phải sang trái.",
     stratRotation: "Luân phiên",
     stratRotationTag: "MIỄN PHÍ",
     stratRotationDesc: "Phân bổ ca đều giữa các nhân viên trong lịch hiện tại. Phạt việc phân công lặp lại cùng vai trò. Tôn trọng mối quan hệ nhân viên: ràng buộc cứng được thực thi, sở thích mềm ảnh hưởng đến điểm số.",
@@ -1111,11 +1127,11 @@ const vi = {
       },
       employees: {
         title: "Nhân viên",
-        desc: "Danh sách chính. Đặt vai trò được giao, mức kỹ năng, các chi nhánh có thể làm, giới hạn giờ và tính sẵn sàng cho từng người. Chỉnh sửa trong dòng giúp cập nhật hàng loạt nhanh chóng.",
+        desc: "Danh sách chính. Đặt vai trò được giao, mức kỹ năng, các chi nhánh có thể làm, giới hạn giờ và tính sẵn sàng cho từng người. Chỉnh sửa trong dòng giúp cập nhật hàng loạt nhanh chóng. Lưu trữ những người đã nghỉ việc thay vì xóa: lịch sử của họ được giữ lại và có thể khôi phục.",
       },
       team: {
         title: "Đội quản lý",
-        desc: "Mời các quản lý khác cùng điều hành tài khoản. Theo dõi lời mời đang chờ và xem ai đã chấp nhận, tất cả ở một nơi.",
+        desc: "Mời các quản lý khác cùng điều hành tài khoản: quản trị viên quản lý mọi thứ, hoặc quản lý chi nhánh chỉ phụ trách những chi nhánh bạn chọn. Theo dõi lời mời đang chờ và xem ai đã chấp nhận, tất cả ở một nơi.",
       },
       "hour-restrictions": {
         title: "Giới hạn giờ làm",
@@ -1127,7 +1143,7 @@ const vi = {
       },
       "day-preferences": {
         title: "Tùy chọn ngày",
-        desc: "Gán trọng số cho những ngày trong tuần mà mỗi nhân viên thích làm việc, từ 0 đến 1. Trình lên lịch ưu tiên nhân viên đó hơn cho ca vào ngày đó — một tùy chọn mềm sẽ nhường bước khi không còn ai khác sẵn sàng.",
+        desc: "Gán trọng số cho những ngày trong tuần mà mỗi nhân viên thích làm việc, từ 0 đến 1. Trình lên lịch ưu tiên nhân viên đó hơn cho ca vào ngày đó — một tùy chọn mềm sẽ nhường bước khi không còn ai khác sẵn sàng. Bật yêu cầu nguyện vọng để nhân viên tự đề xuất, chờ quản lý duyệt.",
       },
       "hour-range-preferences": {
         title: "Tùy chọn khung giờ",
@@ -1163,7 +1179,7 @@ const vi = {
       },
       payroll: {
         title: "Bảng lương",
-        desc: "Tự động chuyển các ca đã duyệt và đã điểm danh thành giờ được trả lương. Xác nhận ca hiếm hoi không ai quét mã, duyệt một kỳ lương, và xuất thẳng ra CSV.",
+        desc: "Tự động chuyển các ca đã duyệt và đã điểm danh thành giờ được trả lương. Xác nhận ca hiếm hoi không ai quét mã, duyệt một kỳ lương, và xuất thẳng ra CSV. Hồ sơ lương được lưu bảy năm, có thể xuất toàn bộ lịch sử bất cứ lúc nào.",
       },
       "special-hours": {
         title: "Giờ đặc biệt",
@@ -1171,7 +1187,7 @@ const vi = {
       },
       schedule: {
         title: "Lịch làm",
-        desc: "Tạo lịch tuần tối ưu chỉ với một cú nhấp. Chọn chiến lược thuật toán (Xoay vòng, Tối đa giờ, Ngẫu nhiên) hoặc AI. Xem kết quả theo từng chi nhánh, chỉnh sửa trong dòng và phát hành.",
+        desc: "Tạo lịch tuần tối ưu chỉ với một cú nhấp. Chọn chiến lược thuật toán (Xoay vòng, Tối đa giờ, Ngẫu nhiên) hoặc AI. Xem kết quả theo từng chi nhánh, chỉnh sửa trong dòng và phát hành. Nhiều quản lý có thể xếp lịch cùng lúc: chỉ những chi nhánh đang được xử lý, và chi nhánh dùng chung nhân sự, bị khóa.",
       },
       "export-schedules": {
         title: "Xuất lịch",
@@ -1179,7 +1195,7 @@ const vi = {
       },
       "approved-schedules": {
         title: "Lịch đã duyệt",
-        desc: "Xem lại bất kỳ tuần nào trong quá khứ đúng như lúc nó được duyệt — bản ghi cố định mà phần còn lại của ứng dụng, kể cả bảng lương, được xây dựng dựa trên đó.",
+        desc: "Xem lại lịch đã duyệt của bất kỳ tuần nào trong quá khứ — bản ghi mà phần còn lại của ứng dụng, kể cả bảng lương, được xây dựng dựa trên đó. Vị trí chưa có người hiển thị dưới dạng ca trống kèm danh sách xếp hạng những ai có thể nhận, và khi chỉnh sửa bạn sẽ được cảnh báo về tính sẵn sàng và trùng ca.",
       },
       "data-privacy": {
         title: "Quyền riêng tư dữ liệu",
