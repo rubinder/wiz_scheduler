@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import get_db, get_location_scope, require_admin, require_manager
 from backend.models import Department, Employee, EmployeeRole, Location, Role, Shift, ShiftSchedule, User
 from backend.models.condensed_role import CondensedRole, CondensedRoleMapping
+from backend.scheduling.graph import _shift_local_face
 from backend.services.location_scope import LocationScope
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -96,6 +97,22 @@ async def _load_employee_role_ids(
     for er in er_result.scalars().all():
         emp_roles.setdefault(er.employee_id, set()).add(er.role_id)
     return emp_roles
+
+
+def _local_times(shift: Shift, location: Location | None) -> tuple[str, str]:
+    """A shift's start/end as ISO strings in its location's zone (#214).
+
+    Postgres hands back timestamptz values normalised to UTC, and the
+    frontend reads the wall-clock face straight off the string
+    (utils/shiftTime.formatTime), so a raw .isoformat() shows a New York
+    9-to-5 as 2 PM to 10 PM. Same instant either way; only the face the
+    client sees changes. Falls back to the stored value when the location
+    or its zone is unusable rather than failing the page.
+    """
+    face = _shift_local_face(shift, location, keep_tzinfo=True) if location else None
+    if face is None:
+        return shift.start_time.isoformat(), shift.end_time.isoformat()
+    return face[0].isoformat(), face[1].isoformat()
 
 
 def _resolve_role_for_employee(
@@ -187,16 +204,15 @@ async def list_approved_schedules(
     schedules = result.scalars().all()
 
     # Pre-load locations and employees
-    loc_ids = {s.location_id for s in schedules}
-    loc_map: dict[str, str] = {}
-    if loc_ids:
+    # Every company location, archived included: a shift is shown in ITS
+    # OWN location's zone, which need not be the schedule's (#214).
+    loc_map: dict[str, Location] = {}
+    if schedules:
         loc_result = await db.execute(
-            select(Location).where(
-                Location.id.in_(loc_ids), Location.company_id == current_user.company_id,
-            )
+            select(Location).where(Location.company_id == current_user.company_id)
         )
         for loc in loc_result.scalars().all():
-            loc_map[loc.id] = loc.name
+            loc_map[loc.id] = loc
 
     emp_result = await db.execute(
         select(Employee).where(Employee.company_id == current_user.company_id)
@@ -223,6 +239,7 @@ async def list_approved_schedules(
             resolved_id, resolved_name, _ = _resolve_role_for_employee(
                 s.role_id, s.employee_id, condensed_map, emp_role_ids, role_by_id,
             )
+            start_iso, end_iso = _local_times(s, loc_map.get(s.location_id))
             shift_items.append(ApprovedScheduleShift(
                 id=str(s.id),
                 employee_id=s.employee_id,
@@ -233,8 +250,8 @@ async def list_approved_schedules(
                 role_id=str(resolved_id),
                 role_name=resolved_name or s.role_name,
                 date=s.date.isoformat(),
-                start_time=s.start_time.isoformat(),
-                end_time=s.end_time.isoformat(),
+                start_time=start_iso,
+                end_time=end_iso,
                 exported_at=s.exported_at.isoformat() if s.exported_at else None,
             ))
 
@@ -242,7 +259,10 @@ async def list_approved_schedules(
             ApprovedScheduleItem(
                 schedule_id=str(sched.id),
                 location_id=str(sched.location_id),
-                location_name=loc_map.get(sched.location_id, str(sched.location_id)),
+                location_name=(
+                    loc_map[sched.location_id].name if sched.location_id in loc_map
+                    else str(sched.location_id)
+                ),
                 week_start_date=sched.week_start_date.isoformat(),
                 shifts=shift_items,
                 total_shifts=len(shift_items),
@@ -453,6 +473,17 @@ async def export_jsonl(
     )
     loc = loc_result.scalar_one_or_none()
     loc_name = loc.name if loc else str(schedule.location_id)
+    # Each shift is rendered in its own location's zone (#214).
+    shift_loc_ids = {s.location_id for s in shifts} - {schedule.location_id}
+    shift_locs: dict[str, Location] = {loc.id: loc} if loc else {}
+    if shift_loc_ids:
+        extra = await db.execute(
+            select(Location).where(
+                Location.id.in_(shift_loc_ids),
+                Location.company_id == current_user.company_id,
+            )
+        )
+        shift_locs.update({x.id: x for x in extra.scalars().all()})
 
     # Load condensed role resolver
     condensed_map, role_by_id = await _load_condensed_role_resolver(
@@ -465,6 +496,7 @@ async def export_jsonl(
         resolved_id, resolved_name, resolved_ext = _resolve_role_for_employee(
             s.role_id, s.employee_id, condensed_map, emp_role_ids, role_by_id,
         )
+        start_iso, end_iso = _local_times(s, shift_locs.get(s.location_id))
         row = {
             "shift_id": str(s.id),
             "schedule_id": str(s.shift_schedule_id),
@@ -478,8 +510,8 @@ async def export_jsonl(
             "role_name": resolved_name or s.role_name,
             "role_external_id": resolved_ext,
             "date": s.date.isoformat(),
-            "start_time": s.start_time.isoformat(),
-            "end_time": s.end_time.isoformat(),
+            "start_time": start_iso,
+            "end_time": end_iso,
             "exported_at": s.exported_at.isoformat() if s.exported_at else None,
         }
         lines.append(json.dumps(row))
