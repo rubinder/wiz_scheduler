@@ -48,12 +48,11 @@ def _availability(emp_id: str, start_h: int = 0, end_h: int = 23) -> EmployeeAva
 
 async def _employee(
     db: AsyncSession, name: str, *, at_location=True, role=True,
-    available=True, timezone_name: str | None = None,
+    available=True,
 ) -> str:
     emp = Employee(
         id=_id(), company_id=COMPANY_ID, full_name=name,
         location_ids=[LOCATION_ID] if at_location else [],
-        timezone=timezone_name,
     )
     db.add(emp)
     await db.flush()
@@ -132,32 +131,24 @@ async def test_exclude_shift_id_stops_a_shift_clashing_with_itself(db_session, r
 
 
 @pytest.mark.asyncio
-async def test_employee_timezone_is_converted(db_session, seed_location, seed_roles):
+async def test_availability_is_location_local(db_session, seed_location, seed_roles):
+    """#171: availability is the location's wall clock, never converted.
+    06:00-14:00 does not cover a 09:00-17:00 New York slot."""
     emp = Employee(
         id=_id(), company_id=COMPANY_ID, full_name="Lou LA",
-        location_ids=[LOCATION_ID], timezone="America/Los_Angeles",
+        location_ids=[LOCATION_ID],
     )
     db_session.add(emp)
     await db_session.flush()
     db_session.add_all([
         EmployeeRole(id=_id(), company_id=COMPANY_ID, employee_id=emp.id,
                      role_id=ROLE_FLOOR_ID, skill_level=3),
-        # 06:00-14:00 Los Angeles = 09:00-17:00 New York.
+        # Location-local 06:00-14:00; not converted from Los Angeles.
         _availability(emp.id, 6, 14),
     ])
     await db_session.commit()
     ranked = await _rank(db_session)
-    assert [(c.full_name, c.tier) for c in ranked] == [("Lou LA", 1)]
-
-
-@pytest.mark.asyncio
-async def test_invalid_employee_timezone_degrades_to_no_timezone(
-    db_session, seed_location, seed_roles,
-):
-    await _employee(db_session, "Zed BadZone", timezone_name="Not/AZone")
-    await db_session.commit()
-    ranked = await _rank(db_session)
-    assert [(c.full_name, c.tier) for c in ranked] == [("Zed BadZone", 1)]
+    assert [(c.full_name, c.tier) for c in ranked] == [("Lou LA", 2)]
 
 
 @pytest.mark.asyncio

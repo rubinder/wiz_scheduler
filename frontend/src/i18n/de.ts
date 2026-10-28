@@ -6,7 +6,7 @@ const de = {
     archived: "Archiviert",
     showArchived: "Archivierte anzeigen",
     appName: "Wiz Scheduler",
-    timesInZone: "Zeiten in {zone}",
+    availabilityLocalTime: "Zeiten in der Ortszeit des Standorts ({zone}).",
     loading: "Wird geladen...",
     save: "Speichern",
     saving: "Speichern...",
@@ -476,8 +476,6 @@ const de = {
     csvLimitError: "Diese Datei enthält {rows} Mitarbeiter, aber Ihr kostenloser Plan hat nur Platz für {remaining}. Die gesamte Datei würde abgelehnt — upgraden Sie, oder laden Sie eine kleinere Datei hoch.",
     payRate: "Stundenlohn ($/Std.)",
     payRateGatedHint: "Führen Sie ein Upgrade auf einen kostenpflichtigen Plan durch, um den Stundenlohn für kostenbewusste Planung festzulegen.",
-    availabilityTimezone: "Zeitzone der Verfügbarkeit",
-    availabilityTimezoneNone: "Keine (Ortszeit des Standorts)",
     hireDate: "Einstellungsdatum",
     seniorityRank: "Dienstalter-Rang",
     seniorityRankHint: "Manuelle Überschreibung — leer lassen, um nach Einstellungsdatum zu ranken.",
@@ -579,6 +577,7 @@ const de = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "Alle Verfügbarkeiten, auch die aus 7shifts oder Deputy importierten, gelten in der Ortszeit des jeweiligen Standorts.",
     onboardingHint: "Verfügbarkeiten nicht aus einem anderen System importiert? Sende den importierten Mitarbeitenden auf der Seite {link} Einladungslinks, damit sie sich anmelden und ihre Verfügbarkeit selbst verwalten können.",
     onboardingLink: "Mitarbeiter-Onboarding",
     quickSetLabel: "Schnellauswahl (9–5):",

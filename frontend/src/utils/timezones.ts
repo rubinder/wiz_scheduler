@@ -24,18 +24,15 @@ export function timeZoneOptions(current?: string | null): { value: string; label
   return ordered.map((z) => ({ value: z, label: z.replace(/_/g, " ") }));
 }
 
-/** The zone to mention on an availability page, or null to say nothing.
- *  Only an employee with an explicit timezone that differs from one of their
- *  locations' zones gets a note -- nobody, by default. */
-export function availabilityZoneNote(
-  employeeTz: string | null | undefined,
-  locationZones: string[],
-): string | null {
-  if (!employeeTz) return null;
-  return locationZones.some((z) => z !== employeeTz) ? employeeTz : null;
+/** The zone(s) to name on an availability page: availability is always the
+ *  location's local time (#171), so this is the employee's location zones,
+ *  deduplicated, or null when none is known. */
+export function locationZoneNote(locationZones: string[]): string | null {
+  const unique = [...new Set(locationZones.filter(Boolean))];
+  return unique.length ? unique.map((z) => z.replace(/_/g, " ")).join(", ") : null;
 }
 
-/** The zones of an employee's locations, for `availabilityZoneNote`.
+/** The zones of an employee's locations, for `locationZoneNote`.
  *  Unknown location ids are skipped. */
 export function employeeLocationZones(
   locationIds: string[] | null | undefined,

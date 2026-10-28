@@ -6,7 +6,7 @@ const trLang = {
     archived: "Arşivlendi",
     showArchived: "Arşivlenenleri göster",
     appName: "Wiz Scheduler",
-    timesInZone: "Saatler {zone} saat diliminde",
+    availabilityLocalTime: "Saatler konumun yerel saatindedir ({zone}).",
     loading: "Yükleniyor...",
     save: "Kaydet",
     saving: "Kaydediliyor...",
@@ -476,8 +476,6 @@ const trLang = {
     csvLimitError: "Bu dosyada {rows} çalışan var, ancak ücretsiz planınızda yalnızca {remaining} için yer var. Dosyanın tamamı reddedilecektir — yükseltin veya daha küçük bir dosya yükleyin.",
     payRate: "Ücret Oranı ($/sa)",
     payRateGatedHint: "Maliyet bilincine sahip planlama için ücret oranını belirlemek üzere ücretli plana yükseltin.",
-    availabilityTimezone: "Müsaitlik saat dilimi",
-    availabilityTimezoneNone: "Yok (konumun yerel saati)",
     hireDate: "İşe Alım Tarihi",
     seniorityRank: "Kıdem Sırası",
     seniorityRankHint: "Manuel geçersiz kılma — işe alım tarihine göre sıralamak için boş bırakın.",
@@ -579,6 +577,7 @@ const trLang = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "7shifts veya Deputy'den içe aktarılanlar dahil tüm müsaitlikler her konumun yerel saatindedir.",
     onboardingHint: "Müsaitliği başka bir sistemden içe aktarmıyor musunuz? İçe aktardığınız çalışanlara {link} sayfasından davet bağlantıları gönderin; böylece giriş oluşturup kendi müsaitliklerini yönetebilirler.",
     onboardingLink: "Çalışan Oryantasyonu",
     quickSetLabel: "Hızlı ayar (9–17):",

@@ -178,7 +178,6 @@ async def erase_employee(db: AsyncSession, company_id: str, employee: Employee,
     employee.email = None
     employee.user_id = None
     employee.external_id = None
-    employee.timezone = None
     employee.pay_rate = None
     employee.hire_date = None
     employee.seniority_rank = None

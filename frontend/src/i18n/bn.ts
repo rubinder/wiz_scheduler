@@ -6,7 +6,7 @@ const bn = {
     archived: "আর্কাইভ করা",
     showArchived: "আর্কাইভ করা দেখান",
     appName: "Wiz Scheduler",
-    timesInZone: "সময় {zone} অনুযায়ী",
+    availabilityLocalTime: "সময় লোকেশনের স্থানীয় সময় অনুযায়ী ({zone})।",
     loading: "লোড হচ্ছে...",
     save: "সংরক্ষণ",
     saving: "সংরক্ষণ হচ্ছে...",
@@ -476,8 +476,6 @@ const bn = {
     csvLimitError: "এই ফাইলে {rows} জন কর্মী আছে, কিন্তু আপনার ফ্রি প্ল্যানে মাত্র {remaining} জনের জায়গা আছে। পুরো ফাইলটি প্রত্যাখ্যাত হবে — আপগ্রেড করুন, অথবা ছোট ফাইল আপলোড করুন।",
     payRate: "বেতন হার ($/ঘণ্টা)",
     payRateGatedHint: "খরচ-সচেতন সময়সূচীর জন্য বেতন হার সেট করতে পেইড প্ল্যানে আপগ্রেড করুন।",
-    availabilityTimezone: "উপলব্ধতার টাইমজোন",
-    availabilityTimezoneNone: "কোনোটি নয় (লোকেশনের স্থানীয় সময়)",
     hireDate: "নিয়োগের তারিখ",
     seniorityRank: "জ্যেষ্ঠতার ক্রম",
     seniorityRankHint: "ম্যানুয়াল ওভাররাইড — নিয়োগের তারিখ অনুযায়ী র‍্যাঙ্ক করতে খালি রাখুন।",
@@ -579,6 +577,7 @@ const bn = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "সব উপলব্ধতা, 7shifts বা Deputy থেকে আমদানি করা উপলব্ধতাসহ, প্রতিটি লোকেশনের স্থানীয় সময় অনুযায়ী।",
     onboardingHint: "অন্য সিস্টেম থেকে প্রাপ্যতা আমদানি করছেন না? {link} পৃষ্ঠায় আমদানি করা কর্মীদের আমন্ত্রণ লিংক পাঠান, যাতে তারা লগইন তৈরি করে নিজেদের প্রাপ্যতা নিজেরাই পরিচালনা করতে পারে।",
     onboardingLink: "কর্মী অনবোর্ডিং",
     quickSetLabel: "দ্রুত সেট (৯–৫):",

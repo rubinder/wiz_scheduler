@@ -156,7 +156,6 @@ export interface Employee {
   pay_rate: number | null;
   hire_date: string | null;
   seniority_rank: number | null;
-  timezone: string | null;
   roles: EmployeeRole[];
   company_ids: string[];
   archived_at?: string | null;
@@ -183,7 +182,6 @@ export interface EmployeeMeProfile {
   id: string;
   full_name: string;
   email: string | null;
-  timezone: string | null;
   roles: EmployeeMeRole[];
   locations: EmployeeMeLocation[];
 }

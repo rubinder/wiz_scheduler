@@ -175,6 +175,12 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   by `services/signup_signals.py` to measure serial free-tier signups. Nothing
   reads them to allow or deny; wiring enforcement onto them is a deliberate
   change that needs its own decision, not a drift.
+- **Availability is always the location's local time** (#171). Whoever enters
+  it (the employee, a manager, a 7shifts/Deputy import) is assumed to know the
+  location's zone, so availability, blackouts and preferences are never
+  converted per employee. Employees have no timezone of their own: the
+  `employees.timezone` column from #170 was dropped. Don't reintroduce a
+  per-employee conversion without revisiting this decision.
 - Use type hints extensively in all Python code.
 - All timestamps must carry timezone offsets (derive from `location.timezone` via `zoneinfo.ZoneInfo`).
 - **"Today" is always UTC** — `datetime.now(timezone.utc).date()`, never `date.today()`,

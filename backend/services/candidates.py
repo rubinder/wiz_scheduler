@@ -35,11 +35,9 @@ from backend.models import (
     Role,
     Shift,
 )
-from backend.scheduling.employee_time import needs_conversion
 from backend.scheduling.graph import _shift_local_face
 from backend.services.archive import active
 from backend.services.availability_check import blackout_dicts, is_available, window_dict
-from backend.utils.tz import is_valid_timezone
 
 
 @dataclass(frozen=True)
@@ -97,8 +95,9 @@ async def rank_candidates(
     exclude_shift_id: str | None = None,
 ) -> list[Candidate]:
     day = span_start.date()
-    # A day either side: an employee-zone window or a shift instant can sit
-    # on the neighbouring UTC date while landing on this one locally.
+    # A day either side: a shift instant can sit on the neighbouring UTC date
+    # while landing on this one locally, and an overnight span reaches into
+    # the next day.
     lo = datetime.combine(day - timedelta(days=1), time.min, tzinfo=timezone.utc)
     hi = datetime.combine(day + timedelta(days=2), time.min, tzinfo=timezone.utc)
 
@@ -163,14 +162,12 @@ async def rank_candidates(
     ranked: list[Candidate] = []
     for emp in employees:
         eid = str(emp.id)
-        emp_tz = emp.timezone if is_valid_timezone(emp.timezone) else None
-        convert = needs_conversion(emp_tz, location.timezone)
-        # Same faces as edit_warnings: converted into this location's zone
-        # for an employee with a timezone, else each shift's own location.
+        # Same faces as edit_warnings: each shift read in its own location's
+        # zone. Availability is location-local and never converted per
+        # employee (#171).
         other_spans = [
             face for face in (
-                _shift_local_face(s, location if convert else loc)
-                for s, loc in shifts.get(eid, [])
+                _shift_local_face(s, loc) for s, loc in shifts.get(eid, [])
             ) if face is not None
         ]
         available = is_available(
@@ -179,8 +176,6 @@ async def rank_candidates(
             blackouts=blackouts.get(eid, []),
             span_start=span_start,
             span_end=span_end,
-            emp_tz=emp_tz if convert else None,
-            loc_tz=location.timezone if convert else None,
         )
         has_role = eid in with_role
         at_location = str(location.id) in {str(x) for x in (emp.location_ids or [])}

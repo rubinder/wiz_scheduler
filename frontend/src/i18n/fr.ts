@@ -6,7 +6,7 @@ const fr = {
     archived: "Archivé",
     showArchived: "Afficher les archivés",
     appName: "Wiz Scheduler",
-    timesInZone: "Heures exprimées en {zone}",
+    availabilityLocalTime: "Heures exprimées en heure locale du site ({zone}).",
     loading: "Chargement...",
     save: "Enregistrer",
     saving: "Enregistrement...",
@@ -476,8 +476,6 @@ const fr = {
     csvLimitError: "Ce fichier contient {rows} employés, mais votre plan gratuit ne dispose de place que pour {remaining}. Le fichier entier serait rejeté — passez à un forfait supérieur ou importez un fichier plus petit.",
     payRate: "Taux horaire ($/h)",
     payRateGatedHint: "Passez à un forfait payant pour définir le taux horaire pour une planification tenant compte des coûts.",
-    availabilityTimezone: "Fuseau horaire des disponibilités",
-    availabilityTimezoneNone: "Aucun (heure locale du site)",
     hireDate: "Date d'embauche",
     seniorityRank: "Rang d'ancienneté",
     seniorityRankHint: "Remplacement manuel — laissez vide pour classer par date d'embauche.",
@@ -579,6 +577,7 @@ const fr = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "Toutes les disponibilités, y compris celles importées depuis 7shifts ou Deputy, sont en heure locale de chaque site.",
     onboardingHint: "Vous n'importez pas les disponibilités depuis un autre système ? Envoyez des liens d'invitation à vos employés importés depuis la page {link} afin qu'ils créent un compte et gèrent eux-mêmes leurs disponibilités.",
     onboardingLink: "Intégration des employés",
     quickSetLabel: "Raccourci (9h–17h) :",

@@ -5,19 +5,14 @@ candidate ranking, and matching the scheduler (graph._load_employee_availability
 + nodes.validate_schedule): an availability window, minus the employee's other
 shifts, must cover the whole span, and the span must miss every blackout.
 
-Every datetime here is a naive wall-clock face at the shift's location. For
-an employee with a timezone, their windows and blackouts are converted from
-their zone into the location's (scheduling/employee_time.py) first.
+Every datetime here is a naive wall-clock face at the shift's location.
+Availability and blackouts are always the location's local wall clock;
+nothing converts them per employee (#171).
 """
 
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from backend.scheduling.employee_time import (
-    availability_to_location,
-    blackouts_to_location,
-    needs_conversion,
-)
 from backend.scheduling.nodes import _subtract_consumed, _wall_clock
 
 DAY_NAMES = [
@@ -56,13 +51,7 @@ def _blocked_by_blackout(
     blackouts: list[dict[str, str]],
     span_start: datetime,
     span_end: datetime,
-    emp_tz: str | None,
-    loc_tz: str | None,
 ) -> bool:
-    if needs_conversion(emp_tz, loc_tz):
-        blackouts = blackouts_to_location(
-            blackouts, span_start.date().isoformat(), 1, emp_tz, loc_tz,
-        )
     day = DAY_NAMES[span_start.weekday()]
     s_hm, e_hm = span_start.strftime("%H:%M"), span_end.strftime("%H:%M")
     for bo in blackouts:
@@ -82,14 +71,12 @@ def is_available(
     blackouts: list[dict[str, str]],
     span_start: datetime,
     span_end: datetime,
-    emp_tz: str | None,
-    loc_tz: str | None,
 ) -> bool:
     """True when the employee can work [span_start, span_end)."""
-    if _blocked_by_blackout(blackouts, span_start, span_end, emp_tz, loc_tz):
+    if _blocked_by_blackout(blackouts, span_start, span_end):
         return False
-    for piece in availability_to_location(windows, emp_tz, loc_tz):
-        w_start, w_end = _wall_clock(piece["start"]), _wall_clock(piece["end"])
+    for w in windows:
+        w_start, w_end = _wall_clock(w["start"]), _wall_clock(w["end"])
         for free_start, free_end in _subtract_consumed(w_start, w_end, other_spans):
             if free_start <= span_start and free_end >= span_end:
                 return True

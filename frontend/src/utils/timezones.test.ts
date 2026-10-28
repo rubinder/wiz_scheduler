@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  availabilityZoneNote,
   browserTimeZone,
   employeeLocationZones,
+  locationZoneNote,
   timeZoneOptions,
 } from "./timezones";
 
@@ -34,15 +34,16 @@ describe("timeZoneOptions", () => {
   });
 });
 
-describe("availabilityZoneNote", () => {
-  it("is null for an employee with no timezone", () => {
-    expect(availabilityZoneNote(null, ["America/New_York", "America/Los_Angeles"])).toBeNull();
+describe("locationZoneNote", () => {
+  it("names the location zone: availability is always location-local (#171)", () => {
+    expect(locationZoneNote(["America/Los_Angeles"])).toBe("America/Los Angeles");
   });
-  it("is null when every location shares the employee's zone", () => {
-    expect(availabilityZoneNote("America/New_York", ["America/New_York"])).toBeNull();
+  it("lists each distinct zone once", () => {
+    expect(locationZoneNote(["America/New_York", "America/Los_Angeles", "America/New_York"]))
+      .toBe("America/New York, America/Los Angeles");
   });
-  it("names the zone when a location differs", () => {
-    expect(availabilityZoneNote("America/New_York", ["America/Los_Angeles"])).toBe("America/New_York");
+  it("is null when no zone is known", () => {
+    expect(locationZoneNote([])).toBeNull();
   });
 });
 

@@ -6,7 +6,7 @@ const pt = {
     archived: "Arquivado",
     showArchived: "Mostrar arquivados",
     appName: "Wiz Scheduler",
-    timesInZone: "Horários em {zone}",
+    availabilityLocalTime: "Horários na hora local do local ({zone}).",
     loading: "Carregando...",
     save: "Salvar",
     saving: "Salvando...",
@@ -476,8 +476,6 @@ const pt = {
     csvLimitError: "Este arquivo tem {rows} funcionários, mas seu plano gratuito só tem espaço para {remaining}. O arquivo inteiro seria rejeitado — faça upgrade ou envie um arquivo menor.",
     payRate: "Taxa de pagamento ($/h)",
     payRateGatedHint: "Faça upgrade para um plano pago para definir a taxa de pagamento para agendamento com base em custos.",
-    availabilityTimezone: "Fuso horário da disponibilidade",
-    availabilityTimezoneNone: "Nenhum (hora local do local)",
     hireDate: "Data de contratação",
     seniorityRank: "Classificação de antiguidade",
     seniorityRankHint: "Substituição manual — deixe em branco para classificar por data de contratação.",
@@ -579,6 +577,7 @@ const pt = {
   },
   // ── Employee Availability (manager) ──
   employeeAvailability: {
+    localTimeNote: "Toda a disponibilidade, inclusive a importada do 7shifts ou Deputy, está na hora local de cada local.",
     onboardingHint: "Não está importando disponibilidade de outro sistema? Envie links de convite aos funcionários importados na página {link} para que criem um login e gerenciem a própria disponibilidade.",
     onboardingLink: "Integração de funcionários",
     quickSetLabel: "Atalho (9–17h):",
