@@ -1,0 +1,185 @@
+PRIVACY POLICY FOR WIZSCHEDULER
+
+Effective Date: April 5, 2026
+Last Updated: October 28, 2026
+
+1. INTRODUCTION
+WizScheduler ("we", "our", "us") is a multi-tenant AI-powered employee scheduling platform operated by Suggestival LLC. This Privacy Policy explains how we collect, use, disclose, and safeguard your personal data when you use our service. We are committed to protecting your privacy in compliance with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), the New York SHIELD Act, and other applicable data protection laws.
+
+2. DATA WE COLLECT
+We collect the following categories of personal data:
+
+A. ACCOUNT INFORMATION
+- Full name, email address, hashed password
+- Company name and location information
+- Phone number (optional)
+- Account preferences and language settings
+
+B. EMPLOYEE PROFILE DATA
+- Full name, email address (if provided), phone number (optional)
+- Assigned roles and job titles
+- Skill levels and competency ratings
+- Work location assignments
+- Hire date and employment status
+- Seniority ratings
+
+C. AVAILABILITY AND SCHEDULING DATA
+- Weekly availability windows (day, start time, end time)
+- Shift preferences and constraints
+- Vacation and time-off requests
+- Shift history and assigned shifts
+- Schedule compliance flags (Fair Workweek violations, etc.)
+
+D. WORK PREFERENCE DATA
+- Interpersonal affinity scores between employees (used to optimize team composition and reduce conflicts)
+- Affinity expiration dates
+- Team preference annotations
+- Pay rate information (for scheduling signals)
+- Overtime and seniority signals
+
+E. TECHNICAL DATA
+- IP addresses (recorded during login and API requests)
+- JWT authentication tokens (not stored server-side beyond session)
+- Browser type and version
+- Device identifiers
+- Timestamps of access
+
+F. USAGE DATA
+- API request logs for error monitoring
+- Feature usage patterns
+- Schedule generation history
+- Check-in activity (location, time, date)
+
+3. HOW WE USE YOUR DATA
+We process your personal data for the following purposes:
+
+A. SCHEDULE GENERATION (PRIMARY USE CASE)
+Your availability, roles, skill levels, seniority, pay rates, affinities, and preferences are sent to Anthropic's Claude AI to generate optimized weekly shift schedules. Data is transmitted via encrypted API calls and is not retained by Anthropic beyond the API request lifecycle. Schedule generation is never used for training AI models.
+
+B. ACCOUNT MANAGEMENT
+To create and maintain your user account, authenticate sessions via JWT, manage multi-tenant company access, and enforce role-based access controls.
+
+C. COMMUNICATION
+To send transactional emails (welcome, password resets, schedule notifications, schedule generation results) via our email service provider, Resend. We do not send marketing emails without your explicit opt-in.
+
+D. DATA IMPORT/EXPORT
+To facilitate integration with 7shifts, Deputy, Homebase, and other scheduling systems for importing and exporting employee and schedule data at your request.
+
+E. COMPLIANCE CHECKING
+To validate schedules against Fair Workweek and other labor law requirements, and to generate compliance reports.
+
+F. SERVICE IMPROVEMENT
+To monitor errors, analyze usage patterns, improve scheduling algorithms, and develop new features based on aggregate, anonymized data.
+
+G. SECURITY AND FRAUD PREVENTION
+To detect and prevent unauthorized access, monitor for abuse, and maintain service security.
+
+4. LEGAL BASIS FOR PROCESSING (GDPR)
+We process your data based on:
+- Consent: You provide explicit consent during registration for data processing and AI-powered scheduling.
+- Contractual Necessity: Processing is necessary to provide the scheduling service you have requested.
+- Legitimate Interest: For security, fraud prevention, service improvement, and compliance with law.
+- Legal Obligation: To comply with labor law reporting requirements and court orders.
+
+5. DATA SHARING AND THIRD-PARTY PROCESSORS
+We share your data with the following third-party processors only when necessary:
+
+A. ANTHROPIC (CLAUDE AI)
+- Purpose: AI-powered schedule generation
+- Data Shared: Employee names, roles, skill levels, availability, affinities, preferences
+- Safeguards: Data transmitted via encrypted API calls; not retained beyond request lifecycle; explicitly not used for model training
+- Legal Basis: Your consent and contractual necessity
+
+B. THIRD-PARTY SCHEDULING PLATFORMS
+- Purpose: Employee and schedule data import/export
+- Data Shared: Employee profiles, shift schedules, and related workforce data
+- Examples: 7shifts, Deputy, Homebase
+- Safeguards: Data transferred only at customer's explicit request; encrypted in transit; user controls which fields are exported
+- Legal Basis: Your explicit instruction
+
+C. RESEND (EMAIL SERVICE PROVIDER)
+- Purpose: Transactional email delivery
+- Data Shared: Email addresses, recipient names, email content
+- Safeguards: Data processed solely for email delivery; encrypted in transit; Resend does not use data for marketing
+- Legal Basis: Contractual necessity
+
+D. CLOUD INFRASTRUCTURE PROVIDER
+- Purpose: Data storage and hosting
+- Data Shared: All application data including user accounts, employee profiles, availability, schedules
+- Safeguards: Encryption at rest and in transit; access restricted to application service; regular backups
+- Legal Basis: Contractual necessity
+
+We do not sell your personal data to advertisers or third parties.
+
+6. DATA RETENTION
+We retain your personal data for as long as your account is active or as needed to provide services:
+- Active Account: All data retained during the service period
+- After Account Deletion: All personal data is permanently deleted within 30 days, including employee profiles, availability, affinities, shift history, check-ins, and consent records
+- Pay Records: Time and attendance entries used for payroll are kept for 7 years from their pay date on your employer's instruction, including after an individual account is deleted (the pay record keeps the employee's name), and are then deleted automatically
+- After Subscription Cancellation: The employer's account is read-only for 90 days, then deleted together with all of its data, including pay records
+- Compliance Records: We may retain limited audit logs for up to 1 year to comply with legal obligations
+- Backups: Data in database backups is encrypted and retained per our backup policy (typically 30 days)
+
+7. YOUR RIGHTS
+Under GDPR, CCPA, and applicable laws, you have the right to:
+
+A. ACCESS: Request a copy of all personal data we hold about you (GET /api/v1/gdpr/export)
+B. RECTIFICATION: Update or correct your personal data through the account dashboard
+C. ERASURE: Request deletion of your account and all associated data (DELETE /api/v1/gdpr/delete-account)
+D. DATA PORTABILITY: Receive your data in a structured, machine-readable JSON format
+E. WITHDRAW CONSENT: You may withdraw consent at any time, though this may limit your ability to use the service
+F. RESTRICTION OF PROCESSING: Request that we limit how we use your data
+G. OBJECT: Object to processing based on legitimate interests
+H. OPT-OUT OF ANALYTICS: You can opt out of aggregate analytics tracking
+
+To exercise these rights, submit a request to admin@suggestival.com with proof of identity.
+
+8. DATA SECURITY
+We implement appropriate technical and organizational measures to protect your data:
+- Passwords are hashed using bcrypt and never stored in plaintext
+- Authentication via signed JWT tokens with configurable expiration
+- Multi-tenant data isolation ensures company data is strictly separated at the application and database level
+- All API communications are encrypted via TLS 1.2 or higher
+- Security headers (HSTS, X-Frame-Options, X-Content-Type-Options) are enforced
+- Regular security updates and vulnerability monitoring
+- Data encrypted at rest in database backups
+- Limited access control: only authorized service components access user data
+
+While we implement robust security measures, no system is 100% secure. We maintain cyber insurance and breach notification procedures.
+
+9. INTERNATIONAL DATA TRANSFERS
+Your data may be transferred to and processed in the United States or other countries where we or our sub-processors operate. We ensure appropriate safeguards are in place:
+- EU Standard Contractual Clauses (SCCs) with each sub-processor
+- Transfer Impact Assessments where required under GDPR
+- Data adequacy assessments for target jurisdictions
+
+10. CHILDREN'S PRIVACY
+Our service is not directed to individuals under 16. We do not knowingly collect personal data from children. If we become aware that a child under 16 has provided data, we will delete it promptly.
+
+11. CALIFORNIA CONSUMER PRIVACY ACT (CCPA)
+California residents have the right to know, delete, and opt-out of the sale of personal information. We do not sell personal information as defined by CCPA. For CCPA-specific requests, contact admin@suggestival.com.
+
+12. NEW YORK PRIVACY RIGHTS
+New York residents have the right to know, delete, and opt-out of targeted advertising. We do not engage in targeted advertising. For NY Privacy Rights Act requests, contact admin@suggestival.com.
+
+13. COOKIES AND TRACKING
+We use minimal cookies:
+- Authentication cookies: Required for session management
+- Preference cookies: Optional, stored locally on your device
+- Analytics: Aggregate, anonymized analytics only; no individual user tracking
+
+You can disable non-essential cookies in your browser settings.
+
+14. THIRD-PARTY LINKS
+Our website may contain links to third-party services (7shifts, Deputy, etc.). This Privacy Policy applies only to WizScheduler. We are not responsible for third-party privacy practices.
+
+15. CHANGES TO THIS POLICY
+We may update this Privacy Policy from time to time. We will notify you of material changes via email or in-app notification at least 30 days in advance. Continued use of the service after changes constitutes acceptance.
+
+16. CONTACT AND DATA PROTECTION OFFICER
+For privacy inquiries, data subject requests, or complaints:
+- Email: admin@suggestival.com
+- Address: Available upon request
+- Response Time: We respond to data subject requests within 30 days (45 days for complex requests)
+
+If you are dissatisfied with our response, you may lodge a complaint with your local data protection authority.
