@@ -20,6 +20,7 @@ export stays available and stays the default.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import logging
@@ -225,46 +226,96 @@ def is_paid_archive_session_for(session: Any, og: OwnershipGroup) -> bool:
     return True
 
 
-def find_unrecorded_paid_sessions(og: OwnershipGroup) -> list[Any]:
-    """Day-90 backstop for a purchase neither the return page nor the
-    webhook recorded (tab closed, webhook endpoint not subscribed): this
-    group's paid payroll-archive Checkout sessions, oldest first, from
-    Stripe. Called only for a group with no archive row.
+def _is_refunded(session: Any) -> bool:
+    """True when the session's payment was fully refunded (by hand, or as a
+    duplicate). Checkout's payment_status stays "paid" after a refund, so
+    the charge is what says so."""
+    import stripe
 
-    Raises on a Stripe error: the caller must then NOT delete the group,
-    because it cannot prove there is no paid archive."""
+    pi = stripe_field(session, "payment_intent")
+    if pi is None:
+        return False
+    if isinstance(pi, str):
+        pi = stripe.PaymentIntent.retrieve(pi, expand=["latest_charge"])
+    charge = stripe_field(pi, "latest_charge")
+    if charge is None:
+        return False
+    if isinstance(charge, str):
+        charge = stripe.Charge.retrieve(charge)
+    return bool(stripe_field(charge, "refunded"))
+
+
+def _paid_archive_sessions_sync(og: OwnershipGroup) -> list[Any]:
     if not og.stripe_customer_id or not settings.STRIPE_SECRET_KEY:
         return []
     import stripe
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
-    listing = stripe.checkout.Session.list(customer=og.stripe_customer_id, limit=100)
-    paid = [s for s in listing.auto_paging_iter() if is_paid_archive_session_for(s, og)]
+    listing = stripe.checkout.Session.list(
+        customer=og.stripe_customer_id, limit=100,
+        expand=["data.payment_intent.latest_charge"],
+    )
+    paid = [
+        s for s in listing.auto_paging_iter()
+        if is_paid_archive_session_for(s, og) and not _is_refunded(s)
+    ]
     paid.sort(key=lambda s: stripe_field(s, "created") or 0)
     return paid
 
 
-async def insert_reconciled_purchase(
+async def paid_archive_sessions(og: OwnershipGroup) -> list[Any]:
+    """This group's paid, unrefunded payroll-archive Checkout sessions in
+    Stripe, oldest first: the backstop for purchases neither the return page
+    nor the webhook recorded (tab closed, expired login, webhook endpoint not
+    subscribed). Blocking Stripe I/O (it pages), so run off the event loop.
+
+    Raises on a Stripe error. The cron must then not delete the group (it
+    cannot prove there is no paid archive), and checkout must not offer a
+    new session."""
+    return await asyncio.to_thread(_paid_archive_sessions_sync, og)
+
+
+async def reconcile_sessions_locked(
     db: AsyncSession, og: OwnershipGroup, sessions: list[Any]
-) -> str | None:
-    """Store the oldest of `sessions` (found by find_unrecorded_paid_sessions)
-    with the group locked; not committed, it commits with the write and the
-    delete. Any further paid session is a duplicate and is refunded."""
+) -> None:
+    """With the group locked: store the oldest paid session if the group has
+    no archive yet, then refund every other paid session (idempotent) and
+    alert the operator. Not committed; commits with the write and delete."""
     from backend.services.operator_alerts import send_payroll_archive_refund_alert
 
     paid = [s for s in sessions if is_paid_archive_session_for(s, og)]
     if not paid:
-        return None
-    archive_id = await insert_purchase(db, og, paid[0])
-    logger.warning(
-        "payroll_archive.reconciled og=%s session=%s archive=%s",
-        og.id, stripe_field(paid[0], "id"), archive_id,
-    )
-    for extra in paid[1:]:
+        return
+    archive = await get_archive_for_group(db, og.id)
+    if archive is None:
+        archive_id = await insert_purchase(db, og, paid[0])
+        logger.warning(
+            "payroll_archive.reconciled og=%s session=%s archive=%s",
+            og.id, stripe_field(paid[0], "id"), archive_id,
+        )
+        kept = stripe_field(paid[0], "id")
+    else:
+        kept = archive.stripe_checkout_session_id
+    for extra in paid:
         sid = stripe_field(extra, "id")
+        if sid == kept:
+            continue
         pi = _as_id(stripe_field(extra, "payment_intent"))
         send_payroll_archive_refund_alert(og.id, sid, pi, "duplicate", _refund(pi, sid))
-    return archive_id
+
+
+async def sync_unrecorded_purchase(db: AsyncSession, og: OwnershipGroup) -> bool:
+    """Before offering or selling the archive: record a paid session that
+    was never recorded (the first stored, any further one refunded as a
+    duplicate by record_archive_purchase). True when the group has bought
+    the archive. Raises on a Stripe error. Commits."""
+    if await get_archive_for_group(db, og.id) is not None:
+        return True
+    og_id = og.id
+    sessions = await paid_archive_sessions(og)
+    for s in sessions:
+        await record_archive_purchase(db, og_id, s)
+    return bool(sessions)
 
 
 async def record_archive_purchase(db: AsyncSession, og_id: str, session: Any) -> str:

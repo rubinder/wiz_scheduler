@@ -1524,11 +1524,12 @@ async def _write_paid_archive(
     from backend.services.payroll_archive import write_archive
 
     og_id = og.id  # a rollback below expires og
-    # A purchase nobody recorded, found in Stripe before the notice (#218).
+    # Paid sessions found in Stripe before the notice (#218): store one if
+    # nothing was recorded, refund every other one.
     if reconciled_sessions:
-        from backend.services.payroll_archive import insert_reconciled_purchase
+        from backend.services.payroll_archive import reconcile_sessions_locked
 
-        await insert_reconciled_purchase(db, og, reconciled_sessions)
+        await reconcile_sessions_locked(db, og, reconciled_sessions)
     archive = (await db.execute(
         select(PayrollArchive)
         .where(PayrollArchive.ownership_group_id == og_id)
@@ -1607,28 +1608,29 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 # deleted (below), so a failed write never tells it its data
                 # is gone while the deletion is postponed.
                 archive_pending = await _has_unwritten_archive(db, og_id)
-                # No row at all: ask Stripe whether a purchase went
-                # unrecorded (tab closed before the return page, webhook not
-                # subscribed). If Stripe cannot answer, nothing is sent or
-                # deleted this run: we cannot prove there is no archive.
-                reconciled_sessions: list = []
-                if not archive_pending and not await _has_archive_row(db, og_id):
-                    from backend.services.operator_alerts import (
-                        send_payroll_archive_write_failed_alert,
+                # Ask Stripe for this group's paid archive sessions, even
+                # when a row exists: a purchase may have gone unrecorded (tab
+                # closed before the return page, webhook not subscribed), or
+                # a second one may sit beside the recorded one and be owed a
+                # refund. If Stripe cannot answer, nothing is sent or deleted
+                # this run: we cannot prove there is no paid archive.
+                from backend.services.operator_alerts import (
+                    send_payroll_archive_write_failed_alert,
+                )
+                from backend.services.payroll_archive import paid_archive_sessions
+                try:
+                    reconciled_sessions = await paid_archive_sessions(og)
+                except Exception as exc:
+                    await db.rollback()
+                    failures += 1
+                    logger.exception("Payroll archive reconciliation failed for og=%s", og_id)
+                    send_payroll_archive_write_failed_alert(
+                        og_id, "-",
+                        f"Stripe reconciliation failed: {type(exc).__name__}: {exc}",
                     )
-                    from backend.services.payroll_archive import find_unrecorded_paid_sessions
-                    try:
-                        reconciled_sessions = find_unrecorded_paid_sessions(og)
-                    except Exception as exc:
-                        await db.rollback()
-                        failures += 1
-                        logger.exception("Payroll archive reconciliation failed for og=%s", og_id)
-                        send_payroll_archive_write_failed_alert(
-                            og_id, "-",
-                            f"Stripe reconciliation failed: {type(exc).__name__}: {exc}",
-                        )
-                        continue
-                    archive_pending = bool(reconciled_sessions)
+                    continue
+                if reconciled_sessions and not await _has_archive_row(db, og_id):
+                    archive_pending = True
                 if og.notified_data_deleted_at is None and not archive_pending:
                     await send_data_deleted_email(og)
                     og.notified_data_deleted_at = now

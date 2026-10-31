@@ -171,3 +171,25 @@ def send_payroll_archive_refund_alert(
         f"and {outcome}.</p>",
         "payroll_archive_refund",
     )
+
+
+def send_payroll_archive_review_alert(
+    og_id: str, checkout_session_id: str, payment_intent_id: str | None, reason: str
+) -> bool:
+    """A paid payroll-archive session (#218) arrived that cannot be matched
+    to its group (say a customer mismatch). It may be genuine, so nothing
+    was recorded or refunded: a person should look. Never raises."""
+    logger.warning(
+        "[OPERATOR] payroll_archive_needs_review og=%s session=%s pi=%s reason=%s",
+        og_id, checkout_session_id, payment_intent_id, reason,
+    )
+    return _send_operator_email(
+        f"[WizScheduler] Payroll archive payment needs review for og={og_id}",
+        f"<p>A paid payroll-archive Checkout session "
+        f"(<code>{html.escape(checkout_session_id)}</code>, payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>) for "
+        f"og={html.escape(og_id)} could not be verified ({html.escape(reason)}). "
+        f"Nothing was recorded or refunded. Check it in Stripe and decide "
+        f"whether to record it or refund it.</p>",
+        "payroll_archive_needs_review",
+    )

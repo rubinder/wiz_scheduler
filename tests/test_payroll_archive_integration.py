@@ -67,6 +67,34 @@ def storage():
     archive_storage.set_archive_storage(None)
 
 
+@pytest.fixture(autouse=True)
+def stripe_sessions(monkeypatch):
+    """Stripe's view of Checkout sessions and refunds, empty by default.
+    Tests append sessions, or set `error`, and add payment intents to
+    `refunded`."""
+    import stripe
+
+    state = SimpleNamespace(sessions=[], error=None, refunded=set(), calls=[])
+
+    class _Listing:
+        def auto_paging_iter(self):
+            return iter(list(state.sessions))
+
+    def fake_list(**kw):
+        state.calls.append(kw)
+        if state.error is not None:
+            raise state.error
+        return _Listing()
+
+    def fake_pi(pi_id, **kw):
+        return SimpleNamespace(
+            id=pi_id, latest_charge=SimpleNamespace(refunded=pi_id in state.refunded))
+
+    monkeypatch.setattr(stripe.checkout.Session, "list", fake_list)
+    monkeypatch.setattr(stripe.PaymentIntent, "retrieve", fake_pi)
+    return state
+
+
 @pytest.fixture
 def enabled(monkeypatch):
     monkeypatch.setattr(settings, "PAYROLL_ARCHIVE_ENABLED", True)
@@ -80,6 +108,10 @@ def alerts(monkeypatch):
     monkeypatch.setattr(
         "backend.services.operator_alerts.send_payroll_archive_write_failed_alert",
         lambda og_id, archive_id, error: sent.append(("write_failed", og_id, archive_id, error)),
+    )
+    monkeypatch.setattr(
+        "backend.services.operator_alerts.send_payroll_archive_review_alert",
+        lambda og_id, session_id, pi, reason: sent.append(("review", og_id, session_id, pi, reason)),
     )
     monkeypatch.setattr(
         "backend.services.operator_alerts.send_payroll_archive_refund_alert",
@@ -948,28 +980,11 @@ async def test_download_refuses_expired_unknown_and_missing_tokens_alike(
 # ---------------------------------------------------------------------------
 
 
-class _Listing:
-    def __init__(self, sessions):
-        self._s = sessions
-
-    def auto_paging_iter(self):
-        return iter(self._s)
-
-
-def _list_returns(monkeypatch, sessions=None, error: Exception | None = None):
-    import stripe
-
-    calls: list[dict] = []
-
-    def fake_list(**kw):
-        calls.append(kw)
-        if error is not None:
-            raise error
-        return _Listing(sessions or [])
-
-    monkeypatch.setattr(stripe.checkout.Session, "list", fake_list)
+def _list_returns(monkeypatch, state, sessions=None, error: Exception | None = None):
+    state.sessions[:] = sessions or []
+    state.error = error
     monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_x")
-    return calls
+    return state.calls
 
 
 async def test_checkout_is_card_only(client: AsyncClient, db_session, enabled, monkeypatch):
@@ -986,7 +1001,7 @@ async def test_checkout_is_card_only(client: AsyncClient, db_session, enabled, m
 
 
 async def test_an_unrecorded_paid_session_is_found_archived_and_deleted(
-    db_session, storage, resend_outbox, monkeypatch
+    db_session, storage, resend_outbox, monkeypatch, stripe_sessions
 ):
     """Tab closed before the return page and no webhook: the cron finds
     the session in Stripe, archives, then deletes and sends one notice."""
@@ -999,12 +1014,13 @@ async def test_an_unrecorded_paid_session_is_found_archived_and_deleted(
     s = _session(g, created=100)
     other_kind = _session(g, metadata={"kind": "subscription"})
     unpaid = _session(g, payment_status="unpaid")
-    calls = _list_returns(monkeypatch, [other_kind, unpaid, s])
+    calls = _list_returns(monkeypatch, stripe_sessions, [other_kind, unpaid, s])
     await _make_overdue(db_session, g.og_id)
 
     result = await process_cancellation_lifecycle(db_session)
 
-    assert calls == [{"customer": g.customer, "limit": 100}]
+    assert calls == [{"customer": g.customer, "limit": 100,
+                      "expand": ["data.payment_intent.latest_charge"]}]
     assert result["deletions_done"] == 1 and result["failures"] == 0
     a = await _archive(db_session, g.og_id)
     assert a.status == "written" and a.stripe_checkout_session_id == s.id
@@ -1014,7 +1030,7 @@ async def test_an_unrecorded_paid_session_is_found_archived_and_deleted(
 
 
 async def test_a_stripe_error_during_reconciliation_postpones_the_deletion(
-    db_session, storage, alerts, resend_outbox, monkeypatch
+    db_session, storage, alerts, resend_outbox, monkeypatch, stripe_sessions
 ):
     import stripe
     import backend.database as _db_module
@@ -1022,7 +1038,7 @@ async def test_a_stripe_error_during_reconciliation_postpones_the_deletion(
 
     monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
     g = await _group(db_session)
-    _list_returns(monkeypatch, error=stripe.APIConnectionError("down"))
+    _list_returns(monkeypatch, stripe_sessions, error=stripe.APIConnectionError("down"))
     await _make_overdue(db_session, g.og_id)
 
     result = await process_cancellation_lifecycle(db_session)
@@ -1036,12 +1052,12 @@ async def test_a_stripe_error_during_reconciliation_postpones_the_deletion(
 
 
 async def test_no_archive_sessions_in_stripe_deletes_as_before(
-    db_session, storage, quiet_lifecycle, monkeypatch
+    db_session, storage, quiet_lifecycle, monkeypatch, stripe_sessions
 ):
     from backend.services.billing import process_cancellation_lifecycle
 
     g = await _group(db_session)
-    _list_returns(monkeypatch, [])
+    _list_returns(monkeypatch, stripe_sessions, [])
     await _make_overdue(db_session, g.og_id)
 
     result = await process_cancellation_lifecycle(db_session)
@@ -1082,9 +1098,9 @@ async def test_webhook_alerts_on_a_paid_session_it_cannot_verify(
     assert await _archive(db_session, g.og_id) is None
     assert refunds == []
     assert len(alerts) == 1
-    kind, og_id, sid, pi, reason, refunded = alerts[0]
-    assert (kind, og_id, sid, pi, refunded) == ("refund", g.og_id, s.id, s.payment_intent, False)
-    assert reason.startswith("rejected")
+    kind, og_id, sid, pi, reason = alerts[0]
+    assert (kind, og_id, sid, pi) == ("review", g.og_id, s.id, s.payment_intent)
+    assert reason  # the verification failure
 
 
 async def test_a_failed_refund_is_reported_as_not_refunded(
@@ -1161,3 +1177,122 @@ async def test_no_bucket_means_no_storage(monkeypatch):
     monkeypatch.setattr(settings, "PAYROLL_ARCHIVE_BUCKET", "")
     with pytest.raises(archive_storage.ArchiveStorageNotConfigured):
         archive_storage.get_archive_storage()
+
+
+
+# ---------------------------------------------------------------------------
+# Re-review: duplicates beside a recorded purchase, offer sync, refunds
+# ---------------------------------------------------------------------------
+
+
+async def test_an_unrecorded_payment_beside_a_recorded_one_is_refunded_at_day_90(
+    db_session, storage, quiet_lifecycle, monkeypatch, stripe_sessions, refunds, alerts
+):
+    """Paid A, never recorded (no webhook, tab closed); paid B, recorded.
+    The cron keeps B, refunds A, writes, deletes."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    g = await _group(db_session)
+    first = _session(g, created=1)
+    second = _session(g, created=2)
+    assert await record_archive_purchase(db_session, g.og_id, second) == "created"
+    _list_returns(monkeypatch, stripe_sessions, [first, second])
+    await _make_overdue(db_session, g.og_id)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["deletions_done"] == 1
+    rows = (await db_session.execute(select(PayrollArchive))).scalars().all()
+    assert [r.stripe_checkout_session_id for r in rows] == [second.id]
+    assert rows[0].status == "written"
+    assert refunds == [{"payment_intent": first.payment_intent,
+                        "idempotency_key": f"payroll-archive-refund-{first.id}"}]
+    assert alerts == [("refund", g.og_id, first.id, first.payment_intent, "duplicate", True)]
+
+
+async def test_checkout_records_an_unrecorded_payment_and_refuses_a_second(
+    client: AsyncClient, db_session, enabled, monkeypatch, stripe_sessions
+):
+    import stripe
+
+    created: list = []
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: created.append(kw))
+    g = await _group(db_session)
+    paid = _session(g)
+    stripe_sessions.sessions.append(paid)
+
+    resp = await client.post(CHECKOUT_URL, headers=g.headers)
+
+    assert resp.status_code == 409
+    assert created == []
+    a = await _archive(db_session, g.og_id)
+    assert a is not None and a.stripe_checkout_session_id == paid.id
+
+
+async def test_status_reports_an_unrecorded_payment_as_purchased(
+    client: AsyncClient, db_session, enabled, stripe_sessions
+):
+    g = await _group(db_session)
+    stripe_sessions.sessions.append(_session(g))
+
+    body = (await client.get(STATUS_URL, headers=g.headers)).json()
+
+    assert body["purchased"] is True and body["available"] is False
+
+
+async def test_checkout_fails_closed_when_stripe_cannot_answer(
+    client: AsyncClient, db_session, enabled, monkeypatch, stripe_sessions
+):
+    import stripe
+
+    created: list = []
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: created.append(kw))
+    stripe_sessions.error = stripe.APIConnectionError("down")
+    g = await _group(db_session)
+
+    resp = await client.post(CHECKOUT_URL, headers=g.headers)
+
+    assert resp.status_code == 503
+    assert created == []
+
+
+async def test_status_falls_back_to_the_database_when_stripe_cannot_answer(
+    client: AsyncClient, db_session, enabled, stripe_sessions
+):
+    import stripe
+
+    stripe_sessions.error = stripe.APIConnectionError("down")
+    g = await _group(db_session)
+
+    resp = await client.get(STATUS_URL, headers=g.headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["available"] is True and resp.json()["purchased"] is False
+
+
+async def test_a_refunded_session_is_not_a_purchase(
+    client: AsyncClient, db_session, storage, quiet_lifecycle, enabled, monkeypatch,
+    stripe_sessions,
+):
+    """Refunded by hand: neither reconciliation nor checkout honors it."""
+    import stripe
+    from backend.services.billing import process_cancellation_lifecycle
+
+    monkeypatch.setattr(
+        stripe.checkout.Session, "create",
+        lambda **kw: SimpleNamespace(id="cs_new", url="https://checkout.test"),
+    )
+    g = await _group(db_session)
+    refunded = _session(g)
+    stripe_sessions.sessions.append(refunded)
+    stripe_sessions.refunded.add(refunded.payment_intent)
+
+    assert (await client.get(STATUS_URL, headers=g.headers)).json()["available"] is True
+    assert (await client.post(CHECKOUT_URL, headers=g.headers)).status_code == 200
+
+    await _make_overdue(db_session, g.og_id)
+    await process_cancellation_lifecycle(db_session)
+
+    assert not await _og_exists(db_session, g.og_id)
+    assert await _archive(db_session, g.og_id) is None
+    assert storage.puts == 0

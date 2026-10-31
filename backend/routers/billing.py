@@ -651,7 +651,27 @@ async def get_payroll_archive_status(
     """Whether the seven-year payroll archive may be bought, or already was."""
     from backend.services.payroll_archive import offer_status
 
+    from backend.services.payroll_archive import get_archive_for_group, in_grace_period
+    from backend.services.payroll_archive import sync_unrecorded_purchase
+
     og = await _load_og(db, current_user)
+    # Before saying "available", ask Stripe whether a payment went
+    # unrecorded, so the UI stops offering after one. A Stripe error falls
+    # back to what the database says.
+    if (
+        settings.PAYROLL_ARCHIVE_ENABLED
+        and in_grace_period(og)
+        and await get_archive_for_group(db, og.id) is None
+    ):
+        og_id = og.id
+        try:
+            await sync_unrecorded_purchase(db, og)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "payroll_archive.status_sync_failed og=%s", og_id, exc_info=True)
+            await db.rollback()
+        og = await db.get(OwnershipGroup, og_id)
     return PayrollArchiveStatus(**await offer_status(db, og))
 
 
@@ -685,6 +705,24 @@ async def payroll_archive_checkout(
         )
     if not settings.STRIPE_SECRET_KEY:
         raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    # Never sell it twice: a paid session nobody recorded (tab closed before
+    # the return page, webhook not subscribed) is recorded now and answers
+    # 409. If Stripe cannot say, fail closed rather than risk a second charge.
+    from backend.services.payroll_archive import sync_unrecorded_purchase
+
+    try:
+        if await sync_unrecorded_purchase(db, og):
+            raise HTTPException(
+                status_code=409, detail="The payroll archive is already purchased")
+    except HTTPException:
+        raise
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "payroll_archive.checkout_sync_failed og=%s", og.id, exc_info=True)
+        raise HTTPException(
+            status_code=503, detail="Could not check for an earlier payment. Try again later.")
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
     # Back to the payroll page, where the free history export and this offer
