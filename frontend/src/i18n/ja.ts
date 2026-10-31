@@ -1227,6 +1227,13 @@ const ja = {
     failed: "問題が発生しました。数分後にもう一度お試しください。",
     rateLimited: "リクエストが多すぎます。しばらくしてからお試しください。",
     backToLogin: "サインインに戻る",
+    downloadTitle: "給与アーカイブをダウンロード",
+    downloadDescription: "ダウンロードリンクの準備ができました。下のボタンは1回のみ有効で、すぐにファイルのダウンロードが始まります。",
+    downloadButton: "アーカイブをダウンロード",
+    downloading: "ダウンロードを準備中…",
+    downloadInvalid: "このダウンロードリンクは無効か期限切れです。新しいリンクをリクエストしてください。",
+    downloadUnavailable: "アーカイブは一時的に利用できません。しばらくしてからお試しください。",
+    requestNewLink: "新しいリンクをリクエスト",
   },
   cancellationBanner: {
     title: "Subscription ended.",

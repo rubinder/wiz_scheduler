@@ -1227,6 +1227,13 @@ const hi = {
     failed: "कुछ गलत हो गया। कुछ मिनट बाद फिर से कोशिश करें।",
     rateLimited: "बहुत अधिक अनुरोध। बाद में फिर से कोशिश करें।",
     backToLogin: "साइन इन पर वापस जाएँ",
+    downloadTitle: "पेरोल संग्रह डाउनलोड करें",
+    downloadDescription: "आपका डाउनलोड लिंक तैयार है। नीचे दिया बटन एक बार काम करता है, और फ़ाइल तुरंत डाउनलोड होने लगती है।",
+    downloadButton: "संग्रह डाउनलोड करें",
+    downloading: "डाउनलोड तैयार हो रहा है…",
+    downloadInvalid: "यह डाउनलोड लिंक अमान्य है या समाप्त हो चुका है। नया लिंक माँगें।",
+    downloadUnavailable: "संग्रह अभी उपलब्ध नहीं है। बाद में फिर से कोशिश करें।",
+    requestNewLink: "नया लिंक माँगें",
   },
   cancellationBanner: {
     title: "Subscription ended.",

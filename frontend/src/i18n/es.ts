@@ -1227,6 +1227,13 @@ const es = {
     failed: "Algo salió mal. Inténtelo de nuevo en unos minutos.",
     rateLimited: "Demasiadas solicitudes. Inténtelo más tarde.",
     backToLogin: "Volver a iniciar sesión",
+    downloadTitle: "Descargar archivo de nómina",
+    downloadDescription: "Su enlace de descarga está listo. El botón de abajo funciona una sola vez y el archivo empieza a descargarse de inmediato.",
+    downloadButton: "Descargar archivo",
+    downloading: "Preparando la descarga…",
+    downloadInvalid: "Este enlace de descarga no es válido o ha caducado. Solicite uno nuevo.",
+    downloadUnavailable: "El archivo no está disponible temporalmente. Inténtelo más tarde.",
+    requestNewLink: "Solicitar un enlace nuevo",
   },
   cancellationBanner: {
     title: "Subscription ended.",

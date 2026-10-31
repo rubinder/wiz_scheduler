@@ -47,6 +47,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const PayrollArchiveRetrieve = lazy(() => import("./pages/PayrollArchiveRetrieve"));
+const PayrollArchiveDownload = lazy(() => import("./pages/PayrollArchiveDownload"));
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -126,6 +127,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/payroll-archive" element={<PayrollArchiveRetrieve />} />
+        <Route path="/payroll-archive/download" element={<PayrollArchiveDownload />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>

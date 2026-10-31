@@ -222,3 +222,12 @@ export function retrievePayrollArchive(email: string): Promise<{ message: string
     body: JSON.stringify({ email }),
   });
 }
+
+/** Public: redeem a mailed single-use token for a short-lived download URL.
+ *  Rejects with ApiError 410 for any invalid, used or expired token. */
+export function redeemPayrollArchiveDownload(token: string): Promise<{ url: string }> {
+  return apiFetch<{ url: string }>("/payroll-archive/download", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}

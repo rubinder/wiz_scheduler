@@ -1227,6 +1227,13 @@ const trLang = {
     failed: "Bir sorun oluştu. Birkaç dakika sonra tekrar deneyin.",
     rateLimited: "Çok fazla istek. Daha sonra tekrar deneyin.",
     backToLogin: "Girişe dön",
+    downloadTitle: "Bordro arşivini indir",
+    downloadDescription: "İndirme bağlantınız hazır. Aşağıdaki düğme yalnızca bir kez çalışır ve dosya hemen inmeye başlar.",
+    downloadButton: "Arşivi indir",
+    downloading: "İndirme hazırlanıyor…",
+    downloadInvalid: "Bu indirme bağlantısı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin.",
+    downloadUnavailable: "Arşiv geçici olarak kullanılamıyor. Daha sonra tekrar deneyin.",
+    requestNewLink: "Yeni bağlantı iste",
   },
   cancellationBanner: {
     title: "Subscription ended.",

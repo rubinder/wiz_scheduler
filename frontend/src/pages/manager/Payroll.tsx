@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "../../api/client";
 import PayrollArchiveOffer from "../../components/shared/PayrollArchiveOffer";
+import { usePayrollArchiveReturn } from "../../hooks/usePayrollArchiveReturn";
 import { listLocations } from "../../api/locations";
 import {
   approveTimeEntries,
@@ -106,6 +107,12 @@ export default function Payroll() {
     PayrollRetentionInfo | null | undefined
   >(undefined);
   const [downloadingHistory, setDownloadingHistory] = useState(false);
+  // A payroll-archive Checkout return (#218) is confirmed whichever view
+  // below renders.
+  const archiveReturn = usePayrollArchiveReturn();
+  const archiveConfirmError = archiveReturn.failed && (
+    <div className="glass-alert-error mb-4">{t.payrollArchive.confirmFailed}</div>
+  );
 
   /** "Confirmed by Dana on 12/09/2026 — Phone battery died".
    *
@@ -332,7 +339,8 @@ export default function Payroll() {
           {warningBanner}
           {error && <div className="glass-alert-error mb-4">{error}</div>}
           {historySection}
-          <PayrollArchiveOffer />
+          {archiveConfirmError}
+          <PayrollArchiveOffer refreshKey={archiveReturn.refreshKey} />
         </div>
       );
     }
@@ -347,6 +355,7 @@ export default function Payroll() {
           </p>
         )}
         {error && <div className="glass-alert-error mt-4">{error}</div>}
+        {archiveConfirmError}
       </div>
     );
   }
@@ -358,6 +367,7 @@ export default function Payroll() {
       </h1>
       <p className={`mb-6 max-w-2xl ${text.muted}`}>{t.payroll.desc}</p>
 
+      {archiveConfirmError}
       {warningBanner}
 
       {/* Range + location */}

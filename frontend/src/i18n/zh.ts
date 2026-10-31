@@ -1227,6 +1227,13 @@ const zh = {
     failed: "出了点问题。请几分钟后重试。",
     rateLimited: "请求过多。请稍后再试。",
     backToLogin: "返回登录",
+    downloadTitle: "下载工资档案",
+    downloadDescription: "您的下载链接已就绪。下面的按钮只能使用一次，文件会立即开始下载。",
+    downloadButton: "下载档案",
+    downloading: "正在准备下载…",
+    downloadInvalid: "此下载链接无效或已过期。请重新申请。",
+    downloadUnavailable: "档案暂时无法获取。请稍后再试。",
+    requestNewLink: "申请新链接",
   },
   cancellationBanner: {
     title: "Subscription ended.",

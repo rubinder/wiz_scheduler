@@ -1227,6 +1227,13 @@ const de = {
     failed: "Etwas ist schiefgelaufen. Versuchen Sie es in ein paar Minuten erneut.",
     rateLimited: "Zu viele Anfragen. Versuchen Sie es später erneut.",
     backToLogin: "Zurück zur Anmeldung",
+    downloadTitle: "Lohnarchiv herunterladen",
+    downloadDescription: "Ihr Download-Link ist bereit. Die Schaltfläche unten funktioniert einmal, und der Download startet sofort.",
+    downloadButton: "Archiv herunterladen",
+    downloading: "Download wird vorbereitet…",
+    downloadInvalid: "Dieser Download-Link ist ungültig oder abgelaufen. Fordern Sie einen neuen an.",
+    downloadUnavailable: "Das Archiv ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
+    requestNewLink: "Neuen Link anfordern",
   },
   cancellationBanner: {
     title: "Subscription ended.",

@@ -1227,6 +1227,13 @@ const ar = {
     failed: "حدث خطأ ما. حاول مرة أخرى بعد بضع دقائق.",
     rateLimited: "طلبات كثيرة جدًا. حاول لاحقًا.",
     backToLogin: "العودة إلى تسجيل الدخول",
+    downloadTitle: "تنزيل أرشيف الرواتب",
+    downloadDescription: "رابط التنزيل جاهز. يعمل الزر أدناه مرة واحدة، ويبدأ تنزيل الملف فورًا.",
+    downloadButton: "تنزيل الأرشيف",
+    downloading: "جارٍ تجهيز التنزيل…",
+    downloadInvalid: "رابط التنزيل هذا غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.",
+    downloadUnavailable: "الأرشيف غير متاح مؤقتًا. حاول لاحقًا.",
+    requestNewLink: "اطلب رابطًا جديدًا",
   },
   cancellationBanner: {
     title: "Subscription ended.",

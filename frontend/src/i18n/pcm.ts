@@ -1227,6 +1227,13 @@ const pcm = {
     failed: "Something no work well. Try again after some minutes.",
     rateLimited: "Request don too much. Try again later.",
     backToLogin: "Go back to sign in",
+    downloadTitle: "Download payroll archive now",
+    downloadDescription: "Your download link don ready. The button wey dey below go work only once, and the file go start to download sharp sharp.",
+    downloadButton: "Download the archive",
+    downloading: "We dey prepare the download…",
+    downloadInvalid: "This download link no good again or e don expire. Ask for new one.",
+    downloadUnavailable: "The archive no dey available for now. Try again later.",
+    requestNewLink: "Ask for new link",
   },
   cancellationBanner: {
     title: "Subscription ended.",

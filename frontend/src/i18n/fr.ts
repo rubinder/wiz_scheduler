@@ -1227,6 +1227,13 @@ const fr = {
     failed: "Une erreur s'est produite. Réessayez dans quelques minutes.",
     rateLimited: "Trop de demandes. Réessayez plus tard.",
     backToLogin: "Retour à la connexion",
+    downloadTitle: "Télécharger l'archive de paie",
+    downloadDescription: "Votre lien de téléchargement est prêt. Le bouton ci-dessous ne fonctionne qu'une fois, et le fichier se télécharge aussitôt.",
+    downloadButton: "Télécharger l'archive",
+    downloading: "Préparation du téléchargement…",
+    downloadInvalid: "Ce lien de téléchargement est invalide ou a expiré. Demandez-en un nouveau.",
+    downloadUnavailable: "L'archive est temporairement indisponible. Réessayez plus tard.",
+    requestNewLink: "Demander un nouveau lien",
   },
   cancellationBanner: {
     title: "Subscription ended.",

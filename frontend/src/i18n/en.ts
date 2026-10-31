@@ -1229,6 +1229,13 @@ const en = {
     failed: "Something went wrong. Try again in a few minutes.",
     rateLimited: "Too many requests. Try again later.",
     backToLogin: "Back to sign in",
+    downloadTitle: "Download payroll archive",
+    downloadDescription: "Your download link is ready. The button below works once, and the file starts downloading right away.",
+    downloadButton: "Download archive",
+    downloading: "Preparing download…",
+    downloadInvalid: "This download link is invalid or has expired. Request a new one.",
+    downloadUnavailable: "The archive is temporarily unavailable. Try again later.",
+    requestNewLink: "Request a new link",
   },
   cancellationBanner: {
     title: "Subscription ended.",

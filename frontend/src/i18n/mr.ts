@@ -1227,6 +1227,13 @@ const mr = {
     failed: "काहीतरी चुकले. काही मिनिटांनी पुन्हा प्रयत्न करा.",
     rateLimited: "खूप जास्त विनंत्या. नंतर पुन्हा प्रयत्न करा.",
     backToLogin: "साइन इनकडे परत जा",
+    downloadTitle: "पेरोल संग्रह डाउनलोड करा",
+    downloadDescription: "तुमची डाउनलोड लिंक तयार आहे. खालील बटण एकदाच चालते आणि फाइल लगेच डाउनलोड होऊ लागते.",
+    downloadButton: "संग्रह डाउनलोड करा",
+    downloading: "डाउनलोड तयार करत आहोत…",
+    downloadInvalid: "ही डाउनलोड लिंक अवैध आहे किंवा कालबाह्य झाली आहे. नवीन लिंक मागवा.",
+    downloadUnavailable: "संग्रह तात्पुरता उपलब्ध नाही. नंतर पुन्हा प्रयत्न करा.",
+    requestNewLink: "नवीन लिंक मागवा",
   },
   cancellationBanner: {
     title: "Subscription ended.",

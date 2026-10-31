@@ -1227,6 +1227,13 @@ const ind = {
     failed: "Terjadi kesalahan. Coba lagi dalam beberapa menit.",
     rateLimited: "Terlalu banyak permintaan. Coba lagi nanti.",
     backToLogin: "Kembali ke halaman masuk",
+    downloadTitle: "Unduh arsip penggajian",
+    downloadDescription: "Tautan unduhan Anda sudah siap. Tombol di bawah hanya berfungsi sekali, dan file langsung mulai diunduh.",
+    downloadButton: "Unduh arsip",
+    downloading: "Menyiapkan unduhan…",
+    downloadInvalid: "Tautan unduhan ini tidak valid atau sudah kedaluwarsa. Minta tautan baru.",
+    downloadUnavailable: "Arsip untuk sementara tidak tersedia. Coba lagi nanti.",
+    requestNewLink: "Minta tautan baru",
   },
   cancellationBanner: {
     title: "Subscription ended.",

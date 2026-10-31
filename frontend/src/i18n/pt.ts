@@ -1227,6 +1227,13 @@ const pt = {
     failed: "Algo deu errado. Tente novamente em alguns minutos.",
     rateLimited: "Solicitações demais. Tente novamente mais tarde.",
     backToLogin: "Voltar para o login",
+    downloadTitle: "Baixar arquivo da folha de pagamento",
+    downloadDescription: "Seu link de download está pronto. O botão abaixo funciona uma vez, e o arquivo começa a baixar na hora.",
+    downloadButton: "Baixar arquivo",
+    downloading: "Preparando o download…",
+    downloadInvalid: "Este link de download é inválido ou expirou. Solicite um novo.",
+    downloadUnavailable: "O arquivo está temporariamente indisponível. Tente novamente mais tarde.",
+    requestNewLink: "Solicitar um novo link",
   },
   cancellationBanner: {
     title: "Subscription ended.",

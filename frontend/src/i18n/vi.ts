@@ -1227,6 +1227,13 @@ const vi = {
     failed: "Đã xảy ra lỗi. Vui lòng thử lại sau vài phút.",
     rateLimited: "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
     backToLogin: "Quay lại đăng nhập",
+    downloadTitle: "Tải xuống kho lưu trữ bảng lương",
+    downloadDescription: "Liên kết tải xuống của bạn đã sẵn sàng. Nút bên dưới chỉ dùng được một lần và tệp sẽ bắt đầu tải xuống ngay.",
+    downloadButton: "Tải xuống kho lưu trữ",
+    downloading: "Đang chuẩn bị tải xuống…",
+    downloadInvalid: "Liên kết tải xuống này không hợp lệ hoặc đã hết hạn. Hãy yêu cầu liên kết mới.",
+    downloadUnavailable: "Kho lưu trữ tạm thời không khả dụng. Vui lòng thử lại sau.",
+    requestNewLink: "Yêu cầu liên kết mới",
   },
   cancellationBanner: {
     title: "Subscription ended.",
