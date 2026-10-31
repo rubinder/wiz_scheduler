@@ -1,7 +1,7 @@
 TERMS OF SERVICE FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 12, 2026
+Last Updated: October 31, 2026
 
 1. ACCEPTANCE OF TERMS
 By accessing or using WizScheduler ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, you may not use the Service. These Terms apply to all users, including managers, employees, and administrators.
@@ -155,6 +155,13 @@ C. BILLING
 D. DISPUTED CHARGES
 Notify us within 30 days of a disputed charge. After 30 days, we cannot contest the charge with your payment processor.
 
+E. OPTIONAL PAYROLL ARCHIVE
+- After you cancel a paid plan, during the 90-day read-only period, an administrator may buy a payroll archive for a one-time fee of $18 (USD)
+- When your account is deleted, your complete pay-record history is saved as one file, kept for 7 years and then deleted automatically
+- Only the administrators on the account when it is deleted can retrieve it, through a link sent to their email address
+- The fee is non-refundable, including if you reactivate your account. If you reactivate and later cancel again, the archive is saved when the account is deleted, at no additional charge
+- Exporting your pay records yourself remains free at any time before your account is deleted
+
 13. LIMITATION OF LIABILITY
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, WIZSCHEDULER AND SUGGESTIVAL LLC SHALL NOT BE LIABLE FOR:
 - INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES
@@ -191,7 +198,7 @@ We may suspend or terminate your access if you:
 C. EFFECT OF TERMINATION
 Upon termination:
 - Your account access is revoked
-- Your data is deleted in accordance with our Privacy Policy
+- Your data is deleted in accordance with our Privacy Policy, except a payroll archive you have bought (Section 12.E)
 - Provisions regarding liability, indemnification, and IP rights survive termination
 
 16. DISPUTE RESOLUTION
