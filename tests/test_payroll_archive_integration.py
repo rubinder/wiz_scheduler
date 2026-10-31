@@ -558,6 +558,36 @@ async def test_lifecycle_writes_the_zip_before_deleting_the_group(
     assert (await db_session.execute(select(PayrollArchiveToken))).scalars().all() == []
 
 
+async def test_recipients_are_refreshed_to_the_current_admins_at_write(
+    db_session, storage, quiet_lifecycle
+):
+    """An admin removed after purchase loses access; one added gains it."""
+    from backend.services.billing import process_cancellation_lifecycle
+
+    g = await _group(db_session)
+    a = await _buy(db_session, g)
+    assert a.recipient_emails == [g.admin_email]
+    old_admin = (await db_session.execute(
+        select(User).where(User.email.ilike(g.admin_email))
+    )).scalar_one()
+    old_admin.manager_type = "regular"  # demoted during the grace period
+    new_id = _id()
+    db_session.add(User(
+        id=new_id, company_id=g.companies[0].company_id,
+        email=f"New-{new_id}@example.com", hashed_password="x", full_name="New",
+        user_role="manager", manager_type="admin",
+        email_verified_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+    await _make_overdue(db_session, g.og_id)
+
+    await process_cancellation_lifecycle(db_session)
+
+    after = await _archive(db_session, g.og_id)
+    assert after.status == "written"
+    assert after.recipient_emails == [f"new-{new_id}@example.com"]
+
+
 async def test_an_upload_failure_postpones_the_deletion_and_retries(
     db_session, storage, quiet_lifecycle, alerts
 ):
@@ -721,12 +751,39 @@ async def _written(db: AsyncSession, storage: FakeStorage) -> tuple[SimpleNamesp
 
 @pytest.fixture
 def retrieval_mail(monkeypatch):
+    """The background task opens its own session, as in production."""
+    import backend.database as _db_module
+
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
     sent: list[tuple[str, list]] = []
     monkeypatch.setattr(
-        "backend.routers.payroll_archive.send_retrieval_email",
+        "backend.services.payroll_archive.send_retrieval_email",
         lambda email, links: sent.append((email, links)),
     )
     return sent
+
+
+async def test_retrieve_does_no_match_dependent_work_in_the_request(
+    client: AsyncClient, db_session, storage, quiet_lifecycle, monkeypatch
+):
+    """Timing oracle: the handler schedules the same background call for a
+    hit and a miss and touches no archive or token itself."""
+    g, _ = await _written(db_session, storage)
+    scheduled: list[tuple] = []
+
+    async def record(email, base_url):
+        scheduled.append((email, base_url))
+
+    monkeypatch.setattr("backend.routers.payroll_archive.process_retrieval_request", record)
+
+    hit = await client.post(RETRIEVE_URL, json={"email": g.admin_email})
+    miss = await client.post(RETRIEVE_URL, json={"email": "nobody@example.com"})
+
+    assert hit.status_code == miss.status_code == 202
+    assert hit.json() == miss.json()
+    assert [b for _, b in scheduled] == [scheduled[0][1]] * 2
+    assert [e for e, _ in scheduled] == [g.admin_email, "nobody@example.com"]
+    assert (await db_session.execute(select(PayrollArchiveToken))).scalars().all() == []
 
 
 async def test_retrieve_answers_the_same_for_a_match_and_a_miss(

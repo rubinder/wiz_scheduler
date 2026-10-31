@@ -303,6 +303,18 @@ async def write_archive(db: AsyncSession, og: OwnershipGroup, archive: PayrollAr
     from backend.services.payroll_export import write_history_csv
 
     storage = get_archive_storage()
+
+    # Recipients are refreshed now, under the row lock: an admin removed or
+    # demoted during the grace period must not keep access for seven years,
+    # and one added since the purchase should get it. The purchase-time list
+    # stays only if the group has no admin left, so the row is never empty.
+    current = await admin_recipient_emails(db, og.id)
+    if current:
+        archive.recipient_emails = current
+    names = await _company_names(db, og.id)
+    if names:
+        archive.company_names = names
+
     companies = (await db.execute(
         select(Company.id, Company.name)
         .where(Company.ownership_group_id == og.id)
@@ -428,6 +440,28 @@ async def mint_retrieval_tokens(
         minted.append((archive, raw))
     await db.commit()
     return minted
+
+
+async def process_retrieval_request(email: str, base_url: str) -> None:
+    """The whole match-dependent part of POST /payroll-archive/retrieve:
+    lookup, token mint and email. Run as a background task on its own
+    session, so the response (and its timing) is the same whether or not
+    the address matched. Never raises."""
+    from backend import database
+
+    try:
+        async with database.async_session_factory() as db:
+            minted = await mint_retrieval_tokens(db, email)
+        if not minted:
+            return
+        links = [
+            (list(archive.company_names or []),
+             f"{base_url}/api/v1/payroll-archive/download?token={raw}")
+            for archive, raw in minted
+        ]
+        send_retrieval_email(email.strip().lower(), links)
+    except Exception:
+        logger.exception("payroll_archive.retrieve_failed")
 
 
 def send_retrieval_email(email: str, links: list[tuple[list[str], str]]) -> None:

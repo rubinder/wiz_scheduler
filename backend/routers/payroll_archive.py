@@ -6,8 +6,10 @@ to log in as, no tenant context, and the request runs as the table owner
 address is the only credential, so:
 
 - POST /payroll-archive/retrieve answers the same 202 body whether or not the
-  address matched anything, and mails the single-use link only to that
-  address. Per source IP it 429s (in-process limiter, like the other public
+  address matched anything, after only the rate-limit check: the lookup,
+  token mint and email run in a background task on their own session, so
+  neither the body nor the timing reveals a match. The single-use link goes
+  only to that address. Per source IP it 429s (in-process limiter, like the other public
   routes); per email it silently mints nothing past an hourly cap.
 - GET /payroll-archive/download redeems the token once and redirects to a
   five-minute presigned URL. Every failure is the same plain 410.
@@ -25,11 +27,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dependencies import get_db
-from backend.services.payroll_archive import (
-    mint_retrieval_tokens,
-    redeem_token,
-    send_retrieval_email,
-)
+from backend.services.payroll_archive import process_retrieval_request, redeem_token
 from backend.services.rate_limit import payroll_archive_retrieve_limiter, source_ip_from_request
 from backend.utils.base_url import trusted_base_url
 
@@ -58,7 +56,6 @@ async def retrieve_payroll_archive(
     body: RetrieveRequest,
     request: Request,
     background: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ) -> RetrieveResponse:
     source_ip = source_ip_from_request(request)
     if not payroll_archive_retrieve_limiter.check_and_record(source_ip):
@@ -68,16 +65,10 @@ async def retrieve_payroll_archive(
             detail="Too many requests. Try again later.",
         )
 
-    minted = await mint_retrieval_tokens(db, body.email)
-    if minted:
-        base = trusted_base_url(request)
-        links = [
-            (list(archive.company_names or []),
-             f"{base}/api/v1/payroll-archive/download?token={raw}")
-            for archive, raw in minted
-        ]
-        # After the response, so a match is not slower to answer than a miss.
-        background.add_task(send_retrieval_email, body.email.strip().lower(), links)
+    # Everything that depends on a match (lookup, token, email) runs after
+    # the response on its own session, so a hit is neither slower nor
+    # different from a miss.
+    background.add_task(process_retrieval_request, body.email, trusted_base_url(request))
     return RetrieveResponse(message=RETRIEVE_MESSAGE)
 
 
