@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "../../api/client";
+import PayrollArchiveOffer from "../../components/shared/PayrollArchiveOffer";
 import { listLocations } from "../../api/locations";
 import {
   approveTimeEntries,
@@ -331,6 +332,7 @@ export default function Payroll() {
           {warningBanner}
           {error && <div className="glass-alert-error mb-4">{error}</div>}
           {historySection}
+          <PayrollArchiveOffer />
         </div>
       );
     }

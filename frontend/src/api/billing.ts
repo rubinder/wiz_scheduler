@@ -187,3 +187,38 @@ export function confirmUpgrade(sessionId: string): Promise<{ upgraded: boolean }
     body: JSON.stringify({ session_id: sessionId }),
   });
 }
+
+// ── Paid payroll archive (#218) ──
+
+export interface PayrollArchiveStatus {
+  /** Offer may be shown: flag on, canceled, in grace, nothing bought yet. */
+  available: boolean;
+  purchased: boolean;
+  price_usd: number;
+  scheduled_deletion_at: string | null;
+}
+
+export function getPayrollArchiveStatus(): Promise<PayrollArchiveStatus> {
+  return apiFetch<PayrollArchiveStatus>("/billing/payroll-archive");
+}
+
+export function payrollArchiveCheckout(): Promise<{ session_id: string; url: string }> {
+  return apiFetch<{ session_id: string; url: string }>("/billing/payroll-archive/checkout", {
+    method: "POST",
+  });
+}
+
+export function confirmPayrollArchive(sessionId: string): Promise<PayrollArchiveStatus> {
+  return apiFetch<PayrollArchiveStatus>("/billing/payroll-archive/confirm", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+/** Public: always resolves with the same neutral message (202). */
+export function retrievePayrollArchive(email: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>("/payroll-archive/retrieve", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}

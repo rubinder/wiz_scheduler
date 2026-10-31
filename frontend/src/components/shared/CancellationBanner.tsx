@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import * as billingApi from "../../api/billing";
-import type { BillingUsage } from "../../api/billing";
+import type { BillingUsage, PayrollArchiveStatus } from "../../api/billing";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 
@@ -16,6 +17,24 @@ export default function CancellationBanner() {
   const { isAdmin } = useAuth();
   const [usage, setUsage] = useState<BillingUsage | null>(null);
   const [reactivating, setReactivating] = useState(false);
+  // The paid payroll archive (#218): admins of a canceled group get a link
+  // to the offer, which sits beside the free export on the payroll page.
+  const [archive, setArchive] = useState<PayrollArchiveStatus | null>(null);
+  const readOnly = !!usage?.is_read_only;
+
+  useEffect(() => {
+    if (!readOnly || !isAdmin) return;
+    let cancelled = false;
+    billingApi
+      .getPayrollArchiveStatus()
+      .then((s) => {
+        if (!cancelled) setArchive(s);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [readOnly, isAdmin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +78,15 @@ export default function CancellationBanner() {
         {t.cancellationBanner.body
           .replace("{endDate}", endDate)
           .replace("{deleteDate}", deleteDate)}
+        {archive?.purchased ? (
+          <span className="block text-xs mt-1">
+            {t.payrollArchive.purchased.replace("{date}", deleteDate)}
+          </span>
+        ) : archive?.available ? (
+          <Link to="/manager/payroll" className="block text-xs mt-1 underline">
+            {t.payrollArchive.bannerOffer}
+          </Link>
+        ) : null}
       </div>
       {isAdmin ? (
         <button
