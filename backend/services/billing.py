@@ -1475,6 +1475,32 @@ def _deletion_due(og: OwnershipGroup, now: datetime) -> bool:
     return (now - canceled_at).days >= settings.SUBSCRIPTION_GRACE_DAYS
 
 
+async def _has_unwritten_archive(db: AsyncSession, og_id: str) -> bool:
+    """True when the group bought a payroll archive (#218) not yet written."""
+    from backend.models.payroll_archive import PayrollArchive
+
+    return (await db.execute(
+        select(PayrollArchive.id).where(
+            PayrollArchive.ownership_group_id == og_id,
+            PayrollArchive.status == "paid",
+        )
+    )).scalar_one_or_none() is not None
+
+
+async def _og_manager_emails(db: AsyncSession, og_id: str) -> list[str]:
+    """Every manager address in the group, as the lifecycle notices use."""
+    company_ids = select(Company.id).where(Company.ownership_group_id == og_id)
+    from backend.models import User
+
+    emails = (await db.execute(
+        select(User.email).where(
+            User.company_id.in_(company_ids),
+            User.user_role == "manager",
+        )
+    )).scalars().all()
+    return [e for e in emails if e]
+
+
 async def _write_paid_archive(
     db: AsyncSession, og: OwnershipGroup
 ) -> "PayrollArchive | None | Literal[False]":
@@ -1562,7 +1588,13 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 # would wait forever on an uncommitted delete. Stamped and
                 # committed, so a delete that fails is retried daily without
                 # mailing the notice again.
-                if og.notified_data_deleted_at is None:
+                #
+                # Except for a group with a paid payroll archive (#218): its
+                # notice waits until the archive is written and the group
+                # deleted (below), so a failed write never tells it its data
+                # is gone while the deletion is postponed.
+                archive_pending = await _has_unwritten_archive(db, og_id)
+                if og.notified_data_deleted_at is None and not archive_pending:
                     await send_data_deleted_email(og)
                     og.notified_data_deleted_at = now
                     await db.commit()
@@ -1592,9 +1624,22 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 if written is False:
                     failures += 1
                     continue
+                # The deferred notice: recipients are read now, in this
+                # transaction (a separate session would wait on our lock),
+                # and the mail goes out only once the write and the delete
+                # have committed. Only the worker that commits the delete
+                # gets here with the group still present, so it is sent
+                # once; a failed delete rolls back and sends nothing. No
+                # audit row: og_email_send_log rows go with the group in
+                # this same transaction.
+                deferred_notice: tuple[str, list[str]] | None = None
+                if locked.notified_data_deleted_at is None:
+                    deferred_notice = (locked.name, await _og_manager_emails(db, og_id))
                 await delete_og_and_dependents(db, locked)
                 await db.commit()
                 deletions_done += 1
+                if deferred_notice is not None:
+                    _send_data_deleted_resend(*deferred_notice)
                 if written is not None:
                     from backend.services.payroll_archive import send_archive_written_emails
                     send_archive_written_emails(written)
@@ -1623,7 +1668,6 @@ async def send_data_deleted_email(og: OwnershipGroup) -> None:
     from sqlalchemy import select
     from backend.models import Company, User
     from backend.database import async_session_factory
-    import html as _html
 
     async with async_session_factory() as db:
         company_ids = (await db.execute(
@@ -1652,6 +1696,15 @@ async def send_data_deleted_email(og: OwnershipGroup) -> None:
         ))
         await db.commit()
 
+    _send_data_deleted_resend(og.name, list(manager_emails))
+
+
+def _send_data_deleted_resend(og_name: str, manager_emails: list[str]) -> None:
+    """The data-deleted notice itself. Resend errors are logged and swallowed."""
+    if not settings.RESEND_API_KEY or not manager_emails:
+        return
+    import html as _html
+
     try:
         import resend
         resend.api_key = settings.RESEND_API_KEY
@@ -1661,7 +1714,7 @@ async def send_data_deleted_email(og: OwnershipGroup) -> None:
             "subject": "Your WizScheduler data has been deleted",
             "html": (
                 f'<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
-                f"<p>Hi {_html.escape(og.name)},</p>"
+                f"<p>Hi {_html.escape(og_name)},</p>"
                 f"<p>As scheduled, your WizScheduler account and all "
                 f"associated data have been <strong>permanently and "
                 f"irreversibly deleted</strong>.</p>"
@@ -1675,7 +1728,7 @@ async def send_data_deleted_email(og: OwnershipGroup) -> None:
         })
     except Exception:
         logger.error(
-            "Failed to send data-deleted email for og=%s",
-            og.id,
+            "Failed to send data-deleted email for og_name=%s",
+            og_name,
             exc_info=True,
         )

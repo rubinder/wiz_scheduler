@@ -550,9 +550,10 @@ async def test_lifecycle_writes_the_zip_before_deleting_the_group(
     assert "Erin Erased" in b_csv and "Dana Okafor" not in b_csv
 
     # The recipients are told where it is.
-    assert [m["to"] for m in resend_outbox] == [[g.admin_email]]
-    assert "/payroll-archive" in resend_outbox[0]["html"]
-    assert a.expires_at.date().isoformat() in resend_outbox[0]["html"]
+    stored = [m for m in resend_outbox if m["subject"] == "Your WizScheduler payroll archive is stored"]
+    assert [m["to"] for m in stored] == [[g.admin_email]]
+    assert "/payroll-archive" in stored[0]["html"]
+    assert a.expires_at.date().isoformat() in stored[0]["html"]
 
     # Tokens and archives are not swept with the group.
     assert (await db_session.execute(select(PayrollArchiveToken))).scalars().all() == []
@@ -616,6 +617,62 @@ async def test_an_upload_failure_postpones_the_deletion_and_retries(
     assert again["deletions_done"] == 1 and again["failures"] == 0
     assert not await _og_exists(db_session, g.og_id)
     assert (await _archive(db_session, g.og_id)).status == "written"
+
+
+DELETED_SUBJECT = "Your WizScheduler data has been deleted"
+
+
+async def test_the_deleted_notice_waits_for_a_successful_archive_write(
+    db_session, storage, alerts, resend_outbox, monkeypatch
+):
+    """Upload fails: no data-deleted email that run. Next run succeeds:
+    exactly one, to the group's managers, and a third run sends nothing."""
+    import backend.database as _db_module
+    from backend.services.billing import process_cancellation_lifecycle
+
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
+    g = await _group(db_session)
+    await _buy(db_session, g)
+    await _make_overdue(db_session, g.og_id)
+    storage.fail = RuntimeError("S3 is down")
+
+    await process_cancellation_lifecycle(db_session)
+
+    assert [m for m in resend_outbox if m["subject"] == DELETED_SUBJECT] == []
+    assert await _og_exists(db_session, g.og_id)
+
+    storage.fail = None
+    await process_cancellation_lifecycle(db_session)
+    await process_cancellation_lifecycle(db_session)
+
+    deleted = [m for m in resend_outbox if m["subject"] == DELETED_SUBJECT]
+    assert len(deleted) == 1
+    assert g.admin_email in [e.lower() for e in deleted[0]["to"]]
+    assert not await _og_exists(db_session, g.og_id)
+
+
+async def test_a_group_without_an_archive_gets_the_notice_before_the_delete(
+    db_session, storage, resend_outbox, monkeypatch
+):
+    """Unchanged for everyone else: the notice goes out (through its own
+    session) even when the delete then fails, and is not re-sent."""
+    import backend.database as _db_module
+    from backend.services import billing
+    from backend.services.billing import process_cancellation_lifecycle
+
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
+    g = await _group(db_session)
+    await _make_overdue(db_session, g.og_id)
+
+    async def failing_delete(db, og):
+        raise RuntimeError("nope")
+
+    monkeypatch.setattr(billing, "delete_og_and_dependents", failing_delete)
+    await process_cancellation_lifecycle(db_session)
+    await process_cancellation_lifecycle(db_session)
+
+    assert len([m for m in resend_outbox if m["subject"] == DELETED_SUBJECT]) == 1
+    assert await _og_exists(db_session, g.og_id)
 
 
 async def test_no_bucket_configured_postpones_the_deletion(
