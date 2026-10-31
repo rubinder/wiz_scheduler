@@ -230,6 +230,29 @@ class Settings(BaseSettings):
     SUBSCRIPTION_GRACE_DAYS: int = 90
     SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE: int = 14
 
+    # Paid payroll archive (#218). A cancelled group inside its grace period
+    # may pay once to have its pay records kept for seven years after the
+    # account is deleted. PAYROLL_ARCHIVE_ENABLED gates OFFERING and BUYING
+    # only: an archive that is already paid for is written at deletion
+    # whatever the flag says, because a paid group is never deleted without
+    # it. PAYROLL_ARCHIVE_BUCKET is the private S3 bucket (set per
+    # environment by Terraform); empty means no storage, and a paid group's
+    # deletion then waits, with an operator alert, until it is set.
+    # PAYROLL_ARCHIVE_RETENTION_DAYS matches the bucket's lifecycle expiry
+    # (7 x 365 + 2 leap days, the same as RETENTION_TIME_ENTRIES_DAYS).
+    PAYROLL_ARCHIVE_ENABLED: bool = False
+    PAYROLL_ARCHIVE_BUCKET: str = ""
+    PAYROLL_ARCHIVE_PRICE_CENTS: int = 1800
+    PAYROLL_ARCHIVE_RETENTION_DAYS: int = 2557
+    # Retrieval (public, unauthenticated). Per source IP: the in-process
+    # limiter answers 429. Per email: at most this many download links an
+    # hour, enforced from the token table so it holds across workers, and
+    # silently (the response never says whether an address matched).
+    PAYROLL_ARCHIVE_RETRIEVE_RATE_LIMIT_PER_HOUR: int = 5
+    PAYROLL_ARCHIVE_RETRIEVE_PER_EMAIL_PER_HOUR: int = 3
+    # A mailed download link is single use and lives this long.
+    PAYROLL_ARCHIVE_TOKEN_TTL_HOURS: int = 24
+
     # Auto-reload (real-time billing for AI + schedules)
     AUTORELOAD_DEFAULT_ENABLED: bool = True
     AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0

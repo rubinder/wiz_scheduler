@@ -16,3 +16,4 @@ stripe>=8.0.0
 google-auth>=2.30.0
 prometheus_client>=0.21.0
 segno==1.6.1
+boto3==1.43.123
