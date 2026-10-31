@@ -9,6 +9,7 @@ Pricing per ownership group per month:
 import logging
 import math
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,9 @@ from backend.models.billing_charge import BillingCharge
 from backend.models.ownership_group import OwnershipGroup
 from backend.services.archive import active
 from backend.services.operator_alerts import send_credit_purchase_alert
+
+if TYPE_CHECKING:
+    from backend.models.payroll_archive import PayrollArchive
 
 logger = logging.getLogger(__name__)
 
@@ -1453,6 +1457,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
 
     # storage_snapshots + billing_charges cascade automatically.
 
+    # payroll_archives / payroll_archive_tokens (#218) are deliberately NOT
+    # deleted: a paid archive outlives the group by seven years, and its
+    # ownership_group_id is not a foreign key so nothing cascades to it.
+
     # The OG row itself.
     await db.delete(og)
 
@@ -1465,6 +1473,40 @@ def _deletion_due(og: OwnershipGroup, now: datetime) -> bool:
     if canceled_at.tzinfo is None:
         canceled_at = canceled_at.replace(tzinfo=timezone.utc)
     return (now - canceled_at).days >= settings.SUBSCRIPTION_GRACE_DAYS
+
+
+async def _write_paid_archive(
+    db: AsyncSession, og: OwnershipGroup
+) -> "PayrollArchive | None | Literal[False]":
+    """Write the group's paid payroll archive, if it has one (#218).
+
+    Called with the group's row locked. Returns the archive when this call
+    wrote it, None when there is nothing to write (no purchase, or already
+    written), and False when writing failed: the transaction is rolled back,
+    the operator alerted, and the group must NOT be deleted this run.
+    """
+    from backend.models.payroll_archive import PayrollArchive
+    from backend.services.operator_alerts import send_payroll_archive_write_failed_alert
+    from backend.services.payroll_archive import write_archive
+
+    og_id = og.id  # a rollback below expires og
+    archive = (await db.execute(
+        select(PayrollArchive)
+        .where(PayrollArchive.ownership_group_id == og_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if archive is None or archive.status != "paid":
+        return None
+    archive_id = archive.id
+    try:
+        await write_archive(db, og, archive)
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Payroll archive write failed for og=%s archive=%s", og_id, archive_id)
+        send_payroll_archive_write_failed_alert(og_id, archive_id, f"{type(exc).__name__}: {exc}")
+        return False
+    return archive
 
 
 async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
@@ -1539,9 +1581,23 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 if locked is None or not _deletion_due(locked, now):
                     await db.rollback()
                     continue
+                # A paid payroll archive (#218) is written before the group
+                # goes, in the same transaction as the delete, so the group
+                # is never deleted without it and a failed delete leaves the
+                # row 'paid' for tomorrow's retry. The group lock above
+                # serializes the per-worker loops: a second worker waits on
+                # it and then finds the group gone. Deliberately not gated
+                # on PAYROLL_ARCHIVE_ENABLED: this purchase is already paid.
+                written = await _write_paid_archive(db, locked)
+                if written is False:
+                    failures += 1
+                    continue
                 await delete_og_and_dependents(db, locked)
                 await db.commit()
                 deletions_done += 1
+                if written is not None:
+                    from backend.services.payroll_archive import send_archive_written_emails
+                    send_archive_written_emails(written)
         except Exception:
             await db.rollback()
             failures += 1

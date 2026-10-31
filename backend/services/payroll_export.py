@@ -10,6 +10,7 @@ import csv
 import io
 import logging
 from collections.abc import Iterable
+from typing import BinaryIO
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -321,19 +322,7 @@ async def export_history(
     encoded file (roughly 250 bytes a row, so ~90 MB at that size) — bounded,
     and released as the StreamingResponse drains it.
     """
-    query = (
-        select(
-            TimeEntry.employee_id, TimeEntry.employee_name, TimeEntry.pay_date,
-            TimeEntry.location_id, TimeEntry.location_name, TimeEntry.role_id,
-            TimeEntry.role_name, TimeEntry.start_time, TimeEntry.end_time,
-            TimeEntry.paid_minutes, TimeEntry.source, TimeEntry.checked_in_at,
-            TimeEntry.lateness_minutes, TimeEntry.location_timezone,
-            TimeEntry.approved_at,
-        )
-        .where(TimeEntry.company_id == company_id)
-        .order_by(TimeEntry.pay_date, TimeEntry.start_time, TimeEntry.id)
-        .execution_options(yield_per=_HISTORY_CHUNK_ROWS)
-    )
+    query = _history_query(company_id)
 
     chunks: list[bytes] = [csv_preamble(history=True).encode("utf-8")]
     count = 0
@@ -393,3 +382,57 @@ async def export_history(
         company_id, export.id, count,
     )
     return chunks, export
+
+
+def _history_query(company_id: str):
+    """Every retained pay record of one company, in file order. Columns only
+    (the rows carry their own employee, location and role names, so archived
+    and GDPR-erased employees are included with nothing joined)."""
+    return (
+        select(
+            TimeEntry.employee_id, TimeEntry.employee_name, TimeEntry.pay_date,
+            TimeEntry.location_id, TimeEntry.location_name, TimeEntry.role_id,
+            TimeEntry.role_name, TimeEntry.start_time, TimeEntry.end_time,
+            TimeEntry.paid_minutes, TimeEntry.source, TimeEntry.checked_in_at,
+            TimeEntry.lateness_minutes, TimeEntry.location_timezone,
+            TimeEntry.approved_at,
+        )
+        .where(TimeEntry.company_id == company_id)
+        .order_by(TimeEntry.pay_date, TimeEntry.start_time, TimeEntry.id)
+        .execution_options(yield_per=_HISTORY_CHUNK_ROWS)
+    )
+
+
+async def write_history_csv(
+    db: AsyncSession, company_id: str, sink: BinaryIO
+) -> int:
+    """The full-history file (render_csv(history=True), byte for byte) for
+    one company, written to a binary sink a chunk at a time. Returns the row
+    count; a company with no records still gets the BOM and header.
+
+    The non-HTTP twin of export_history, for the paid payroll archive (#218)
+    written by the day-90 cron: it raises nothing HTTP-shaped and writes no
+    PayrollExport audit row (one would reference a company about to be
+    deleted, and nobody downloaded anything).
+    """
+    sink.write(csv_preamble(history=True).encode("utf-8"))
+    count = 0
+    result = await db.stream(_history_query(company_id))
+    async for partition in result.partitions(_HISTORY_CHUNK_ROWS):
+        rows = [
+            PayrollCsvRow(
+                employee_id=r.employee_id, employee_name=r.employee_name,
+                pay_date=r.pay_date, location_id=r.location_id,
+                location_name=r.location_name, role_id=r.role_id,
+                role_name=r.role_name, start_time=r.start_time,
+                end_time=r.end_time, paid_minutes=r.paid_minutes,
+                source=r.source, checked_in_at=r.checked_in_at,
+                lateness_minutes=r.lateness_minutes,
+                timezone=r.location_timezone,
+                approved=r.approved_at is not None,
+            )
+            for r in partition
+        ]
+        count += len(rows)
+        sink.write(render_csv_rows(rows, history=True).encode("utf-8"))
+    return count
