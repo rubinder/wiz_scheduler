@@ -133,4 +133,40 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
             await send_subscription_ended_email(og)
         return {"received": True, "type": event_type, "og_id": og.id if og else None}
 
+    if event_type == "checkout.session.completed":
+        # Only the paid payroll archive (#218) is handled here. Every other
+        # Checkout session (signup, upgrade, reactivation) is confirmed by
+        # its own return-URL endpoint and stays untouched.
+        from backend.services.payroll_archive import (
+            CHECKOUT_KIND,
+            ArchiveSessionInvalid,
+            stripe_field,
+            record_archive_purchase,
+            verify_archive_session,
+        )
+
+        metadata = stripe_field(obj, "metadata") or {}
+        if stripe_field(metadata, "kind") != CHECKOUT_KIND:
+            return {"received": True, "type": event_type}
+        og_id = stripe_field(metadata, "ownership_group_id") or stripe_field(obj, "client_reference_id")
+        if not og_id or stripe_field(obj, "payment_status") != "paid":
+            logger.warning(
+                "payroll_archive webhook ignored: session=%s og=%s payment_status=%s",
+                stripe_field(obj, "id"), og_id, stripe_field(obj, "payment_status"),
+            )
+            return {"received": True, "type": event_type, "og_id": og_id}
+        og = await db.get(OwnershipGroup, og_id)
+        if og is not None:
+            try:
+                verify_archive_session(obj, og)
+            except ArchiveSessionInvalid as e:
+                logger.warning(
+                    "payroll_archive webhook rejected: session=%s og=%s reason=%s",
+                    stripe_field(obj, "id"), og_id, e,
+                )
+                return {"received": True, "type": event_type, "og_id": og_id}
+        # A group already deleted is refunded inside record_archive_purchase.
+        outcome = await record_archive_purchase(db, og_id, obj)
+        return {"received": True, "type": event_type, "og_id": og_id, "payroll_archive": outcome}
+
     return {"received": True, "type": event_type}

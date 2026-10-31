@@ -620,3 +620,144 @@ async def confirm_upgrade(
     )
 
     return {"upgraded": True, "subscription_id": og.stripe_subscription_id}
+
+
+# ---------------------------------------------------------------------------
+# Paid payroll archive (#218)
+# ---------------------------------------------------------------------------
+
+
+class PayrollArchiveStatus(BaseModel):
+    available: bool
+    purchased: bool
+    price_usd: float
+    scheduled_deletion_at: str | None
+
+
+class PayrollArchiveCheckoutResponse(BaseModel):
+    session_id: str
+    url: str
+
+
+class PayrollArchiveConfirmRequest(BaseModel):
+    session_id: str
+
+
+@router.get("/payroll-archive", response_model=PayrollArchiveStatus)
+async def get_payroll_archive_status(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollArchiveStatus:
+    """Whether the seven-year payroll archive may be bought, or already was."""
+    from backend.services.payroll_archive import offer_status
+
+    og = await _load_og(db, current_user)
+    return PayrollArchiveStatus(**await offer_status(db, og))
+
+
+@router.post("/payroll-archive/checkout", response_model=PayrollArchiveCheckoutResponse)
+async def payroll_archive_checkout(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollArchiveCheckoutResponse:
+    """A one-off Checkout session (mode=payment) for the payroll archive.
+
+    Offered only to a cancelled group inside its grace period, behind
+    PAYROLL_ARCHIVE_ENABLED (404 while off). The card is entered in
+    Checkout; this never touches the saved card or the AI-credit path.
+    """
+    from backend.services.payroll_archive import (
+        CHECKOUT_KIND,
+        PRODUCT_NAME,
+        get_archive_for_group,
+        in_grace_period,
+    )
+
+    if not settings.PAYROLL_ARCHIVE_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+    og = await _load_og(db, current_user)
+    if await get_archive_for_group(db, og.id) is not None:
+        raise HTTPException(status_code=409, detail="The payroll archive is already purchased")
+    if not in_grace_period(og) or not og.stripe_customer_id:
+        raise HTTPException(
+            status_code=403,
+            detail="The payroll archive is offered only while a canceled account awaits deletion",
+        )
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    # Back to the payroll page, where the free history export and this offer
+    # live during the grace period; it reads payroll_archive_session_id and
+    # calls /billing/payroll-archive/confirm.
+    success_url = settings.STRIPE_SUCCESS_URL.replace(
+        "/register", "/manager/payroll"
+    ).replace("session_id=", "payroll_archive_session_id=")
+    cancel_url = settings.STRIPE_CANCEL_URL.replace("/register", "/manager/payroll")
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            customer=og.stripe_customer_id,
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": settings.PAYROLL_ARCHIVE_PRICE_CENTS,
+                    "product_data": {"name": PRODUCT_NAME},
+                },
+                "quantity": 1,
+            }],
+            client_reference_id=og.id,
+            metadata={"kind": CHECKOUT_KIND, "ownership_group_id": og.id},
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+    except stripe.StripeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return PayrollArchiveCheckoutResponse(session_id=session.id, url=session.url)
+
+
+@router.post("/payroll-archive/confirm", response_model=PayrollArchiveStatus)
+async def payroll_archive_confirm(
+    body: PayrollArchiveConfirmRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> PayrollArchiveStatus:
+    """Verify the returning Checkout session and record the purchase.
+
+    Idempotent with the checkout.session.completed webhook. Not gated on
+    PAYROLL_ARCHIVE_ENABLED: a session that was paid is honored even if the
+    flag went off in between.
+    """
+    from backend.services.payroll_archive import (
+        ArchiveSessionInvalid,
+        offer_status,
+        record_archive_purchase,
+        verify_archive_session,
+    )
+
+    og = await _load_og(db, current_user)
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe billing is not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        session = stripe.checkout.Session.retrieve(body.session_id)
+    except stripe.StripeError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+
+    try:
+        verify_archive_session(session, og)
+    except ArchiveSessionInvalid as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    og_id = og.id
+    outcome = await record_archive_purchase(db, og_id, session)
+    if outcome == "refunded":
+        raise HTTPException(
+            status_code=409,
+            detail="The payroll archive was already purchased; this payment is being refunded",
+        )
+    og = await _load_og(db, current_user)
+    return PayrollArchiveStatus(**await offer_status(db, og))
