@@ -58,6 +58,7 @@ const KEPT_IN_ENGLISH: Partial<Record<string, ReadonlySet<string>>> = {
     "landing.aiCredits",
     "landing.aiScheduling",
     "landing.featAITitle",
+    "landing.normalGenTitle",
     "landing.featMultiLocTitle",
     "landing.feat7shiftsTitle",
     "landing.featAffinitiesTitle",
