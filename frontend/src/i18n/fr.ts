@@ -1207,6 +1207,27 @@ const fr = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "Conservez vos registres de paie pendant 7 ans — {price} en une fois, non remboursable",
+    offerBody: "Lorsque votre compte sera supprimé le {date}, nous enregistrerons tous les registres de paie que nous détenons et les conserverons pendant 7 ans. Le téléchargement gratuit de l'historique complet reste disponible d'ici là.",
+    buy: "Acheter l'archive de paie",
+    redirecting: "Redirection vers le paiement…",
+    purchased: "Votre archive de paie sera enregistrée lors de la suppression du compte le {date}.",
+    checkoutFailed: "Impossible de lancer le paiement. Réessayez.",
+    confirmFailed: "Nous n'avons pas pu confirmer le paiement de votre archive de paie. Si vous avez été débité, contactez l'assistance.",
+    bannerOffer: "Conservez vos registres de paie pendant 7 ans",
+    retrieveTitle: "Récupérer l'archive de paie",
+    retrieveDescription: "Si votre compte WizScheduler fermé a acheté une archive de paie, saisissez l'adresse e-mail de l'un de ses administrateurs. Nous enverrons à cette adresse un lien de téléchargement à usage unique.",
+    emailPlaceholder: "you@example.com",
+    submit: "M'envoyer un lien",
+    submitting: "Envoi…",
+    confirmTitle: "Consultez vos e-mails",
+    confirmBody: "Si cette adresse peut récupérer une archive de paie, un lien de téléchargement est en route vers elle. Le lien ne fonctionne qu'une fois et expire au bout de 24 heures.",
+    failed: "Une erreur s'est produite. Réessayez dans quelques minutes.",
+    rateLimited: "Trop de demandes. Réessayez plus tard.",
+    backToLogin: "Retour à la connexion",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

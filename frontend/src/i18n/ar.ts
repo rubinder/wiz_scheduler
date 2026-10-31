@@ -1207,6 +1207,27 @@ const ar = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "احتفظ بسجلات الرواتب لمدة 7 سنوات — {price} دفعة واحدة، غير قابلة للاسترداد",
+    offerBody: "عند حذف حسابك في {date}، سنحفظ كل سجلات الرواتب التي نحتفظ بها ونبقيها لمدة 7 سنوات. يظل تنزيل السجل الكامل المجاني متاحًا حتى ذلك الحين.",
+    buy: "شراء أرشيف الرواتب",
+    redirecting: "جارٍ التحويل إلى الدفع…",
+    purchased: "سيُحفظ أرشيف الرواتب الخاص بك عند حذف الحساب في {date}.",
+    checkoutFailed: "تعذّر بدء الدفع. حاول مرة أخرى.",
+    confirmFailed: "لم نتمكن من تأكيد دفع أرشيف الرواتب. إذا تم خصم المبلغ منك، فتواصل مع الدعم.",
+    bannerOffer: "احتفظ بسجلات الرواتب لمدة 7 سنوات",
+    retrieveTitle: "استرداد أرشيف الرواتب",
+    retrieveDescription: "إذا اشترى حسابك المغلق في WizScheduler أرشيفًا للرواتب، فأدخل عنوان البريد الإلكتروني لأحد مسؤوليه. سنرسل إلى ذلك العنوان رابط تنزيل يُستخدم مرة واحدة.",
+    emailPlaceholder: "you@example.com",
+    submit: "أرسل لي رابطًا",
+    submitting: "جارٍ الإرسال…",
+    confirmTitle: "تحقق من بريدك الإلكتروني",
+    confirmBody: "إذا كان بإمكان هذا العنوان استرداد أرشيف رواتب، فإن رابط التنزيل في طريقه إليه. يعمل الرابط مرة واحدة وتنتهي صلاحيته خلال 24 ساعة.",
+    failed: "حدث خطأ ما. حاول مرة أخرى بعد بضع دقائق.",
+    rateLimited: "طلبات كثيرة جدًا. حاول لاحقًا.",
+    backToLogin: "العودة إلى تسجيل الدخول",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

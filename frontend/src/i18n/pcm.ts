@@ -1207,6 +1207,27 @@ const pcm = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "Make we keep your pay records for 7 years — {price} one time, no refund",
+    offerBody: "When dem delete your account for {date}, we go save every pay record wey we get and keep am for 7 years. The free full-history download still dey available until that time.",
+    buy: "Pay for the payroll archive",
+    redirecting: "We dey carry you go payment…",
+    purchased: "We go save your payroll archive when dem delete the account for {date}.",
+    checkoutFailed: "Payment no fit start. Try again.",
+    confirmFailed: "We no fit confirm your payroll archive payment. If dem don charge you, contact support.",
+    bannerOffer: "Make we keep your pay records for 7 years",
+    retrieveTitle: "Collect payroll archive",
+    retrieveDescription: "If your WizScheduler account wey don close buy payroll archive, put the email address of one of im admins. We go send one download link wey you fit use only once to that address.",
+    emailPlaceholder: "you@example.com",
+    submit: "Send link to my email",
+    submitting: "E dey send…",
+    confirmTitle: "Go check your email",
+    confirmBody: "If that address fit collect payroll archive, download link dey come meet am. The link go work only once and e go expire after 24 hours.",
+    failed: "Something no work well. Try again after some minutes.",
+    rateLimited: "Request don too much. Try again later.",
+    backToLogin: "Go back to sign in",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

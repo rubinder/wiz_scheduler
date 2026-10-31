@@ -1207,6 +1207,27 @@ const vi = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "Lưu hồ sơ lương của bạn trong 7 năm — {price} trả một lần, không hoàn tiền",
+    offerBody: "Khi tài khoản của bạn bị xóa vào {date}, chúng tôi sẽ lưu mọi hồ sơ lương mà chúng tôi đang giữ và lưu trữ trong 7 năm. Tính năng tải xuống miễn phí toàn bộ lịch sử vẫn khả dụng cho đến lúc đó.",
+    buy: "Mua kho lưu trữ bảng lương",
+    redirecting: "Đang chuyển đến trang thanh toán…",
+    purchased: "Kho lưu trữ bảng lương của bạn sẽ được lưu khi tài khoản bị xóa vào {date}.",
+    checkoutFailed: "Không thể bắt đầu thanh toán. Vui lòng thử lại.",
+    confirmFailed: "Chúng tôi không thể xác nhận khoản thanh toán kho lưu trữ bảng lương của bạn. Nếu bạn đã bị trừ tiền, hãy liên hệ bộ phận hỗ trợ.",
+    bannerOffer: "Lưu hồ sơ lương của bạn trong 7 năm",
+    retrieveTitle: "Lấy kho lưu trữ bảng lương",
+    retrieveDescription: "Nếu tài khoản WizScheduler đã đóng của bạn đã mua kho lưu trữ bảng lương, hãy nhập địa chỉ email của một trong các quản trị viên của tài khoản đó. Chúng tôi sẽ gửi liên kết tải xuống dùng một lần đến địa chỉ đó.",
+    emailPlaceholder: "you@example.com",
+    submit: "Gửi liên kết cho tôi",
+    submitting: "Đang gửi…",
+    confirmTitle: "Kiểm tra email của bạn",
+    confirmBody: "Nếu địa chỉ đó có thể lấy kho lưu trữ bảng lương, liên kết tải xuống đang được gửi đến địa chỉ đó. Liên kết chỉ dùng được một lần và hết hạn sau 24 giờ.",
+    failed: "Đã xảy ra lỗi. Vui lòng thử lại sau vài phút.",
+    rateLimited: "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
+    backToLogin: "Quay lại đăng nhập",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

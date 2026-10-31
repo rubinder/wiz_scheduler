@@ -1207,6 +1207,27 @@ const pt = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "Guarde seus registros de folha de pagamento por 7 anos — {price} pagamento único, não reembolsável",
+    offerBody: "Quando sua conta for excluída em {date}, salvaremos todos os registros de folha de pagamento que mantemos e os guardaremos por 7 anos. O download gratuito do histórico completo continua disponível até lá.",
+    buy: "Comprar o arquivo da folha de pagamento",
+    redirecting: "Redirecionando para o pagamento…",
+    purchased: "Seu arquivo da folha de pagamento será salvo quando a conta for excluída em {date}.",
+    checkoutFailed: "Não foi possível iniciar o pagamento. Tente novamente.",
+    confirmFailed: "Não conseguimos confirmar o pagamento do seu arquivo da folha de pagamento. Se você foi cobrado, entre em contato com o suporte.",
+    bannerOffer: "Guarde seus registros de folha de pagamento por 7 anos",
+    retrieveTitle: "Recuperar arquivo da folha de pagamento",
+    retrieveDescription: "Se sua conta encerrada do WizScheduler comprou um arquivo da folha de pagamento, informe o e-mail de um dos administradores dela. Enviaremos para esse endereço um link de download de uso único.",
+    emailPlaceholder: "you@example.com",
+    submit: "Enviar um link por e-mail",
+    submitting: "Enviando…",
+    confirmTitle: "Verifique seu e-mail",
+    confirmBody: "Se esse endereço puder recuperar um arquivo da folha de pagamento, um link de download está a caminho dele. O link funciona uma vez e expira em 24 horas.",
+    failed: "Algo deu errado. Tente novamente em alguns minutos.",
+    rateLimited: "Solicitações demais. Tente novamente mais tarde.",
+    backToLogin: "Voltar para o login",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

@@ -1207,6 +1207,27 @@ const ja = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "給与記録を7年間保管 — {price}（一括払い・返金不可）",
+    offerBody: "{date} にアカウントが削除される際、当社が保有するすべての給与記録を保存し、7年間保管します。それまでは無料の全履歴ダウンロードを引き続きご利用いただけます。",
+    buy: "給与アーカイブを購入",
+    redirecting: "支払いページへ移動中…",
+    purchased: "給与アーカイブは、{date} のアカウント削除時に保存されます。",
+    checkoutFailed: "支払いを開始できませんでした。もう一度お試しください。",
+    confirmFailed: "給与アーカイブの支払いを確認できませんでした。請求が発生している場合は、サポートにお問い合わせください。",
+    bannerOffer: "給与記録を7年間保管する",
+    retrieveTitle: "給与アーカイブを取得",
+    retrieveDescription: "閉鎖された WizScheduler アカウントで給与アーカイブを購入した場合は、そのアカウントの管理者のメールアドレスを入力してください。そのアドレスに1回限り有効なダウンロードリンクをお送りします。",
+    emailPlaceholder: "you@example.com",
+    submit: "リンクをメールで送信",
+    submitting: "送信中…",
+    confirmTitle: "メールをご確認ください",
+    confirmBody: "そのアドレスで給与アーカイブを取得できる場合は、ダウンロードリンクを送信しました。リンクは1回のみ有効で、24時間で期限切れになります。",
+    failed: "問題が発生しました。数分後にもう一度お試しください。",
+    rateLimited: "リクエストが多すぎます。しばらくしてからお試しください。",
+    backToLogin: "サインインに戻る",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",

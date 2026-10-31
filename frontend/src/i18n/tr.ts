@@ -1207,6 +1207,27 @@ const trLang = {
     },
   },
 
+  // ── Paid payroll archive (#218) ──
+  payrollArchive: {
+    offerTitle: "Bordro kayıtlarınızı 7 yıl saklayın — {price} tek seferlik, iade edilmez",
+    offerBody: "Hesabınız {date} tarihinde silindiğinde, elimizdeki tüm bordro kayıtlarını kaydeder ve 7 yıl saklarız. Ücretsiz tam geçmiş indirmesi o zamana kadar kullanılabilir.",
+    buy: "Bordro arşivini satın al",
+    redirecting: "Ödemeye yönlendiriliyor…",
+    purchased: "Bordro arşiviniz, hesap {date} tarihinde silindiğinde kaydedilecek.",
+    checkoutFailed: "Ödeme başlatılamadı. Tekrar deneyin.",
+    confirmFailed: "Bordro arşivi ödemenizi doğrulayamadık. Ücret alındıysa destek ekibiyle iletişime geçin.",
+    bannerOffer: "Bordro kayıtlarınızı 7 yıl saklayın",
+    retrieveTitle: "Bordro arşivini al",
+    retrieveDescription: "Kapatılmış WizScheduler hesabınız bir bordro arşivi satın aldıysa, yöneticilerinden birinin e-posta adresini girin. O adrese tek kullanımlık bir indirme bağlantısı göndereceğiz.",
+    emailPlaceholder: "you@example.com",
+    submit: "Bana bağlantı gönder",
+    submitting: "Gönderiliyor…",
+    confirmTitle: "E-postanızı kontrol edin",
+    confirmBody: "Bu adres bir bordro arşivi alabiliyorsa, indirme bağlantısı yola çıktı. Bağlantı bir kez çalışır ve 24 saat içinde sona erer.",
+    failed: "Bir sorun oluştu. Birkaç dakika sonra tekrar deneyin.",
+    rateLimited: "Çok fazla istek. Daha sonra tekrar deneyin.",
+    backToLogin: "Girişe dön",
+  },
   cancellationBanner: {
     title: "Subscription ended.",
     body: "Your subscription ended on {endDate}. Your data will be permanently deleted on {deleteDate} unless you reactivate.",
