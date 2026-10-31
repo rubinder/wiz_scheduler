@@ -958,7 +958,7 @@ const en = {
     featuresTitle: "Everything You Need",
     featuresDesc: "From multi-location management to AI-powered optimization, Wiz Scheduler handles the complexity so you don't have to.",
     strategiesTitle: "Scheduling Strategies",
-    strategiesDesc: "Choose the approach that fits your business. Mix and match across locations. AI is one optional strategy among four — none of them require it.",
+    strategiesDesc: "There are two ways to generate a schedule, and both work from the same availability, roles, skill levels, affinities, hour caps and shift requirements. Normal Generate is included in your plan and builds the complete schedule on its own. AI Generate is an optional alternative paid from prepaid AI credits.",
     pricingTitle: "Simple, Transparent Pricing",
     pricingDesc: "No hidden fees. Pricing philosophy is to charge $18 a month and charge only more to cover associated costs.",
     allInOnePlan: "All-In-One Plan",
@@ -1005,7 +1005,7 @@ const en = {
     ctaBtn: "Create Account",
     // Features
     featAITitle: "AI Schedule Generation",
-    featAIDesc: "Claude AI analyzes availability, skills, and team dynamics to create optimal schedules in seconds. Optional — the free algorithmic strategies build a complete schedule without it.",
+    featAIDesc: "Optional. Claude AI builds a schedule from the same availability, skills and team preferences the included strategies use, and its result is checked against the same rules. Normal Generate builds a complete schedule without it.",
     featStrategiesTitle: "Multiple Strategies",
     featStrategiesDesc: "Rotation, 3-month history fairness, max-hours caps, or pure random. Pick what works for each location.",
     featMultiLocTitle: "Multi-Location",
@@ -1045,18 +1045,21 @@ const en = {
     featMobileTitle: "Works on Your Phone",
     featMobileDesc: "The app fits a phone screen, with a slide-out menu, in all 19 languages, including right-to-left Arabic and Urdu.",
     // Strategies
+    normalGenTitle: "Normal Generate",
+    normalGenTag: "INCLUDED IN YOUR PLAN",
+    normalGenDesc: "The standard way to build a schedule. Pick one of the strategies below and get a complete week that respects availability, roles, skill levels, affinities, hour caps and shift requirements. No AI and no AI credits needed.",
     stratRotation: "Rotation",
-    stratRotationTag: "FREE",
+    stratRotationTag: "INCLUDED",
     stratRotationDesc: "Evenly distributes shifts across employees within the current schedule. Penalizes repeat assignments to the same role. Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
     stratRotationHistory: "Rotation (3-Month History)",
-    stratRotationHistoryTag: "FREE",
+    stratRotationHistoryTag: "INCLUDED",
     stratRotationHistoryDesc: "Considers total hours worked per role over the past 3 months. Adjustable fairness weight from random (0) to strictly fair (1). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
     stratMaxHours: "Max Hours Per Employee",
-    stratMaxHoursTag: "FREE",
+    stratMaxHoursTag: "INCLUDED",
     stratMaxHoursDesc: "Caps any single employee at X hours per schedule. Adjustable hour limit (4-60h) and strictness (soft preference to hard cap). Respects employee affinities: hard constraints are enforced, soft preferences influence scoring.",
     stratAI: "AI Generate",
-    stratAITag: "OPTIONAL · PREPAID CREDITS",
-    stratAIDesc: "Claude AI reads the full context (availability, skills, affinities, shift requirements) and produces an optimized schedule. Honors all affinity constraints. Best for complex scenarios. It's an optional path — the three free strategies below produce a full schedule without touching AI or credits.",
+    stratAITag: "OPTIONAL ALTERNATIVE · PREPAID CREDITS",
+    stratAIDesc: "An alternative to Normal Generate, not a requirement. Claude AI gets the same inputs and follows the same rules, and weighs them together in one pass. Every schedule it proposes is checked against those rules before you see it. Try it on an unusually complex week if you like; without it, Normal Generate still builds the whole schedule.",
     // Inputs (what the scheduler considers)
     inputsTitle: "What the Scheduler Considers",
     inputsDesc: "Every draft, from every strategy, is checked against the same rules. They carry the same names here as on the Scheduling Rules page in the app.",
@@ -1097,7 +1100,7 @@ const en = {
   features: {
     pageTitle: "Every screen a manager uses, end to end",
     pageIntro:
-      "Take a guided tour of the Wiz Scheduler manager experience: from configuring your company and locations, to defining roles and shift templates, to generating an AI-optimized weekly schedule and exporting it.",
+      "Take a guided tour of the Wiz Scheduler manager experience: from configuring your company and locations, to defining roles and shift templates, to generating a weekly schedule and exporting it.",
     backToHome: "← Back to home",
     tocTitle: "Tour the screens",
     ctaTitle: "Ready to try Wiz Scheduler?",
@@ -1190,7 +1193,7 @@ const en = {
       },
       schedule: {
         title: "Schedule",
-        desc: "Generate optimized weekly schedules with one click. Pick an algorithmic strategy (Rotation, Max Hours, Random) or AI. Review per-location results, edit inline, and publish. Several managers can schedule at once: only the locations being worked on, and any that share staff, are locked.",
+        desc: "Generate optimized weekly schedules with one click. Use Normal Generate with an algorithmic strategy (Rotation, Max Hours, Random), included in your plan, or AI Generate as an optional alternative. Review per-location results, edit inline, and publish. Several managers can schedule at once: only the locations being worked on, and any that share staff, are locked.",
       },
       "export-schedules": {
         title: "Export Schedules",
