@@ -158,7 +158,7 @@ Notify us within 30 days of a disputed charge. After 30 days, we cannot contest 
 E. OPTIONAL PAYROLL ARCHIVE
 - After you cancel a paid plan, during the 90-day read-only period, an administrator may buy a payroll archive for a one-time fee of $18 (USD)
 - When your account is deleted, your complete pay-record history is saved as one file, kept for 7 years and then deleted automatically
-- Only the administrators on the account when the archive was bought can retrieve it, through a link sent to their email address
+- Only the administrators on the account when it is deleted can retrieve it, through a link sent to their email address
 - The fee is non-refundable, including if you reactivate your account. If you reactivate and later cancel again, the archive is saved when the account is deleted, at no additional charge
 - Exporting your pay records yourself remains free at any time before your account is deleted
 

@@ -235,7 +235,7 @@ D. OPTIONAL PAYROLL ARCHIVE
 During the 90-day period after cancellation, the Controller may instruct the Processor to keep a copy of its pay records after its account is deleted, for the one-time fee set out in the Terms of Service. On that instruction:
 - When the account is deleted, the Processor writes one file containing the Controller's complete pay-record history (employee names, locations, roles, shift times, paid hours and check-in times) to private, encrypted storage with its hosting provider (Amazon Web Services, United States)
 - The file is kept for seven (7) years from the date it is written and is then deleted automatically. Because it is written at deletion, some records in it may be kept longer than seven years from their pay date; the Controller instructs this retention
-- The file is used for no other purpose and is released only to the email addresses of the Controller's administrators recorded when the archive was bought, through a single-use link sent to that address
+- The file is used for no other purpose and is released only to the email addresses of the Controller's administrators at the time the account is deleted, through a single-use link sent to that address
 The archive is optional. Exporting pay records and having them deleted remains available at no charge; the fee is for storage after the service ends, not for returning the Controller's data.
 
 13. GOVERNING LAW AND JURISDICTION
