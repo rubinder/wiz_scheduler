@@ -698,6 +698,9 @@ async def payroll_archive_checkout(
     try:
         session = stripe.checkout.Session.create(
             mode="payment",
+            # Card only, like the other flows: a delayed-settlement method
+            # completes Checkout unpaid and would need async handling.
+            payment_method_types=["card"],
             customer=og.stripe_customer_id,
             line_items=[{
                 "price_data": {

@@ -176,11 +176,95 @@ def _refund(payment_intent_id: str | None, session_id: str) -> bool:
             idempotency_key=f"payroll-archive-refund-{session_id}",
         )
         return True
-    except Exception:
+    except Exception as exc:
+        # A redelivered webhook after the idempotency key expired (24 h)
+        # finds the payment already refunded: that is a success, not a
+        # refund the operator has to do by hand.
+        if getattr(exc, "code", None) == "charge_already_refunded":
+            return True
         logger.exception(
             "payroll_archive.refund_failed session=%s pi=%s", session_id, payment_intent_id
         )
         return False
+
+
+async def insert_purchase(db: AsyncSession, og: OwnershipGroup, session: Any) -> str | None:
+    """Insert the archive row for a verified paid session (not committed).
+    Returns its id, or None when this session is already stored.
+
+    The conflict target is the session id only: a second row for the same
+    group must never be swallowed here (it raises instead, so a webhook is
+    retried by Stripe rather than the payment silently kept). Callers hold
+    the group lock and have already checked for an existing archive."""
+    amount = stripe_field(session, "amount_total")
+    currency = stripe_field(session, "currency")
+    result = await db.execute(
+        pg_insert(PayrollArchive)
+        .values(
+            ownership_group_id=og.id,
+            company_names=await _company_names(db, og.id),
+            stripe_checkout_session_id=stripe_field(session, "id"),
+            stripe_payment_intent_id=_as_id(stripe_field(session, "payment_intent")),
+            amount_cents=int(amount if amount is not None else settings.PAYROLL_ARCHIVE_PRICE_CENTS),
+            currency=(currency or "usd").lower(),
+            paid_at=datetime.now(timezone.utc),
+            recipient_emails=await admin_recipient_emails(db, og.id),
+            status="paid",
+        )
+        .on_conflict_do_nothing(index_elements=["stripe_checkout_session_id"])
+        .returning(PayrollArchive.id)
+    )
+    return result.scalar_one_or_none()
+
+
+def is_paid_archive_session_for(session: Any, og: OwnershipGroup) -> bool:
+    try:
+        verify_archive_session(session, og)
+    except ArchiveSessionInvalid:
+        return False
+    return True
+
+
+def find_unrecorded_paid_sessions(og: OwnershipGroup) -> list[Any]:
+    """Day-90 backstop for a purchase neither the return page nor the
+    webhook recorded (tab closed, webhook endpoint not subscribed): this
+    group's paid payroll-archive Checkout sessions, oldest first, from
+    Stripe. Called only for a group with no archive row.
+
+    Raises on a Stripe error: the caller must then NOT delete the group,
+    because it cannot prove there is no paid archive."""
+    if not og.stripe_customer_id or not settings.STRIPE_SECRET_KEY:
+        return []
+    import stripe
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    listing = stripe.checkout.Session.list(customer=og.stripe_customer_id, limit=100)
+    paid = [s for s in listing.auto_paging_iter() if is_paid_archive_session_for(s, og)]
+    paid.sort(key=lambda s: stripe_field(s, "created") or 0)
+    return paid
+
+
+async def insert_reconciled_purchase(
+    db: AsyncSession, og: OwnershipGroup, sessions: list[Any]
+) -> str | None:
+    """Store the oldest of `sessions` (found by find_unrecorded_paid_sessions)
+    with the group locked; not committed, it commits with the write and the
+    delete. Any further paid session is a duplicate and is refunded."""
+    from backend.services.operator_alerts import send_payroll_archive_refund_alert
+
+    paid = [s for s in sessions if is_paid_archive_session_for(s, og)]
+    if not paid:
+        return None
+    archive_id = await insert_purchase(db, og, paid[0])
+    logger.warning(
+        "payroll_archive.reconciled og=%s session=%s archive=%s",
+        og.id, stripe_field(paid[0], "id"), archive_id,
+    )
+    for extra in paid[1:]:
+        sid = stripe_field(extra, "id")
+        pi = _as_id(stripe_field(extra, "payment_intent"))
+        send_payroll_archive_refund_alert(og.id, sid, pi, "duplicate", _refund(pi, sid))
+    return archive_id
 
 
 async def record_archive_purchase(db: AsyncSession, og_id: str, session: Any) -> str:
@@ -249,27 +333,7 @@ async def record_archive_purchase(db: AsyncSession, og_id: str, session: Any) ->
         )
         return "refunded"
 
-    amount = stripe_field(session, "amount_total")
-    currency = stripe_field(session, "currency")
-    result = await db.execute(
-        pg_insert(PayrollArchive)
-        .values(
-            ownership_group_id=og.id,
-            company_names=await _company_names(db, og.id),
-            stripe_checkout_session_id=session_id,
-            stripe_payment_intent_id=payment_intent_id,
-            amount_cents=int(amount if amount is not None else settings.PAYROLL_ARCHIVE_PRICE_CENTS),
-            currency=(currency or "usd").lower(),
-            paid_at=datetime.now(timezone.utc),
-            recipient_emails=await admin_recipient_emails(db, og.id),
-            status="paid",
-        )
-        # The group lock already serializes us; the unique constraints are
-        # the backstop, never an error path.
-        .on_conflict_do_nothing()
-        .returning(PayrollArchive.id)
-    )
-    archive_id = result.scalar_one_or_none()
+    archive_id = await insert_purchase(db, og, session)
     await db.commit()
     if archive_id is None:
         return "existing"
@@ -456,7 +520,7 @@ async def process_retrieval_request(email: str, base_url: str) -> None:
             return
         links = [
             (list(archive.company_names or []),
-             f"{base_url}/api/v1/payroll-archive/download?token={raw}")
+             f"{base_url}/payroll-archive/download?token={raw}")
             for archive, raw in minted
         ]
         send_retrieval_email(email.strip().lower(), links)

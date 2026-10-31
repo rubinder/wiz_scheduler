@@ -11,8 +11,11 @@ address is the only credential, so:
   neither the body nor the timing reveals a match. The single-use link goes
   only to that address. Per source IP it 429s (in-process limiter, like the other public
   routes); per email it silently mints nothing past an hourly cap.
-- GET /payroll-archive/download redeems the token once and redirects to a
-  five-minute presigned URL. Every failure is the same plain 410.
+- The mailed link opens the SPA page /payroll-archive/download?token=...,
+  which shows a button; only POST /payroll-archive/download {token}
+  redeems the token (once) and returns a five-minute presigned URL as JSON.
+  A GET never redeems, so a mail scanner opening the link uses nothing up.
+  Every failure is the same 410.
 
 Neither route looks at PAYROLL_ARCHIVE_ENABLED: an archive that was paid for
 and written stays retrievable.
@@ -21,8 +24,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
-from fastapi.responses import PlainTextResponse, RedirectResponse, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,16 +78,31 @@ async def retrieve_payroll_archive(
 _GONE = "This download link is invalid or has expired."
 
 
-@router.get("/download")
+class DownloadRequest(BaseModel):
+    token: str = Field(default="", max_length=200)
+
+
+class DownloadResponse(BaseModel):
+    url: str
+
+
+@router.post("/download", response_model=DownloadResponse)
 async def download_payroll_archive(
-    token: str = Query(default=""),
+    body: DownloadRequest,
     db: AsyncSession = Depends(get_db),
-) -> Response:
+) -> DownloadResponse | JSONResponse:
+    """Redeem a mailed token for a five-minute presigned URL.
+
+    POST, never GET: corporate mail scanners (Safe Links and the like) open
+    every link in an email with a GET, which would use up a single-use token
+    before its recipient clicks. The mailed link opens a frontend page whose
+    button makes this call. Every failure is the same 410.
+    """
     from backend.services.archive_storage import get_archive_storage
 
-    archive = await redeem_token(db, token)
+    archive = await redeem_token(db, body.token)
     if archive is None:
-        return PlainTextResponse(_GONE, status_code=status.HTTP_410_GONE)
+        return JSONResponse({"detail": _GONE}, status_code=status.HTTP_410_GONE)
     try:
         written = archive.written_at
         filename = f"payroll-archive-{written.date().isoformat() if written else archive.id}.zip"
@@ -93,10 +111,10 @@ async def download_payroll_archive(
         # Leave the token unused: the failure is ours, not the link's.
         await db.rollback()
         logger.exception("payroll_archive.presign_failed archive=%s", archive.id)
-        return PlainTextResponse(
-            "The archive is temporarily unavailable. Try the link again later.",
+        return JSONResponse(
+            {"detail": "The archive is temporarily unavailable. Try again later."},
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     await db.commit()
     logger.info("payroll_archive.download archive=%s", archive.id)
-    return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+    return DownloadResponse(url=url)

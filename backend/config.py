@@ -250,7 +250,9 @@ class Settings(BaseSettings):
     # silently (the response never says whether an address matched).
     PAYROLL_ARCHIVE_RETRIEVE_RATE_LIMIT_PER_HOUR: int = 5
     PAYROLL_ARCHIVE_RETRIEVE_PER_EMAIL_PER_HOUR: int = 3
-    # A mailed download link is single use and lives this long.
+    # A mailed download link is single use and lives this long. The
+    # retrieve page's copy (payrollArchive.confirmBody, 19 locales) says
+    # "24 hours": change both together.
     PAYROLL_ARCHIVE_TOKEN_TTL_HOURS: int = 24
 
     # Auto-reload (real-time billing for AI + schedules)

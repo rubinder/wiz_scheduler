@@ -1487,6 +1487,14 @@ async def _has_unwritten_archive(db: AsyncSession, og_id: str) -> bool:
     )).scalar_one_or_none() is not None
 
 
+async def _has_archive_row(db: AsyncSession, og_id: str) -> bool:
+    from backend.models.payroll_archive import PayrollArchive
+
+    return (await db.execute(
+        select(PayrollArchive.id).where(PayrollArchive.ownership_group_id == og_id)
+    )).scalar_one_or_none() is not None
+
+
 async def _og_manager_emails(db: AsyncSession, og_id: str) -> list[str]:
     """Every manager address in the group, as the lifecycle notices use."""
     company_ids = select(Company.id).where(Company.ownership_group_id == og_id)
@@ -1502,7 +1510,7 @@ async def _og_manager_emails(db: AsyncSession, og_id: str) -> list[str]:
 
 
 async def _write_paid_archive(
-    db: AsyncSession, og: OwnershipGroup
+    db: AsyncSession, og: OwnershipGroup, reconciled_sessions: list | None = None
 ) -> "PayrollArchive | None | Literal[False]":
     """Write the group's paid payroll archive, if it has one (#218).
 
@@ -1516,6 +1524,11 @@ async def _write_paid_archive(
     from backend.services.payroll_archive import write_archive
 
     og_id = og.id  # a rollback below expires og
+    # A purchase nobody recorded, found in Stripe before the notice (#218).
+    if reconciled_sessions:
+        from backend.services.payroll_archive import insert_reconciled_purchase
+
+        await insert_reconciled_purchase(db, og, reconciled_sessions)
     archive = (await db.execute(
         select(PayrollArchive)
         .where(PayrollArchive.ownership_group_id == og_id)
@@ -1594,6 +1607,28 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 # deleted (below), so a failed write never tells it its data
                 # is gone while the deletion is postponed.
                 archive_pending = await _has_unwritten_archive(db, og_id)
+                # No row at all: ask Stripe whether a purchase went
+                # unrecorded (tab closed before the return page, webhook not
+                # subscribed). If Stripe cannot answer, nothing is sent or
+                # deleted this run: we cannot prove there is no archive.
+                reconciled_sessions: list = []
+                if not archive_pending and not await _has_archive_row(db, og_id):
+                    from backend.services.operator_alerts import (
+                        send_payroll_archive_write_failed_alert,
+                    )
+                    from backend.services.payroll_archive import find_unrecorded_paid_sessions
+                    try:
+                        reconciled_sessions = find_unrecorded_paid_sessions(og)
+                    except Exception as exc:
+                        await db.rollback()
+                        failures += 1
+                        logger.exception("Payroll archive reconciliation failed for og=%s", og_id)
+                        send_payroll_archive_write_failed_alert(
+                            og_id, "-",
+                            f"Stripe reconciliation failed: {type(exc).__name__}: {exc}",
+                        )
+                        continue
+                    archive_pending = bool(reconciled_sessions)
                 if og.notified_data_deleted_at is None and not archive_pending:
                     await send_data_deleted_email(og)
                     og.notified_data_deleted_at = now
@@ -1620,7 +1655,7 @@ async def process_cancellation_lifecycle(db: AsyncSession) -> dict:
                 # serializes the per-worker loops: a second worker waits on
                 # it and then finds the group gone. Deliberately not gated
                 # on PAYROLL_ARCHIVE_ENABLED: this purchase is already paid.
-                written = await _write_paid_archive(db, locked)
+                written = await _write_paid_archive(db, locked, reconciled_sessions)
                 if written is False:
                     failures += 1
                     continue

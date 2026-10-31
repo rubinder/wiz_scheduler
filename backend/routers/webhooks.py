@@ -140,6 +140,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
         from backend.services.payroll_archive import (
             CHECKOUT_KIND,
             ArchiveSessionInvalid,
+            _as_id,
             stripe_field,
             record_archive_purchase,
             verify_archive_session,
@@ -160,9 +161,18 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
             try:
                 verify_archive_session(obj, og)
             except ArchiveSessionInvalid as e:
+                # Paid, tagged as ours, but not verifiable against the group
+                # (say a customer mismatch). Money was taken; a person must
+                # look. Not refunded automatically: it may be genuine.
+                from backend.services.operator_alerts import send_payroll_archive_refund_alert
+
                 logger.warning(
                     "payroll_archive webhook rejected: session=%s og=%s reason=%s",
                     stripe_field(obj, "id"), og_id, e,
+                )
+                send_payroll_archive_refund_alert(
+                    og_id, stripe_field(obj, "id") or "?",
+                    _as_id(stripe_field(obj, "payment_intent")), f"rejected ({e})", False,
                 )
                 return {"received": True, "type": event_type, "og_id": og_id}
         # A group already deleted is refunded inside record_archive_purchase.

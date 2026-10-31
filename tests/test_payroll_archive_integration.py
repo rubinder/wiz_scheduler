@@ -858,7 +858,9 @@ async def test_retrieve_answers_the_same_for_a_match_and_a_miss(
     email, links = retrieval_mail[0]
     assert email == g.admin_email
     assert links[0][0] == ["Company 0"]
-    assert "/api/v1/payroll-archive/download?token=" in links[0][1]
+    # The mailed link opens the SPA page, never the redeeming API.
+    assert "/payroll-archive/download?token=" in links[0][1]
+    assert "/api/" not in links[0][1]
     tokens = (await db_session.execute(select(PayrollArchiveToken))).scalars().all()
     assert len(tokens) == 1
     raw = links[0][1].split("token=")[1]
@@ -899,21 +901,27 @@ async def test_retrieve_is_capped_per_email_silently_and_per_ip_with_429(
                               headers=ip)).status_code == 429
 
 
-async def test_download_redirects_once_to_a_presigned_url(
+async def test_download_redeems_once_by_post_and_a_get_redeems_nothing(
     client: AsyncClient, db_session, storage, quiet_lifecycle, retrieval_mail
 ):
     g, a = await _written(db_session, storage)
     await client.post(RETRIEVE_URL, json={"email": g.admin_email})
     raw = retrieval_mail[0][1][0][1].split("token=")[1]
 
-    first = await client.get(DOWNLOAD_URL, params={"token": raw})
-    second = await client.get(DOWNLOAD_URL, params={"token": raw})
+    # A mail scanner's GET (on the API path) changes nothing.
+    scanned = await client.get(DOWNLOAD_URL, params={"token": raw})
+    assert scanned.status_code == 405
+    token = (await db_session.execute(select(PayrollArchiveToken))).scalar_one()
+    assert token.used_at is None
 
-    assert first.status_code == 302
-    assert first.headers["location"] == (
+    first = await client.post(DOWNLOAD_URL, json={"token": raw})
+    second = await client.post(DOWNLOAD_URL, json={"token": raw})
+
+    assert first.status_code == 200, first.text
+    assert first.json() == {"url": (
         f"https://archive.example/{a.s3_key}?expires=300"
         f"&name=payroll-archive-{a.written_at.date().isoformat()}.zip"
-    )
+    )}
     assert second.status_code == 410
 
 
@@ -927,12 +935,190 @@ async def test_download_refuses_expired_unknown_and_missing_tokens_alike(
     token.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
     await db_session.commit()
 
-    expired = await client.get(DOWNLOAD_URL, params={"token": raw})
-    unknown = await client.get(DOWNLOAD_URL, params={"token": "nope"})
-    missing = await client.get(DOWNLOAD_URL)
+    expired = await client.post(DOWNLOAD_URL, json={"token": raw})
+    unknown = await client.post(DOWNLOAD_URL, json={"token": "nope"})
+    missing = await client.post(DOWNLOAD_URL, json={})
 
     assert expired.status_code == unknown.status_code == missing.status_code == 410
-    assert expired.text == unknown.text == missing.text
+    assert expired.json() == unknown.json() == missing.json()
+
+
+# ---------------------------------------------------------------------------
+# Review follow-ups: card only, reconciliation, rejected sessions, refunds
+# ---------------------------------------------------------------------------
+
+
+class _Listing:
+    def __init__(self, sessions):
+        self._s = sessions
+
+    def auto_paging_iter(self):
+        return iter(self._s)
+
+
+def _list_returns(monkeypatch, sessions=None, error: Exception | None = None):
+    import stripe
+
+    calls: list[dict] = []
+
+    def fake_list(**kw):
+        calls.append(kw)
+        if error is not None:
+            raise error
+        return _Listing(sessions or [])
+
+    monkeypatch.setattr(stripe.checkout.Session, "list", fake_list)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_x")
+    return calls
+
+
+async def test_checkout_is_card_only(client: AsyncClient, db_session, enabled, monkeypatch):
+    import stripe
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        stripe.checkout.Session, "create",
+        lambda **kw: captured.update(kw) or SimpleNamespace(id="cs_1", url="https://x"),
+    )
+    g = await _group(db_session)
+    assert (await client.post(CHECKOUT_URL, headers=g.headers)).status_code == 200
+    assert captured["payment_method_types"] == ["card"]
+
+
+async def test_an_unrecorded_paid_session_is_found_archived_and_deleted(
+    db_session, storage, resend_outbox, monkeypatch
+):
+    """Tab closed before the return page and no webhook: the cron finds
+    the session in Stripe, archives, then deletes and sends one notice."""
+    import backend.database as _db_module
+    from backend.services.billing import process_cancellation_lifecycle
+
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
+    g = await _group(db_session)
+    await _entry(db_session, g.companies[0], employee_name="Dana Okafor")
+    s = _session(g, created=100)
+    other_kind = _session(g, metadata={"kind": "subscription"})
+    unpaid = _session(g, payment_status="unpaid")
+    calls = _list_returns(monkeypatch, [other_kind, unpaid, s])
+    await _make_overdue(db_session, g.og_id)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert calls == [{"customer": g.customer, "limit": 100}]
+    assert result["deletions_done"] == 1 and result["failures"] == 0
+    a = await _archive(db_session, g.og_id)
+    assert a.status == "written" and a.stripe_checkout_session_id == s.id
+    assert a.recipient_emails == [g.admin_email]
+    assert not await _og_exists(db_session, g.og_id)
+    assert len([m for m in resend_outbox if m["subject"] == DELETED_SUBJECT]) == 1
+
+
+async def test_a_stripe_error_during_reconciliation_postpones_the_deletion(
+    db_session, storage, alerts, resend_outbox, monkeypatch
+):
+    import stripe
+    import backend.database as _db_module
+    from backend.services.billing import process_cancellation_lifecycle
+
+    monkeypatch.setattr(_db_module, "async_session_factory", get_test_session_factory())
+    g = await _group(db_session)
+    _list_returns(monkeypatch, error=stripe.APIConnectionError("down"))
+    await _make_overdue(db_session, g.og_id)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["failures"] == 1 and result["deletions_done"] == 0
+    assert await _og_exists(db_session, g.og_id)
+    assert alerts and alerts[0][0] == "write_failed"
+    assert "Stripe reconciliation failed" in alerts[0][3]
+    # Nothing told the group its data is gone.
+    assert [m for m in resend_outbox if m["subject"] == DELETED_SUBJECT] == []
+
+
+async def test_no_archive_sessions_in_stripe_deletes_as_before(
+    db_session, storage, quiet_lifecycle, monkeypatch
+):
+    from backend.services.billing import process_cancellation_lifecycle
+
+    g = await _group(db_session)
+    _list_returns(monkeypatch, [])
+    await _make_overdue(db_session, g.og_id)
+
+    result = await process_cancellation_lifecycle(db_session)
+
+    assert result["deletions_done"] == 1
+    assert not await _og_exists(db_session, g.og_id)
+    assert await _archive(db_session, g.og_id) is None
+    assert storage.puts == 0
+
+
+async def _webhook(client: AsyncClient, monkeypatch, obj: dict):
+    import stripe
+
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
+    event = {"type": "checkout.session.completed", "data": {"object": obj}}
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda p, sig, k: event)
+    return await client.post("/api/v1/webhooks/stripe", content=b"{}",
+                             headers={"stripe-signature": "t=1,v1=x"})
+
+
+async def test_webhook_ignores_an_unpaid_archive_session(
+    client: AsyncClient, db_session, monkeypatch, alerts
+):
+    g = await _group(db_session)
+    hook = await _webhook(client, monkeypatch, dict(vars(_session(g, payment_status="unpaid"))))
+    assert hook.status_code == 200 and "payroll_archive" not in hook.json()
+    assert await _archive(db_session, g.og_id) is None
+    assert alerts == []
+
+
+async def test_webhook_alerts_on_a_paid_session_it_cannot_verify(
+    client: AsyncClient, db_session, monkeypatch, alerts, refunds
+):
+    g = await _group(db_session)
+    s = _session(g, customer="cus_someone_else")
+    hook = await _webhook(client, monkeypatch, dict(vars(s)))
+    assert hook.status_code == 200
+    assert await _archive(db_session, g.og_id) is None
+    assert refunds == []
+    assert len(alerts) == 1
+    kind, og_id, sid, pi, reason, refunded = alerts[0]
+    assert (kind, og_id, sid, pi, refunded) == ("refund", g.og_id, s.id, s.payment_intent, False)
+    assert reason.startswith("rejected")
+
+
+async def test_a_failed_refund_is_reported_as_not_refunded(
+    db_session, monkeypatch, alerts
+):
+    import stripe
+
+    def boom(**kw):
+        raise stripe.APIConnectionError("down")
+
+    monkeypatch.setattr(stripe.Refund, "create", boom)
+    g = await _group(db_session)
+    await _buy(db_session, g)
+    dup = _session(g)
+    assert await record_archive_purchase(db_session, g.og_id, dup) == "refunded"
+    assert alerts == [("refund", g.og_id, dup.id, dup.payment_intent, "duplicate", False)]
+
+
+async def test_an_already_refunded_payment_counts_as_refunded(
+    db_session, monkeypatch, alerts
+):
+    """A webhook redelivered after the idempotency key expired."""
+    import stripe
+
+    def already(**kw):
+        raise stripe.InvalidRequestError(
+            "Charge has already been refunded.", "charge", code="charge_already_refunded")
+
+    monkeypatch.setattr(stripe.Refund, "create", already)
+    g = await _group(db_session)
+    await _buy(db_session, g)
+    dup = _session(g)
+    await record_archive_purchase(db_session, g.og_id, dup)
+    assert alerts[-1][-1] is True
 
 
 # ---------------------------------------------------------------------------
