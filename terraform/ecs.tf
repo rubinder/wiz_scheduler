@@ -198,6 +198,10 @@ resource "aws_ecs_task_definition" "app" {
           value = var.stripe_price_id
         },
         {
+          name  = "PAYROLL_ARCHIVE_BUCKET"
+          value = aws_s3_bucket.payroll_archive.id
+        },
+        {
           # Verify the database server certificate and hostname (#203).
           # The AWS RDS CA bundle ships in the image under backend/certs/.
           name  = "DB_SSL_ROOT_CERT"
