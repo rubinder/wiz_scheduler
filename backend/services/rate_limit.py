@@ -138,3 +138,13 @@ compliance_check_limiter = SlidingWindowLimiter(
     max_requests=settings.PUBLIC_COMPLIANCE_CHECK_RATE_LIMIT_PER_10MIN,
     window_seconds=600,
 )
+
+# Per-IP cap on the unauthenticated POST /payroll-archive/retrieve (#218).
+# It mails a download link to an address the caller names, so unthrottled it
+# is both a mail relay and an oracle-probing loop. The per-email cap lives in
+# the token table instead (services/payroll_archive), so it holds across
+# workers and answers silently.
+payroll_archive_retrieve_limiter = SlidingWindowLimiter(
+    max_requests=settings.PAYROLL_ARCHIVE_RETRIEVE_RATE_LIMIT_PER_HOUR,
+    window_seconds=3600,
+)

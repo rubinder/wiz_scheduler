@@ -92,3 +92,104 @@ async def send_credit_purchase_alert(
     except Exception:
         logger.exception("[OPERATOR] credit_charge email failed og=%s kind=%s", og.id, kind)
         return False
+
+
+def _send_operator_email(subject: str, body_html: str, log_label: str) -> bool:
+    """Mail the operator if both OPERATOR_ALERT_EMAIL and RESEND_API_KEY are
+    set. Never raises. True only when Resend accepted the send."""
+    if not settings.OPERATOR_ALERT_EMAIL or not settings.RESEND_API_KEY:
+        return False
+    try:
+        import resend
+
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send({
+            "from": settings.FROM_EMAIL,
+            "to": [settings.OPERATOR_ALERT_EMAIL],
+            "subject": subject,
+            "html": (
+                '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">'
+                f"{body_html}</div>"
+            ),
+        })
+        return True
+    except Exception:
+        logger.exception("[OPERATOR] %s email failed", log_label)
+        return False
+
+
+def send_payroll_archive_write_failed_alert(
+    og_id: str, archive_id: str, error: str
+) -> bool:
+    """A paid payroll archive (#218) could not be written at day 90.
+
+    The group was NOT deleted; the daily cron retries. Someone should look
+    before the next run (an unset PAYROLL_ARCHIVE_BUCKET, an IAM change, an
+    S3 outage). Always logs one [OPERATOR] line. Never raises.
+    """
+    logger.error(
+        "[OPERATOR] payroll_archive_write_failed og=%s archive=%s error=%s",
+        og_id, archive_id, error,
+    )
+    return _send_operator_email(
+        f"[WizScheduler] Payroll archive write failed for og={og_id}",
+        f"<p>The paid payroll archive <strong>{html.escape(archive_id)}</strong> "
+        f"for og={html.escape(og_id)} could not be written, so the group's "
+        f"day-90 deletion was <strong>postponed</strong>. The cron retries "
+        f"daily.</p><p>Error: <code>{html.escape(error[:500])}</code></p>",
+        "payroll_archive_write_failed",
+    )
+
+
+def send_payroll_archive_refund_alert(
+    og_id: str,
+    checkout_session_id: str,
+    payment_intent_id: str | None,
+    reason: str,
+    refunded: bool,
+) -> bool:
+    """A payroll-archive payment (#218) that cannot be honored was refunded
+    (or the refund failed and needs doing by hand). `reason` is
+    "duplicate" (the group already has an archive) or "group_deleted" (the
+    payment landed after the day-90 deletion). Never raises.
+    """
+    logger.warning(
+        "[OPERATOR] payroll_archive_refund og=%s session=%s pi=%s reason=%s refunded=%s",
+        og_id, checkout_session_id, payment_intent_id, reason, refunded,
+    )
+    outcome = (
+        "was refunded automatically"
+        if refunded
+        else "<strong>could NOT be refunded automatically: refund it in Stripe</strong>"
+    )
+    return _send_operator_email(
+        f"[WizScheduler] Payroll archive payment {reason} for og={og_id}",
+        f"<p>A payroll-archive Checkout session "
+        f"(<code>{html.escape(checkout_session_id)}</code>, payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>) for "
+        f"og={html.escape(og_id)} could not be honored ({html.escape(reason)}) "
+        f"and {outcome}.</p>",
+        "payroll_archive_refund",
+    )
+
+
+def send_payroll_archive_review_alert(
+    og_id: str, checkout_session_id: str, payment_intent_id: str | None, reason: str
+) -> bool:
+    """A paid payroll-archive session (#218) arrived that cannot be matched
+    to its group (say a customer mismatch). It may be genuine, so nothing
+    was recorded or refunded: a person should look. Never raises."""
+    logger.warning(
+        "[OPERATOR] payroll_archive_needs_review og=%s session=%s pi=%s reason=%s",
+        og_id, checkout_session_id, payment_intent_id, reason,
+    )
+    return _send_operator_email(
+        f"[WizScheduler] Payroll archive payment needs review for og={og_id}",
+        f"<p>A paid payroll-archive Checkout session "
+        f"(<code>{html.escape(checkout_session_id)}</code>, payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>) for "
+        f"og={html.escape(og_id)} could not be verified ({html.escape(reason)}). "
+        f"Nothing was recorded or refunded. Check it in Stripe and decide "
+        f"whether to record it or refund it.</p>",
+        "payroll_archive_needs_review",
+    )

@@ -170,15 +170,22 @@ async def _apply_rls_policies(conn) -> None:
     # the exact statements migration 0052 runs.
     for statement in _migration_0052().STATEMENTS:
         await conn.execute(text(statement))
+    # Payroll archives (#218), keyed by ownership group without a foreign key.
+    for statement in _migration_module("0056_payroll_archives.py").STATEMENTS:
+        await conn.execute(text(statement))
 
 
 def _migration_0052():
+    return _migration_module("0052_rls_for_indirect_tenant_tables.py")
+
+
+def _migration_module(filename: str):
     import importlib.util
     from pathlib import Path
 
     path = (Path(__file__).resolve().parent.parent / "backend" / "alembic" / "versions"
-            / "0052_rls_for_indirect_tenant_tables.py")
-    spec = importlib.util.spec_from_file_location("migration_0052", path)
+            / filename)
+    spec = importlib.util.spec_from_file_location(f"migration_{filename[:4]}", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -207,6 +214,7 @@ def reset_in_process_rate_limiters():
         compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
+        payroll_archive_retrieve_limiter,
         register_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
@@ -215,6 +223,7 @@ def reset_in_process_rate_limiters():
         compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
+        payroll_archive_retrieve_limiter,
         register_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
@@ -225,6 +234,7 @@ def reset_in_process_rate_limiters():
         compliance_check_limiter,
         forgot_password_limiter,
         login_limiter,
+        payroll_archive_retrieve_limiter,
         register_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,

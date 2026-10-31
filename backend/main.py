@@ -33,6 +33,7 @@ from backend.routers import (
     ownership_group,
     payroll,
     preference_submissions,
+    payroll_archive,
     public,
     regions,
     roles,
@@ -160,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router, prefix=api_prefix)
     app.include_router(webhooks.router, prefix=api_prefix)
     app.include_router(public.router, prefix=api_prefix)
+    app.include_router(payroll_archive.router, prefix=api_prefix)
 
     # ── Daily background task: storage snapshots ──
     async def _daily_storage_snapshot_loop() -> None:
