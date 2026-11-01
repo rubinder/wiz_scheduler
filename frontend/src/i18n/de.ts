@@ -845,6 +845,11 @@ const de = {
     addWindow: "Verfügbarkeitsfenster hinzufügen",
     addWindowDesc: "Wählen Sie die Tage und Zeiten aus, an denen Sie arbeiten können.",
     noWindows: "Keine Verfügbarkeitsfenster festgelegt. Fügen Sie oben eines hinzu.",
+    quickSetLabel: "Gleiche Zeiten für die Woche dieses Datums:",
+    quickWeekdays: "Werktage (Mo–Fr)",
+    quickWeekend: "Wochenende (Sa–So)",
+    quickWeek: "Ganze Woche",
+    quickSetResult: "{added} Tage hinzugefügt. {skipped} übersprungen, die zu dieser Zeit bereits Zeiten hatten.",
   },
 
   // ── Import Modal ──

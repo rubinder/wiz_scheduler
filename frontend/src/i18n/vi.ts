@@ -845,6 +845,11 @@ const vi = {
     addWindow: "Thêm khung giờ trống",
     addWindowDesc: "Chọn ngày và giờ bạn có thể làm việc.",
     noWindows: "Chưa đặt khung giờ trống nào. Thêm ở trên.",
+    quickSetLabel: "Cùng khung giờ cho tuần chứa ngày này:",
+    quickWeekdays: "Ngày thường (T2–T6)",
+    quickWeekend: "Cuối tuần (T7–CN)",
+    quickWeek: "Cả tuần",
+    quickSetResult: "Đã thêm {added} ngày. Bỏ qua {skipped} ngày đã có giờ trong khoảng thời gian đó.",
   },
 
   // ── Import Modal ──

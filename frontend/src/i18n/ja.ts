@@ -845,6 +845,11 @@ const ja = {
     addWindow: "勤務可能時間枠を追加",
     addWindowDesc: "勤務可能な曜日と時間を選択してください。",
     noWindows: "勤務可能時間枠が設定されていません。上から追加してください。",
+    quickSetLabel: "この日付の週に同じ時間を設定：",
+    quickWeekdays: "平日（月〜金）",
+    quickWeekend: "週末（土・日）",
+    quickWeek: "1週間すべて",
+    quickSetResult: "{added}日を追加しました。その時間帯にすでに設定がある{skipped}日はスキップしました。",
   },
 
   // ── Import Modal ──

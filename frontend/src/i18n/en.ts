@@ -846,6 +846,11 @@ const en = {
     addWindow: "Add Availability Window",
     addWindowDesc: "Select the days and hours you are available to work.",
     noWindows: "No availability windows set. Add one above.",
+    quickSetLabel: "Same hours for the week of this date:",
+    quickWeekdays: "Weekdays (Mon–Fri)",
+    quickWeekend: "Weekend (Sat–Sun)",
+    quickWeek: "Whole week",
+    quickSetResult: "Added {added} days. Skipped {skipped} that already had hours at that time.",
   },
 
   // ── Import Modal ──

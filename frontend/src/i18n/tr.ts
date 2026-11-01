@@ -845,6 +845,11 @@ const trLang = {
     addWindow: "Müsaitlik Penceresi Ekle",
     addWindowDesc: "Çalışmaya müsait olduğunuz günleri ve saatleri seçin.",
     noWindows: "Müsaitlik penceresi ayarlanmadı. Yukarıdan bir tane ekleyin.",
+    quickSetLabel: "Bu tarihin haftası için aynı saatler:",
+    quickWeekdays: "Hafta içi (Pzt–Cum)",
+    quickWeekend: "Hafta sonu (Cmt–Paz)",
+    quickWeek: "Tüm hafta",
+    quickSetResult: "{added} gün eklendi. O saatte zaten müsaitliği olan {skipped} gün atlandı.",
   },
 
   // ── Import Modal ──

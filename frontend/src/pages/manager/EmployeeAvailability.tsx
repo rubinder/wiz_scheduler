@@ -28,23 +28,16 @@ import type {
 import { action, text, bg, border, spinner as spinnerClass } from "../../theme";
 import { employeeLocationZones, locationZoneNote } from "../../utils/timezones";
 import {
+  dateParts,
+  overlapsExisting,
+  quickSetDates,
+  type QuickSetKind,
+} from "../../utils/availabilityDates";
+import {
   formatDate,
   formatTime,
   isAllDay,
 } from "./_employeesShared";
-
-// ── Quick-set shortcuts (9–5 blocks across the selected week) ──
-
-type QuickSetKind = "weekdays" | "weekend" | "week";
-
-// Day offsets from the week's Monday (0 = Mon … 6 = Sun)
-const QUICK_SET_OFFSETS: Record<QuickSetKind, number[]> = {
-  weekdays: [0, 1, 2, 3, 4],
-  weekend: [5, 6],
-  week: [0, 1, 2, 3, 4, 5, 6],
-};
-
-const pad2 = (n: number) => String(n).padStart(2, "0");
 
 const ONBOARDING_URL = "https://app.wizscheduler.com/manager/employee-onboarding";
 
@@ -190,28 +183,27 @@ export default function EmployeeAvailability() {
 
   // ── Availability handlers ──
 
+  // Quick set: 9–5 on the matching days of the week shown in the list,
+  // skipping days where the employee already has an overlapping window.
   const handleQuickSet = async (kind: QuickSetKind) => {
     if (!availForm.employee_id) return;
     setError(null);
     setSaving(true);
     // selectedWeek is the Monday (YYYY-MM-DD) of the week shown in the list
-    const [y, m, d] = selectedWeek.split("-").map(Number);
-    const monday = new Date(y, m - 1, d);
+    const existing = allAvailability.filter((a) => a.employee_id === availForm.employee_id);
+    const days = quickSetDates(selectedWeek, kind).filter(
+      (d) => !overlapsExisting(existing, d, "09:00", "17:00"),
+    );
     try {
       await Promise.all(
-        QUICK_SET_OFFSETS[kind].map((offset) => {
-          const day = new Date(monday);
-          day.setDate(monday.getDate() + offset);
-          const date = `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
-          return createAvailability({
+        days.map((date) =>
+          createAvailability({
             employee_id: availForm.employee_id,
-            year: day.getFullYear(),
-            month: day.getMonth() + 1,
-            day: day.getDate(),
+            ...dateParts(date),
             start_time: `${date}T09:00:00`,
             end_time: `${date}T17:00:00`,
-          });
-        })
+          })
+        )
       );
       setAddingAvail(false);
       setAvailForm({ employee_id: "", date: "", start_time: "00:00", end_time: "23:59" });
@@ -227,13 +219,10 @@ export default function EmployeeAvailability() {
     if (!availForm.employee_id || !availForm.date) return;
     setError(null);
     setSaving(true);
-    const dateObj = new Date(availForm.date);
     try {
       await createAvailability({
         employee_id: availForm.employee_id,
-        year: dateObj.getFullYear(),
-        month: dateObj.getMonth() + 1,
-        day: dateObj.getDate(),
+        ...dateParts(availForm.date),
         start_time: `${availForm.date}T${availForm.start_time}:00`,
         end_time: `${availForm.date}T${availForm.end_time}:00`,
       });

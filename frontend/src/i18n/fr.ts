@@ -845,6 +845,11 @@ const fr = {
     addWindow: "Ajouter une fenêtre de disponibilité",
     addWindowDesc: "Sélectionnez les jours et les heures où vous êtes disponible pour travailler.",
     noWindows: "Aucune fenêtre de disponibilité définie. Ajoutez-en une ci-dessus.",
+    quickSetLabel: "Mêmes horaires pour la semaine de cette date :",
+    quickWeekdays: "Jours ouvrés (lun–ven)",
+    quickWeekend: "Week-end (sam–dim)",
+    quickWeek: "Toute la semaine",
+    quickSetResult: "{added} jours ajoutés. {skipped} ignorés car ils avaient déjà des horaires sur ce créneau.",
   },
 
   // ── Import Modal ──

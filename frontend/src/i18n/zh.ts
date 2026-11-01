@@ -845,6 +845,11 @@ const zh = {
     addWindow: "添加可用时间窗口",
     addWindowDesc: "选择您可以工作的日期和时间。",
     noWindows: "尚未设置可用时间窗口。请在上方添加。",
+    quickSetLabel: "将相同时段应用到该日期所在的一周：",
+    quickWeekdays: "工作日（周一至周五）",
+    quickWeekend: "周末（周六、周日）",
+    quickWeek: "整周",
+    quickSetResult: "已添加 {added} 天。跳过了 {skipped} 天，因为这些天在该时段已有可用时间。",
   },
 
   // ── Import Modal ──

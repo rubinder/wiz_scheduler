@@ -2,6 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import * as employeesApi from "../../api/employees";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { locationZoneNote } from "../../utils/timezones";
+import {
+  dateParts,
+  overlapsExisting,
+  quickSetDates,
+  type QuickSetKind,
+} from "../../utils/availabilityDates";
 import { text, bg, border, badge } from "../../theme";
 import type { EmployeeAvailability, EmployeeMeProfile } from "../../types";
 
@@ -17,6 +23,7 @@ export default function Availability() {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [saving, setSaving] = useState(false);
+  const [quickResult, setQuickResult] = useState("");
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -53,19 +60,13 @@ export default function Availability() {
     e.preventDefault();
     if (!profile || !date) return;
     setError("");
+    setQuickResult("");
     setSaving(true);
-
-    const dateObj = new Date(date);
-    const year = dateObj.getFullYear();
-    const month = dateObj.getMonth() + 1;
-    const day = dateObj.getDate();
 
     try {
       await employeesApi.createAvailability({
         employee_id: profile.id,
-        year,
-        month,
-        day,
+        ...dateParts(date),
         start_time: `${date}T${startTime}:00`,
         end_time: `${date}T${endTime}:00`,
       });
@@ -74,6 +75,42 @@ export default function Availability() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to add availability");
     } finally {
+      setSaving(false);
+    }
+  };
+
+  // Add the form's hours to every matching day of the selected date's week,
+  // skipping days that already have an overlapping window.
+  const handleQuickSet = async (kind: QuickSetKind) => {
+    if (!profile || !date) return;
+    setError("");
+    setQuickResult("");
+    setSaving(true);
+    const days = quickSetDates(date, kind);
+    const toAdd = days.filter(
+      (d) => !overlapsExisting(availability, d, startTime, endTime),
+    );
+    try {
+      await Promise.all(
+        toAdd.map((d) =>
+          employeesApi.createAvailability({
+            employee_id: profile.id,
+            ...dateParts(d),
+            start_time: `${d}T${startTime}:00`,
+            end_time: `${d}T${endTime}:00`,
+          }),
+        ),
+      );
+      setQuickResult(
+        t.availability.quickSetResult
+          .replace("{added}", String(toAdd.length))
+          .replace("{skipped}", String(days.length - toAdd.length)),
+      );
+      setDate("");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to add availability");
+    } finally {
+      await fetchAvailability();
       setSaving(false);
     }
   };
@@ -215,6 +252,31 @@ export default function Availability() {
             {saving ? t.common.saving : t.common.add}
           </button>
         </form>
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          <span className={`text-xs font-medium ${text.muted}`}>
+            {t.availability.quickSetLabel}
+          </span>
+          {(
+            [
+              ["weekdays", t.availability.quickWeekdays],
+              ["weekend", t.availability.quickWeekend],
+              ["week", t.availability.quickWeek],
+            ] as const
+          ).map(([kind, label]) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => handleQuickSet(kind)}
+              disabled={saving || !date}
+              className="glass-btn-secondary text-xs disabled:opacity-50"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {quickResult && (
+          <p className={`mt-3 text-sm ${text.muted}`}>{quickResult}</p>
+        )}
       </div>
 
       <div className="glass-card">
