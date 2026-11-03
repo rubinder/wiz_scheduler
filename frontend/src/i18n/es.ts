@@ -845,6 +845,11 @@ const es = {
     addWindow: "Agregar ventana de disponibilidad",
     addWindowDesc: "Selecciona los días y horas en los que estás disponible para trabajar.",
     noWindows: "No hay ventanas de disponibilidad configuradas. Agrega una arriba.",
+    quickSetLabel: "Mismo horario para la semana de esta fecha:",
+    quickWeekdays: "Días laborables (lun–vie)",
+    quickWeekend: "Fin de semana (sáb–dom)",
+    quickWeek: "Toda la semana",
+    quickSetResult: "Se agregaron {added} días. Se omitieron {skipped} que ya tenían horario en esa franja.",
   },
 
   // ── Import Modal ──

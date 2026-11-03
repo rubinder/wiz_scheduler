@@ -845,6 +845,11 @@ const pt = {
     addWindow: "Adicionar janela de disponibilidade",
     addWindowDesc: "Selecione os dias e horários em que você está disponível para trabalhar.",
     noWindows: "Nenhuma janela de disponibilidade definida. Adicione uma acima.",
+    quickSetLabel: "Mesmo horário para a semana desta data:",
+    quickWeekdays: "Dias úteis (seg–sex)",
+    quickWeekend: "Fim de semana (sáb–dom)",
+    quickWeek: "Semana inteira",
+    quickSetResult: "{added} dias adicionados. {skipped} ignorados porque já tinham horário nesse período.",
   },
 
   // ── Import Modal ──

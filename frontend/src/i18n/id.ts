@@ -845,6 +845,11 @@ const ind = {
     addWindow: "Tambah Jendela Ketersediaan",
     addWindowDesc: "Pilih hari dan jam Anda tersedia untuk bekerja.",
     noWindows: "Belum ada jendela ketersediaan. Tambahkan satu di atas.",
+    quickSetLabel: "Jam yang sama untuk minggu tanggal ini:",
+    quickWeekdays: "Hari kerja (Sen–Jum)",
+    quickWeekend: "Akhir pekan (Sab–Min)",
+    quickWeek: "Seluruh minggu",
+    quickSetResult: "{added} hari ditambahkan. {skipped} hari dilewati karena sudah memiliki jam pada waktu itu.",
   },
 
   // ── Import Modal ──

@@ -845,6 +845,11 @@ const pcm = {
     addWindow: "Add Availability Window",
     addWindowDesc: "Pick the days and hours wey you dey available to work.",
     noWindows: "You never set availability window. Add one for up.",
+    quickSetLabel: "Put di same hours for di week wey dis date dey:",
+    quickWeekdays: "Work days (Mon–Fri)",
+    quickWeekend: "Weekend (Sat–Sun)",
+    quickWeek: "Di whole week",
+    quickSetResult: "We don add {added} days. We skip {skipped} wey don already get hours for dat time.",
   },
 
   // ── Import Modal ──
