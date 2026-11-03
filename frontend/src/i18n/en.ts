@@ -949,9 +949,9 @@ const en = {
   // ── Landing Page ──
   landing: {
     badge: "Algorithmic & AI-Powered Employee Scheduling",
-    heroTitle: "Smart Scheduling,",
-    heroTitleAccent: "Zero Hassle",
-    heroDesc: "Generate optimized weekly shift schedules with Algorithmic strategies or AI. Automatically respects availability, roles, skill levels, and team preferences.",
+    heroTitle: "Schedules Your Staff Want,",
+    heroTitleAccent: "Built in Minutes",
+    heroDesc: "Honors each person's preferred days, shifts and coworkers, so your team gets schedules worth staying for. Builds the week around availability, roles and hour caps, so managers stop juggling it.",
     getStarted: "Get Started",
     viewPricing: "View Pricing",
     viewDemo: "View Demo",

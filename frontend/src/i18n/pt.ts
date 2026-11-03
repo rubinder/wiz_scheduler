@@ -947,9 +947,9 @@ const pt = {
   // ── Landing ──
   landing: {
     badge: "Agendamento de Funcionários Algorítmico e com AI",
-    heroTitle: "Agendamento inteligente,",
-    heroTitleAccent: "zero complicação",
-    heroDesc: "Gere escalas semanais otimizadas com estratégias algorítmicas ou AI. Respeita automaticamente disponibilidade, funções, níveis de habilidade e preferências da equipe.",
+    heroTitle: "Escalas que sua equipe quer,",
+    heroTitleAccent: "prontas em minutos",
+    heroDesc: "Respeita os dias, turnos e colegas que cada pessoa prefere, para que sua equipe tenha escalas que dão vontade de ficar. Monta a semana com base em disponibilidade, funções e limites de horas, para que os gerentes parem de fazer malabarismos.",
     getStarted: "Começar",
     viewPricing: "Ver preços",
     viewDemo: "Ver demonstração",

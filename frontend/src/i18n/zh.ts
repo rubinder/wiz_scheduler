@@ -947,9 +947,9 @@ const zh = {
   // ── Landing ──
   landing: {
     badge: "算法与 AI 驱动的员工排班",
-    heroTitle: "智能排班，",
-    heroTitleAccent: "零烦恼",
-    heroDesc: "使用算法策略或 AI 生成优化的每周班次计划。自动遵守可用性、角色、技能水平和团队偏好。",
+    heroTitle: "员工想要的排班，",
+    heroTitleAccent: "几分钟即可完成",
+    heroDesc: "尊重每位员工偏好的工作日、班次和同事，让团队拿到愿意长期留下的排班。根据可用时间、岗位和工时上限排好整周，经理无需再在脑中反复权衡。",
     getStarted: "开始使用",
     viewPricing: "查看价格",
     viewDemo: "观看演示",

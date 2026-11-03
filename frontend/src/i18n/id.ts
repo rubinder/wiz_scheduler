@@ -947,9 +947,9 @@ const ind = {
   // ── Landing ──
   landing: {
     badge: "Penjadwalan Karyawan Algoritmik & Berbasis AI",
-    heroTitle: "Penjadwalan Cerdas,",
-    heroTitleAccent: "Tanpa Repot",
-    heroDesc: "Buat jadwal shift mingguan yang optimal dengan strategi algoritmik atau AI. Otomatis menghormati ketersediaan, peran, tingkat keterampilan, dan preferensi tim.",
+    heroTitle: "Jadwal yang Diinginkan Tim Anda,",
+    heroTitleAccent: "Siap dalam Hitungan Menit",
+    heroDesc: "Menghormati hari, shift, dan rekan kerja yang disukai setiap orang, sehingga tim Anda mendapat jadwal yang membuat mereka betah. Menyusun minggu berdasarkan ketersediaan, peran, dan batas jam, sehingga manajer tidak perlu lagi memikirkan semuanya sendiri.",
     getStarted: "Mulai",
     viewPricing: "Lihat Harga",
     viewDemo: "Lihat Demo",

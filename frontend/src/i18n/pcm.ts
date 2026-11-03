@@ -947,9 +947,9 @@ const pcm = {
   // ── Landing ──
   landing: {
     badge: "Algorithm & AI-Powered Worker Scheduling",
-    heroTitle: "Smart Scheduling,",
-    heroTitleAccent: "Zero Wahala",
-    heroDesc: "Generate optimized weekly shift schedules wit Algorithm strategies or AI. E dey automatically respect availability, roles, skill levels, and team preferences.",
+    heroTitle: "Schedules Wey Your Staff Want,",
+    heroTitleAccent: "Ready for Minutes",
+    heroDesc: "E dey respect di days, shifts and coworkers wey each person prefer, so your team go get schedules wey go make dem wan stay. E dey build di week round availability, roles and hour caps, so managers no go dey juggle am for head again.",
     getStarted: "Start",
     viewPricing: "View Pricing",
     viewDemo: "View Demo",

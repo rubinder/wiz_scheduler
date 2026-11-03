@@ -947,9 +947,9 @@ const fr = {
   // ── Landing ──
   landing: {
     badge: "Planification algorithmique et AI des employés",
-    heroTitle: "Planification intelligente,",
-    heroTitleAccent: "zéro tracas",
-    heroDesc: "Générez des plannings hebdomadaires optimisés avec des stratégies algorithmiques ou l'AI. Respecte automatiquement les disponibilités, rôles, niveaux de compétence et préférences d'équipe.",
+    heroTitle: "Des plannings que votre équipe apprécie,",
+    heroTitleAccent: "prêts en quelques minutes",
+    heroDesc: "Respecte les jours, créneaux et collègues préférés de chacun, pour des plannings qui donnent envie de rester. Construit la semaine selon les disponibilités, rôles et plafonds d'heures, pour que les managers n'aient plus à jongler.",
     getStarted: "Commencer",
     viewPricing: "Voir les tarifs",
     viewDemo: "Voir la démo",
