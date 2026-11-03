@@ -947,9 +947,9 @@ const es = {
   // ── Landing ──
   landing: {
     badge: "Programación de empleados algorítmica y con AI",
-    heroTitle: "Programación inteligente,",
-    heroTitleAccent: "sin complicaciones",
-    heroDesc: "Genera horarios de turnos semanales optimizados con estrategias algorítmicas o AI. Respeta automáticamente la disponibilidad, roles, niveles de habilidad y preferencias del equipo.",
+    heroTitle: "Horarios que tu equipo quiere,",
+    heroTitleAccent: "listos en minutos",
+    heroDesc: "Respeta los días, turnos y compañeros que prefiere cada persona, para que tu equipo tenga horarios por los que vale la pena quedarse. Arma la semana según disponibilidad, roles y límites de horas, para que los gerentes dejen de hacer malabares.",
     getStarted: "Comenzar",
     viewPricing: "Ver precios",
     viewDemo: "Ver demostración",

@@ -947,9 +947,9 @@ const de = {
   // ── Landing ──
   landing: {
     badge: "Algorithmische & AI-gestützte Mitarbeiterplanung",
-    heroTitle: "Smarte Planung,",
-    heroTitleAccent: "null Aufwand",
-    heroDesc: "Erstellen Sie optimierte wöchentliche Schichtpläne mit algorithmischen Strategien oder AI. Berücksichtigt automatisch Verfügbarkeit, Rollen, Qualifikationsstufen und Teampräferenzen.",
+    heroTitle: "Schichtpläne, die Ihr Team mag,",
+    heroTitleAccent: "in Minuten erstellt",
+    heroDesc: "Berücksichtigt Wunschtage, Wunschschichten und Wunschkollegen jedes Einzelnen – für Pläne, bei denen Mitarbeitende gerne bleiben. Plant die Woche nach Verfügbarkeit, Rollen und Stundenobergrenzen, damit Führungskräfte nicht mehr jonglieren müssen.",
     getStarted: "Jetzt starten",
     viewPricing: "Preise ansehen",
     viewDemo: "Demo ansehen",

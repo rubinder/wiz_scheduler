@@ -947,9 +947,9 @@ const trLang = {
   // ── Landing ──
   landing: {
     badge: "Algoritmik & AI Destekli Çalışan Planlaması",
-    heroTitle: "Akıllı Planlama,",
-    heroTitleAccent: "Sıfır Zahmete",
-    heroDesc: "Algoritmik stratejiler veya AI ile optimize edilmiş haftalık vardiya programları oluşturun. Müsaitlik, roller, beceri seviyeleri ve ekip tercihlerini otomatik olarak dikkate alır.",
+    heroTitle: "Ekibinizin İstediği Programlar,",
+    heroTitleAccent: "Dakikalar İçinde Hazır",
+    heroDesc: "Herkesin tercih ettiği günleri, vardiyaları ve çalışma arkadaşlarını gözetir; böylece ekibiniz kalmak isteyeceği programlar alır. Haftayı müsaitlik, roller ve saat sınırlarına göre kurar; yöneticiler her şeyi kafasında tutmak zorunda kalmaz.",
     getStarted: "Başlayın",
     viewPricing: "Fiyatları Görün",
     viewDemo: "Demoyu İzleyin",

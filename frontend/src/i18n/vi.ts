@@ -947,9 +947,9 @@ const vi = {
   // ── Landing ──
   landing: {
     badge: "Lập lịch nhân viên bằng thuật toán & AI",
-    heroTitle: "Lập lịch thông minh,",
-    heroTitleAccent: "không rắc rối",
-    heroDesc: "Tạo lịch ca làm hàng tuần tối ưu với các chiến lược thuật toán hoặc AI. Tự động tuân thủ khả dụng, vai trò, trình độ kỹ năng và sở thích nhóm.",
+    heroTitle: "Lịch làm việc nhân viên mong muốn,",
+    heroTitleAccent: "sẵn sàng trong vài phút",
+    heroDesc: "Tôn trọng ngày, ca và đồng nghiệp mà mỗi người ưu tiên, để đội ngũ có lịch làm việc khiến họ muốn gắn bó. Xếp lịch cả tuần theo khả dụng, vai trò và giới hạn giờ, để quản lý không phải tự xoay xở trong đầu.",
     getStarted: "Bắt đầu",
     viewPricing: "Xem bảng giá",
     viewDemo: "Xem demo",
