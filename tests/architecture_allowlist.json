@@ -1,0 +1,8 @@
+[
+  {
+    "rule": "stripe-outside-billing",
+    "file": "backend/services/payroll_archive.py",
+    "detail": "Refund.create",
+    "issue": null
+  }
+]
