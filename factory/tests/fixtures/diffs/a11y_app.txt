@@ -1,0 +1,3 @@
+frontend/src/pages/manager/Team.tsx
+---
++  <button onClick={save}>{t.team.save}</button>

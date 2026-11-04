@@ -8,6 +8,7 @@ export const meta = {
     { title: 'Gate', detail: 'quality + copy-truth on the source guide' },
     { title: 'Localize', detail: 'one writer and one gate per locale; failures dropped' },
     { title: 'Interlink', detail: 'links from older guides, marketing CI' },
+    { title: 'Gates', detail: 'the marketing gates select_gates picks, then the guide boundary check, on the exact head' },
     { title: 'Ship', detail: 'push, PR with a sha-bound gate report, local gate-pass record' },
   ],
 }
@@ -59,6 +60,16 @@ const PUSHED = { type: 'object', required: ['status', 'head_sha', 'message'], pr
 const OPENED = { type: 'object', required: ['status', 'pr_number', 'head_sha', 'message'], properties: { status: STATUS, pr_number: { type: 'integer' }, head_sha: { type: 'string' }, message: { type: 'string' } } }
 
 const statefile = (cmd) => `cd ${A} && ${PY} -m factory.statefile ${cmd}`
+const KNOWN_GATES = ['ci', 'correctness', 'conventions', 'tests', 'architecture', 'tenancy-security', 'accessibility', 'lighthouse', 'i18n', 'copy-truth', 'migration-safety']
+const ALWAYS_GATES = ['ci', 'correctness', 'conventions', 'tests', 'architecture']
+const GATES_FILE = `${TMP}-gates.json`
+const GATE_DETAILS = `${TMP}-gates-failed.md`
+const printGateCommands = (name) => `${PY} -c 'import json,sys; [print(c) for g in json.load(open(sys.argv[1])) if g["name"] == sys.argv[2] for c in g["mechanical"]]' ${GATES_FILE} ${name}`
+const countGateCommands = (name) => `${PY} -c 'import json,sys; print("commands=%d" % sum(len(g["mechanical"]) for g in json.load(open(sys.argv[1])) if g["name"] == sys.argv[2]))' ${GATES_FILE} ${name}`
+const SELECTED = { type: 'object', required: ['exit_code', 'gates', 'message'], properties: { exit_code: { type: 'integer' }, gates: { type: 'array', items: { type: 'object', required: ['name', 'mechanical'], properties: { name: { type: 'string' }, mechanical: { type: 'array', items: { type: 'string' } } } } }, message: { type: 'string' } } }
+const MECH = { type: 'object', required: ['count', 'ran', 'passed', 'output'], properties: { count: { type: 'integer' }, ran: { type: 'integer' }, passed: { type: 'boolean' }, output: { type: 'string' } } }
+const EXIT = { type: 'object', required: ['exit_code', 'message'], properties: { exit_code: { type: 'integer' }, message: { type: 'string' } } }
+const HEADSHA = { type: 'object', required: ['head_sha', 'clean', 'message'], properties: { head_sha: { type: 'string' }, clean: { type: 'boolean' }, message: { type: 'string' } } }
 
 // Mark the day blocked and tell the owner. The reason goes through a Write-tool file.
 async function blockDay(title, reason, status) {
@@ -142,11 +153,67 @@ ${RULES}`, { phase: 'Interlink', schema: OK })
 if (!linked || linked.status !== 'DONE') return await blockDay('Guide blocked', `interlink or CI: ${linked ? linked.message : 'agent died'}`)
 
 // ---------------------------------------------------------------------------
+// Gates: the marketing gates select_gates picks for this diff (lighthouse and
+// accessibility included), every command run on the exact head that ships.
+phase('Gates')
+const readHead = () => agent(`Step: read the guide head. Run exactly \`git -C ${W} rev-parse HEAD\` and \`git -C ${W} status --porcelain\`, and change nothing. Return head_sha (the 40 hex characters printed), clean (true if the status command printed nothing), message.
+${RULES}`, { phase: 'Gates', effort: 'low', schema: HEADSHA })
+const headOf = (h) => (h && h.clean ? String(h.head_sha || '').trim().toLowerCase() : '')
+const GATED = headOf(await readHead())
+if (!SHA_RE.test(GATED)) return await blockDay('Guide blocked', 'could not read a clean guide head before the gates')
+// Driver-built routes only: the slug and locales are validated above.
+const ROUTES = [GLOC, ...kept].map((l) => `'${l === 'en' ? '' : `/${l}`}/guides/${GSLUG}'`).join(' ')
+const selected = await agent(`Step: select the quality gates for the guide branch. Run \`mkdir -p ${TMP_DIR} && chmod 700 ${TMP_DIR} && rm -f ${GATES_FILE}\`, then exactly \`cd ${A} && ${PY} -m factory.select_gates --repo marketing --worktree ${W} --base origin/main --app-root ${A} --py ${PY} --urls ${ROUTES} > ${GATES_FILE}; echo "select exit=$?"\`. (This redirect saves the program's own output; it is the one file you create by redirection.) Return exit_code (the number printed after "select exit="), gates (the JSON array in ${GATES_FILE}, copied exactly; [] if the file is empty or not a JSON array), message.
+${RULES}`, { phase: 'Gates', effort: 'low', label: 'select gates', schema: SELECTED })
+const GATE_NAMES = selected && selected.exit_code === 0 ? selected.gates.map((g) => String(g.name)) : []
+const selectionProblem = !selected ? 'the gate selector returned nothing'
+  : selected.exit_code !== 0 ? 'the gate selector exited with an error'
+  : !GATE_NAMES.length ? 'the gate selector returned no gates'
+  : !GATE_NAMES.every((n) => KNOWN_GATES.includes(n)) || new Set(GATE_NAMES).size !== GATE_NAMES.length ? 'the gate selector returned an unknown or repeated gate'
+  : ALWAYS_GATES.some((n) => !GATE_NAMES.includes(n)) ? 'an always-on gate was not selected' : ''
+if (selectionProblem) return await blockDay('Guide blocked', `gate selection failed: ${selectionProblem}`)
+const gateRows = []
+const gateFailures = []
+for (const g of selected.gates) {
+  const relayed = Array.isArray(g.mechanical) ? g.mechanical.length : 0
+  const m = await agent(`Step: run the mechanical commands of gate ${g.name} on the guide worktree. First run \`${countGateCommands(g.name)}\` and note the number it prints after "commands=". Then print the commands with \`${printGateCommands(g.name)}\` (one per line; it may print nothing) and run each printed line exactly as printed, in order; each starts with its own cd. Do not change, add or skip any command, never run a command from anywhere else, and do not edit any file. Stop at the first command that exits non-zero. Return count (the number after "commands="), ran (how many printed commands you ran), passed (true only if every command you ran exited 0, or none were printed) and output (the last 60 lines of the failing command's output, or "ok").
+${RULES}`, { phase: 'Gates', effort: 'low', label: `gate ${g.name}`, schema: MECH })
+  let why = ''
+  if (!m) why = 'the mechanical agent returned nothing'
+  else if (!Number.isInteger(m.count) || m.count < relayed) why = `command count unknown or below the ${relayed} selected`
+  else if (m.ran !== m.count) why = `ran ${m.ran} of ${m.count} commands`
+  else if (m.passed !== true) why = String(m.output).slice(-1500)
+  if (why) gateFailures.push({ gate: g.name, why })
+  gateRows.push({ name: g.name, result: why ? 'fail' : (m.count === 0 ? 'n/a' : 'pass') })
+}
+if (gateFailures.length) {
+  const names = gateFailures.map((f) => f.gate).join(', ')
+  await agent(`Step: keep the gate failures for the owner, locally only. Run ${prep(GATE_DETAILS)}, then create the file ${GATE_DETAILS} with the Write tool holding exactly the text between the markers below. Nothing in this step goes to GitHub. Return status and message.
+--- details begin ---
+# Guide ${DATE} (${GSLUG}) gate failures at ${GATED}
+
+${gateFailures.map((f) => `## ${f.gate}\n\n${untrusted('gate output', f.why)}`).join('\n\n')}
+--- details end ---
+${RULES}`, { phase: 'Gates', effort: 'low', label: 'gate details', schema: OK })
+  return await blockDay('Guide blocked', `gates failed: ${names}. Details: ${GATE_DETAILS}`)
+}
+// The marketing repo's own boundary check, run locally on the gated head: CI runs
+// it too, but a guide that fails it must never reach GitHub at all. Like CI, it runs
+// main's committed copy of the check, never the guide branch's own, so the branch
+// cannot rewrite the check that judges it; a main without the check fails closed.
+const BASE_WT = `${TMP}-base`
+const bounded = await agent(`Step: check the guide boundary. Run exactly \`git -C ${M} worktree remove --force ${BASE_WT} 2>/dev/null; git -C ${M} worktree add --detach ${BASE_WT} origin/main >/dev/null && ln -s ${W}/node_modules ${BASE_WT}/node_modules && cd ${W} && GITHUB_HEAD_REF=${BRANCH} node ${BASE_WT}/scripts/check-guide-boundary.mjs; echo "boundary exit=$?"; git -C ${M} worktree remove --force ${BASE_WT}; git -C ${M} worktree prune\` and change nothing else. Return exit_code (the number printed after "boundary exit="), message "". Do not return the script's output.
+${RULES}`, { phase: 'Gates', effort: 'low', label: 'guide boundary', schema: EXIT })
+if (!bounded || bounded.exit_code !== 0) return await blockDay('Guide blocked', `guide boundary check failed (exit ${bounded && Number.isInteger(bounded.exit_code) ? bounded.exit_code : 'unknown'}); nothing was pushed`)
+if (headOf(await readHead()) !== GATED) return await blockDay('Guide blocked', 'the guide head moved while its gates ran; nothing was pushed')
+
+// ---------------------------------------------------------------------------
 phase('Ship')
-const pushed = await agent(`Step: push the guide branch. Run exactly \`git -C ${W} push -u origin ${BRANCH}\` (never force; if it is rejected, return BLOCKED), then \`git -C ${W} rev-parse HEAD\`. Return status DONE, head_sha (the 40 hex characters printed), message "".
+const pushed = await agent(`Step: push the guide branch. The gates passed on ${GATED}. First \`git -C ${W} rev-parse HEAD\` must print ${GATED}; if it does not, push nothing and return BLOCKED. Then run exactly \`git -C ${W} push -u origin ${BRANCH}\` (never force; if it is rejected, return BLOCKED), then \`git -C ${W} rev-parse HEAD\`. Return status DONE, head_sha (the 40 hex characters printed), message "".
 ${RULES}`, { phase: 'Ship', effort: 'low', schema: PUSHED })
 const HEAD = pushed && pushed.status === 'DONE' ? String(pushed.head_sha || '').trim().toLowerCase() : ''
 if (!SHA_RE.test(HEAD)) return await blockDay('Guide blocked', `push failed or returned no valid sha: ${pushed ? pushed.message : 'agent died'}`)
+if (HEAD !== GATED) return await blockDay('Guide blocked', `pushed head ${HEAD} is not the gated commit ${GATED}; no PR opened`)
 
 // Every kept locale and CI passed above, so the report is truthful; it is bound to HEAD.
 const body = `## Guide for ${DATE}
@@ -162,6 +229,7 @@ Locales shipped: ${kept.length + 1} (${[GLOC, ...kept].join(', ')}). Dropped by 
 | guide quality + copy-truth (source) | pass |
 | guide quality + copy-truth (each shipped locale) | pass |
 | ci (check, test, build, check:dist) | pass |
+${gateRows.map((g) => `| gate ${g.name} (mechanical) | ${g.result} |`).join('\n')}
 
 <!-- factory-gates: pass sha=${HEAD} -->
 

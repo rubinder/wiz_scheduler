@@ -100,6 +100,10 @@ jobs:
             -m "not integration" \
             -v --tb=short
 
+      - name: Run factory unit tests
+        if: matrix.test-category == 'unit'
+        run: pytest factory/tests -q
+
       - name: Run integration tests
         if: startsWith(matrix.test-category, 'integration-')
         env:

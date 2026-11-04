@@ -27,11 +27,54 @@ const gap = (o) => [/find today's guide topic/, { status: 'DONE', keyword: 'shif
 const gate = (failing = []) => [/quality-gate the guide at/, (p) => ({ pass: !failing.some((l) => p.includes(`/guides/${l}/`)), problems: ['bad claim'] })]
 const pushed = (o) => [/push the guide branch/, { status: 'DONE', head_sha: H, message: '', ...o }]
 const opened = (o) => [/open the guide PR/, { status: 'DONE', pr_number: 12, head_sha: H, message: '', ...o }]
-const rest = [[/create the guide worktree/, { status: 'DONE', node_modules: true, message: '' }], [/write the source guide/, ok], [/localize /, ok], [/finish the branch/, ok], [/record the gate pass/, ok], [/dropped locales/, ok], [/mark today's guide blocked/, ok]]
+const G = (name, mechanical = []) => ({ name, reason: 'x', reviewer: true, prompt_path: '', mechanical })
+const MGATES = [G('ci', ['cd w && npm run check']), G('correctness'), G('conventions'), G('tests'), G('architecture'), G('accessibility', ['cd w && axe']), G('lighthouse', ['cd w && lighthouse'])]
+const selectG = (o) => [/select the quality gates for the guide branch/, { exit_code: 0, gates: MGATES, message: '', ...o }]
+const mech = (fail = {}) => [/run the mechanical commands of gate/, (p) => {
+  const name = /of gate ([a-z0-9-]+) /.exec(p)[1]
+  const n = (MGATES.find((g) => g.name === name) || { mechanical: [] }).mechanical.length
+  return fail[name] || { count: n, ran: n, passed: true, output: 'ok' }
+}]
+const headRead = (seq) => [/read the guide head/, (() => { let i = 0; return () => ({ head_sha: (seq || [H])[Math.min(i++, (seq || [H]).length - 1)], clean: true, message: '' }) })()]
+const boundary = (o) => [/check the guide boundary/, { exit_code: 0, message: '', ...o }]
+const rest = [selectG(), mech(), boundary(), headRead(), [/keep the gate failures/, ok], [/create the guide worktree/, { status: 'DONE', node_modules: true, message: '' }], [/write the source guide/, ok], [/localize /, ok], [/finish the branch/, ok], [/record the gate pass/, ok], [/dropped locales/, ok], [/mark today's guide blocked/, ok]]
 const blockedNoPR = (r) => r.out.status === 'blocked' && !r.has('gh pr create') && !r.has('gate-pass marketing') && r.has('guide 2026-11-04 blocked')
 const noRawTags = (r) => !r.prompts.some((p) => p.includes('<script>'))
 const F = process.argv[2]
+const SECRET = 'lighthouse output detail 12345'
+const noPush = (r) => !r.has('push the guide branch') && !r.has('gh pr create') && !r.has('gate-pass marketing')
 const cases = [
+  ['selected marketing gates run on the guide head before the push', base, [locales(), gap(), gate(['fr']), pushed(), opened(), ...rest], (r) => {
+    const sel = r.prompts.find((p) => /select the quality gates for the guide branch/.test(p)) || ''
+    const body = (r.prompts.find((p) => /open the guide PR/.test(p)) || '')
+    return r.out.status === 'pr_opened' && sel.includes(`--repo marketing --worktree ${MK}/.claude/worktrees/guide-2026-11-04`) && sel.includes("--urls '/guides/shift-swap' '/es/guides/shift-swap'")
+      && r.prompts.filter((p) => /run the mechanical commands of gate/.test(p)).length === MGATES.length
+      && r.prompts.filter((p) => /run the mechanical commands of gate/.test(p)).every((p) => p.includes('commands=%d'))
+      && body.includes('| gate lighthouse (mechanical) | pass |') && body.includes('| gate accessibility (mechanical) | pass |') && body.includes('| gate correctness (mechanical) | n/a |')
+      && r.prompts.findIndex((p) => /run the mechanical commands of gate/.test(p)) < r.prompts.findIndex((p) => /push the guide branch/.test(p))
+      && r.has(`must print ${H}`)
+  }],
+  ['a failing lighthouse gate blocks the day privately', base, [locales(), gap(), gate(), mech({ lighthouse: { count: 1, ran: 1, passed: false, output: SECRET } }), pushed(), opened(), ...rest], (r) => blockedNoPR(r) && noPush(r)
+    && r.prompts.some((p) => /keep the gate failures/.test(p) && p.includes(SECRET) && p.includes(`${MK}/.git/wizfactory-tmp/guide-2026-11-04-gates-failed.md`))
+    && r.prompts.filter((p) => /mark today's guide blocked/.test(p)).every((p) => !p.includes(SECRET) && p.includes('gates failed: lighthouse'))],
+  ['a gate that ran none of its commands blocks', base, [locales(), gap(), gate(), mech({ accessibility: { count: 1, ran: 0, passed: true, output: '' } }), ...rest], (r) => blockedNoPR(r) && noPush(r)],
+  ['a missing always-on gate blocks', base, [locales(), gap(), gate(), selectG({ gates: MGATES.filter((g) => g.name !== 'ci') }), ...rest], (r) => blockedNoPR(r) && noPush(r) && !r.has('run the mechanical commands of gate')],
+  ['selector failure blocks', base, [locales(), gap(), gate(), selectG({ exit_code: 2 }), ...rest], (r) => blockedNoPR(r) && noPush(r)],
+  ['the head moving while gates run ships nothing', base, [locales(), gap(), gate(), headRead([H, V]), ...rest], (r) => blockedNoPR(r) && noPush(r)],
+  ['the local guide boundary check runs on the gated head before the push', base, [locales(), gap(), gate(), pushed(), opened(), ...rest], (r) => {
+    const i = r.prompts.findIndex((p) => /check the guide boundary/.test(p))
+    const p = r.prompts[i] || ''
+    return r.out.status === 'pr_opened' && i > r.prompts.findIndex((x) => /run the mechanical commands of gate/.test(x))
+      && i < r.prompts.findIndex((x) => /push the guide branch/.test(x))
+      && p.includes(`git -C ${MK} worktree add --detach ${MK}/.git/wizfactory-tmp/guide-2026-11-04-base origin/main`)
+      && p.includes(`cd ${MK}/.claude/worktrees/guide-2026-11-04 && GITHUB_HEAD_REF=content/guide-2026-11-04-shift-swap node ${MK}/.git/wizfactory-tmp/guide-2026-11-04-base/scripts/check-guide-boundary.mjs; echo "boundary exit=$?"`)
+      && !p.includes('node scripts/check-guide-boundary.mjs')
+  }],
+  ['a failing guide boundary check blocks locally and pushes nothing', base, [locales(), gap(), gate(), boundary({ exit_code: 1 }), pushed(), opened(), ...rest], (r) => blockedNoPR(r) && noPush(r)
+    && r.prompts.some((p) => /mark today's guide blocked/.test(p) && p.includes('guide boundary check failed'))],
+  ['a guide boundary check with no exit code blocks', base, [locales(), gap(), gate(), boundary({ exit_code: 'x' }), pushed(), opened(), ...rest], (r) => blockedNoPR(r) && noPush(r)],
+  ['a guide boundary agent that dies blocks', base, [locales(), gap(), gate(), [/check the guide boundary/, null], pushed(), opened(), ...rest], (r) => blockedNoPR(r) && noPush(r)],
+  ['a push that lands on another commit opens no PR', base, [locales(), gap(), gate(), pushed({ head_sha: V }), ...rest], (r) => blockedNoPR(r) && !r.has('gh pr create')],
   ['happy path drops a failing locale', base, [locales(), gap(), gate(['fr']), pushed(), opened(), ...rest], (r) => r.out.status === 'pr_opened' && r.out.pr === 12 && r.out.dropped_locales.join() === 'fr'
     && r.has(`worktree add -B content/guide-2026-11-04-shift-swap ${MK}/.claude/worktrees/guide-2026-11-04 origin/main`)
     && r.has(`factory-gates: pass sha=${H} -->`) && r.has(`gate-pass marketing 12 ${H}`) && r.has('guide 2026-11-04 in_progress')
