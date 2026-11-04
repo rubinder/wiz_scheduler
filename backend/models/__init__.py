@@ -36,6 +36,7 @@ from backend.models.activation_event import ActivationEvent
 from backend.models.manager_location import ManagerLocation
 from backend.models.feedback_submission import FeedbackSubmission
 from backend.models.preference_submission import EmployeePreferenceSubmission
+from backend.models.payroll_archive import PayrollArchive, PayrollArchiveToken
 
 __all__ = [
     "EmployeePreferenceSubmission",
@@ -82,4 +83,6 @@ __all__ = [
     "ActivationEvent",
     "ManagerLocation",
     "FeedbackSubmission",
+    "PayrollArchive",
+    "PayrollArchiveToken",
 ]

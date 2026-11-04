@@ -18,7 +18,7 @@ const MODULES = import.meta.glob("./*.ts", { import: "default", eager: true }) a
 
 type Tree = { [k: string]: string | Tree };
 
-const CHECKED_SECTIONS = ["team", "access", "myPreferences", "preferenceReviews", "payroll"] as const;
+const CHECKED_SECTIONS = ["team", "access", "myPreferences", "preferenceReviews", "payroll", "payrollArchive"] as const;
 
 function flatten(node: Tree, prefix = ""): Record<string, string> {
   const out: Record<string, string> = {};
@@ -39,6 +39,7 @@ const checkedStrings = (t: unknown) => {
 const KEPT_IN_ENGLISH_ALL = new Set<string>([
   // An example address, not prose
   "team.emailPlaceholder",
+  "payrollArchive.emailPlaceholder",
 ]);
 
 /** Per-locale strings deliberately left identical to English, reviewed by hand. */
