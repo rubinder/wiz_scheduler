@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from factory.config import Config, guide_boundary_ok, guide_outside, load_config, protected_hits
-from factory import statefile
+from factory import proposals, statefile
 
 _CLOSES_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
 _BRANCH_ISSUE_RE = re.compile(r"^agent/issue-(\d+)(?:-|$)")
@@ -29,24 +29,31 @@ def _iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Only these count as green; still-running states are pending; every other
+# value (FAILURE, STALE, STARTUP_FAILURE, an unknown future one) is a failure,
+# so a PR never sits "pending" forever on a conclusion nobody expected.
+CHECK_PASSING = {"SUCCESS", "SKIPPED", "NEUTRAL"}
+CHECK_PENDING = {"", "PENDING", "IN_PROGRESS", "QUEUED", "WAITING", "EXPECTED", "REQUESTED"}
+
+
+def _check_state(c: dict[str, Any]) -> str:
+    return (c.get("conclusion") or c.get("state") or c.get("status") or "").upper()
+
+
 def checks_from_rollup(rollup: list[dict[str, Any]]) -> str:
     if not rollup:
         return "none"
-    states = [(c.get("conclusion") or c.get("state") or c.get("status") or "").upper() for c in rollup]
-    if any(s in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED"} for s in states):
+    states = [_check_state(c) for c in rollup]
+    if any(s not in CHECK_PASSING | CHECK_PENDING for s in states):
         return "failure"
-    if any(s in {"", "PENDING", "IN_PROGRESS", "QUEUED", "WAITING", "EXPECTED"} for s in states):
+    if any(s in CHECK_PENDING for s in states):
         return "pending"
     return "success"
 
 
 def failing_check_names(rollup: list[dict[str, Any]]) -> list[str]:
-    names = []
-    for c in rollup:
-        s = (c.get("conclusion") or c.get("state") or "").upper()
-        if s in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED"}:
-            names.append(c.get("name") or c.get("context") or "unknown")
-    return sorted(set(names))
+    return sorted({c.get("name") or c.get("context") or "unknown" for c in rollup
+                   if _check_state(c) not in CHECK_PASSING | CHECK_PENDING})
 
 
 def issue_for_pr(body: str, branch: str) -> Optional[int]:
@@ -98,6 +105,12 @@ LABEL_READY, LABEL_WORKING, LABEL_PR_OPEN, LABEL_BLOCKED = "agent-ready", "agent
 REPO_ORDER = ("app", "marketing")
 MAX_PROPOSALS_PER_DAY = 3
 REASON_PROTECTED, REASON_GUIDE = "touches a protected path", "guide outside boundary"
+REASON_RETRO = "retro ready for review"
+REASON_STALE = "gates stale after fix"
+REASON_STUCK = "stuck after repeated attempts"
+# Factory PRs whose gates factory-regate can re-run; guide PRs are gated by guides-pipeline.
+REGATE_PREFIXES = ("agent/", "factory/revert-")
+RETRO_BRANCH_PREFIX = "factory/retro-"
 _GATES_RE = re.compile(r"<!--\s*factory-gates:\s*(pass|fail)(?:\s+sha=([0-9a-fA-F]{40}))?\s*-->")
 
 
@@ -125,6 +138,28 @@ def _is_stale(item: dict[str, Any], now: datetime) -> bool:
     return anchor is None or now - anchor > timedelta(hours=STALE_HOURS)
 
 
+def had_gate_pass(local: dict[str, Any], repo: str, pr: int) -> bool:
+    """True when the factory recorded passing gates for any head of this PR."""
+    return any(g.get("repo") == repo and g.get("pr") == pr for g in local.get("gate_passes") or [])
+
+
+def _exhausted(local: dict[str, Any], kind: str, repo: str, p: dict[str, Any]) -> bool:
+    return statefile.attempts(local, kind, repo, p["number"], p.get("head_sha") or "") >= statefile.MAX_ATTEMPTS
+
+
+def _stale_gates(p: dict[str, Any], repo: str, local: dict[str, Any]) -> bool:
+    """Green, and gated before, but not at its current head (a fix was pushed since)."""
+    return (p.get("checks") == "success" and not p.get("is_draft")
+            and LABEL_BLOCKED not in (p.get("labels") or [])
+            and not statefile.has_gate_pass(local, repo, p["number"], p.get("head_sha") or "")
+            and had_gate_pass(local, repo, p["number"]))
+
+
+def _regatable(p: dict[str, Any], repo: str, local: dict[str, Any]) -> bool:
+    return ((p.get("branch") or "").startswith(REGATE_PREFIXES) and _stale_gates(p, repo, local)
+            and (p.get("unanswered_threads") or 0) == 0 and not _exhausted(local, "regate", repo, p))
+
+
 def _mergeable(p: dict[str, Any], repo: str, cfg: Config, local: dict[str, Any]) -> bool:
     return (p.get("checks") == "success" and p.get("gate_report") == "pass"
             and statefile.has_gate_pass(local, repo, p["number"], p.get("head_sha") or "")
@@ -136,27 +171,69 @@ def _mergeable(p: dict[str, Any], repo: str, cfg: Config, local: dict[str, Any])
             and not p.get("threads_truncated")
             and not p.get("files_truncated")
             and not protected_hits(repo, p.get("files") or [], cfg)
-            and guide_boundary_ok(repo, p.get("branch") or "", p.get("files") or []))
+            and guide_boundary_ok(repo, p.get("branch") or "", p.get("files") or [], cfg.guide_locales)
+            and not _exhausted(local, "merge", repo, p))
 
 
-def awaiting_owner(snapshot: dict[str, Any], cfg: Config) -> list[dict[str, Any]]:
-    """Green, gated PRs that only the owner may merge.
+_SHA40_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def _owner_key(repo: str, p: dict[str, Any], tag: str = "") -> str:
+    """The notification key for one awaiting-owner entry.
+
+    notify.py dedupes a key forever, so a condition that can recur on the same
+    PR (stuck, stale gates) is keyed by its tag and the head sha it holds at.
+    """
+    key = f"owner-{repo}-{p['number']}"
+    if not tag:
+        return key
+    sha = str(p.get("head_sha") or "").lower()
+    return f"{key}-{tag}-{sha[:12] if _SHA40_RE.fullmatch(sha) else 'nosha'}"
+
+
+def awaiting_owner(snapshot: dict[str, Any], cfg: Config, local: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Green PRs that only the owner can move on.
 
     Either they touch a protected path, or they are guide PRs outside the
     guide boundary (`reason` says which; `protected` lists the files).
+
+    Retro PRs (``factory/retro-*``) carry no gate report: they change only the
+    factory, the factory never merges them, and they are listed once green.
+
+    A PR whose gates went stale after a fix and that the factory will not
+    regate (a guide PR, or regates used up) is "gates stale after fix"; one the
+    factory has tried to fix, merge or regate MAX_ATTEMPTS times at its current
+    head is "stuck after repeated attempts". A PR the factory is about to
+    merge is never listed. Each entry's ``key`` is its notification key.
     """
+    local = local if local is not None else statefile.defaults()
     out = []
     for repo in REPO_ORDER:
         for p in snapshot["repos"][repo]["prs"]:
-            if not (p.get("checks") == "success" and p.get("gate_report") == "pass" and not p.get("is_draft")):
-                continue
+            green = p.get("checks") == "success" and not p.get("is_draft")
             files = p.get("files") or []
+            entry = {"repo": repo, "pr": p["number"], "title": p.get("title", ""), "key": _owner_key(repo, p)}
+            if (p.get("branch") or "").startswith(RETRO_BRANCH_PREFIX):
+                if green:
+                    out.append({**entry, "protected": protected_hits(repo, files, cfg), "reason": REASON_RETRO})
+                continue
+            if _mergeable(p, repo, cfg, local):
+                continue
+            if any(_exhausted(local, k, repo, p) for k in statefile.ATTEMPT_KINDS):
+                out.append({**entry, "key": _owner_key(repo, p, "stuck"),
+                            "protected": protected_hits(repo, files, cfg), "reason": REASON_STUCK})
+                continue
+            if _stale_gates(p, repo, local) and not _regatable(p, repo, local):
+                out.append({**entry, "key": _owner_key(repo, p, "stale"),
+                            "protected": protected_hits(repo, files, cfg), "reason": REASON_STALE})
+                continue
+            if not (green and p.get("gate_report") == "pass"):
+                continue
             hits = protected_hits(repo, files, cfg)
-            entry = {"repo": repo, "pr": p["number"], "title": p.get("title", "")}
             if hits:
                 out.append({**entry, "protected": hits, "reason": REASON_PROTECTED})
-            elif not guide_boundary_ok(repo, p.get("branch") or "", files):
-                out.append({**entry, "protected": guide_outside(repo, files) or files, "reason": REASON_GUIDE})
+            elif not guide_boundary_ok(repo, p.get("branch") or "", files, cfg.guide_locales):
+                out.append({**entry, "protected": guide_outside(repo, files, cfg.guide_locales) or files, "reason": REASON_GUIDE})
     return out
 
 
@@ -166,7 +243,7 @@ def choose_action(snapshot: dict[str, Any], local: dict[str, Any], now: datetime
     # 1. Fix: red CI or a human waiting for an answer, on any factory PR.
     for repo in REPO_ORDER:
         for p in sorted(repos[repo]["prs"], key=lambda p: p["number"]):
-            if LABEL_BLOCKED in (p.get("labels") or []):
+            if LABEL_BLOCKED in (p.get("labels") or []) or _exhausted(local, "fix", repo, p):
                 continue
             if p.get("checks") == "failure":
                 failing = list(p.get("failing_checks") or [])
@@ -182,8 +259,10 @@ def choose_action(snapshot: dict[str, Any], local: dict[str, Any], now: datetime
                     return _act("fix", repo, "pr-tend", {"pr": p["number"], "mode": "review"},
                                 f"{repo} PR #{p['number']} has changes requested since the last push")
 
-    # 2. Merge: green, gated, unprotected.
+    # 2. Merge: green, gated, unprotected; never into a repo whose main CI is red.
     for repo in REPO_ORDER:
+        if repos[repo].get("main_red"):
+            continue
         for p in sorted(repos[repo]["prs"], key=lambda p: p["number"]):
             if _mergeable(p, repo, cfg, local):
                 return _act("merge", repo, "factory-merge",
@@ -191,9 +270,17 @@ def choose_action(snapshot: dict[str, Any], local: dict[str, Any], now: datetime
                              "head_sha": p.get("head_sha"), "branch": p.get("branch")},
                             f"{repo} PR #{p['number']} is green with passing gates")
 
-    # 3. Verify: a merge with no smoke result yet.
+    # 2b. Regate: a pushed fix left a gated PR without a gate pass at its head.
+    for repo in REPO_ORDER:
+        for p in sorted(repos[repo]["prs"], key=lambda p: p["number"]):
+            if _regatable(p, repo, local):
+                return _act("regate", repo, "factory-regate",
+                            {"pr": p["number"], "head_sha": p.get("head_sha"), "branch": p.get("branch")},
+                            f"{repo} PR #{p['number']} has no gate pass at its new head")
+
+    # 3. Verify: a merge with no smoke result yet (expired ones go to the owner instead).
     for v in local.get("pending_verify") or []:
-        if v.get("result") is None:
+        if v.get("result") is None and not statefile.verify_expired(v, now):
             return _act("verify", v["repo"], "factory-verify", {"pr": v["pr"], "sha": v["sha"]},
                         f"{v['repo']} PR #{v['pr']} merged without a smoke result")
 
@@ -234,10 +321,11 @@ def choose_action(snapshot: dict[str, Any], local: dict[str, Any], now: datetime
             return _act("retro", m["repo"], "factory-retro", {"number": m["number"], "miss": m["kind"], "key": key},
                         f"{key} is a {m['kind']} miss with no retro")
 
-    # 7. Propose: at most three a day.
-    proposals = local.get("proposals") or {}
-    used = proposals.get("count", 0) if proposals.get("date") == today else 0
-    if (snapshot.get("unfiled_findings") or 0) > 0 and used < MAX_PROPOSALS_PER_DAY:
+    # 7. Propose: at most three a day, and not again today once a run filed nothing new.
+    filed_today = local.get("proposals") or {}
+    used = filed_today.get("count", 0) if filed_today.get("date") == today else 0
+    if ((snapshot.get("unfiled_findings") or 0) > 0 and used < MAX_PROPOSALS_PER_DAY
+            and filed_today.get("checked") != today):
         return _act("propose", "app", "factory-propose", {"max": MAX_PROPOSALS_PER_DAY - used},
                     f"{snapshot['unfiled_findings']} unfiled finding(s)")
 
@@ -343,13 +431,13 @@ def _prs(run: Runner, slug: str, owner: str) -> list[dict[str, Any]]:
     gh_owner, name = slug.split("/", 1)
     rows = json.loads(run(["pr", "list", "--repo", slug, "--state", "open", "--limit", "30", "--json",
                            "number,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,body,isDraft,"
-                           "title,isCrossRepository,author"]) or "[]")
+                           "title,isCrossRepository,author,baseRefName"]) or "[]")
     prs = []
     for r in rows:
         branch = r.get("headRefName") or ""
         if not branch.startswith(FACTORY_PREFIXES):
             continue
-        if r.get("isCrossRepository") or not _is_owner(r, owner):
+        if r.get("isCrossRepository") or not _is_owner(r, owner) or r.get("baseRefName") != "main":
             continue
         rollup = r.get("statusCheckRollup") or []
         last_commit = _branch_last_commit(run, slug, branch)
@@ -393,6 +481,11 @@ def _misses(run: Runner, cfg: Config) -> list[dict[str, Any]]:
                                    "label:factory-miss", "--json", "number,title,author", "--limit", "30"]) or "[]")
         out += [{"repo": key, "number": r["number"], "kind": "label", "title": r.get("title", "")}
                 for r in labelled if _is_owner(r, cfg.owner_login)]
+        # factory-merge labels a reverted PR (only the PR) factory-miss.
+        reverted = json.loads(run(["pr", "list", "--repo", repo.slug, "--state", "all", "--label", "factory-miss",
+                                   "--json", "number,title,author", "--limit", "30"]) or "[]")
+        out += [{"repo": key, "number": r["number"], "kind": "revert", "title": r.get("title", "")}
+                for r in reverted if _is_owner(r, cfg.owner_login)]
         blocked = json.loads(run(["issue", "list", "--repo", repo.slug, "--state", "open", "--label", LABEL_BLOCKED,
                                   "--json", "number,title,author", "--limit", "30"]) or "[]")
         out += [{"repo": key, "number": r["number"], "kind": "blocked", "title": r.get("title", "")}
@@ -415,11 +508,23 @@ def _which(name: str) -> bool:
     return which(name) is not None
 
 
-def _unfiled_findings(local: dict[str, Any], cfg: Config) -> int:
+def _filed_keys(run: Runner, cfg: Config) -> set[str]:
+    """``factory-key:`` lines of the owner's agent-proposed issues, open or closed, in both repos.
+
+    A gh failure raises, so the snapshot fails and the tick idles (fail closed).
+    """
+    keys: set[str] = set()
+    for repo in cfg.repos.values():
+        rows = json.loads(run(["issue", "list", "--repo", repo.slug, "--state", "all", "--label", "agent-proposed",
+                               "--json", "body,author", "--limit", "500"]) or "[]")
+        keys |= proposals.factory_keys(r.get("body") for r in rows if _is_owner(r, cfg.owner_login))
+    return keys
+
+
+def _unfiled_findings(local: dict[str, Any], cfg: Config, filed_keys: set[str]) -> int:
+    """Findings waiting in state plus allowlist cleanups not yet filed as an owner issue."""
     n = len(local.get("findings") or [])
-    allow = cfg.repos["app"].path / "tests" / "architecture_allowlist.json"
-    if allow.exists():
-        n += sum(1 for e in json.loads(allow.read_text()) if e.get("issue") is None)
+    n += sum(1 for c in proposals.from_allowlists(cfg.repos["app"].path) if c["key"] not in filed_keys)
     return n
 
 
@@ -433,7 +538,7 @@ def collect(run: Runner, cfg: Config, now: datetime, local: dict[str, Any] | Non
         "misses": _misses(run, cfg),
         "guides_enabled": _guides_enabled(cfg),
         "gum_ready": _gum_ready(),
-        "unfiled_findings": _unfiled_findings(local, cfg),
+        "unfiled_findings": _unfiled_findings(local, cfg, _filed_keys(run, cfg)),
     }
 
 
@@ -463,11 +568,15 @@ def main(argv: list[str], run: Runner = gh, now: Optional[datetime] = None, cfg:
         cfg = cfg or load_config()
         snapshot = collect(run, cfg, now, local)
         out = {"snapshot": snapshot, "action": choose_action(snapshot, local, now, cfg),
-               "awaiting_owner": awaiting_owner(snapshot, cfg),
+               "awaiting_owner": awaiting_owner(snapshot, cfg, local),
+               "main_red": [k for k in REPO_ORDER if snapshot["repos"][k].get("main_red")],
+               "expired_verify": [{"repo": v.get("repo"), "pr": v.get("pr")} for v in local.get("pending_verify") or []
+                                  if v.get("result") is None and statefile.verify_expired(v, now)],
                "stale_worktrees": list_stale_worktrees(snapshot, cfg),
                "digest_due": digest_due(local, cfg, now.astimezone())}
     except Exception as exc:  # noqa: BLE001 - the skill must always get JSON
-        out = {"error": f"{type(exc).__name__}: {exc}", "snapshot": None, "awaiting_owner": [],
+        out = {"error": f"{type(exc).__name__}: {exc}", "snapshot": None, "awaiting_owner": [], "main_red": [],
+               "expired_verify": [],
                "stale_worktrees": [], "digest_due": False,
                "action": _act("idle", None, None, {}, f"snapshot failed: {exc}")}
     print(json.dumps(out, indent=2))

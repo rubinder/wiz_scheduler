@@ -31,7 +31,8 @@ def pr_row(**kw):
     row = {"number": 12, "headRefName": "agent/issue-3-x", "headRefOid": SHA, "labels": [], "reviewDecision": "",
            "statusCheckRollup": [{"conclusion": "SUCCESS"}],
            "body": f"Closes #3\n<!-- factory-gates: pass sha={SHA} -->",
-           "isDraft": False, "title": "Fix x", "isCrossRepository": False, "author": OWNER}
+           "isDraft": False, "title": "Fix x", "isCrossRepository": False, "author": OWNER,
+           "baseRefName": "main"}
     row.update(kw)
     return row
 
@@ -253,3 +254,83 @@ def test_missing_page_info_blocks_merge():
     for g in (no_rt_pi, no_c_pi):
         mk = state.collect(mk_run([pr_row()], graphql=g), CFG, NOW)["repos"]["marketing"]["prs"][0]
         assert mk["threads_truncated"] is True
+
+
+def _cfg_with_allowlist(tmp_path, entries):
+    import dataclasses
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "architecture_allowlist.json").write_text(json.dumps(entries))
+    app = dataclasses.replace(CFG.repos["app"], path=tmp_path)
+    return dataclasses.replace(CFG, repos={**CFG.repos, "app": app})
+
+
+def test_unfiled_findings_subtracts_keys_the_owner_already_filed(tmp_path):
+    from factory import proposals
+    cfg = _cfg_with_allowlist(tmp_path, [
+        {"rule": "router-imports-router", "file": "backend/routers/a.py", "detail": "b", "issue": None},
+        {"rule": "router-imports-router", "file": "backend/routers/c.py", "detail": "d", "issue": None}])
+    k0, k1 = (c["key"] for c in proposals.from_allowlists(tmp_path))
+    agent_proposed = "issue list --repo rubinder/wiz_scheduler --state all --label agent-proposed"
+    # The owner filed one (now closed counts too); a stranger squats the other's key.
+    filed = json.dumps([{"body": f"x\nfactory-key: {k0}\n", "author": OWNER},
+                        {"body": f"factory-key: {k1}", "author": STRANGER}])
+    assert state.collect(fake_gh({agent_proposed: filed}), cfg, NOW)["unfiled_findings"] == 1
+    both = json.dumps([{"body": f"factory-key: {k0}", "author": OWNER}, {"body": f"factory-key: {k1}", "author": OWNER}])
+    snap = state.collect(fake_gh({agent_proposed: both}), cfg, NOW)
+    assert snap["unfiled_findings"] == 0
+    # Once every key is filed, Propose is never chosen.
+    from factory import statefile
+    assert state.choose_action(snap, statefile.defaults(), NOW, cfg)["kind"] == "idle"
+
+
+def test_filed_keys_lookup_failure_idles(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FACTORY_STATE", str(tmp_path / "state.json"))
+
+    def run(argv):
+        if "agent-proposed" in argv:
+            raise RuntimeError("gh issue list failed")
+        return "[]"
+    state.main([], run=run, now=NOW, cfg=CFG)
+    out = json.loads(capsys.readouterr().out)
+    assert out["action"]["kind"] == "idle" and "gh issue list failed" in out["error"]
+
+
+def test_only_success_skipped_neutral_are_green():
+    assert state.checks_from_rollup([{"conclusion": "SUCCESS"}, {"conclusion": "SKIPPED"}, {"conclusion": "NEUTRAL"}]) == "success"
+    for bad in ("STALE", "STARTUP_FAILURE", "FAILURE", "SOMETHING_NEW"):
+        rollup = [{"conclusion": "SUCCESS"}, {"name": "x", "conclusion": bad}]
+        assert state.checks_from_rollup(rollup) == "failure", bad
+        assert state.failing_check_names(rollup) == ["x"], bad
+    assert state.checks_from_rollup([{"conclusion": "", "status": "IN_PROGRESS"}, {"conclusion": "SUCCESS"}]) == "pending"
+    assert state.checks_from_rollup([{"state": "PENDING"}]) == "pending"
+
+
+def test_pr_against_another_base_is_ignored():
+    run = mk_run([pr_row(baseRefName="release"), pr_row(number=13, baseRefName=None)])
+    assert state.collect(run, CFG, NOW)["repos"]["marketing"]["prs"] == []
+    pr_list = next(c for c in run.calls if c[:2] == ["pr", "list"])
+    assert "baseRefName" in pr_list[-1]
+
+
+def test_reverted_pr_labelled_factory_miss_is_a_revert_miss():
+    rows = [{"number": 77, "title": "Revert me", "author": OWNER}, {"number": 78, "title": "x", "author": STRANGER}]
+    run = fake_gh({"pr list --repo rubinder/wiz_scheduler --state all --label factory-miss": json.dumps(rows)})
+    misses = state.collect(run, CFG, NOW)["misses"]
+    assert {"repo": "app", "number": 77, "kind": "revert", "title": "Revert me"} in misses
+    assert all(m["number"] != 78 for m in misses)
+
+
+def test_main_reports_red_mains_and_expired_verifies(capsys, tmp_path, monkeypatch):
+    from factory import statefile
+    p = tmp_path / "s.json"
+    s = statefile.defaults()
+    s["pending_verify"] = [{"repo": "app", "pr": 5, "sha": "x", "result": None, "at": "2026-11-02T00:00:00Z"},
+                           {"repo": "app", "pr": 6, "sha": "y", "result": None, "at": "2026-11-04T11:00:00Z"}]
+    statefile.save(s, p)
+    monkeypatch.setenv("FACTORY_STATE", str(p))
+    run = fake_gh({"run list --repo rubinder/wiz_scheduler_marketing": json.dumps([{"status": "completed", "conclusion": "failure"}])})
+    assert state.main([], run=run, now=NOW, cfg=CFG) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["main_red"] == ["marketing"]
+    assert out["expired_verify"] == [{"repo": "app", "pr": 5}]
+    assert out["action"]["kind"] == "verify" and out["action"]["args"]["pr"] == 6
