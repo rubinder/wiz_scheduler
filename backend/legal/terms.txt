@@ -1,7 +1,7 @@
 TERMS OF SERVICE FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: October 31, 2026
+Last Updated: November 4, 2026
 
 1. ACCEPTANCE OF TERMS
 By accessing or using WizScheduler ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, you may not use the Service. These Terms apply to all users, including managers, employees, and administrators.
