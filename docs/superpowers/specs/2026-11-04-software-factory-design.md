@@ -64,6 +64,21 @@ Otherwise it runs `caffeinate -i claude -p "/factory-tick"` from the app clone w
 
 **Usage limit.** When a run ends on a usage-limit error, the tick writes `paused_until` (the reset time if one is reported, otherwise now + 1 h). The next tick resumes where the last left off: branches, worktrees and labels are the durable state, as in #112.
 
+### Session lifecycle and context hygiene
+
+The factory never carries context from one PR to the next. A long-lived context drifts: stale file contents, old decisions, and a window that fills until quality drops.
+
+- **One session per unit of work.** Each tick is a fresh `claude -p` process that takes one action and exits. After a PR merges, the session that merged it ends; it never moves on to the next issue in the same context.
+- **Reinitialize at the start of every session**, in this order:
+  1. `git fetch` and reset the factory clone to the newest `origin/main` (worktrees for in-flight branches rebase onto it).
+  2. Read `CLAUDE.md`, the architecture skill and the gate files.
+  3. Pick the top item for the chosen action in the right repo: the lowest-numbered `agent-ready` issue, or the PR being fixed or merged.
+  4. Read only the files relevant to that item: those the issue names, those the PR diff touches, and their tests. Use `graphify-out/` to find them rather than broad searches.
+
+  Nothing from a previous session is assumed. State lives only in git, GitHub labels and `~/factory/state.json`.
+- **Inside a Build, each phase runs in a fresh subagent:** triage, spec, plan, each task's implementer and reviewer, each gate reviewer. Each one gets file paths (brief, diff, report), not pasted history. The orchestrating session holds only the ledger, as in #112's `issue-pipeline`.
+- **Context budget guard.** If a session's context passes about 60% of the window mid-action, it writes its progress to the ledger, commits work in progress on the branch, and exits. The next tick resumes from the ledger in a clean session.
+
 ### Action selection (`factory/state.py`)
 
 This extends #112's `state.py`. It snapshots both repos through `gh` and picks exactly one action, in this order:
@@ -242,21 +257,29 @@ These changes fit it to the factory:
 - The architecture tests are run against a planted violation to prove they fail.
 - The first live runs work through a sequence of small `agent-ready` issues, one exercising each action, with the factory in `--dry-run` mode for its first 3 ticks. Dry-run prints the chosen action and selected gates and changes nothing.
 
-## Rollout order
+## Rollout
 
-1. The factory core:
-   - revive #112's agents and workflows
-   - `tick.sh` and the LaunchAgent
-   - `state.py` with Merge, Verify and Smoke
-   - notifications
-   - the kill switch
-   - dry run
-2. The architecture skill and the layering tests, with the allowlist and its cleanup proposals.
-3. The gates and the selector, including the axe and Lighthouse tooling and baselines.
-4. The Retro loop.
-5. The marketing repo: its skill, CI boundary check, branch protection (owner), the one-time guides build, then the Guide action.
+Two PRs, both protected (they touch `.claude/` or `factory/`), merged by the owner:
 
-Each step is its own PR, protected because it touches `.claude/` or `factory/`, merged by the owner.
+1. **App repo: one PR, four commits**, each self-contained and green:
+   1. **Core:**
+      - revive #112's agents and workflows
+      - `tick.sh` and the LaunchAgent
+      - `state.py` with Merge, Verify and Smoke
+      - the session lifecycle (below)
+      - notifications
+      - the kill switch
+      - dry run
+   2. **Architecture skill and its tests:** the allowlist, plus the cleanup proposals drafted after merge.
+   3. **Checks:** the gates and the selector, including the axe and Lighthouse tooling and baselines.
+   4. **Tuning loop:** Retro.
+2. **Marketing repo: a separate PR for the guides line:**
+   - its architecture skill
+   - the CI boundary check
+   - the one-time guides build
+   - the Guide action wiring
+
+   The owner sets branch protection on marketing `main`.
 
 ## Non-goals
 
