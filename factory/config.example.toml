@@ -1,0 +1,14 @@
+# install.sh copies this to ~/factory/config.toml.
+notify_email = "owner@example.com"
+owner_login = "rubinder"
+idle_minutes = 15
+digest_hour = 8
+# quiet_hours = [22, 7]   # local hours; ticks exit inside this window
+
+[repos.app]
+slug = "rubinder/wiz_scheduler"
+path = "~/factory/wiz_scheduler"
+
+[repos.marketing]
+slug = "rubinder/wiz_scheduler_marketing"
+path = "~/factory/wiz_scheduler_marketing"

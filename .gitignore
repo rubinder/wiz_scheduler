@@ -36,3 +36,4 @@ frontend/dist/
 
 # Playwright MCP output (console logs, snapshots, screenshots)
 .playwright-mcp/
+factory/baselines/*.lock

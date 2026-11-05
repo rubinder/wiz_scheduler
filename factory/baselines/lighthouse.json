@@ -1,0 +1,9 @@
+{
+  "app:/login": {"accessibility": 92, "best-practices": 100, "performance": 100, "seo": 58},
+  "app:/register": {"accessibility": 88, "best-practices": 100, "performance": 100, "seo": 58},
+  "marketing:/": {"accessibility": 95, "best-practices": 92, "performance": 89, "seo": 92},
+  "marketing:/ar": {"accessibility": 95, "best-practices": 92, "performance": 100, "seo": 92},
+  "marketing:/es": {"accessibility": 95, "best-practices": 92, "performance": 100, "seo": 92},
+  "marketing:/features": {"accessibility": 90, "best-practices": 100, "performance": 75, "seo": 92},
+  "marketing:/pricing": {"accessibility": 92, "best-practices": 100, "performance": 100, "seo": 92}
+}

@@ -1,0 +1,3 @@
+backend/alembic/versions/0060_add_x.py
+---
++    op.add_column("employees", sa.Column("x", sa.String()))

@@ -191,3 +191,15 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
 - Parse LLM output defensively — never raise unhandled exceptions inside the graph.
 - Do not install new dependencies without explicit instruction.
 - Ensure all code changes pass linting and testing before committing.
+
+## Software factory
+
+`factory/` and `.claude/{skills,workflows,agents}/` are an unattended
+builder that runs on the owner's Mac (spec:
+`docs/superpowers/specs/2026-11-04-software-factory-design.md`). It builds
+issues labelled `agent-ready`, merges its own green PRs except those touching
+`factory/protected.toml` paths, smoke-checks production and reverts on
+failure. Everything under `factory/` and `.claude/` is itself protected: a
+change to how the factory works always waits for the owner. Stop it with
+`touch ~/factory/STOP`. Factory tests: `backend/.venv/bin/python -m pytest
+factory/tests -q` (no Docker needed).

@@ -1,0 +1,3 @@
+src/views/Home.astro
+---
++<p>Schedules in seconds</p>

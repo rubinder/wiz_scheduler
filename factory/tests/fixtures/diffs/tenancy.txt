@@ -1,0 +1,3 @@
+backend/routers/employees.py
+---
++    rows = await db.execute(select(Employee))
