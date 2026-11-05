@@ -86,6 +86,20 @@ def count_unanswered(threads: list[dict[str, Any]], owner: str) -> int:
     return n
 
 
+def owner_reply_at(comments: list[dict[str, Any]], owner: str) -> Optional[str]:
+    """When the owner last commented on a blocked issue after the factory's latest comment, else None.
+
+    The factory posts as the owner, so its comments are told apart by
+    AGENT_MARKER. Only the owner's account counts; a stranger's comment never
+    unblocks anything. No factory comment at all (an issue parked without one)
+    is None, so old comments cannot unblock it.
+    """
+    mine = [c for c in comments if _is_owner(c, owner)]
+    agent = [i for i, c in enumerate(mine) if AGENT_MARKER in (c.get("body") or "")]
+    replies = [c for c in mine[agent[-1] + 1:] if AGENT_MARKER not in (c.get("body") or "")] if agent else []
+    return (replies[-1].get("createdAt") or None) if replies else None
+
+
 def last_ci_comment_checks(comments: list[dict[str, Any]]) -> list[str]:
     """Check names named in the agent's most recent CI-fix comment."""
     for c in reversed(comments):
@@ -296,13 +310,24 @@ def choose_action(snapshot: dict[str, Any], local: dict[str, Any], now: datetime
                 return _act("build", repo, "issue-pipeline", {"issue": w["number"]},
                             f"{repo} issue #{w['number']} is agent-working and resumable; resuming")
             continue
-        for i in issues:
-            labels = set(i["labels"])
-            if LABEL_READY in labels and not labels & {LABEL_WORKING, LABEL_PR_OPEN, LABEL_BLOCKED}:
-                candidates.append((i.get("created_at") or "", repo, i))
-                break
+        # The owner answering a blocked issue retries it ahead of new work: they are waiting on it.
+        # Each reply buys one retry (statefile `retried`), so a run that dies before
+        # it can comment again does not loop on the same reply every tick.
+        retried = set(local.get("retried") or [])
+        replied = [i for i in issues if LABEL_BLOCKED in i["labels"] and i.get("owner_reply_at")
+                   and f"{repo}-{i['number']}-{i['owner_reply_at']}" not in retried
+                   and not set(i["labels"]) & {LABEL_WORKING, LABEL_PR_OPEN}]
+        ready = [i for i in issues if LABEL_READY in i["labels"]
+                 and not set(i["labels"]) & {LABEL_WORKING, LABEL_PR_OPEN, LABEL_BLOCKED}]
+        if replied:
+            candidates.append((0, replied[0].get("created_at") or "", repo, replied[0]))
+        elif ready:
+            candidates.append((1, ready[0].get("created_at") or "", repo, ready[0]))
     if candidates:
-        _, repo, i = min(candidates, key=lambda c: (c[0], REPO_ORDER.index(c[1])))
+        rank, _, repo, i = min(candidates, key=lambda c: (c[0], c[1], REPO_ORDER.index(c[2])))
+        if rank == 0:
+            return _act("build", repo, "issue-pipeline", {"issue": i["number"], "reply_at": i["owner_reply_at"]},
+                        f"{repo} issue #{i['number']} is blocked and the owner replied; retrying")
         return _act("build", repo, "issue-pipeline", {"issue": i["number"]}, f"{repo} issue #{i['number']} is agent-ready")
 
     # 5. Guide: once a day when the guides line is live and gum is authorised.
@@ -380,6 +405,12 @@ def _issues(run: Runner, slug: str, owner: str) -> list[dict[str, Any]]:
                                  "updated_at": r.get("updatedAt"), "created_at": r.get("createdAt"),
                                  "last_commit_at": None}
     for item in seen.values():
+        if LABEL_BLOCKED in item["labels"]:
+            try:
+                view = json.loads(run(["issue", "view", str(item["number"]), "--repo", slug, "--json", "comments"]) or "{}")
+            except Exception:
+                view = {}
+            item["owner_reply_at"] = owner_reply_at((view or {}).get("comments") or [], owner)
         if LABEL_WORKING in item["labels"]:
             try:
                 refs = json.loads(run(["api", f"repos/{slug}/git/matching-refs/heads/agent/issue-{item['number']}-"]) or "[]")

@@ -92,6 +92,7 @@ const cases = [
   ['the head moving during the final re-run ships nothing', base, [...front, select(), reviewer(), [/run the mechanical commands of gate ci/, failOnce()], reReview([]), [/read the gated commit/, (() => { let n = 0; return () => ({ head_sha: n++ <= 1 ? H : V, clean: true, message: '' }) })()], ...tail, pushed(), opened()], blocked],
   ['unreadable author parks the issue privately', base, [[/find who opened issue/, { status: 'DONE', login: '', message: '' }], [/park issue/, ok], ...tail], (r) => r.out.status === 'blocked'
     && r.has(`gh issue edit 5 --repo ${SLUG} --add-label agent-blocked --remove-label agent-ready`) && !r.has('gh issue comment') && r.has('--key author-unknown-app-5') && !r.has('set up the worktree')],
+  ['a block comment says a reply retries, and setup clears agent-blocked', base, [...front, select({ exit_code: 2 }), ...tail], (r) => blocked(r) && blockComment(r).includes('To retry, reply here') && r.has(`--add-label agent-working --remove-label agent-ready --remove-label agent-blocked`)],
   ['selector exits non-zero blocks', base, [...front, select({ exit_code: 2 }), ...tail], (r) => blocked(r) && !r.has('run the mechanical commands of gate')],
   ['selector agent died blocks', base, [...front, [/factory\.select_gates/, null], ...tail], blocked],
   ['selector returns no gates blocks', base, [...front, select({ gates: [] }), ...tail], blocked],

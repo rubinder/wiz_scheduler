@@ -362,3 +362,22 @@ def test_a_mergeable_pr_is_never_also_listed_as_stuck():
     l = _tried("fix", 3)
     assert act(s, l)["kind"] == "merge"
     assert state.awaiting_owner(s, CFG, l) == []
+
+
+def test_owner_reply_retries_a_blocked_issue_ahead_of_new_work():
+    a = act(snap(app_issues=[issue(number=3, created_at="2026-10-01T00:00:00Z"),
+                             issue(number=9, labels=["agent-blocked"], owner_reply_at="2026-11-04T11:00:00Z")]))
+    assert (a["kind"], a["args"]["issue"], a["args"]["reply_at"]) == ("build", 9, "2026-11-04T11:00:00Z")
+
+
+def test_each_reply_buys_one_retry():
+    l = gated(retried=["app-9-2026-11-04T11:00:00Z"])
+    a = act(snap(app_issues=[issue(number=9, labels=["agent-blocked"], owner_reply_at="2026-11-04T11:00:00Z")]), l)
+    assert a["kind"] == "idle"
+    a = act(snap(app_issues=[issue(number=9, labels=["agent-blocked"], owner_reply_at="2026-11-04T11:30:00Z")]), l)
+    assert (a["kind"], a["args"]["issue"]) == ("build", 9)
+
+
+def test_blocked_issue_without_reply_stays_blocked():
+    a = act(snap(app_issues=[issue(number=9, labels=["agent-blocked", "agent-ready"], owner_reply_at=None)]))
+    assert a["kind"] == "idle"

@@ -24,7 +24,7 @@ def _path(path: Path | None) -> Path:
 def defaults() -> dict[str, Any]:
     return {"paused_until": None, "pending_verify": [], "guide": {}, "proposals": {}, "findings": [],
             "retros_done": [], "notified": [], "digest_sent": None, "checkpointed": [], "events": [], "gate_passes": [],
-            "attempts": [], "main_red": {}}
+            "attempts": [], "main_red": {}, "retried": [], "outbox": [], "outbox_sending": 0}
 
 
 def load(path: Path | None = None) -> dict[str, Any]:
@@ -63,6 +63,7 @@ def has_gate_pass(state: dict[str, Any], repo: str, pr: int, sha: str) -> bool:
 
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 ATTEMPT_KINDS = ("merge", "fix", "regate")
 # After this many tries at the same (kind, repo, pr, head sha) the factory skips
 # the PR and tells the owner, instead of re-running the same refusal every tick.
@@ -140,6 +141,14 @@ def main(argv: list[str]) -> int:
         s["attempts"] = others[-499:] + [{"kind": kind, "repo": repo, "pr": pr, "sha": sha, "n": n}]
         event(s, "attempt", attempt=kind, repo=repo, pr=pr, n=n)
         print(n)
+    elif cmd == "retried":
+        if (len(rest) != 3 or rest[0] not in ("app", "marketing") or not rest[1].isdigit() or int(rest[1]) < 1
+                or not _STAMP_RE.match(rest[2])):
+            print("retried needs: <app|marketing> <positive issue number> <UTC timestamp like 2026-11-05T12:00:00Z>",
+                  file=sys.stderr)
+            return 2
+        s["retried"] = (s.get("retried") or [])[-199:] + [f"{rest[0]}-{int(rest[1])}-{rest[2]}"]
+        event(s, "retry", repo=rest[0], issue=int(rest[1]))
     elif cmd == "main-red":
         if len(rest) != 1 or rest[0] not in ("app", "marketing"):
             print("main-red needs: <app|marketing>", file=sys.stderr)
