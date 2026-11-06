@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -29,7 +31,42 @@ def test_from_allowlists_only_unfiled(tmp_path):
     assert [c["key"] for c in got] == ["arch:router-imports-router:backend/routers/a.py:b",
                                        "arch:fetch-outside-api:frontend/src/pages/X.tsx:fetch("]
     assert all(c["repo"] == "app" for c in got)
-    assert "`thin-router`" in got[0]["body"] and "`anti-corruption-layer`" in got[1]["body"]
+    assert "`thin-router`" in got[0]["body"] and "`thin-router`" in got[1]["body"]
+
+
+_SKILL = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "architecture" / "SKILL.md"
+
+
+def _mechanical_rules(skill: str) -> dict[str, set[str]]:
+    """Pattern name -> rule names in backticks on that section's "Mechanical check" bullet."""
+    out: dict[str, set[str]] = {}
+    for sec in re.split(r"^### ", skill, flags=re.M)[1:]:
+        head, _, body = sec.partition("\n")
+        m = re.search(r"^- \*\*Mechanical check:\*\*(.*?)(?=^- |^\s*$|\Z)", body, re.M | re.S)
+        rules = re.findall(r"`([a-z0-9]+(?:-[a-z0-9]+)*)`", m.group(1)) if m else []
+        out[head.strip().strip("`")] = set(rules)
+    return out
+
+
+def _pattern_mismatches(skill: str, table: dict[str, str]) -> list[str]:
+    checks = _mechanical_rules(skill)
+    named = set().union(*checks.values())
+    bad = [f"{r} -> {p}" for r, p in table.items() if r not in checks.get(p, set())]
+    return bad + [f"{r} not in table" for r in sorted(named - set(table))]
+
+
+def test_pattern_table_matches_the_architecture_skill():
+    assert _pattern_mismatches(_SKILL.read_text(), proposals._PATTERN) == []
+
+
+def test_pattern_check_catches_a_planted_misfiling_and_a_missing_rule():
+    skill = _SKILL.read_text()
+    planted = {**proposals._PATTERN, "fetch-outside-api": "anti-corruption-layer"}
+    assert "fetch-outside-api -> anti-corruption-layer" in _pattern_mismatches(skill, planted)
+    missing = {k: v for k, v in proposals._PATTERN.items() if k != "router-imports-router"}
+    assert "router-imports-router not in table" in _pattern_mismatches(skill, missing)
+    assert _mechanical_rules(skill)["thin-router"] == {"router-imports-router", "model-imports-service",
+                                                        "fetch-outside-api"}
 
 
 def test_from_allowlists_skips_malformed_entries_and_escapes(tmp_path):
