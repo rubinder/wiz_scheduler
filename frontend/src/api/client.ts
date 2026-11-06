@@ -10,6 +10,13 @@ export class ApiError extends Error {
   }
 }
 
+async function apiErrorFrom(res: Response): Promise<ApiError> {
+  const body = await res.json().catch(() => ({ detail: res.statusText }));
+  const detail = body.detail;
+  const message = typeof detail === "string" ? detail : (detail?.message || res.statusText);
+  return new ApiError(res.status, message, detail);
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -33,12 +40,7 @@ export async function apiFetch<T>(
     headers,
   });
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    const detail = body.detail;
-    const message = typeof detail === "string" ? detail : (detail?.message || res.statusText);
-    throw new ApiError(res.status, message, detail);
-  }
+  if (!res.ok) throw await apiErrorFrom(res);
 
   if (res.status === 204) {
     return undefined as unknown as T;
@@ -71,10 +73,12 @@ export function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export function streamFetch(
+/** POST a JSON body and resolve to the response body as a byte stream. */
+export async function apiStream(
   path: string,
-  body: unknown
-): { response: Promise<Response> } {
+  body: unknown,
+  signal?: AbortSignal
+): Promise<ReadableStream<Uint8Array>> {
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -83,11 +87,14 @@ export function streamFetch(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal,
   });
 
-  return { response };
+  if (!res.ok) throw await apiErrorFrom(res);
+  if (!res.body) throw new Error("No readable stream available");
+  return res.body;
 }
