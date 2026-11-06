@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -29,7 +31,7 @@ def test_from_allowlists_only_unfiled(tmp_path):
     assert [c["key"] for c in got] == ["arch:router-imports-router:backend/routers/a.py:b",
                                        "arch:fetch-outside-api:frontend/src/pages/X.tsx:fetch("]
     assert all(c["repo"] == "app" for c in got)
-    assert "`thin-router`" in got[0]["body"] and "`anti-corruption-layer`" in got[1]["body"]
+    assert "`thin-router`" in got[0]["body"] and "`thin-router`" in got[1]["body"]
 
 
 def test_from_allowlists_skips_malformed_entries_and_escapes(tmp_path):
@@ -237,3 +239,65 @@ def test_main_ci_red_finding_from_statefile_is_filed():
     cands, held = proposals.from_findings([statefile.main_red_finding("app", "2026-11-04")])
     assert held == [] and len(cands) == 1 and cands[0]["repo"] == "app"
     assert "main CI is red" in cands[0]["title"]
+
+
+# --- _PATTERN must agree with the architecture skill (retro app#237) ---
+
+_ROOT = Path(__file__).resolve().parents[2]
+_SKILL = _ROOT / ".claude" / "skills" / "architecture" / "SKILL.md"
+_SECTION_RE = re.compile(r"^### `([a-z0-9-]+)`\s*$", re.M)
+_TICKED_RE = re.compile(r"`([^`]+)`")
+
+
+def _skill_rule_owners(skill: str) -> dict[str, set[str]]:
+    """rule id -> the pattern sections whose "Mechanical check" line enforces it.
+
+    Only rule ids named before "reviewer only" count, so a section that merely
+    points at another section's rule ("reviewer only. `x` covers ...") does not own it.
+    """
+    owners: dict[str, set[str]] = {}
+    heads = list(_SECTION_RE.finditer(skill))
+    for i, head in enumerate(heads):
+        body = skill[head.end():heads[i + 1].start() if i + 1 < len(heads) else len(skill)]
+        body = body.split("\n## ", 1)[0]
+        m = re.search(r"^- \*\*Mechanical check:\*\*(.*?)(?=^- |\n\n|\Z)", body, re.M | re.S)
+        if not m:
+            continue
+        enforced = m.group(1).split("reviewer only", 1)[0]
+        for tok in _TICKED_RE.findall(enforced):
+            if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)+", tok):
+                owners.setdefault(tok, set()).add(head.group(1))
+    return owners
+
+
+def _ratchet_rules() -> set[str]:
+    backend = (_ROOT / "tests" / "test_architecture.py").read_text()
+    frontend = (_ROOT / "frontend" / "src" / "architecture.test.ts").read_text()
+    return (set(re.findall(r'found\.add\(\("([a-z0-9-]+)"', backend))
+            | set(re.findall(r'rule: "([a-z0-9-]+)"', frontend)))
+
+
+def _pattern_drift(skill: str, mapping: dict[str, str], rules: set[str]) -> list[str]:
+    owners = _skill_rule_owners(skill)
+    problems = [f"{rule} -> {pat}, but the skill files it under {sorted(owners.get(rule, set()))}"
+                for rule, pat in sorted(mapping.items()) if pat not in owners.get(rule, set())]
+    problems += [f"ratchet rule {rule} has no _PATTERN entry" for rule in sorted(rules - mapping.keys())]
+    return problems
+
+
+def test_pattern_map_matches_the_architecture_skill():
+    rules = _ratchet_rules()
+    assert {"fetch-outside-api", "stripe-outside-billing", "router-imports-router"} <= rules
+    assert _pattern_drift(_SKILL.read_text(), proposals._PATTERN, rules) == []
+
+
+def test_pattern_drift_catches_a_planted_mislabel_and_a_missing_rule():
+    skill = _SKILL.read_text()
+    planted = {**proposals._PATTERN, "fetch-outside-api": "anti-corruption-layer"}
+    assert _pattern_drift(skill, planted, set(planted)) == [
+        "fetch-outside-api -> anti-corruption-layer, but the skill files it under ['thin-router']"]
+    # anti-corruption-layer mentions stripe-outside-billing only after "reviewer only".
+    assert _skill_rule_owners(skill)["stripe-outside-billing"] == {"aggregate-root"}
+    missing = {k: v for k, v in proposals._PATTERN.items() if k != "date-only-string-parse"}
+    assert _pattern_drift(skill, missing, _ratchet_rules()) == [
+        "ratchet rule date-only-string-parse has no _PATTERN entry"]
