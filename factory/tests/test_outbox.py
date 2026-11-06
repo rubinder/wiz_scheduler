@@ -36,14 +36,26 @@ def test_no_link_for_dates_or_foreign_repos():
 
 
 def test_render_says_replies_go_on_github():
-    body = outbox.render([{"title": "Factory blocked", "message": "needs answers", "key": "blocked-app-78"}], SLUGS)
-    assert "Factory blocked\nneeds answers\nhttps://github.com/rubinder/wiz_scheduler/issues/78" in body
-    assert "Replies to this email are not read" in body
+    body = outbox.render([{"title": "Factory blocked", "message": "app issue #78: Payroll\nWhy: too big",
+                           "key": "blocked-app-78-20261106100914"}], SLUGS)
+    assert body.startswith("Factory blocked: app #78\n\napp issue #78: Payroll\nWhy: too big\n\n"
+                           "Open on GitHub: https://github.com/rubinder/wiz_scheduler/issues/78\n")
+    assert "GitHub mobile app" in body and "Replies to this email are not read" in body
+    assert "the app works" not in body  # "the app" reads as WizScheduler in this email
 
 
-def test_subject_counts_extra_alerts():
+def test_render_separates_alerts_and_omits_missing_links():
+    body = outbox.render([{"title": "A", "message": "one", "key": "blocked-app-1"},
+                          {"title": "No guide today", "message": "two", "key": "guide-2026-11-05"}], SLUGS)
+    assert body.count(outbox.RULE) == 2  # between the alerts and before the footer
+    assert "No guide today\n\ntwo" in body and body.count("Open on GitHub") == 1
+
+
+def test_subject_names_the_issue_and_counts_extra_alerts():
     assert outbox.subject([{"title": "A"}]) == "WizScheduler factory: A"
     assert outbox.subject([{"title": "A"}, {"title": "B"}, {"title": "C"}]) == "WizScheduler factory: A (+2 more)"
+    assert outbox.subject([{"title": "Factory blocked", "key": "blocked-app-78-20261106100914"}], SLUGS) \
+        == "WizScheduler factory: Factory blocked: app #78"
 
 
 def test_write_then_sent_drops_only_what_was_written(tmp_path, capsys, monkeypatch):

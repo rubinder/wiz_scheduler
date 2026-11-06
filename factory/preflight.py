@@ -208,6 +208,8 @@ def _real_probes() -> Probes:
             return False
 
     def lock_held() -> bool:
+        if os.environ.get("FACTORY_TICK_HOLDS_LOCK") == "1":
+            return False  # tick.sh took the lock before calling preflight
         LOCK.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(LOCK, os.O_RDWR | os.O_CREAT)
         try:
