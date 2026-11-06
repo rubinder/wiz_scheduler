@@ -139,6 +139,10 @@ const dedupe = (fs) => {
   return out
 }
 
+// Every public block comment ends with this: state.py retries a blocked issue
+// once for each owner comment newer than the factory's latest one.
+const REPLY_NOTE = 'To retry, reply here (only comments from the owner\'s account count); the factory picks the issue up again on its next run. Each reply gets one retry.'
+
 async function block(setup, reason, body) {
   log(`blocking issue #${ISSUE}: ${reason}`)
   const worktreeNote = setup && setup.worktree
@@ -148,6 +152,8 @@ async function block(setup, reason, body) {
 Run \`mkdir -p ${TMP_DIR} && chmod 700 ${TMP_DIR} && rm -f ${TMP}-block.md\`, then create the file ${TMP}-block.md with the Write tool (never a shell heredoc or echo) holding exactly the text below, and post it with \`gh issue comment ${ISSUE} --repo ${SLUG} --body-file ${TMP}-block.md\`. Then run \`gh issue edit ${ISSUE} --repo ${SLUG} --add-label agent-blocked --remove-label agent-working --remove-label agent-ready\` (ignore errors about labels that are not present). ${worktreeNote}
 --- comment text begins ---
 ${body}
+
+${REPLY_NOTE}
 
 ${MARKER}
 --- comment text ends ---
@@ -242,7 +248,7 @@ const setup = await agent(`Step: set up the worktree for issue #${ISSUE}.
 6. ${REPO === 'marketing'
     ? `If ${W}/node_modules does not exist: \`ln -s ${R}/node_modules ${W}/node_modules\`.`
     : `If ${W}/frontend/node_modules does not exist: \`ln -s ${R}/frontend/node_modules ${W}/frontend/node_modules\`.`}
-7. \`gh issue edit ${ISSUE} --repo ${SLUG} --add-label agent-working --remove-label agent-ready\` (ignore an error that agent-ready was not present).
+7. \`gh issue edit ${ISSUE} --repo ${SLUG} --add-label agent-working --remove-label agent-ready --remove-label agent-blocked\` (ignore errors about labels that are not present; a retry after the owner's reply arrives still labelled agent-blocked).
 8. existing_spec: the path of a file in ${W}/docs/superpowers/specs/ whose name contains "issue-${ISSUE}-", else "". existing_plan: same for ${W}/docs/superpowers/plans/.
 Return status, worktree (${W}), branch, issue_title, issue_body, existing_spec, existing_plan, message.
 ${RULES}`, { agentType: 'pr-fixer', phase: 'Setup', effort: 'low', schema: SETUP })
@@ -269,7 +275,7 @@ log(`triage: ${triage.verdict} (~${triage.estimated_tasks} tasks)`)
 
 if (triage.verdict === 'needs_answers') {
   const qs = triage.questions.map((q, i) => `${i + 1}. ${q.question}\n   Options: ${q.options.join(' / ')}\n   I would pick: ${q.recommended}`).join('\n')
-  return await block(setup, 'needs answers', `The agent system needs answers before it can work this issue.\n\n${triage.summary}\n\n${qs}\n\nReply here, then remove \`agent-blocked\` and re-add \`agent-ready\` to retry.`)
+  return await block(setup, 'needs answers', `The agent system needs answers before it can work this issue.\n\n${triage.summary}\n\n${qs}\n\nAnswer below.`)
 }
 if (triage.verdict === 'too_big') {
   const parts = triage.decomposition.map((d, i) => `${i + 1}. **${d.title}** — ${d.summary}`).join('\n')

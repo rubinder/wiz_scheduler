@@ -1,5 +1,10 @@
 # factory/notify.py
-"""Mac notifications. Text goes in as osascript argv, never into the script."""
+"""Mac notifications, also queued for email.
+
+Text goes in as osascript argv, never into the script. Every notification sent
+is also queued in state.json's outbox; the tick session emails the queue to the
+owner (factory/outbox.py) so alerts reach their phone.
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +15,7 @@ from typing import Callable
 
 from factory import statefile
 
+OUTBOX_MAX = 50
 _SCRIPT = ["-e", "on run argv", "-e", "display notification (item 2 of argv) with title (item 1 of argv)", "-e", "end run"]
 
 
@@ -23,6 +29,8 @@ def notify(title: str, message: str, key: str | None, run: Callable[[list[str]],
     if key and key in state["notified"]:
         return False
     run(["osascript", *_SCRIPT, title, message[:240]])
+    state["outbox"] = (state.get("outbox") or [])[-(OUTBOX_MAX - 1):] + [
+        {"at": statefile._now(), "title": title, "message": message[:2000], "key": key}]
     if key:
         state["notified"] = (state["notified"] + [key])[-500:]
     statefile.event(state, "notify", title=title, key=key)

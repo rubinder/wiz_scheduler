@@ -278,8 +278,10 @@ def test_unfiled_findings_subtracts_keys_the_owner_already_filed(tmp_path):
     both = json.dumps([{"body": f"factory-key: {k0}", "author": OWNER}, {"body": f"factory-key: {k1}", "author": OWNER}])
     snap = state.collect(fake_gh({agent_proposed: both}), cfg, NOW)
     assert snap["unfiled_findings"] == 0
-    # Once every key is filed, Propose is never chosen.
+    # Once every key is filed, Propose is never chosen. The guide line is pinned off:
+    # collect() probes the real marketing clone and gum, which a logged-in Mac has.
     from factory import statefile
+    snap = {**snap, "guides_enabled": False, "gum_ready": False}
     assert state.choose_action(snap, statefile.defaults(), NOW, cfg)["kind"] == "idle"
 
 
@@ -334,3 +336,24 @@ def test_main_reports_red_mains_and_expired_verifies(capsys, tmp_path, monkeypat
     assert out["main_red"] == ["marketing"]
     assert out["expired_verify"] == [{"repo": "app", "pr": 5}]
     assert out["action"]["kind"] == "verify" and out["action"]["args"]["pr"] == 6
+
+
+def test_owner_reply_after_factory_comment_counts():
+    bot = {"body": f"blocked\n{BOT}", "author": OWNER, "createdAt": "2026-11-04T10:00:00Z"}
+    me = {"body": "use option B", "author": OWNER, "createdAt": "2026-11-04T11:00:00Z"}
+    them = {"body": "do something else", "author": STRANGER, "createdAt": "2026-11-04T12:00:00Z"}
+    assert state.owner_reply_at([bot, me, them], "rubinder") == "2026-11-04T11:00:00Z"
+    assert state.owner_reply_at([me, bot], "rubinder") is None          # the factory answered last
+    assert state.owner_reply_at([bot, them], "rubinder") is None        # strangers never unblock
+    assert state.owner_reply_at([me], "rubinder") is None               # parked without a factory comment
+
+
+def test_blocked_issue_reads_its_comments():
+    rows = [{"number": 4, "title": "t", "labels": [{"name": "agent-blocked"}], "author": OWNER,
+             "updatedAt": "2026-11-01T00:00:00Z", "createdAt": "2026-11-01T00:00:00Z"}]
+    comments = {"comments": [{"body": f"x\n{BOT}", "author": OWNER, "createdAt": "2026-11-02T00:00:00Z"},
+                             {"body": "go", "author": OWNER, "createdAt": "2026-11-03T00:00:00Z"}]}
+    run = fake_gh({"issue list --repo rubinder/wiz_scheduler --state open --label agent-blocked": json.dumps(rows),
+                   "issue view 4 --repo rubinder/wiz_scheduler --json comments": json.dumps(comments)})
+    issues = state.collect(run, CFG, NOW)["repos"]["app"]["issues"]
+    assert issues[0]["owner_reply_at"] == "2026-11-03T00:00:00Z"

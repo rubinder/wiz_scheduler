@@ -135,3 +135,11 @@ def test_main_red_records_one_public_finding_per_repo_per_day(tmp_path, monkeypa
     assert [f["repo"] for f in findings] == ["app", "marketing"]
     assert all(f["source"] == "main-ci-red" and f["public"] is True and f["title"] for f in findings)
     assert statefile.main(["main-red", "x; rm"]) == 2
+
+
+def test_retried_records_one_reply(tmp_path, monkeypatch):
+    monkeypatch.setenv("FACTORY_STATE", str(tmp_path / "s.json"))
+    assert statefile.main(["retried", "app", "9", "2026-11-04T11:00:00Z"]) == 0
+    assert statefile.load()["retried"] == ["app-9-2026-11-04T11:00:00Z"]
+    assert statefile.main(["retried", "app", "9", "$(rm -rf ~)"]) == 2
+    assert statefile.main(["retried", "evil", "9", "2026-11-04T11:00:00Z"]) == 2
