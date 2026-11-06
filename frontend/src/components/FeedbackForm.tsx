@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { submitFeedback, type FeedbackType } from "../api/feedback";
+import { errorMessage } from "../api/client";
 
 interface FeedbackFormProps {
   onClose: () => void;
@@ -8,9 +10,7 @@ interface FeedbackFormProps {
 export default function FeedbackForm({ onClose }: FeedbackFormProps) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [type, setType] = useState<"bug" | "feature" | "feedback" | "other">(
-    "feedback"
-  );
+  const [type, setType] = useState<FeedbackType>("feedback");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -21,30 +21,14 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
     setError(null);
 
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch("/api/v1/feedback/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ subject, message, type }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        const detail = err.detail;
-        const errorMsg =
-          typeof detail === "object" ? detail.message : detail || "Failed to submit feedback";
-        throw new Error(errorMsg);
-      }
+      await submitFeedback({ subject, message, type });
 
       setSuccess(true);
       setTimeout(() => {
         onClose();
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(errorMessage(err, "Failed to submit feedback"));
     } finally {
       setLoading(false);
     }
@@ -88,11 +72,7 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
             </label>
             <select
               value={type}
-              onChange={(e) =>
-                setType(
-                  e.target.value as "bug" | "feature" | "feedback" | "other"
-                )
-              }
+              onChange={(e) => setType(e.target.value as FeedbackType)}
               className="w-full border rounded px-3 py-2 text-sm"
             >
               <option value="feedback">General Feedback</option>
