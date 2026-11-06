@@ -8,6 +8,13 @@ mkdir -p "$FACTORY_HOME" "$HOME/Library/Logs/wizfactory" "$FACTORY_HOME/digests"
 
 [[ -d "$APP/.git" ]] || git clone https://github.com/rubinder/wiz_scheduler.git "$APP"
 [[ -d "$MKT/.git" ]] || git clone https://github.com/rubinder/wiz_scheduler_marketing.git "$MKT"
+# The clones are HTTPS and the agents push from them: use gh's login for
+# github.com (the empty entry drops inherited helpers such as osxkeychain,
+# which has no GitHub login here and would prompt with no terminal).
+for dir in "$APP" "$MKT"; do
+  git -C "$dir" config --replace-all credential.https://github.com.helper ''
+  git -C "$dir" config --add credential.https://github.com.helper '!gh auth git-credential'
+done
 [[ -x "$APP/backend/.venv/bin/python" ]] || {
   uv venv --python 3.11 "$APP/backend/.venv"
   uv pip install -r "$APP/backend/requirements.txt" --python "$APP/backend/.venv/bin/python"

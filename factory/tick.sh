@@ -41,15 +41,15 @@ with_timeout() { perl -e "$TIMEOUT_PL" "$@"; }
 
 cd "$APP" || { log "no app clone at $APP"; exit 0; }
 
-reasons=$("$PY" -m factory.preflight check); rc=$?
-if [[ $rc -ne 0 ]]; then   # run only on exactly 0; any other code is a skip
-  log "skip (rc=$rc): $reasons"; exit 0
-fi
+# A stopped factory is left exactly as it is: no lock, no sync.
+[[ -e "$FACTORY_HOME/STOP" ]] && { log "skip: STOP file present"; exit 0; }
 
 exec 9>"$FACTORY_HOME/tick.lock"
 flock -n 9 2>/dev/null || /usr/bin/python3 -c 'import fcntl,sys; fcntl.flock(9, fcntl.LOCK_EX|fcntl.LOCK_NB)' || { log "skip: lock"; exit 0; }
 
-# Newest main in both clones, only after the lock is ours and only in the real clones.
+# Newest main in both clones before preflight, so a fix to preflight itself
+# lands even while every tick is skipping. Only after the lock is ours (a
+# running tick's clone is never reset under it) and only in the real clones.
 sync_clone() {
   local dir="$1" top want
   want=$(cd "$dir" 2>/dev/null && pwd -P) || { log "skip: no clone at $dir"; return 1; }
@@ -63,6 +63,12 @@ if [[ $DRY -eq 0 ]]; then
   if [[ -d "$MKT" ]]; then sync_clone "$MKT" || exit 0; fi
 else
   log "dry run: clones not synced"
+fi
+
+# The lock is ours, so preflight must not report it as held by another tick.
+reasons=$(FACTORY_TICK_HOLDS_LOCK=1 "$PY" -m factory.preflight check 9>&-); rc=$?
+if [[ $rc -ne 0 ]]; then   # run only on exactly 0; any other code is a skip
+  log "skip (rc=$rc): $reasons"; exit 0
 fi
 
 PROMPT="/factory-tick"
