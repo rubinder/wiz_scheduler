@@ -95,8 +95,8 @@ const cases = [
   ['a block comment says a reply retries, and setup clears agent-blocked', base, [...front, select({ exit_code: 2 }), ...tail], (r) => blocked(r) && blockComment(r).includes('To retry, reply here') && r.has(`--add-label agent-working --remove-label agent-ready --remove-label agent-blocked`)],
   ['setup pulls main first, then retires a branch whose PR merged or closed', base, [...front, select({ exit_code: 2 }), ...tail], (r) => {
     const p = r.find(/Step: set up the worktree/)[0] || ''
-    return p.indexOf('fetch origin --prune') < p.indexOf('Look for an existing branch') && p.includes('--state all --json number,state')
-      && p.includes('MERGED or CLOSED is finished work: never reuse it') && p.includes('starting fresh from origin/main')
+    return p.indexOf('fetch origin --prune') < p.indexOf('Look for an existing branch') && p.includes('--state all --json number,state,isCrossRepository') && p.includes('drop every entry whose isCrossRepository is true') && p.includes('no OPEN PR left')
+      && p.includes('at least one MERGED or CLOSED PR is finished work: never reuse it') && p.includes('starting fresh from origin/main')
   }],
   ['a block returns the public reason detail and the issue title for the owner email', base, [...front, select({ exit_code: 2 }), ...tail], (r) => blocked(r)
     && typeof r.out.detail === 'string' && r.out.detail.length > 0 && blockComment(r).includes(r.out.detail.slice(0, 40)) && typeof r.out.title === 'string'],
