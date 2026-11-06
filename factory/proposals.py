@@ -43,8 +43,8 @@ from typing import Any, Iterable
 from factory import statefile
 
 _PATTERN = {"router-imports-router": "thin-router", "model-imports-service": "thin-router",
-            "stripe-outside-billing": "fail-closed", "archived-at-outside-archive": "archive-never-delete",
-            "fetch-outside-api": "anti-corruption-layer", "date-only-string-parse": "location-local-time",
+            "stripe-outside-billing": "aggregate-root", "archived-at-outside-archive": "archive-never-delete",
+            "fetch-outside-api": "thin-router", "date-only-string-parse": "location-local-time",
             "frontend-availability-eval": "single-evaluator"}
 
 PUBLIC_SOURCES = ("main-ci-red", "retro-followup")

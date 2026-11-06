@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -29,7 +31,7 @@ def test_from_allowlists_only_unfiled(tmp_path):
     assert [c["key"] for c in got] == ["arch:router-imports-router:backend/routers/a.py:b",
                                        "arch:fetch-outside-api:frontend/src/pages/X.tsx:fetch("]
     assert all(c["repo"] == "app" for c in got)
-    assert "`thin-router`" in got[0]["body"] and "`anti-corruption-layer`" in got[1]["body"]
+    assert "`thin-router`" in got[0]["body"] and "`thin-router`" in got[1]["body"]
 
 
 def test_from_allowlists_skips_malformed_entries_and_escapes(tmp_path):
@@ -237,3 +239,49 @@ def test_main_ci_red_finding_from_statefile_is_filed():
     cands, held = proposals.from_findings([statefile.main_red_finding("app", "2026-11-04")])
     assert held == [] and len(cands) == 1 and cands[0]["repo"] == "app"
     assert "main CI is red" in cands[0]["title"]
+
+
+_SKILL = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "architecture" / "SKILL.md"
+_RULE_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)+$")
+
+
+def _skill_rules(text: str) -> dict[str, list[str]]:
+    """Pattern name -> rule ids in the backticks of its "Mechanical check" bullet.
+
+    A bullet that starts "reviewer only" lists no rule, even if it cross-references one."""
+    out: dict[str, list[str]] = {}
+    for section in re.split(r"^### ", text, flags=re.M)[1:]:
+        name = re.match(r"`([^`]+)`", section)
+        bullet = re.search(r"^- \*\*Mechanical check:\*\*(.*?)(?=^- |^#|\Z)", section, re.M | re.S)
+        if not name or not bullet:
+            continue
+        body = " ".join(bullet.group(1).split())
+        rules = [] if body.startswith("reviewer only") else [
+            r for r in re.findall(r"`([^`]+)`", body) if _RULE_ID_RE.match(r)]
+        out[name.group(1)] = rules
+    return out
+
+
+def _mapping_problems(text: str, mapping: dict[str, str]) -> list[str]:
+    problems: list[str] = []
+    seen: dict[str, list[str]] = {}
+    for pattern, rules in _skill_rules(text).items():
+        for rule in rules:
+            seen.setdefault(rule, []).append(pattern)
+            if mapping.get(rule) != pattern:
+                problems.append(f"{rule}: skill says {pattern}, _PATTERN says {mapping.get(rule)}")
+    for rule in mapping:
+        if len(seen.get(rule, [])) != 1:
+            problems.append(f"{rule}: listed in {seen.get(rule, [])} sections, want exactly one")
+    return problems
+
+
+def test_pattern_map_matches_architecture_skill():
+    assert _mapping_problems(_SKILL.read_text(), proposals._PATTERN) == []
+
+
+def test_pattern_map_check_catches_a_planted_drift():
+    text = _SKILL.read_text()
+    planted = dict(proposals._PATTERN, **{"archived-at-outside-archive": "fail-closed"})
+    assert any(p.startswith("archived-at-outside-archive:") for p in _mapping_problems(text, planted))
+    assert _mapping_problems(text, dict(proposals._PATTERN, **{"no-such-rule": "thin-router"}))
