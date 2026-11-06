@@ -1,4 +1,3 @@
 [
-  {"rule": "fetch-outside-api", "file": "hooks/useScheduleStream.ts", "detail": "fetch(", "issue": null},
   {"rule": "fetch-outside-api", "file": "pages/manager/ExportSchedules.tsx", "detail": "fetch(", "issue": null}
 ]
