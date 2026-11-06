@@ -10,9 +10,14 @@ NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
 CFG = config.load_config(Path(__file__).resolve().parents[1] / "config.example.toml")
 
 
+def _msg(kind, at, **extra):
+    import json
+    return json.dumps({"type": kind, "timestamp": at, **extra}) + "\n"
+
+
 def probes(**kw):
     base = dict(on_battery=lambda: False, docker_up=lambda: True, lock_held=lambda: False,
-                stop_file=lambda: False, latest_owner_transcript_mtime=lambda: None)
+                stop_file=lambda: False, latest_owner_activity=lambda: None)
     base.update(kw)
     return preflight.Probes(**base)
 
@@ -32,8 +37,8 @@ def test_each_precondition_skips():
 def test_owner_active_within_idle_window():
     recent = (NOW - timedelta(minutes=5)).timestamp()
     old = (NOW - timedelta(minutes=30)).timestamp()
-    assert "owner active" in preflight.reasons_to_skip(NOW, CFG, statefile.defaults(), probes(latest_owner_transcript_mtime=lambda: recent))
-    assert preflight.reasons_to_skip(NOW, CFG, statefile.defaults(), probes(latest_owner_transcript_mtime=lambda: old)) == []
+    assert "owner active" in preflight.reasons_to_skip(NOW, CFG, statefile.defaults(), probes(latest_owner_activity=lambda: recent))
+    assert preflight.reasons_to_skip(NOW, CFG, statefile.defaults(), probes(latest_owner_activity=lambda: old)) == []
 
 
 def test_paused_until_future_skips_past_runs():
@@ -82,11 +87,10 @@ def test_owner_transcripts_exclude_factory_projects(tmp_path):
     (projects / "-Users-x-IdeaProjects-wiz-scheduler").mkdir(parents=True)
     f1 = projects / "-Users-x-factory-wiz-scheduler" / "a.jsonl"
     f2 = projects / "-Users-x-IdeaProjects-wiz-scheduler" / "b.jsonl"
-    f1.write_text("{}")
-    f2.write_text("{}")
-    os.utime(f2, (time.time() - 3600, time.time() - 3600))
-    got = preflight.latest_owner_transcript_mtime(projects, factory_home=Path("/Users/x/factory"))
-    assert abs(got - (time.time() - 3600)) < 5
+    f1.write_text(_msg("user", "2026-11-04T11:59:00Z"))
+    f2.write_text(_msg("user", "2026-11-04T11:00:00Z"))
+    got = preflight.latest_owner_activity(projects, factory_home=Path("/Users/x/factory"))
+    assert got == datetime(2026, 11, 4, 11, 0, tzinfo=timezone.utc).timestamp()
 
 
 def test_parse_limit_clamped_to_24h():
@@ -110,8 +114,8 @@ def test_vanishing_transcript_is_ignored(tmp_path, monkeypatch):
     (projects / "-p").mkdir(parents=True)
     ok = projects / "-p" / "a.jsonl"
     gone = projects / "-p" / "b.jsonl"
-    ok.write_text("{}")
-    gone.write_text("{}")
+    ok.write_text(_msg("user", "2026-11-04T11:00:00Z"))
+    gone.write_text(_msg("user", "2026-11-04T11:30:00Z"))
     real_stat = Path.stat
 
     def stat(self, *a, **kw):
@@ -120,7 +124,7 @@ def test_vanishing_transcript_is_ignored(tmp_path, monkeypatch):
         return real_stat(self, *a, **kw)
 
     monkeypatch.setattr(Path, "stat", stat)
-    assert preflight.latest_owner_transcript_mtime(projects, factory_home=Path("/zzz")) is not None
+    assert preflight.latest_owner_activity(projects, factory_home=Path("/zzz")) is not None
 
 
 def test_factory_home_honours_env():
@@ -188,3 +192,50 @@ def test_preflight_error_notifies_owner_once_per_day_without_state(monkeypatch, 
     stamp.write_text("2000-01-01\n")  # a new day notifies again
     assert preflight.main(["check"]) == 3
     assert len(sent) == 2
+
+
+def test_idle_session_bookkeeping_is_not_activity(tmp_path):
+    """An idle open session keeps rewriting its transcript (cost-state, last-prompt)
+    without a new message: the file is fresh, but the owner is not active."""
+    import json
+    projects = tmp_path / "projects"
+    (projects / "-p").mkdir(parents=True)
+    f = projects / "-p" / "a.jsonl"
+    f.write_text(_msg("user", "2026-10-27T21:00:00Z") + _msg("assistant", "2026-10-27T21:38:41Z")
+                 + _msg("system", "2026-11-04T11:59:00Z")
+                 + json.dumps({"type": "cost-state", "totalCostUSD": 0.8}) + "\n"
+                 + json.dumps({"type": "last-prompt", "lastPrompt": "hi"}) + "\n")
+    got = preflight.latest_owner_activity(projects, factory_home=Path("/zzz"))
+    assert got == datetime(2026, 10, 27, 21, 38, 41, tzinfo=timezone.utc).timestamp()
+    assert preflight.reasons_to_skip(NOW, CFG, statefile.defaults(), probes(latest_owner_activity=lambda: got)) == []
+
+
+def test_newest_message_across_files_wins_even_in_an_older_file(tmp_path):
+    projects = tmp_path / "projects"
+    (projects / "-a").mkdir(parents=True)
+    (projects / "-b").mkdir(parents=True)
+    idle = projects / "-a" / "idle.jsonl"
+    live = projects / "-b" / "live.jsonl"
+    idle.write_text(_msg("user", "2026-10-01T00:00:00Z") + '{"type":"cost-state"}\n')
+    live.write_text(_msg("assistant", "2026-11-04T11:55:00Z"))
+    os.utime(live, (time.time() - 60, time.time() - 60))  # idle was written later
+    got = preflight.latest_owner_activity(projects, factory_home=Path("/zzz"))
+    assert got == datetime(2026, 11, 4, 11, 55, tzinfo=timezone.utc).timestamp()
+
+
+def test_last_message_found_behind_a_long_tail(tmp_path):
+    """The message sits further back than the first chunk read, and the line it is in straddles a chunk edge."""
+    f = tmp_path / "t.jsonl"
+    filler = '{"type":"api-request-blob","blob":"' + "x" * 50_000 + '"}\n'
+    f.write_text(_msg("user", "2026-11-04T10:00:00Z", pad="y" * 70_000) + filler * 5)
+    assert preflight.last_message_at(f) == datetime(2026, 11, 4, 10, 0, tzinfo=timezone.utc).timestamp()
+
+
+def test_unreadable_lines_and_no_messages(tmp_path):
+    f = tmp_path / "t.jsonl"
+    f.write_text('not json\n{"type":"user","timestamp":"garbage"}\n{"type":"user","timestamp":"2026-11-04T10:00:00"}\n'
+                 '{"type":"user"}\n')
+    assert preflight.last_message_at(f) is None
+    (tmp_path / "empty.jsonl").write_text("")
+    assert preflight.last_message_at(tmp_path / "empty.jsonl") is None
+    assert preflight.last_message_at(tmp_path / "missing.jsonl") is None
