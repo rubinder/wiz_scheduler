@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import json
 import os
 import re
 import subprocess
@@ -32,7 +33,7 @@ class Probes:
     docker_up: Callable[[], bool]
     lock_held: Callable[[], bool]
     stop_file: Callable[[], bool]
-    latest_owner_transcript_mtime: Callable[[], float | None]
+    latest_owner_activity: Callable[[], float | None]
 
 
 def _parse_ts(v: str | None) -> datetime | None:
@@ -74,8 +75,8 @@ def reasons_to_skip(now: datetime, cfg: Config, local: dict, probes: Probes) -> 
         reasons.append("docker not running")
     if probes.lock_held():
         reasons.append("another tick holds the lock")
-    mtime = probes.latest_owner_transcript_mtime()
-    if mtime is not None and now.timestamp() - mtime < cfg.idle_minutes * 60:
+    last = probes.latest_owner_activity()
+    if last is not None and now.timestamp() - last < cfg.idle_minutes * 60:
         reasons.append("owner active")
     return reasons
 
@@ -116,22 +117,71 @@ def _parse_limit(output: str, now: datetime) -> datetime | None:
     return fallback
 
 
-def latest_owner_transcript_mtime(projects: Path, factory_home: Path = FACTORY_HOME) -> float | None:
-    """Newest transcript outside the factory's own clones. Claude Code names
+# Only these lines are someone talking to Claude. An idle open session keeps
+# appending bookkeeping lines (cost-state, last-prompt), which move the file's
+# mtime but carry no timestamp, so mtime alone reads an idle session as active.
+_MESSAGE_TYPES = ("user", "assistant")
+_TAIL_START = 64 * 1024
+
+
+def last_message_at(f: Path) -> float | None:
+    """Epoch seconds of the newest user/assistant line in a transcript, reading
+    backwards from the end in growing chunks. None if there is none."""
+    try:
+        size = f.stat().st_size
+        with f.open("rb") as fh:
+            n = _TAIL_START
+            while True:
+                fh.seek(max(0, size - n))
+                lines = fh.read(min(n, size)).splitlines()
+                if n < size:
+                    lines = lines[1:]  # the first line is probably cut off
+                for raw in reversed(lines):
+                    got = _message_ts(raw)
+                    if got is not None:
+                        return got
+                if n >= size:
+                    return None
+                n *= 4
+    except OSError:
+        return None  # vanished or unreadable mid-scan
+
+
+def _message_ts(raw: bytes) -> float | None:
+    if b'"timestamp"' not in raw:
+        return None
+    try:
+        d = json.loads(raw)
+        if d.get("type") not in _MESSAGE_TYPES:
+            return None
+        return _parse_ts(d.get("timestamp")).timestamp()
+    except (ValueError, TypeError, AttributeError, OverflowError):
+        return None
+
+
+def latest_owner_activity(projects: Path, factory_home: Path = FACTORY_HOME) -> float | None:
+    """When the owner last exchanged a message with Claude, as epoch seconds,
+    across transcripts outside the factory's own clones. Claude Code names
     project dirs by the cwd with '/' and '_' replaced by '-'."""
     prefix = re.sub(r"[/_.]", "-", str(factory_home))
-    newest: float | None = None
     if not projects.is_dir():
         return None
+    files: list[tuple[float, Path]] = []
     for d in projects.iterdir():
         if d.name.startswith(prefix):
             continue
         for f in d.glob("*.jsonl"):
             try:
-                m = f.stat().st_mtime
+                files.append((f.stat().st_mtime, f))
             except FileNotFoundError:
                 continue  # vanished mid-scan
-            newest = m if newest is None or m > newest else newest
+    newest: float | None = None
+    for mtime, f in sorted(files, key=lambda x: x[0], reverse=True):
+        if newest is not None and mtime < newest:
+            break  # a file cannot hold a message newer than its last write
+        got = last_message_at(f)
+        if got is not None and (newest is None or got > newest):
+            newest = got
     return newest
 
 
@@ -171,7 +221,7 @@ def _real_probes() -> Probes:
 
     return Probes(on_battery=on_battery, docker_up=docker_up, lock_held=lock_held,
                   stop_file=lambda: (FACTORY_HOME / "STOP").exists(),
-                  latest_owner_transcript_mtime=lambda: latest_owner_transcript_mtime(Path.home() / ".claude" / "projects"))
+                  latest_owner_activity=lambda: latest_owner_activity(Path.home() / ".claude" / "projects"))
 
 
 def _osascript(argv: list[str]) -> int:
