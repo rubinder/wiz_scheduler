@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import stripe
@@ -53,6 +53,10 @@ REQUIRED_WEBHOOK_EVENTS = frozenset({
 ENDED_STATUSES = frozenset({"canceled", "incomplete_expired"})
 # Stripe is still retrying; the subscription may yet recover or end.
 OVERDUE_STATUSES = frozenset({"past_due", "unpaid"})
+# However late a cancellation is recorded, the customer keeps at least this
+# many days between the ended email and the day-90 deletion (and so still
+# gets the reminder SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE days before it).
+MIN_NOTICE_DAYS = 30
 
 
 def _field(obj: Any, name: str) -> Any:
@@ -88,13 +92,18 @@ async def record_subscription_ended(
     """Mark the group's subscription cancelled and send the ended email, once.
 
     canceled_at is when Stripe ended the subscription (the grace period and
-    the day-90 deletion count from it), or now when Stripe gave no time.
+    the day-90 deletion count from it), or now when Stripe gave no time. A
+    cancellation recorded late (a missed webhook) is never dated so early
+    that deletion comes less than MIN_NOTICE_DAYS after the email: the
+    customer must hear about it before their data goes.
     Returns False when the group was already cancelled.
     """
     if og.canceled_at is not None:
         return False
-    og.canceled_at = ended_at or datetime.now(timezone.utc)
-    og.notified_subscription_ended_at = og.canceled_at
+    now = datetime.now(timezone.utc)
+    earliest = now - timedelta(days=max(settings.SUBSCRIPTION_GRACE_DAYS - MIN_NOTICE_DAYS, 0))
+    og.canceled_at = max(ended_at, earliest) if ended_at else now
+    og.notified_subscription_ended_at = now
     await db.commit()
     await send_subscription_ended_email(og)
     return True

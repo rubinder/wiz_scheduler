@@ -4,7 +4,7 @@ From 2026-09-28 the webhook endpoint pointed at the marketing site and was
 never subscribed to customer.subscription.deleted, so a subscription Stripe
 cancelled for failed payments stayed paid in the app for a month.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import stripe
@@ -69,9 +69,25 @@ async def test_a_subscription_stripe_ended_is_cancelled_from_its_end_date(db_ses
 
     await db_session.refresh(og)
     assert _utc(og.canceled_at) == OCT_4  # the grace period counts from when billing stopped
-    assert _utc(og.notified_subscription_ended_at) == OCT_4
+    assert _utc(og.notified_subscription_ended_at) > OCT_4  # when the email went
     assert emails == [og.id]
     assert [e["og"] for e in summary["ended"]] == [og.id]
+
+
+@pytest.mark.asyncio
+async def test_a_cancellation_found_late_still_gives_the_minimum_notice(db_session, subs, emails):
+    """Stripe ended it 200 days ago: dating canceled_at then would delete the
+    data on the next lifecycle pass, before the customer had heard anything."""
+    og = await _paid_group(db_session, "sub_ancient")
+    long_ago = datetime.now(timezone.utc) - timedelta(days=200)
+    subs["sub_ancient"] = {"status": "canceled", "ended_at": int(long_ago.timestamp())}
+
+    await rec.reconcile_subscriptions(db_session)
+
+    await db_session.refresh(og)
+    deletion = _utc(og.canceled_at) + timedelta(days=settings.SUBSCRIPTION_GRACE_DAYS)
+    assert deletion - datetime.now(timezone.utc) >= timedelta(days=rec.MIN_NOTICE_DAYS) - timedelta(minutes=1)
+    assert rec.MIN_NOTICE_DAYS > settings.SUBSCRIPTION_REMINDER_DAYS_BEFORE_DELETE  # the reminder still comes first
 
 
 @pytest.mark.asyncio
