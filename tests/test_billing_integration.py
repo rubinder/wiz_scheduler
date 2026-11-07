@@ -1733,7 +1733,7 @@ async def test_webhook_subscription_deleted_sets_canceled_at(
     async def fake_send(og):
         sent_emails.append(og.id)
     monkeypatch.setattr(
-        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+        "backend.services.stripe_reconcile.send_subscription_ended_email", fake_send
     )
 
     assert og_with_card.canceled_at is None
@@ -1771,7 +1771,7 @@ async def test_webhook_subscription_deleted_idempotent(
     async def fake_send(og):
         sent.append(og.id)
     monkeypatch.setattr(
-        "backend.routers.webhooks.send_subscription_ended_email", fake_send
+        "backend.services.stripe_reconcile.send_subscription_ended_email", fake_send
     )
 
     response = await client.post(
