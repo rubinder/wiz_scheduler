@@ -9,7 +9,8 @@ const R = '/Users/x/factory/wiz_scheduler'
 const W = `${R}/.claude/worktrees/issue-5`
 const PY = `${R}/backend/.venv/bin/python`
 const SLUG = 'rubinder/wiz_scheduler'
-const base = { issue: 5, now: '2026-11-04T09:00:00Z', repo: 'app', repo_root: R, app_root: R, slug: SLUG, owner_login: 'rubinder', attribution: 'Co-Authored-By: X' }
+const MKT = 'rubinder/wiz_marketing'
+const base = { issue: 5, now: '2026-11-04T09:00:00Z', repo: 'app', repo_root: R, app_root: R, slug: SLUG, app_slug: SLUG, marketing_slug: MKT, owner_login: 'rubinder', attribution: 'Co-Authored-By: X' }
 const SECRET = 'SQL injection via raw company filter in employees router'
 
 async function run(file, args, script) {
@@ -76,6 +77,25 @@ const blockComment = (r) => {
 const noPR = (r) => !r.has('Step: test and push branch') && !r.has('gh pr create') && !r.has('statefile gate-pass')
 const blocked = (r) => r.out.status === 'blocked' && r.has('Step: block issue') && noPR(r)
 const details = (r) => r.find(/record the block details for the owner/)
+// A split the owner approved: part 3 depends on parts 1 (same repo) and 2 (marketing).
+const PARTS = [
+  { repo: 'app', title: 'Part one', summary: 'first', body: 'Body one', depends_on: [] },
+  { repo: 'marketing', title: 'Part two', summary: 'second', body: 'Body two', depends_on: [] },
+  { repo: 'app', title: 'Part three', summary: 'third', body: 'Body three <!-- wizbot -->', depends_on: [1, 2] },
+]
+const triageAs = (verdict, decomposition) => [/^Triage issue/, { verdict, summary: 'An epic.', questions: [], decomposition, estimated_tasks: 30 }]
+const tooBig = triageAs('too_big', PARTS)
+const approved = (parts = PARTS) => triageAs('split_approved', parts)
+const filed = (fail = -1) => [/Step: file sub-issue/, (p) => {
+  const i = Number(/Step: file sub-issue (\d+) of/.exec(p)[1]) - 1
+  const slug = /gh issue create --repo ([^ ]+) /.exec(p)[1]
+  return i === fail ? { status: 'BLOCKED', created: false, url: '', message: 'boom' } : { status: 'DONE', created: true, url: `https://github.com/${slug}/issues/${60 + i}`, message: '' }
+}]
+const trackerStep = [/Step: post the tracker comment/, ok]
+const between = (p, a, b) => (p.indexOf(a) < 0 ? '' : p.slice(p.indexOf(a), p.indexOf(b)))
+const trackerComment = (r) => between(r.find(/Step: post the tracker comment/)[0] || '', '--- comment text begins ---', '--- comment text ends ---')
+const fileSteps = (r) => r.find(/Step: file sub-issue/)
+const SPLIT_FRONT = front.filter((e) => String(e[0]) !== String(/^Triage issue/))
 const F = process.argv[2]
 const cases = [
   ['every gh call names the slug (clean run)', base, [...front, select(), reviewer(), ...tail, pushed(), opened()], (r) => r.out.status === 'pr_opened' && ghScoped(r) && r.has(`gh pr create --repo ${SLUG}`)],
@@ -166,11 +186,46 @@ const cases = [
     const p = r.find(/Step: open the pull request/)[0] || ''
     return r.out.status === 'pr_opened' && !p.includes(`<!-- factory-gates: pass sha=${V}`) && p.includes(`<!-- factory-gates: pass sha=${H} -->`)
   }],
+  ['too_big blocks with the split marker and a reply note that files on approval', base, [tooBig, ...SPLIT_FRONT, ...tail], (r) => {
+    const c = blockComment(r)
+    return blocked(r) && c.includes('<!-- factory-split-proposal -->') && c.includes('reply "approved"') && !c.includes('To retry, reply here')
+      && c.includes('**Part three**') && !r.has('Step: file sub-issue')
+  }],
+  ['split_approved files every part in order, labelled agent-ready, in its own repo', base, [approved(), filed(), trackerStep, ...SPLIT_FRONT, ...tail], (r) => {
+    const fs_ = fileSteps(r)
+    return r.out.status === 'split' && fs_.length === 3 && !r.has('Step: block issue') && !r.has('--add-label agent-blocked') && !r.has('Write the design spec')
+      && fs_[0].includes(`gh issue create --repo ${SLUG} `) && fs_[1].includes(`gh issue create --repo ${MKT} `) && fs_[2].includes(`gh issue create --repo ${SLUG} `)
+      && fs_.every((p) => p.includes('--label agent-ready') && p.includes('--body-file') && p.includes('with the Write tool'))
+      && fs_[0].includes('Part one') && fs_[1].includes('Part two') && fs_[2].includes('Part three')
+      && fs_[2].includes('Depends on #60') && fs_[2].includes(`Depends on ${MKT}#61`) && !fs_[0].includes('Depends on')
+      && !between(fs_[2], '--- body begins ---', '--- body ends ---').includes('Body three <!-- wizbot')
+      && JSON.stringify(r.out.issues) === JSON.stringify([`https://github.com/${SLUG}/issues/60`, `https://github.com/${MKT}/issues/61`, `https://github.com/${SLUG}/issues/62`])
+  }],
+  ['split_approved posts one tracker comment linking the new issues and does not block', base, [approved(), filed(), trackerStep, ...SPLIT_FRONT, ...tail], (r) => {
+    const c = trackerComment(r); const p = r.find(/Step: post the tracker comment/)
+    return p.length === 1 && c.includes(`https://github.com/${MKT}/issues/61`) && c.includes(`https://github.com/${SLUG}/issues/62`) && c.includes('<!-- wizbot -->')
+      && p[0].includes(`gh issue comment 5 --repo ${SLUG} --body-file`) && p[0].includes('--remove-label agent-working') && !p[0].includes('--add-label')
+  }],
+  ['the too_big and split_approved paths never post the same comment', base, [approved(), filed(), trackerStep, ...SPLIT_FRONT, ...tail], async (r) => {
+    const big = blockComment(await run(F, base, [tooBig, ...SPLIT_FRONT, ...tail]))
+    const split = trackerComment(r)
+    return big.length > 0 && split.length > 0 && big !== split
+      && big.includes('<!-- factory-split-proposal -->') && !split.includes('factory-split-proposal')
+      && !split.includes('reply "approved"') && !split.includes('Proposed sub-issues')
+  }],
+  ['split_approved with a part in an unknown repo files nothing and blocks', base, [approved([...PARTS, { repo: 'x; rm -rf ~', title: 't', summary: 's', body: 'b', depends_on: [] }]), filed(), trackerStep, ...SPLIT_FRONT, ...tail], (r) => blocked(r)
+    && !r.has('Step: file sub-issue') && !blockComment(r).includes('rm -rf') && !blockComment(r).includes('factory-split-proposal')],
+  ['split_approved with no parts files nothing', base, [approved([]), filed(), trackerStep, ...SPLIT_FRONT, ...tail], (r) => blocked(r) && !r.has('Step: file sub-issue')],
+  ['split_approved with a forward dependency files nothing', base, [approved([{ ...PARTS[0], depends_on: [2] }, PARTS[1]]), filed(), trackerStep, ...SPLIT_FRONT, ...tail], (r) => blocked(r) && !r.has('Step: file sub-issue')],
+  ['a sub-issue that fails to file stops the rest and names what was filed', base, [approved(), filed(1), trackerStep, ...SPLIT_FRONT, ...tail], (r) => {
+    const c = blockComment(r)
+    return blocked(r) && fileSteps(r).length === 2 && c.includes(`https://github.com/${SLUG}/issues/60`) && !c.includes('factory-split-proposal') && !r.has('Step: post the tracker comment')
+  }],
 ]
 ;(async () => {
   let fails = 0
   for (const [name, a, s, pred] of cases) {
-    try { const r = await run(F, a, s); if (!pred(r)) { fails++; console.log('FAIL', name, JSON.stringify(r.out)) } else console.log('ok  ', name) } catch (e) { fails++; console.log('ERR ', name, e.message) }
+    try { const r = await run(F, a, s); if (!(await pred(r))) { fails++; console.log('FAIL', name, JSON.stringify(r.out)) } else console.log('ok  ', name) } catch (e) { fails++; console.log('ERR ', name, e.message) }
   }
   console.log(fails ? `${fails} failing` : `all ${cases.length} passing`)
   process.exit(fails ? 1 : 0)

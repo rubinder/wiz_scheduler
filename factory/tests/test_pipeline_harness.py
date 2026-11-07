@@ -50,3 +50,12 @@ def test_guides_pipeline_gate_constants_match_gate_files():
         m = re.search(rf"^const {name} = (\[[^\]]*\])$", text, re.M)
         assert m, name
         assert sorted(json.loads(m.group(1).replace("'", '"'))) == sorted(want)
+
+
+def test_triager_keys_split_approval_on_the_pipelines_split_marker():
+    """The triager recognises a split proposal by the marker the too_big comment carries; the two must not drift."""
+    m = re.search(r"^const SPLIT_MARKER = '([^']+)'$", PIPELINE.read_text(), re.M)
+    assert m, "SPLIT_MARKER not found in issue-pipeline.js"
+    triager = (ROOT / ".claude" / "agents" / "issue-triager.md").read_text()
+    assert "split_approved" in triager
+    assert m.group(1) in triager
