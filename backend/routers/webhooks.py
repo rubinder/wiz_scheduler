@@ -19,8 +19,8 @@ from backend.models.ownership_group import OwnershipGroup
 from backend.services.billing import (
     bill_monthly_overages_for_og,
     cache_default_payment_method,
-    send_subscription_ended_email,
 )
+from backend.services.stripe_reconcile import record_subscription_ended, subscription_ended_at
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = logging.getLogger("wizscheduler.stripe_webhook")
@@ -126,11 +126,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
 
     if event_type == "customer.subscription.deleted":
         og = await _find_og(_customer_id())
-        if og and og.canceled_at is None:
-            og.canceled_at = datetime.now(timezone.utc)
-            og.notified_subscription_ended_at = og.canceled_at
-            await db.commit()
-            await send_subscription_ended_email(og)
+        sub_id = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+        # A deletion for an older subscription (the customer has since
+        # resubscribed) must not cancel the current one.
+        if og and (not sub_id or not og.stripe_subscription_id or sub_id == og.stripe_subscription_id):
+            await record_subscription_ended(db, og, subscription_ended_at(obj))
         return {"received": True, "type": event_type, "og_id": og.id if og else None}
 
     if event_type == "checkout.session.completed":
