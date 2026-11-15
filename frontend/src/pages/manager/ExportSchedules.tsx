@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ApprovedScheduleItem,
   type Export7ShiftsResult,
+  downloadScheduleJsonl,
   exportTo7Shifts,
   listApprovedDates,
   listApprovedSchedules,
 } from "../../api/exportSchedules";
+import { errorMessage } from "../../api/client";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text, bg, border, calendarToday } from "../../theme";
@@ -195,28 +197,17 @@ export default function ExportSchedules() {
     }
   };
 
-  const handleDownloadJsonl = (scheduleId: string) => {
-    const authToken = localStorage.getItem("token");
-    const url = `/api/v1/export/jsonl/${scheduleId}`;
-    // Use fetch to add auth header, then trigger download
-    fetch(url, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    })
-      .then((resp) => {
-        if (!resp.ok) throw new Error("Download failed");
-        const cd = resp.headers.get("content-disposition");
-        const match = cd?.match(/filename="(.+?)"/);
-        const filename = match?.[1] ?? `schedule_${scheduleId}.jsonl`;
-        return resp.blob().then((blob) => ({ blob, filename }));
-      })
-      .then(({ blob, filename }) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      })
-      .catch((err) => setError(err.message));
+  const handleDownloadJsonl = async (scheduleId: string) => {
+    try {
+      const { blob, filename } = await downloadScheduleJsonl(scheduleId);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Download failed"));
+    }
   };
 
   if (loading) {

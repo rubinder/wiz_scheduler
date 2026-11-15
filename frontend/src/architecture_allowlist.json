@@ -1,3 +1,1 @@
-[
-  {"rule": "fetch-outside-api", "file": "pages/manager/ExportSchedules.tsx", "detail": "fetch(", "issue": null}
-]
+[]
