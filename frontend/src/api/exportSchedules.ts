@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiBlob, apiFetch } from "./client";
 
 export interface ExportShift {
   id: string;
@@ -51,7 +51,8 @@ export function exportTo7Shifts(
   });
 }
 
-export function getJsonlDownloadUrl(scheduleId: string): string {
-  const token = localStorage.getItem("token");
-  return `/api/v1/export/jsonl/${scheduleId}?token=${token}`;
+/** An approved schedule's shifts as a JSONL file. */
+export async function downloadScheduleJsonl(scheduleId: string): Promise<{ blob: Blob; filename: string }> {
+  const { blob, filename } = await apiBlob(`/export/jsonl/${scheduleId}`);
+  return { blob, filename: filename ?? `schedule_${scheduleId}.jsonl` };
 }

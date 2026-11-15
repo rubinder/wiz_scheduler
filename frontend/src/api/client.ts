@@ -73,6 +73,27 @@ export function errorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** A file the server sent, with the name from its Content-Disposition (null if none). */
+export interface ApiFile {
+  blob: Blob;
+  filename: string | null;
+}
+
+/** GET a file download with the shared auth header and error handling. */
+export async function apiBlob(path: string): Promise<ApiFile> {
+  const token = localStorage.getItem("token");
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (!res.ok) throw await apiErrorFrom(res);
+
+  const match = res.headers.get("content-disposition")?.match(/filename="(.+?)"/);
+  return { blob: await res.blob(), filename: match?.[1] ?? null };
+}
+
 /** POST a JSON body and resolve to the response body as a byte stream. */
 export async function apiStream(
   path: string,
