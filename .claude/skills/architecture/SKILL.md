@@ -246,9 +246,9 @@ Violations that already exist sit on allowlists:
 
 - `tests/architecture_allowlist.json` has one entry: `stripe-outside-billing`
   in `backend/services/payroll_archive.py` (`Refund.create`).
-- `frontend/src/architecture_allowlist.json` has three `fetch-outside-api`
-  entries: `components/FeedbackForm.tsx`, `hooks/useScheduleStream.ts`,
-  `pages/manager/ExportSchedules.tsx`.
+- `frontend/src/architecture_allowlist.json` is empty. Its three
+  `fetch-outside-api` entries were fixed in #263, #264 and #265, so every
+  frontend request now goes through `frontend/src/api/`.
 
 Each entry is `{rule, file, detail, issue}`. `issue` is the cleanup issue
 number, or `null` until one is filed. The factory files a cleanup proposal
