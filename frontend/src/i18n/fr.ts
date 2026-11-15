@@ -1215,7 +1215,7 @@ const fr = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Conservez vos registres de paie pendant 7 ans — {price} en une fois, non remboursable",
-    offerBody: "Lorsque votre compte sera supprimé le {date}, nous enregistrerons tous les registres de paie que nous détenons et les conserverons pendant 7 ans. Le téléchargement gratuit de l'historique complet reste disponible d'ici là.",
+    offerBody: "Lorsque votre compte sera supprimé le {date}, nous enregistrerons tous les registres de paie que nous détenons et les conserverons pendant 7 ans. Le téléchargement gratuit de l'historique complet reste disponible d'ici là. Si vous ne l'achetez pas, la conservation des registres de paie exigés par la loi relève de votre responsabilité.",
     buy: "Acheter l'archive de paie",
     redirecting: "Redirection vers le paiement…",
     purchased: "Votre archive de paie sera enregistrée lors de la suppression du compte le {date}.",

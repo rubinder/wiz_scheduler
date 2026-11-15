@@ -1215,7 +1215,7 @@ const pt = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Guarde seus registros de folha de pagamento por 7 anos — {price} pagamento único, não reembolsável",
-    offerBody: "Quando sua conta for excluída em {date}, salvaremos todos os registros de folha de pagamento que mantemos e os guardaremos por 7 anos. O download gratuito do histórico completo continua disponível até lá.",
+    offerBody: "Quando sua conta for excluída em {date}, salvaremos todos os registros de folha de pagamento que mantemos e os guardaremos por 7 anos. O download gratuito do histórico completo continua disponível até lá. Se você não comprar, manter os registros de folha de pagamento exigidos por lei é sua responsabilidade.",
     buy: "Comprar o arquivo da folha de pagamento",
     redirecting: "Redirecionando para o pagamento…",
     purchased: "Seu arquivo da folha de pagamento será salvo quando a conta for excluída em {date}.",

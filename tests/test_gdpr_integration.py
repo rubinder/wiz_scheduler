@@ -45,7 +45,7 @@ async def test_privacy_policy(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/privacy-policy")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.2"
+    assert data["version"] == "2.3"
     assert "PRIVACY POLICY" in data["content"]
 
 
@@ -58,7 +58,7 @@ async def test_terms_of_service(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/terms")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.1"
+    assert data["version"] == "2.2"
     assert "TERMS OF SERVICE" in data["content"]
 
 
@@ -71,12 +71,14 @@ async def test_data_processing_agreement(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/dpa")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.2"
+    assert data["version"] == "2.3"
     assert "DATA PROCESSING AGREEMENT" in data["content"]
     # #172: termination timing matches SUBSCRIPTION_GRACE_DAYS, and pay records
     # have a stated retention period.
     assert "within 30 days of termination" not in data["content"].lower()
     assert "seven (7) years" in data["content"]
+    # Declining the paid archive leaves record-keeping with the Controller.
+    assert "RESPONSIBILITY WHEN NO ARCHIVE IS BOUGHT" in data["content"]
     assert len(data["processors"]) > 0
     assert any(p["name"] == "Anthropic" for p in data["processors"])
 

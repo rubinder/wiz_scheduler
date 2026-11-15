@@ -1215,7 +1215,7 @@ const pcm = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Make we keep your pay records for 7 years — {price} one time, no refund",
-    offerBody: "When dem delete your account for {date}, we go save every pay record wey we get and keep am for 7 years. The free full-history download still dey available until that time.",
+    offerBody: "When dem delete your account for {date}, we go save every pay record wey we get and keep am for 7 years. The free full-history download still dey available until that time. If you no buy am, na your responsibility to keep any pay record wey law say make you keep.",
     buy: "Pay for the payroll archive",
     redirecting: "We dey carry you go payment…",
     purchased: "We go save your payroll archive when dem delete the account for {date}.",

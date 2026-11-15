@@ -321,8 +321,8 @@ def _legal_text(name: str) -> str:
 @router.get("/privacy-policy")
 async def privacy_policy() -> dict:
     return {
-        "version": "2.2",
-        "effective_date": "2026-11-04",
+        "version": "2.3",
+        "effective_date": "2026-12-15",
         "content": _legal_text("privacy-policy.txt"),
     }
 
@@ -330,8 +330,8 @@ async def privacy_policy() -> dict:
 @router.get("/terms")
 async def terms_of_service() -> dict:
     return {
-        "version": "2.1",
-        "effective_date": "2026-11-04",
+        "version": "2.2",
+        "effective_date": "2026-12-15",
         "content": _legal_text("terms.txt"),
     }
 
@@ -339,8 +339,8 @@ async def terms_of_service() -> dict:
 @router.get("/dpa")
 async def data_processing_agreement() -> dict:
     return {
-        "version": "2.2",
-        "effective_date": "2026-11-04",
+        "version": "2.3",
+        "effective_date": "2026-12-15",
         "processors": json.loads(_legal_text("dpa-processors.json")),
         "content": _legal_text("dpa.txt"),
     }

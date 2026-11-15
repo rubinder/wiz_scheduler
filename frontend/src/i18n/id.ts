@@ -1215,7 +1215,7 @@ const ind = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Simpan catatan penggajian Anda selama 7 tahun — {price} sekali bayar, tidak dapat dikembalikan",
-    offerBody: "Saat akun Anda dihapus pada {date}, kami menyimpan setiap catatan penggajian yang kami miliki selama 7 tahun. Unduhan riwayat lengkap gratis tetap tersedia sampai saat itu.",
+    offerBody: "Saat akun Anda dihapus pada {date}, kami menyimpan setiap catatan penggajian yang kami miliki selama 7 tahun. Unduhan riwayat lengkap gratis tetap tersedia sampai saat itu. Jika Anda tidak membelinya, menyimpan catatan penggajian yang diwajibkan hukum menjadi tanggung jawab Anda.",
     buy: "Beli arsip penggajian",
     redirecting: "Mengalihkan ke pembayaran…",
     purchased: "Arsip penggajian Anda akan disimpan saat akun dihapus pada {date}.",
