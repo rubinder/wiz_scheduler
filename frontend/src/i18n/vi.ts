@@ -1215,7 +1215,7 @@ const vi = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Lưu hồ sơ lương của bạn trong 7 năm — {price} trả một lần, không hoàn tiền",
-    offerBody: "Khi tài khoản của bạn bị xóa vào {date}, chúng tôi sẽ lưu mọi hồ sơ lương mà chúng tôi đang giữ và lưu trữ trong 7 năm. Tính năng tải xuống miễn phí toàn bộ lịch sử vẫn khả dụng cho đến lúc đó.",
+    offerBody: "Khi tài khoản của bạn bị xóa vào {date}, chúng tôi sẽ lưu mọi hồ sơ lương mà chúng tôi đang giữ và lưu trữ trong 7 năm. Tính năng tải xuống miễn phí toàn bộ lịch sử vẫn khả dụng cho đến lúc đó. Nếu bạn không mua, việc lưu giữ các hồ sơ lương mà pháp luật yêu cầu là trách nhiệm của bạn.",
     buy: "Mua kho lưu trữ bảng lương",
     redirecting: "Đang chuyển đến trang thanh toán…",
     purchased: "Kho lưu trữ bảng lương của bạn sẽ được lưu khi tài khoản bị xóa vào {date}.",

@@ -1215,7 +1215,7 @@ const de = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Bewahren Sie Ihre Lohnunterlagen 7 Jahre auf — {price} einmalig, nicht erstattungsfähig",
-    offerBody: "Wenn Ihr Konto am {date} gelöscht wird, sichern wir alle Lohnunterlagen, die wir speichern, und bewahren sie 7 Jahre auf. Der kostenlose Download des gesamten Verlaufs bleibt bis dahin verfügbar.",
+    offerBody: "Wenn Ihr Konto am {date} gelöscht wird, sichern wir alle Lohnunterlagen, die wir speichern, und bewahren sie 7 Jahre auf. Der kostenlose Download des gesamten Verlaufs bleibt bis dahin verfügbar. Wenn Sie es nicht kaufen, sind Sie selbst dafür verantwortlich, gesetzlich vorgeschriebene Lohnunterlagen aufzubewahren.",
     buy: "Lohnarchiv kaufen",
     redirecting: "Weiterleitung zur Zahlung…",
     purchased: "Ihr Lohnarchiv wird gesichert, wenn das Konto am {date} gelöscht wird.",

@@ -1215,7 +1215,7 @@ const trLang = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Bordro kayıtlarınızı 7 yıl saklayın — {price} tek seferlik, iade edilmez",
-    offerBody: "Hesabınız {date} tarihinde silindiğinde, elimizdeki tüm bordro kayıtlarını kaydeder ve 7 yıl saklarız. Ücretsiz tam geçmiş indirmesi o zamana kadar kullanılabilir.",
+    offerBody: "Hesabınız {date} tarihinde silindiğinde, elimizdeki tüm bordro kayıtlarını kaydeder ve 7 yıl saklarız. Ücretsiz tam geçmiş indirmesi o zamana kadar kullanılabilir. Satın almazsanız, yasanın saklamanızı gerektirdiği bordro kayıtlarını saklamak sizin sorumluluğunuzdadır.",
     buy: "Bordro arşivini satın al",
     redirecting: "Ödemeye yönlendiriliyor…",
     purchased: "Bordro arşiviniz, hesap {date} tarihinde silindiğinde kaydedilecek.",

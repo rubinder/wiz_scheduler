@@ -1215,7 +1215,7 @@ const es = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Conserve sus registros de nómina durante 7 años — {price} pago único, no reembolsable",
-    offerBody: "Cuando su cuenta se elimine el {date}, guardaremos todos los registros de nómina que tenemos y los conservaremos durante 7 años. La descarga gratuita del historial completo sigue disponible hasta entonces.",
+    offerBody: "Cuando su cuenta se elimine el {date}, guardaremos todos los registros de nómina que tenemos y los conservaremos durante 7 años. La descarga gratuita del historial completo sigue disponible hasta entonces. Si no lo compra, conservar los registros de nómina que la ley le exige es su responsabilidad.",
     buy: "Comprar el archivo de nómina",
     redirecting: "Redirigiendo al pago…",
     purchased: "Su archivo de nómina se guardará cuando la cuenta se elimine el {date}.",

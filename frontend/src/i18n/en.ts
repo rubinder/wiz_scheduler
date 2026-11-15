@@ -1217,7 +1217,7 @@ const en = {
   // ── Paid payroll archive (#218) ──
   payrollArchive: {
     offerTitle: "Keep your pay records for 7 years — {price} one-time, non-refundable",
-    offerBody: "When your account is deleted on {date}, we save every pay record we hold and keep it for 7 years. The free full-history download stays available until then.",
+    offerBody: "When your account is deleted on {date}, we save every pay record we hold and keep it for 7 years. The free full-history download stays available until then. If you don't buy it, keeping any pay records the law requires you to keep is your responsibility.",
     buy: "Buy the payroll archive",
     redirecting: "Redirecting to payment…",
     purchased: "Your payroll archive will be saved when the account is deleted on {date}.",
