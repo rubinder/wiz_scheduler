@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import en from "../i18n/en";
-import { scheduleLockedErrorFromDetail } from "../hooks/useScheduleStream";
+import { scheduleLockedErrorFromDetail } from "../api/schedules";
 import { scheduleLockedMessage } from "./scheduleLock";
 
 const modal = (name: string, location?: string | null, shared = false) =>

@@ -1,6 +1,6 @@
 import type { PreferenceSummary, PreferenceViolation, ShiftAssignment } from "../types";
 import { apiFetch, ApiError } from "./client";
-import { scheduleLockedErrorFromDetail } from "../hooks/useScheduleStream";
+import { scheduleLockedErrorFromDetail } from "./schedules";
 
 /** One location's schedule for a week, as stored after generation. */
 export interface WeekSchedule {

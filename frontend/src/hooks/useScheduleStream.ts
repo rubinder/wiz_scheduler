@@ -1,47 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { LocationResult } from "../types";
-
-export class ScheduleLockedError extends Error {
-  constructor(
-    public readonly lockedBy: string,
-    public readonly expiresAt: Date,
-    // The busy location (#180). Absent from older servers' 409s.
-    public readonly locationName: string | null = null,
-    // The busy location is locked only because it shares employees with
-    // the one asked for (#222). False from older servers.
-    public readonly sharedStaff: boolean = false,
-  ) {
-    super(`Schedule locked by ${lockedBy} until ${expiresAt.toISOString()}`);
-    this.name = "ScheduleLockedError";
-  }
-}
-
-/** The 409 `schedule_locked` detail as a ScheduleLockedError. */
-export function scheduleLockedErrorFromDetail(detail: {
-  locked_by?: unknown;
-  expires_at?: unknown;
-  location_name?: unknown;
-  shared_staff?: unknown;
-}): ScheduleLockedError {
-  return new ScheduleLockedError(
-    String(detail.locked_by ?? "another manager"),
-    new Date(String(detail.expires_at ?? Date.now())),
-    typeof detail.location_name === "string" && detail.location_name ? detail.location_name : null,
-    detail.shared_staff === true,
-  );
-}
-
-interface GenerateOptions {
-  useLocal?: boolean;
-  strategy?: "random" | "rotation" | "rotation_history" | "max_hours";
-  strategyParam?: number;
-  strategyParam2?: number;
-  numDays?: number;
-  seniorityWeight?: number;
-  payWeight?: number;
-  overtimeWeight?: number;
-  affinityWeight?: number;
-}
+import { ScheduleLockedError, generateScheduleBody, generateScheduleStream } from "../api/schedules";
+import type { GenerateOptions } from "../api/schedules";
 
 interface UseScheduleStreamReturn {
   results: LocationResult[];
@@ -77,83 +37,12 @@ export function useScheduleStream(): UseScheduleStreamReturn {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const token = localStorage.getItem("token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const body: Record<string, unknown> = {
-        week_start_date: weekStartDate,
-      };
-      if (locationIds && locationIds.length > 0) {
-        body.location_ids = locationIds;
-      }
-      if (templateIds && templateIds.length > 0) {
-        body.template_ids = templateIds;
-      }
-      if (options?.useLocal) {
-        body.use_local = true;
-        body.strategy = options.strategy || "random";
-        if (options.strategyParam !== undefined) {
-            body.strategy_param = options.strategyParam;
-        }
-        if (options.strategyParam2 !== undefined) {
-            body.strategy_param2 = options.strategyParam2;
-        }
-      }
-      if (options?.numDays && options.numDays !== 7) {
-        body.num_days = options.numDays;
-      }
-      // Add signal weight parameters if provided
-      if (options?.seniorityWeight !== undefined) {
-        body.seniority_weight = options.seniorityWeight;
-      }
-      if (options?.payWeight !== undefined) {
-        body.pay_weight = options.payWeight;
-      }
-      if (options?.overtimeWeight !== undefined) {
-        body.overtime_weight = options.overtimeWeight;
-      }
-      if (options?.affinityWeight !== undefined) {
-        body.affinity_weight = options.affinityWeight;
-      }
-
-      fetch("/api/v1/schedules/generate", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      })
-        .then(async (response) => {
-          if (response.status === 409) {
-            const body = await response.json().catch(() => null);
-            const detail = body?.detail ?? {};
-            if (detail.code === "schedule_locked") {
-              throw scheduleLockedErrorFromDetail(detail);
-            }
-          }
-
-          if (!response.ok) {
-            const errBody = await response
-              .json()
-              .catch(() => ({ detail: response.statusText }));
-            const detail = errBody.detail;
-            const message =
-              typeof detail === "string"
-                ? detail
-                : detail && typeof detail === "object"
-                  ? (detail as { message?: string }).message
-                  : undefined;
-            throw new Error(message || response.statusText);
-          }
-
-          const reader = response.body?.getReader();
-          if (!reader) {
-            throw new Error("No readable stream available");
-          }
+      generateScheduleStream(
+        generateScheduleBody(weekStartDate, locationIds, templateIds, options),
+        controller.signal,
+      )
+        .then(async (stream) => {
+          const reader = stream.getReader();
 
           const decoder = new TextDecoder();
           let buffer = "";

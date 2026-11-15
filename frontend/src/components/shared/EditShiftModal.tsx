@@ -6,7 +6,7 @@ import {
   type WeekShift,
 } from "../../api/approvedSchedules";
 import { ApiError } from "../../api/client";
-import { ScheduleLockedError } from "../../hooks/useScheduleStream";
+import { ScheduleLockedError } from "../../api/schedules";
 import CandidatePicker from "./CandidatePicker";
 import { notifyOpenShiftsChanged } from "../../api/openShifts";
 import { getDayLabel } from "./ScheduleGrid";
