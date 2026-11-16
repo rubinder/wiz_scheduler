@@ -1,22 +1,24 @@
 # -----------------------------------------------------------------------------
-# Daily Stripe reconciliation
+# Monthly Stripe reconciliation
 #
 # backend/scripts/run_stripe_reconcile.py checks every paid ownership group
 # against Stripe and records cancellations a webhook missed, then checks the
 # webhook endpoint's URL and events (backend/services/stripe_reconcile.py).
 # Like the retention purge it runs as a one-off Fargate task on the service's
-# latest task definition with the command overridden, so it runs once a day
+# latest task definition with the command overridden, so it runs once a month
 # however many tasks or workers the service has, and sends one alert.
 # It reuses the retention schedule's EventBridge role, which may run only this
 # task definition family in this cluster.
+# Monthly, not daily, to keep operating cost down (owner decision 2026-11-15).
+# A cancellation a webhook missed can therefore show as paid for up to a month.
 # -----------------------------------------------------------------------------
 
 resource "aws_cloudwatch_event_rule" "stripe_reconcile" {
-  name                = "${var.app_name}-daily-stripe-reconcile"
-  description         = "Reconcile subscriptions and the webhook endpoint with Stripe at 04:00 UTC daily"
-  schedule_expression = "cron(0 4 * * ? *)"
+  name                = "${var.app_name}-monthly-stripe-reconcile"
+  description         = "Reconcile subscriptions and the webhook endpoint with Stripe at 04:00 UTC on the 1st of each month"
+  schedule_expression = "cron(0 4 1 * ? *)"
 
-  tags = { Name = "${var.app_name}-daily-stripe-reconcile" }
+  tags = { Name = "${var.app_name}-monthly-stripe-reconcile" }
 }
 
 resource "aws_cloudwatch_event_target" "stripe_reconcile" {

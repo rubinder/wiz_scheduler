@@ -1,9 +1,9 @@
-"""Daily Stripe reconciliation.
+"""Monthly Stripe reconciliation.
 
 Run manually:
     python -m backend.scripts.run_stripe_reconcile
 
-Production runs it daily (04:00 UTC) as a one-off ECS task; see
+Production runs it monthly (04:00 UTC on the 1st) as a one-off ECS task; see
 terraform/stripe_reconcile_schedule.tf and backend/services/stripe_reconcile.py.
 """
 import asyncio
