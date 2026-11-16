@@ -7,7 +7,7 @@ site (the endpoint still pointed at wizscheduler.com), and the endpoint was
 never subscribed to customer.subscription.deleted at all, so a subscription
 Stripe cancelled on 2026-10-04 after failed payments stayed "paid" here.
 
-This module is the daily safety net (backend/scripts/run_stripe_reconcile.py,
+This module is the twice-monthly safety net (backend/scripts/run_stripe_reconcile.py,
 terraform/stripe_reconcile_schedule.tf):
 
 - every ownership group the app treats as paid is checked against Stripe,
@@ -179,7 +179,7 @@ def send_reconcile_alert(summary: dict[str, list], endpoint_problems: list[str])
     body = "".join(f"<li>{html.escape(line)}</li>" for line in lines)
     return _send_operator_email(
         "[WizScheduler] Stripe reconciliation needs a look",
-        f"<p>The daily Stripe check found:</p><ul>{body}</ul>",
+        f"<p>The scheduled Stripe check found:</p><ul>{body}</ul>",
         "stripe_reconcile",
     )
 
