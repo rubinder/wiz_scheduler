@@ -1045,6 +1045,31 @@ async def auto_reload_if_needed(
     await send_credit_purchase_alert(db, og, float(og.autoreload_amount_usd), "autoreload")
 
 
+def refund_payment_intent(payment_intent_id: str | None, idempotency_key: str) -> bool:
+    """Fully refund one PaymentIntent. The one place a refund is issued.
+
+    Never raises: returns True when the payment is refunded (now, or
+    already), False when there is nothing to refund or Stripe refused, so
+    the caller can tell the operator to refund by hand. `idempotency_key`
+    makes a retried call refund once.
+    """
+    if not payment_intent_id:
+        return False
+    import stripe
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        stripe.Refund.create(payment_intent=payment_intent_id, idempotency_key=idempotency_key)
+        return True
+    except Exception as exc:
+        # A retry after the idempotency key expired (24 h) finds the payment
+        # already refunded: that is a success, not a manual refund.
+        if getattr(exc, "code", None) == "charge_already_refunded":
+            return True
+        logger.exception("billing.refund_failed pi=%s key=%s", payment_intent_id, idempotency_key)
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Monthly InvoiceItem reconciliation (PR 2)
 # ---------------------------------------------------------------------------

@@ -164,29 +164,11 @@ def verify_archive_session(session: Any, og: OwnershipGroup) -> None:
 
 
 def _refund(payment_intent_id: str | None, session_id: str) -> bool:
-    """Refund a payroll-archive payment we cannot honor. Idempotent per
-    session (Stripe idempotency key), never raises."""
-    if not payment_intent_id:
-        return False
-    try:
-        import stripe
+    """Refund a payroll-archive payment we cannot honor, through Billing.
+    Idempotent per session, never raises."""
+    from backend.services.billing import refund_payment_intent
 
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        stripe.Refund.create(
-            payment_intent=payment_intent_id,
-            idempotency_key=f"payroll-archive-refund-{session_id}",
-        )
-        return True
-    except Exception as exc:
-        # A redelivered webhook after the idempotency key expired (24 h)
-        # finds the payment already refunded: that is a success, not a
-        # refund the operator has to do by hand.
-        if getattr(exc, "code", None) == "charge_already_refunded":
-            return True
-        logger.exception(
-            "payroll_archive.refund_failed session=%s pi=%s", session_id, payment_intent_id
-        )
-        return False
+    return refund_payment_intent(payment_intent_id, f"payroll-archive-refund-{session_id}")
 
 
 async def insert_purchase(db: AsyncSession, og: OwnershipGroup, session: Any) -> str | None:

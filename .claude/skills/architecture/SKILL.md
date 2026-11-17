@@ -244,8 +244,10 @@ The mechanical rules run in the normal suites: `pytest
 tests/test_architecture.py` and `npm test` (`frontend/src/architecture.test.ts`).
 Violations that already exist sit on allowlists:
 
-- `tests/architecture_allowlist.json` has one entry: `stripe-outside-billing`
-  in `backend/services/payroll_archive.py` (`Refund.create`).
+- `tests/architecture_allowlist.json` is empty. Its one
+  `stripe-outside-billing` entry (`Refund.create` in
+  `backend/services/payroll_archive.py`) was fixed in #236: refunds go
+  through `services/billing.refund_payment_intent`.
 - `frontend/src/architecture_allowlist.json` is empty. Its three
   `fetch-outside-api` entries were fixed in #263, #264 and #265, so every
   frontend request now goes through `frontend/src/api/`.
