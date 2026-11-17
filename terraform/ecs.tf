@@ -202,6 +202,13 @@ resource "aws_ecs_task_definition" "app" {
           value = aws_s3_bucket.payroll_archive.id
         },
         {
+          # Offer and sell the paid 7-year payroll archive (#218). Set "false"
+          # to stop offering it; archives already bought are still written at
+          # deletion and stay retrievable either way.
+          name  = "PAYROLL_ARCHIVE_ENABLED"
+          value = "true"
+        },
+        {
           # Verify the database server certificate and hostname (#203).
           # The AWS RDS CA bundle ships in the image under backend/certs/.
           name  = "DB_SSL_ROOT_CERT"
