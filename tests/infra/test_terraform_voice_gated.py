@@ -94,7 +94,7 @@ def test_screening_resources_exist_and_are_voice_gated() -> None:
     body = fn.group(1)
     assert 'handler          = "screen.handler"' in body
     assert re.search(r"timeout\s*=\s*3\b", body)
-    assert re.search(r"memory_size\s*=\s*128\b", body)
+    assert re.search(r"memory_size\s*=\s*512\b", body)
     assert "filename         = var.voice_bridge_zip" in body
     perm = re.search(
         r'resource "aws_lambda_permission" "voice_screen_connect" \{(.*?)\n\}', text, re.S)

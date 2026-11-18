@@ -141,3 +141,86 @@ def test_ci_zip_includes_screen() -> None:
     zips = [line for line in workflow.splitlines() if "voice_bridge.zip\" " in line]
     assert zips, "voice bridge zip step missing"
     assert all("screen.py" in line for line in zips)
+
+
+@pytest.fixture
+def reload_screen(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+    """Reload screen.py (its module-level init) and restore a clean one after."""
+    import importlib
+
+    def _reload() -> Any:
+        return importlib.reload(screen)
+    yield _reload
+    monkeypatch.undo()
+    monkeypatch.delenv("BACKEND_URL", raising=False)
+    monkeypatch.delenv("SECRET_ARN", raising=False)
+    importlib.reload(screen)
+
+
+def test_init_loads_secret_at_import(monkeypatch: pytest.MonkeyPatch,
+                                     reload_screen: Any) -> None:
+    loads: list[str | None] = []
+
+    def loader(arn: str | None) -> Any:
+        def load() -> str | None:
+            loads.append(arn)
+            return SECRET
+        return load
+    monkeypatch.setenv("BACKEND_URL", URL)
+    monkeypatch.setenv("SECRET_ARN", "arn:secret")
+    monkeypatch.setattr(sys.modules["handler"], "secrets_manager_loader", loader)
+    reload_screen()
+    assert loads == ["arn:secret"]  # fetched during Lambda init, not the first call
+    assert screen._SCREENER is not None
+    http = FakeHttp({"action": "block"})
+    screen._SCREENER._http = http
+    assert screen.handler(event(), None) == {"action": "block"}
+    assert loads == ["arn:secret"]
+    assert http.calls[0]["headers"]["X-Voice-Bridge-Secret"] == SECRET
+
+
+def test_init_secret_failure_retries_lazily(monkeypatch: pytest.MonkeyPatch,
+                                            reload_screen: Any) -> None:
+    attempts: list[int] = []
+
+    def loader(arn: str | None) -> Any:
+        def load() -> str | None:
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise TimeoutError("secrets manager slow at init")
+            return SECRET
+        return load
+    monkeypatch.setenv("BACKEND_URL", URL)
+    monkeypatch.setenv("SECRET_ARN", "arn:secret")
+    monkeypatch.setattr(sys.modules["handler"], "secrets_manager_loader", loader)
+    reload_screen()  # must not raise: an init failure never kills the Lambda
+    assert screen._SCREENER is not None and attempts == [1]
+    http = FakeHttp({"action": "block"})
+    screen._SCREENER._http = http
+    assert screen.handler(event(), None) == {"action": "block"}
+    assert attempts == [1, 1]
+
+
+def test_init_build_failure_leaves_handler_to_build_lazily(
+        monkeypatch: pytest.MonkeyPatch, reload_screen: Any) -> None:
+    def broken(arn: str | None) -> Any:
+        raise RuntimeError("boto3 import failed")
+    monkeypatch.setenv("BACKEND_URL", URL)
+    monkeypatch.setenv("SECRET_ARN", "arn:secret")
+    monkeypatch.setattr(sys.modules["handler"], "secrets_manager_loader", broken)
+    reload_screen()  # must not raise
+    assert screen._SCREENER is None
+    # the handler retries the build per call and still fails open meanwhile
+    assert screen.handler(event(), None) == {"action": "answer"}
+    assert screen._SCREENER is None
+
+    def ok(arn: str | None) -> Any:
+        return lambda: SECRET
+    monkeypatch.setattr(screen, "secrets_manager_loader", ok)
+    real = screen.Screener
+
+    def build(url: str | None, load: Any) -> Any:
+        return real(url, load, http=FakeHttp({"action": "block"}))
+    monkeypatch.setattr(screen, "Screener", build)
+    assert screen.handler(event(), None) == {"action": "block"}
+    assert screen._SCREENER is not None

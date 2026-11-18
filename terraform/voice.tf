@@ -172,7 +172,9 @@ resource "aws_lambda_permission" "voice_lex" {
 # --- Screening Lambda (#259 step 7) -----------------------------------------
 # Same zip, role, secret and environment as the bridge. The contact flow
 # invokes it before the Lex bot and disconnects only on {"action": "block"};
-# any error or timeout answers the call (screen.py fails open).
+# any error or timeout answers the call (screen.py fails open). 512 MB buys
+# the CPU for a fast cold start (boto3 and the secret load at init, which
+# has its own budget); the 3 s timeout stays the per-call bound.
 
 resource "aws_cloudwatch_log_group" "voice_screen" {
   count = var.voice_enabled ? 1 : 0
@@ -191,7 +193,7 @@ resource "aws_lambda_function" "voice_screen" {
   role             = aws_iam_role.voice_lambda[0].arn
   runtime          = "python3.11"
   handler          = "screen.handler"
-  memory_size      = 128
+  memory_size      = 512
   timeout          = 3
   filename         = var.voice_bridge_zip
   source_code_hash = filebase64sha256(var.voice_bridge_zip)

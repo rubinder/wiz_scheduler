@@ -17,6 +17,9 @@ return `answer`. It never raises. A 404 (wrong secret) drops the cached
 secret so a rotation recovers, as in handler.py. Logs carry the contact id
 and the decision, or the contact id and the error class: never a number.
 
+The screener and its secret are built at import (Lambda init), inside a
+try: an init failure is retried lazily by the handler, never raised.
+
 Same zip, environment (BACKEND_URL, SECRET_ARN) and secret as the bridge.
 """
 
@@ -103,7 +106,27 @@ class Screener:
             return dict(ANSWER)
 
 
-_SCREENER: Screener | None = None
+def _init() -> "Screener | None":
+    """Build the screener and fetch the secret during Lambda init, which has
+    its own time budget, so the first call's 3 s does not pay for boto3 and
+    Secrets Manager. Never raises: a failed build returns None and the handler
+    builds lazily; a failed secret load is not cached, so the first call
+    fetches it again. Either way the call still fails open."""
+    try:
+        screener = Screener(os.environ.get("BACKEND_URL"),
+                            secrets_manager_loader(os.environ.get("SECRET_ARN")))
+    except Exception as e:
+        logger.warning("voice_screen.init_failed error=%s", type(e).__name__)
+        return None
+    if os.environ.get("SECRET_ARN"):
+        try:
+            screener._get_secret()
+        except Exception as e:
+            logger.warning("voice_screen.init_secret_failed error=%s", type(e).__name__)
+    return screener
+
+
+_SCREENER: Screener | None = _init()
 
 
 def handler(event: Any, context: Any) -> dict[str, str]:
@@ -113,6 +136,6 @@ def handler(event: Any, context: Any) -> dict[str, str]:
             _SCREENER = Screener(os.environ.get("BACKEND_URL"),
                                  secrets_manager_loader(os.environ.get("SECRET_ARN")))
         return _SCREENER.handle(event)
-    except Exception as e:  # pragma: no cover - belt and braces
+    except Exception as e:  # fail open, and leave _SCREENER unset to retry
         logger.warning("voice_screen.failed contact_id=- error=%s", type(e).__name__)
         return dict(ANSWER)
