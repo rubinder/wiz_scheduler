@@ -105,3 +105,23 @@ Decisions made while building without stopping to ask (owner instruction,
     details and transcripts after a year automatically.
 31. **Managers see what the agent said and did, not its internal
     reasoning blocks**; stored raw copies stay server-side.
+32. **Large-party requests only hold tables once submitted.** Until the
+    diner presses Confirm, a large-party offer is held for the normal
+    5 minutes; managers only see and approve submitted requests.
+33. **Diners confirm changes against structured details**, not the model's
+    wording: the chat shows the current and proposed booking above the
+    Confirm button. A proposed cancellation can be dismissed ("Keep my
+    booking").
+34. **A turn never runs longer than 25 seconds** (under CloudFront's 30 s
+    origin timeout); if it would, the diner is asked to send the message
+    again and the chat stays open.
+
+## Before switching reservations on (owner checklist)
+
+- Step 5 (subscription, spend caps, per-company opt-in) must ship first;
+  otherwise every active location gets a public chat on the operator's bill.
+- Set `PUBLIC_ORIGIN_SECRET` and the matching CloudFront origin header
+  (decision 28), or restrict the load balancer to CloudFront (decision 25).
+- Legal: privacy policy / DPA wording for diner data (spec section 11).
+- Set each location's staff transfer number.
+- Run the evaluation suite (step 4) live once and record the baseline.
