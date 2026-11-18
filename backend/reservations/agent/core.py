@@ -183,12 +183,13 @@ class AgentCore:
                 await db.rollback()
             except Exception:
                 logger.exception("rollback failed (conversation %s)", conv_id)
-        if conv is not None and conv.held_reservation_id is not None:
+        if conv is not None:
             # Best effort: the conversation is over, so a hold it made earlier
             # (a round that committed before the failure) must not block the
             # tables until it lapses.
             try:
-                if await self._release_hold(db, conv, now):
+                if conv.held_reservation_id is not None \
+                        and await self._release_hold(db, conv, now):
                     await db.commit()
             except Exception:
                 logger.exception("could not release the hold (conversation %s)", conv_id)
