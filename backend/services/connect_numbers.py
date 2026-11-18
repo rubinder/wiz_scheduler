@@ -2,7 +2,10 @@
 
 The only module that calls Connect's number APIs. Every call is a no-op that
 returns DISABLED unless settings.VOICE_PROVISIONING_ENABLED is true: nothing
-billable is claimed by merging or deploying this code. boto3 is blocking, so
+billable is claimed by merging or deploying this code. search and claim
+also return DISABLED while CONNECT_INSTANCE_ARN or CONNECT_CONTACT_FLOW_ID
+is empty, so a number is never claimed without a flow to route it to;
+release, find_owned and associate still run then, so cleanup does. boto3 is blocking, so
 each call runs in a worker thread; the client is created lazily (region and
 credentials from the task environment, as archive_storage's S3 client).
 Tests replace `_make_client`; nothing here is ever called against AWS in CI.
@@ -45,6 +48,13 @@ def enabled() -> bool:
     return bool(settings.VOICE_PROVISIONING_ENABLED)
 
 
+def can_claim() -> bool:
+    """Provisioning is on and there is an instance and a flow to route a
+    claimed number into."""
+    return enabled() and bool(settings.CONNECT_INSTANCE_ARN) \
+        and bool(settings.CONNECT_CONTACT_FLOW_ID)
+
+
 def _instance_id() -> str:
     """The instance id is the ARN's last path segment
     (arn:aws:connect:<region>:<account>:instance/<id>)."""
@@ -75,7 +85,7 @@ def _claim_number(e164: str, client_token: str) -> str:
 
 async def search(country: str = "US", prefix: str | None = None) -> str | Literal["disabled"]:
     """One available DID (E.164), not yet claimed."""
-    if not enabled():
+    if not can_claim():
         return DISABLED
     return await asyncio.to_thread(_search, country, prefix)
 
@@ -84,7 +94,7 @@ async def claim_number(e164: str, *, client_token: str) -> str | Literal["disabl
     """Claim a searched number: its phone_number_id. The same e164 and token
     on a retry is idempotent, so a caller that persists both before calling
     never loses a claimed number."""
-    if not enabled():
+    if not can_claim():
         return DISABLED
     return await asyncio.to_thread(_claim_number, e164, client_token)
 

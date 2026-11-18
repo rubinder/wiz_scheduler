@@ -23,7 +23,7 @@ error (the daily script mails the operator).
 No orphaned claims. A claim is three committed steps on the row, each under
 the row's lock (FOR UPDATE SKIP LOCKED, so a concurrent run skips the row):
 search a number and store its e164; claim that e164 with the row's
-ClientToken and store the phone number id; route it and mark it `active`.
+ClientToken (client_token: row id and e164) and store the phone number id; route it and mark it `active`.
 When claim_phone_number fails, connect_numbers.find_owned (ListPhoneNumbersV2)
 tells a claim whose answer was lost (owned: store its id and route it) from
 one that never happened (not owned: clear the e164, search again next run).
@@ -45,6 +45,7 @@ Nothing calls Connect unless settings.VOICE_PROVISIONING_ENABLED is true;
 with it off `ensure_for_group`, `release_due` and `run_daily` do nothing.
 """
 
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -84,8 +85,18 @@ def _hold_until(now: datetime) -> datetime:
     return now + timedelta(days=settings.VOICE_RELEASE_HOLD_DAYS)
 
 
-def client_token(row_id: str) -> str:
-    return f"wizscheduler-voice-{row_id}"
+# Connect's ClaimPhoneNumber ClientToken is at most 500 characters.
+CLIENT_TOKEN_MAX = 500
+_TOKEN_PREFIX = "wizscheduler-voice-"
+
+
+def client_token(row_id: str, e164: str) -> str:
+    """The ClaimPhoneNumber idempotency token: the same row and number give
+    the same token (a retried claim is idempotent), and a re-search after a
+    "not owned" answer gets a fresh one, since Connect refuses a token reused
+    with another number."""
+    digest = hashlib.sha256(f"{row_id}:{e164}".encode()).hexdigest()
+    return (_TOKEN_PREFIX + digest)[:CLIENT_TOKEN_MAX]
 
 
 async def _locked(db: AsyncSession, row_id: str) -> VoiceNumber | None:
@@ -207,7 +218,7 @@ async def _provision(db: AsyncSession, row_id: str) -> str:
         if row.connect_phone_number_id is None:
             try:
                 pn = await connect_numbers.claim_number(row.e164,
-                                                        client_token=client_token(row_id))
+                                                        client_token=client_token(row_id, row.e164))
             except Exception:  # noqa: BLE001 - did the claim go through?
                 logger.exception("claim of %s for location %s failed; checking ownership",
                                  row.e164, location_id)

@@ -120,7 +120,7 @@ async def test_claims_one_number_per_active_location_on_subscribe(
                       "PhoneNumberType": "DID", "MaxResults": 1}
     claims = [kw for n, kw in fake.calls if n == "claim"]
     assert {c["ClientToken"] for c in claims} == {
-        f"wizscheduler-voice-{r.id}" for r in rows.values()}
+        voice_numbers.client_token(r.id, r.e164) for r in rows.values()}
     assoc = [kw for n, kw in fake.calls if n == "associate"]
     assert {a["InstanceId"] for a in assoc} == {"inst-1"}
     assert {a["ContactFlowId"] for a in assoc} == {"flow-1"}
@@ -228,7 +228,6 @@ async def test_claim_failure_stays_requested_and_the_daily_run_retries(
     assert out["pending"] == [LOCATION_ID]
     row = (await _rows(db_session))[LOCATION_ID]
     assert (row.status, row.connect_phone_number_id) == ("requested", None)
-    token = f"wizscheduler-voice-{row.id}"
 
     # Connect says the number is not ours: the searched e164 is cleared.
     assert row.e164 is None
@@ -238,10 +237,14 @@ async def test_claim_failure_stays_requested_and_the_daily_run_retries(
     assert daily["errors"] == []
     row = (await _rows(db_session))[LOCATION_ID]
     assert row.status == "active"
-    # Same row and token; a fresh search for the retry.
+    # Same row, a fresh search for the retry, and a fresh token for the
+    # fresh number: Connect would refuse a token reused with another number.
     claims = [kw for n, kw in fake.calls if n == "claim"]
     assert len(claims) == 2
-    assert {kw["ClientToken"] for kw in claims} == {token}
+    assert claims[0]["PhoneNumber"] != claims[1]["PhoneNumber"]
+    assert [kw["ClientToken"] for kw in claims] == [
+        voice_numbers.client_token(row.id, kw["PhoneNumber"]) for kw in claims]
+    assert claims[0]["ClientToken"] != claims[1]["ClientToken"]
     assert fake.names().count("search") == 2
 
 
@@ -395,7 +398,7 @@ async def test_a_claim_lost_after_search_retries_the_same_number_and_token(
     await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
     assert fake.names() == ["claim", "associate"]
     assert fake.calls[0][1]["PhoneNumber"] == searched
-    assert fake.calls[0][1]["ClientToken"] == f"wizscheduler-voice-{row.id}"
+    assert fake.calls[0][1]["ClientToken"] == voice_numbers.client_token(row.id, searched)
     assert (await _rows(db_session))[LOCATION_ID].status == "active"
 
 
@@ -586,3 +589,31 @@ async def test_group_deletion_resolves_searched_numbers_and_alerts_on_unresolved
     assert ("release", {"PhoneNumberId": "pn-unseen"}) in fake.calls
     assert alerts == [(AGENT_OG_ID, [unknown], "Connect refused or failed")]
     assert await _rows(db_session) == {}
+
+
+def test_client_token_is_per_row_and_number_and_fits_connect():
+    a = voice_numbers.client_token("row1", "+12125550001")
+    assert a == voice_numbers.client_token("row1", "+12125550001")
+    assert a != voice_numbers.client_token("row1", "+12125550002")
+    assert a != voice_numbers.client_token("row2", "+12125550001")
+    assert len(a) <= voice_numbers.CLIENT_TOKEN_MAX
+
+
+@pytest.mark.parametrize("missing", ["CONNECT_CONTACT_FLOW_ID", "CONNECT_INSTANCE_ARN"])
+async def test_no_claim_without_a_flow_to_route_it(
+        db_session, seed_location, fake, monkeypatch, missing):
+    """Provisioning on but the instance or flow unset: nothing is searched or
+    claimed (it could never be routed), while cleanup calls still run."""
+    monkeypatch.setattr(settings, missing, "")
+    await subscribe(db_session, "active")
+    out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert out["pending"] == [LOCATION_ID]
+    assert "search" not in fake.names() and "claim" not in fake.names()
+    assert await connect_numbers.search() == connect_numbers.DISABLED
+    assert await connect_numbers.claim_number("+12125550001", client_token="t") \
+        == connect_numbers.DISABLED
+    assert await connect_numbers.claim(client_token="t") == connect_numbers.DISABLED
+    assert await connect_numbers.release("pn-x") is None
+    assert await connect_numbers.find_owned("+10005550000") == "pn-someone-else"
+    assert await connect_numbers.associate("pn-x", "flow-2") is None
+    assert ("release", {"PhoneNumberId": "pn-x"}) in fake.calls
