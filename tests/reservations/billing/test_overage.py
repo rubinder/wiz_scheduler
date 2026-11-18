@@ -703,6 +703,44 @@ async def test_cancellation_bills_every_period_on_one_final_invoice(
     assert (await br.reconcile_all_agent_subscriptions(db_session))["synced"] == []
 
 
+async def test_final_invoice_charges_the_cancelled_subscriptions_card(og, db_session, fake, items):
+    """Final review FIX 2: a standalone invoice does not inherit the
+    subscription's card; a customer whose card is only on the AI host
+    subscription would otherwise never be charged."""
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB].update(status="canceled", default_payment_method="pm_sub")
+    fake["hooks"]["customer_retrieve"] = lambda *a, **k: pytest.fail("customer not needed")
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    [inv] = items["invoices"]
+    assert inv["params"] == {**_final_params(), "default_payment_method": "pm_sub"}
+
+
+async def test_final_invoice_falls_back_to_the_customers_invoice_default(og, db_session, fake, items):
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB].update(status="canceled", default_payment_method=None)
+    seen = []
+
+    def customer(cid, params=None, options=None):
+        seen.append(cid)
+        return {"id": cid, "invoice_settings": {"default_payment_method": {"id": "pm_cust"}}}
+    fake["hooks"]["customer_retrieve"] = customer
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    [inv] = items["invoices"]
+    assert inv["params"] == {**_final_params(), "default_payment_method": "pm_cust"}
+    assert seen == [CUSTOMER]
+
+
+async def test_final_invoice_without_any_card_leaves_the_method_to_stripe(og, db_session, fake, items):
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    [inv] = items["invoices"]
+    assert inv["params"] == _final_params()
+
+
 async def test_more_usage_after_a_finalized_final_bills_only_the_difference(og, db_session, fake, items):
     await _add_row(db_session)
     await _usage(db_session, "7.50")

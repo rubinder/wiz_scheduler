@@ -967,6 +967,9 @@ class _FinalRun:
         self.held: list[tuple[str, str, int]] = []  # its items once checked
         self.nothing_owed = False
         self.movable_items: tuple[str, ...] = ()    # old items not yet moved
+        # The cancelled subscription's card (its default_payment_method), read
+        # once by finalize_agent_billing; the final invoice is charged to it.
+        self.sub_payment_method: str | None = None
 
 
 def _final_invoice_of(charge: Any) -> str | None:
@@ -1042,6 +1045,18 @@ def _item_state(item_id: str | None) -> tuple[str | None, int | None] | None:
     return _as_id(_field(item, "invoice")), (int(amount) if amount is not None else None)
 
 
+def _final_payment_method(customer: str, run: _FinalRun) -> str | None:
+    """The card the final invoice is charged to. A standalone invoice does
+    not inherit the subscription's default_payment_method, so a customer
+    whose card sits only on the AI host subscription would never be
+    charged: the cancelled subscription's card, else the customer's
+    invoice_settings default, else None (Stripe's own fallbacks)."""
+    if run.sub_payment_method:
+        return run.sub_payment_method
+    cust = _client().v1.customers.retrieve(customer)
+    return _as_id(_field(_field(cust, "invoice_settings"), "default_payment_method"))
+
+
 def _create_final_invoice(customer: str, sub_id: str, og_id: str, period: str, cents: int,
                           known: dict[str, str], run: _FinalRun) -> str:
     """A new draft final invoice (auto_advance False: finalized by the
@@ -1061,6 +1076,9 @@ def _create_final_invoice(customer: str, sub_id: str, og_id: str, period: str, c
         "description": f"Final AI host usage — {period}",
         "metadata": {"product": PRODUCT, "og_id": og_id, "subscription": sub_id},
     }
+    payment_method = _final_payment_method(customer, run)
+    if payment_method:
+        params["default_payment_method"] = payment_method
     key = f"agent-final-{sub_id}-{cents}"
     for attempt in range(_MAX_KEY_RETRIES + 1):
         attempt_key = key if attempt == 0 else f"{key}-r{attempt}"
@@ -1392,6 +1410,7 @@ async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> d
         customer = _as_id(_field(sub, "customer"))
         if start is None or not customer:
             raise OverageError("subscription has no current period or customer")
+        run.sub_payment_method = _as_id(_field(sub, "default_payment_method"))
         since = _when(_field(sub, "start_date")) or start
         summary["swept"] = await _sweep_usage_periods(db, og_id, start, end, since)
         period = _period_label(start)

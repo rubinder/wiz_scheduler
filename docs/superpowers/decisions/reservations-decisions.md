@@ -198,3 +198,7 @@ Decisions made while building without stopping to ask (owner instruction,
   confirm Stripe refuses deleting an invoice item that is on a finalized
   invoice, `invoices.list` returns draft and void invoices, deleted objects
   answer `resource_missing`, and the code takes the expected branch.
+  Include a customer whose card is only on the AI host subscription (no
+  customer-level invoice default): the final invoice must be charged to
+  that card (it is created with the cancelled subscription's
+  `default_payment_method`).

@@ -187,7 +187,11 @@ def fake(monkeypatch):
             list=hooked("session_list", lambda params=None, options=None: _Page(state["sessions"])),
             expire=hooked("session_expire",
                           lambda sid, params=None, options=None: state["expired"].append(sid)))),
-        customers=SimpleNamespace(create=hooked("customer_create", no_call("customers.create"))),
+        customers=SimpleNamespace(
+            create=hooked("customer_create", no_call("customers.create")),
+            # A customer with no invoice default unless a test says otherwise.
+            retrieve=hooked("customer_retrieve", lambda cid, params=None, options=None: {
+                "id": cid, "invoice_settings": {"default_payment_method": None}})),
         invoices=SimpleNamespace(
             retrieve=hooked(
                 "invoice_retrieve", lambda iid, params=None, options=None: state["invoices"][iid]),
