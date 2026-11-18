@@ -376,6 +376,8 @@ async def test_prune_delete_order_satisfies_foreign_keys():
 
     try:
         async with engine.begin() as conn:
+            # reservation_tables has a GiST exclusion constraint over varchar.
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             await conn.run_sync(Base.metadata.create_all)
 
         session_factory = async_sessionmaker(engine, expire_on_commit=False)

@@ -5,7 +5,7 @@ description: WizScheduler's bounded contexts and named design patterns. Read bef
 
 # Architecture
 
-The DDD vocabulary for WizScheduler: eight bounded contexts, eight named
+The DDD vocabulary for WizScheduler: nine bounded contexts, eight named
 patterns, and the mechanical tests that hold part of them. The pattern ids
 below are the only vocabulary architecture findings may use.
 
@@ -50,6 +50,7 @@ Paths are relative to `backend/` unless they start with `frontend/`.
 | Check-In | `services/check_in.py`, `services/check_in_token.py`, model `employee_check_in`; router `check_ins` | `check_in.issue_token`, `record_check_in`, `local_date_for` | [check-in](references/check-in.md) |
 | Legal/GDPR | `legal/` (policy text), router `gdpr`, models `consent`, `gdpr_export_log` | `GET /gdpr/export`, `DELETE /gdpr/delete-account`, consent routes; erasure goes through `archive.erase_employee` | [legal-gdpr](references/legal-gdpr.md) |
 | Imports | routers `import_7shifts`, `import_deputy`; `services/integration_import_quota.py`, model `integration_import` | `POST /import/7shifts`, `/import/deputy` and their `/availabilities` routes; `integration_import_quota.begin_integration_import` | [imports](references/imports.md) |
+| Reservations | `reservations/` (`availability`, `booking`, `floor`, `rules`, `queries`, `models`), `schemas/reservations.py`; router `reservations` | `availability.find_slots`; `booking.hold`/`confirm`/`book_staff`/`modify`/`cancel`/`lookup`; `floor.get_floor`/`save_floor`; `rules.get_rules`/`save_rules` | [reservations](references/reservations.md) |
 
 Not a context: `config.py`, `middleware/`, `utils/`, the platform
 services (`rate_limit`, `monitoring`, `failure_logger`, `feedback_quota`,
