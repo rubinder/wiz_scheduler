@@ -66,13 +66,13 @@ Decisions made while building without stopping to ask (owner instruction,
     approves; on the phone the agent transfers to staff.
 21. **Each tool round commits on its own**, so one slow model reply never
     holds a restaurant's booking lock.
-22. **Public chat rate limits key on the address our own proxies saw**
+22. *(Superseded by 25 and 28.)* **Public chat rate limits key on the address our own proxies saw**
     (the X-Forwarded-For entry 2 hops from the right: CloudFront, then the
     load balancer), not the first entry, which a client can forge. The
     app's older shared helper still trusts the first entry for the login
     and forgot-password limits: **owner follow-up**, not changed overnight
     because it affects sign-in.
-23. **Failed booking lookups lock out across chats:** 5 failures for one
+23. *(Superseded by 27.)* **Failed booking lookups lock out across chats:** 5 failures for one
     phone at one restaurant in 15 minutes blocks further tries, whichever
     chat they come from.
 24. **One turn at a time per chat.** A second message sent while the agent
@@ -89,3 +89,11 @@ Decisions made while building without stopping to ask (owner instruction,
 27. **Lookup lockouts are per (restaurant, phone, client)**, so a stranger
     can't lock a real diner out; heavy abuse of one number sends diners to
     staff instead of refusing them.
+28. **Origin secret for the public chat.** When `PUBLIC_ORIGIN_SECRET` is
+    set, the public chat routes only answer requests carrying CloudFront's
+    `X-Origin-Verify` header, and limits key on the viewer address alone.
+    **Switch-on prerequisite (owner):** add that header to the CloudFront
+    origin in Terraform with a secret value, and set the same secret in the
+    ECS task. Until then the two-key limits apply.
+29. **No raw IP addresses are stored.** Rate-limit and lockout keys are
+    stored as a keyed hash; conversations are deleted after a year.
