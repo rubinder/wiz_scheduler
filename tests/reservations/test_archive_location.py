@@ -58,3 +58,29 @@ async def test_lapsed_cancelled_and_past_reservations_do_not_block(db_session, s
     loc = seeded_floor.location
     await archive_location(db_session, COMPANY_ID, loc)
     assert loc.archived_at is not None
+
+
+async def test_writes_on_a_location_archived_meanwhile_change_nothing(db_session, seeded_floor):
+    """A writer that waited on the location lock while another session
+    archived it must see the location as gone (review: archive race)."""
+    from sqlalchemy import func, select
+    from backend.models import Location
+    from backend.reservations.floor import FloorInvalid, FloorIn, save_floor
+    from backend.reservations.models import Reservation
+    from tests.conftest import get_test_session_factory
+    async with get_test_session_factory()() as other:
+        loc = (await other.execute(
+            select(Location).where(Location.id == LOCATION_ID))).scalar_one()
+        await archive_location(other, COMPANY_ID, loc)
+        await other.commit()
+    with pytest.raises(booking.SlotUnavailable):
+        await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                           source=SOURCE_WEB_AGENT)
+    with pytest.raises(booking.SlotUnavailable):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, 2)
+    with pytest.raises(FloorInvalid):
+        await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn())
+    await db_session.rollback()
+    assert (await db_session.execute(
+        select(func.count()).select_from(Reservation)
+        .where(Reservation.location_id == LOCATION_ID))).scalar() == 0

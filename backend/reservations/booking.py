@@ -49,6 +49,7 @@ from backend.reservations.models import (
     ReservationTable,
 )
 from backend.reservations.rules import RulesSchema, get_rules
+from backend.services.archive import active
 
 E164 = re.compile(r"^\+[1-9]\d{6,14}$")
 _OVERLAP_CONSTRAINT = "ex_reservation_tables_no_overlap"
@@ -135,9 +136,12 @@ def _utc(dt: datetime) -> datetime:
 
 
 async def _lock_location(db: AsyncSession, company_id: str, location_id: str) -> bool:
+    # active() is read after the lock is granted (FOR UPDATE re-checks the
+    # row), so a location archived by a writer we waited on counts as gone.
     found = (await db.execute(
         select(Location.id)
-        .where(Location.id == location_id, Location.company_id == company_id)
+        .where(Location.id == location_id, Location.company_id == company_id,
+               active(Location))
         .with_for_update()
     )).scalar_one_or_none()
     return found is not None
@@ -175,7 +179,8 @@ async def begin_location_write(
 
     Every reservations write (bookings here, floor saves in floor.py) starts
     with this, so it runs after any in-flight write for the same location and
-    sees only live holds. False when the location is not this company's.
+    sees only live holds. False when the location is not this company's or
+    is archived.
     """
     locked = await _lock_location(db, company_id, location_id)
     if locked:
