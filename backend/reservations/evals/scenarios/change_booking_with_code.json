@@ -1,0 +1,137 @@
+{
+  "id": "change_booking_with_code",
+  "title": "Moves a booking by code",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "T1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 2,
+        "combinable": true
+      },
+      {
+        "label": "T2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4,
+        "combinable": true
+      },
+      {
+        "label": "T3",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "T4",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "B1",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      },
+      {
+        "label": "B2",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      }
+    ],
+    "combinations": [
+      {
+        "name": "T1+T2",
+        "table_labels": [
+          "T1",
+          "T2"
+        ]
+      },
+      {
+        "name": "B1+B2",
+        "table_labels": [
+          "B1",
+          "B2"
+        ]
+      }
+    ]
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [
+    {
+      "party_size": 2,
+      "start_local": "2026-12-04T19:00",
+      "status": "booked",
+      "diner": {
+        "name": "Dana Whitfield",
+        "phone": "+12125550142"
+      },
+      "confirmation_code": "EVCHG2"
+    }
+  ],
+  "diner": {
+    "persona": "A diner with an existing booking who wants to move it an hour later. Gives the code and phone when asked.",
+    "goal": "Move booking EVCHG2 (2 people, Friday 4 December 7pm) to 8pm the same day.",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550142",
+      "confirmation_code": "EVCHG2",
+      "current_booking": "2 people, Friday 4 December at 7pm",
+      "new_time": "8pm"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "expect": {
+    "outcome": "modified",
+    "booking": {
+      "party_size": 2,
+      "local_date": "2026-12-04",
+      "local_time": "20:00",
+      "confirmation_code": "EVCHG2"
+    },
+    "handoff": false,
+    "cancelled_code": null,
+    "max_turns": 10
+  }
+}

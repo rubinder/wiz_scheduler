@@ -1,0 +1,127 @@
+{
+  "id": "party_of_14_web",
+  "title": "Party of 14 on the web: pending request",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "T1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 2,
+        "combinable": true
+      },
+      {
+        "label": "T2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4,
+        "combinable": true
+      },
+      {
+        "label": "T3",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "T4",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "B1",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      },
+      {
+        "label": "B2",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      }
+    ],
+    "combinations": [
+      {
+        "name": "T1+T2",
+        "table_labels": [
+          "T1",
+          "T2"
+        ]
+      },
+      {
+        "name": "B1+B2",
+        "table_labels": [
+          "B1",
+          "B2"
+        ]
+      }
+    ]
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [],
+  "diner": {
+    "persona": "An office manager planning a team dinner. Patient, happy to wait for the restaurant to confirm.",
+    "goal": "Submit a request for 14 people on Saturday 5 December at 6pm and get a reference code.",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550142",
+      "party_size": "14",
+      "date": "Saturday 5 December",
+      "time": "6pm",
+      "occasion": "team dinner"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "expect": {
+    "outcome": "handed_off",
+    "booking": {
+      "party_size": 14,
+      "local_date": "2026-12-05",
+      "local_time": "18:00",
+      "status": "pending_approval"
+    },
+    "handoff": false,
+    "cancelled_code": null,
+    "max_turns": 10
+  }
+}

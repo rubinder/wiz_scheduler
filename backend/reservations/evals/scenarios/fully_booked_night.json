@@ -1,0 +1,137 @@
+{
+  "id": "fully_booked_night",
+  "title": "Friday is full; takes Saturday",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "A1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4
+      },
+      {
+        "label": "A2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4
+      }
+    ],
+    "combinations": []
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T17:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550200"
+      }
+    },
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T17:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550201"
+      }
+    },
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T19:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550202"
+      }
+    },
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T19:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550203"
+      }
+    },
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T21:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550204"
+      }
+    },
+    {
+      "party_size": 4,
+      "start_local": "2026-12-04T21:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550205"
+      }
+    }
+  ],
+  "diner": {
+    "persona": "A flexible diner. When Friday is full, asks what else is available and takes Saturday at the same time.",
+    "goal": "Book 4 for Friday 4 December at 7pm; if Friday is full, take Saturday 5 December at 7pm.",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550142",
+      "party_size": "4",
+      "date": "Friday 4 December, or Saturday 5 December if Friday is full",
+      "time": "7pm"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "expect": {
+    "outcome": "booked",
+    "booking": {
+      "party_size": 4,
+      "local_date": "2026-12-05",
+      "local_time": "19:00"
+    },
+    "handoff": false,
+    "cancelled_code": null,
+    "max_turns": 12
+  }
+}
