@@ -56,6 +56,11 @@ class AgentConversation(Base):
                         name="ck_agent_conversations_status"),
         CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
                         name="ck_agent_conversations_outcome"),
+        # One conversation per external contact (the Amazon Connect contact
+        # id for a call) at a location.
+        Index("uq_agent_conversations_location_external_ref", "location_id",
+              "external_ref", unique=True,
+              postgresql_where=text("external_ref IS NOT NULL")),
     )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
@@ -67,6 +72,8 @@ class AgentConversation(Base):
     public_token: Mapped[str] = mapped_column(
         String(43), nullable=False, unique=True, default=new_public_token)
     caller_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The channel's own id for the contact (voice: the Connect contact id).
+    external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # The rate-limit viewer key the conversation was started from
     # (rate_limit.trusted_client_keys); keys the lookup lockout.
     source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -96,6 +103,17 @@ class AgentConversation(Base):
     # {"start_iso": str | None, "party_size": int | None} staged by the
     # modify_booking tool; the confirm_modify action applies and clears it.
     pending_modify: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Voice bridge dedupe: the Lambda's sequence number of the last claimed
+    # turn (recording.claim_turn) and the reply it got (remember_reply; NULL
+    # while that turn runs). A retry of that turn (or an older one) is
+    # answered from here without a second run, and the next action is
+    # checked against its `expect`.
+    # last_reply is a stored schemas.voice.VoiceTurnOut and is served back
+    # through that model, possibly after a deploy changed it: a field added
+    # to VoiceTurnOut needs a default, and a removed or renamed one needs the
+    # old rows (at most one per open call) to still validate.
+    last_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_reply: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0"),
         server_default=text("0"))

@@ -173,3 +173,49 @@ variable "rls_enforce" {
   type        = bool
   default     = true
 }
+
+# --- AI host (#259) ---
+
+variable "agent_reconcile_enabled" {
+  description = "Run the daily AI host billing reconcile (agent_reconcile_schedule.tf). Flip with RESERVATIONS_ENABLED."
+  type        = bool
+  default     = false
+}
+
+# --- Voice channel (#259 step 6) — everything billable is behind voice_enabled ---
+
+variable "voice_enabled" {
+  description = "Create the voice channel: Amazon Connect instance, Lex V2 bot, bridge Lambda, secret and budget (voice.tf). Off by default; nothing billable exists while false. See terraform/README.md 'Voice channel'."
+  type        = bool
+  default     = false
+}
+
+variable "voice_provisioning_enabled" {
+  description = "Sets VOICE_PROVISIONING_ENABLED in the ECS task (only when voice_enabled). True lets the app claim Connect numbers, which are billed daily."
+  type        = bool
+  default     = false
+}
+
+variable "voice_bridge_zip" {
+  description = "Path to the bridge Lambda zip (CI builds build/voice_bridge.zip from infra/voice/bridge). Read only when voice_enabled."
+  type        = string
+  default     = ""
+}
+
+variable "voice_lex_bot_alias_arn" {
+  description = "Lex V2 bot alias ARN with the bridge Lambda as its code hook, created by terraform/voice/publish_lex_bot.sh (the aws provider has no Lex V2 alias resource). Empty: the contact flow is not created yet."
+  type        = string
+  default     = ""
+}
+
+variable "voice_polly_voice" {
+  description = "Amazon Polly voice for the Lex locale and the contact flow."
+  type        = string
+  default     = "Joanna"
+}
+
+variable "voice_budget_usd" {
+  description = "Monthly AWS Budget for Connect + Lex + Polly + Lambda; email at 80% to ops_alert_email."
+  type        = number
+  default     = 50
+}

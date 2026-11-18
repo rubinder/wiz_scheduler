@@ -538,3 +538,42 @@ async def test_approvals_404_when_flag_off(client, manager_token, seed_location,
     r = await client.get(f"{BASE}/locations/{LOCATION_ID}/approvals",
                          headers=_auth(manager_token))
     assert r.status_code == 404 and r.json()["detail"] == "Not found"
+
+
+async def test_staff_transfer_number_is_screened_for_toll_fraud(
+        client, manager_token, seed_location, db_session):
+    """Outbound transfers are billed per minute: only US/Canada numbers,
+    no premium-rate or invalid area codes, never any AI host number."""
+    from backend.reservations.voice_number_models import VoiceNumber
+    from tests.reservations.conftest import AGENT_OG_ID, subscribe
+
+    await subscribe(db_session)
+    own = "+12125550199"
+    elsewhere = "+13125550199"  # another tenant's AI host number, on hold
+    db_session.add(VoiceNumber(company_id=seed_location.company_id,
+                               ownership_group_id=AGENT_OG_ID, location_id=LOCATION_ID,
+                               e164=own, status="active", connect_phone_number_id="pn-1"))
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/Chicago"))
+    await db_session.flush()
+    db_session.add(VoiceNumber(company_id=COMPANY2_ID, ownership_group_id=AGENT_OG_ID,
+                               location_id="loc2xxxx", e164=elsewhere, status="releasing",
+                               connect_phone_number_id="pn-2"))
+    await db_session.commit()
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    for bad in ("+442071234567", "+18765550100", "+18095550100", "+19005550100",
+                "+19765550100", "+12129765555", "+14115550100", "+12121234567",
+                "+1212555010", own, elsewhere):
+        r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
+                             json={**rules, "staff_transfer_number": bad}, headers=h)
+        assert r.status_code == 422, (bad, r.text)
+        assert r.json()["detail"]["code"] == "transfer_number_not_allowed", bad
+    for good in ("+12125550111", "+14165550100", None):  # US, Toronto
+        r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
+                             json={**rules, "staff_transfer_number": good}, headers=h)
+        assert r.status_code == 200, (good, r.text)

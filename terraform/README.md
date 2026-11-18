@@ -295,6 +295,88 @@ app_url                    = "https://yourdomain.com"   # or the CloudFront doma
    curl https://<ALB_DNS_NAME>/health
    ```
 
+## Voice channel (#259 step 6) — off by default
+
+`voice.tf` holds the AI host's phone line: an Amazon Connect instance, a
+Lex V2 bot (`en_US`, one `HostTurn` intent), the bridge Lambda
+(`infra/voice/bridge`), its Secrets Manager secret, an ECS task-role policy
+for number provisioning, and a monthly AWS Budget. Every block is gated on
+`voice_enabled` (default `false`; `tests/infra/test_terraform_voice_gated.py`
+checks it), and the ECS task definition only gains `VOICE_BRIDGE_SECRET` and
+`CONNECT_*` / `VOICE_PROVISIONING_ENABLED` when it is on, so with voice off a
+plan shows no voice resources and no task-definition change. CI zips the
+Lambda into `build/voice_bridge.zip` and passes it as `voice_bridge_zip` on
+every plan/apply; nothing reads it while voice is off.
+
+`agent_reconcile_schedule.tf` (the daily `run_agent_overage_reconcile` task)
+is gated separately on `agent_reconcile_enabled` (default `false`); flip it
+when reservations launch.
+
+### Turning voice on
+
+The aws provider 5.x has no Lex V2 bot alias resource, its
+`aws_connect_bot_association` takes only Lex V1 bots, it cannot manage the
+built-in `FallbackIntent`, and a bot version cannot be published until the
+locale is built. Those steps live in `voice/publish_lex_bot.sh`, between two
+applies:
+
+1. Add `TF_VAR_voice_enabled: "true"` to both terraform jobs in
+   `.github/workflows/deploy.yml` and merge. This creates the instance, bot,
+   Lambda, secret (seeded with a random value, so nothing to set by hand)
+   and budget, and redeploys the service with `VOICE_BRIDGE_SECRET`.
+2. From `terraform/`, with admin credentials: `./voice/publish_lex_bot.sh`.
+   It enables the FallbackIntent code hooks, builds `en_US`, publishes a
+   version, points alias `live` at it with the bridge Lambda as code hook,
+   associates the alias with Connect, and prints the alias ARN. Re-run it
+   after any change to the bot, intent or slots (Connect keeps using the
+   old version until then).
+3. Add `TF_VAR_voice_lex_bot_alias_arn: "<that ARN>"` to both jobs and merge.
+   This creates the contact flow (`voice/contact_flow.json.tftpl`) and sets
+   `CONNECT_CONTACT_FLOW_ID` in the task.
+4. Open the flow once in the Connect console (Routing -> Flows) and check it
+   loads without warnings; it was written by hand in flow language.
+5. Only then set `TF_VAR_voice_provisioning_enabled: "true"`: the app starts
+   claiming numbers, each billed daily. With it off (the default) the app
+   claims and releases nothing.
+
+The contact flow sets Lex session attributes `contact_id`, `dialed` and
+`caller`, then, on every exit from the bot, transfers to
+`$.Lex.SessionAttributes.transfer_to` when the backend handed off and
+otherwise disconnects. It does **not** set `fallback_transfer_to`: the flow
+cannot look up a location's staff number, so when the bridge itself fails
+the Lambda tells the caller to call back. Backend handoffs still transfer.
+
+The budget (`voice_budget_usd`, default 50) covers Amazon Connect, Lex,
+Polly and Lambda and emails `ops_alert_email` at 80% of actual spend. It
+alerts; it does not stop anything. Staff transfers are outbound calls billed
+per minute (the instance has `outbound_calls_enabled` for them); the app
+bounds them (US and Canadian numbers only, no premium-rate or service area
+codes, never one of our AI host numbers, at most `VOICE_TRANSFERS_PER_DAY`
+per location per day: `backend/reservations/voice_transfers.py`), and the
+budget is the backstop.
+
+Contact flow logs carry caller numbers. Terraform creates their log group,
+`/aws/connect/<instance alias>`, with a 30-day retention before the
+instance, so Connect writes into it rather than creating one that never
+expires.
+
+Each run of `publish_lex_bot.sh` publishes a new bot version and leaves the
+old ones. Lex keeps at most 100 versions per bot; prune unused ones now and
+then with `aws lexv2-models delete-bot-version` (never the one alias `live`
+points at).
+
+To turn voice off, first release the claimed numbers while
+`voice_provisioning_enabled` is still true (the app releases a number only
+with provisioning on: end the subscriptions and let the daily run release
+them after their hold), or release them in the Connect console (Channels ->
+Phone numbers). Only then set `voice_provisioning_enabled` false: numbers
+still claimed at that point stay claimed, and billed daily. Then delete the bot alias (`aws lexv2-models
+delete-bot-alias`) and published versions, then apply with `voice_enabled`
+false. The bridge secret goes into Secrets Manager's 7-day recovery window,
+so turning voice back on within a week fails on the name; either wait, or
+delete it outright first:
+`aws secretsmanager delete-secret --secret-id wizscheduler/prod/VOICE_BRIDGE_SECRET --force-delete-without-recovery`.
+
 ## Variables Reference
 
 | Variable | Default | Description |
@@ -315,6 +397,13 @@ app_url                    = "https://yourdomain.com"   # or the CloudFront doma
 | `db_password` | *(required)* | RDS master password |
 | `db_allocated_storage` | `20` | RDS storage in GB |
 | `db_engine_version` | `15` | PostgreSQL MAJOR version (minor drift is absorbed; see variables.tf) |
+| `voice_enabled` | `false` | Create the voice channel (`voice.tf`) |
+| `voice_provisioning_enabled` | `false` | Let the app claim Connect numbers (only with voice on) |
+| `voice_bridge_zip` | `""` | Bridge Lambda zip; CI builds it |
+| `voice_lex_bot_alias_arn` | `""` | Lex alias from `voice/publish_lex_bot.sh`; empty skips the contact flow |
+| `voice_polly_voice` | `Joanna` | Polly voice (neural) |
+| `voice_budget_usd` | `50` | Monthly voice budget; 80% email alert |
+| `agent_reconcile_enabled` | `false` | Daily AI host billing reconcile schedule |
 
 ## Scaling Up
 

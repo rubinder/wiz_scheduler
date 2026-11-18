@@ -43,21 +43,17 @@ from datetime import datetime, timezone
 
 import hmac
 
-import anyio
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.database import RLS_COMPANY_IDS
 from backend.dependencies import bind_rls_context, get_db
 from backend.models import Company, Location
-from backend.reservations import subscription
-from backend.reservations.agent import recording
+from backend.reservations.agent import gate, recording
 from backend.reservations.agent.core import AgentCore, TurnInput, TurnOutput
-from backend.reservations.agent.llm import AnthropicLlm
+from backend.reservations.agent.gate import LOCATION_BUSY_TEXT, get_agent_core
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import get_rules
 from backend.schemas.reservation_agent import (
     ConversationOut, LocationInfoOut, TurnIn, TurnOut,
 )
@@ -164,36 +160,18 @@ async def require_subscription(
     db: AsyncSession = Depends(get_db),
 ) -> PublicScope:
     """The scope, once its group's AI host subscription answers; else 404."""
-    if await subscription.active_for_location(
-            db, scope.company_id, scope.location.id, datetime.now(timezone.utc)) is None:
+    if not await gate.subscribed(db, scope.company_id, scope.location.id,
+                                 datetime.now(timezone.utc)):
         raise _not_found()
     return scope
 
 
 async def _busy(db: AsyncSession, scope: PublicScope) -> str:
-    logger.info("reservation_agent.spend_cap_reached location=%s", scope.location.id)
-    return await subscription.busy_text(db, scope.company_id, scope.location.id)
-
-
-LOCATION_BUSY_TEXT = "Lots of people are booking right now — please try again in a minute."
-
-CLEAR_LOCK_TIMEOUT = "2s"
-
-_core: AgentCore | None = None
-
-
-def get_agent_core() -> AgentCore:
-    global _core
-    if _core is None:
-        _core = AgentCore(AnthropicLlm())
-    return _core
+    return await gate.busy_text(db, scope.company_id, scope.location.id)
 
 
 async def _greeting(db: AsyncSession, scope: PublicScope) -> str:
-    rules, _ = await get_rules(db, scope.company_id, scope.location.id)
-    return rules.persona.greeting or (
-        f"Hi, thanks for contacting {scope.location.name}. "
-        "How can I help with your reservation?")
+    return await gate.greeting(db, scope.company_id, scope.location)
 
 
 router = APIRouter(
@@ -234,9 +212,7 @@ async def start_conversation(
     conv = await recording.start_conversation(db, scope.company_id, location_id,
                                               "web", source_key=source_key_for(viewer))
     token = conv.public_token
-    inflight = await recording.inflight_turns(db, location_id)
-    if await subscription.cap_reached(db, scope.company_id, scope.location, now,
-                                      inflight):
+    if await gate.cap_reached(db, scope.company_id, scope.location, now):
         await recording.finish(db, conv, "blocked")
         reply = await _busy(db, scope)
         await db.commit()
@@ -281,10 +257,8 @@ async def post_turn(
     conv_id, company_id = conv.id, conv.company_id
     try:
         now = datetime.now(timezone.utc)
-        others = await recording.inflight_turns(db, scope.location.id,
-                                                exclude_conversation_id=conv_id)
-        if await subscription.cap_reached(db, scope.company_id, scope.location, now,
-                                          others):
+        if await gate.cap_reached(db, scope.company_id, scope.location, now,
+                                  exclude_conversation_id=conv_id):
             # Closes as the turn cap does (a live hold released, outcome by
             # what the conversation achieved), clearing the turn mark.
             reply = await _busy(db, scope)
@@ -296,32 +270,7 @@ async def post_turn(
         # handle_turn never raises an Exception, so this is a cancellation
         # (the diner went away mid-turn): clear the in-flight mark so the
         # next turn is not refused until it goes stale.
-        await _clear_mark_after_cancel(db, conv_id, company_id)
+        await gate.clear_mark_after_cancel(db, conv_id, company_id)
         raise
     return TurnOut.from_turn(out)
 
-
-async def _clear_mark_after_cancel(db: AsyncSession, conv_id: str,
-                                   company_id: str) -> None:
-    """Best effort, shielded: the cancellation that brought us here would
-    otherwise cancel every await in it too.
-
-    The request's session is rolled back first: its uncommitted round may
-    hold the conversation row (record_event locks it), and the clear would
-    wait on that lock forever. The clear then runs on a fresh session (the
-    request's may be mid-statement) with a short lock timeout, so it can
-    never hang; on a timeout the mark simply goes stale."""
-    with anyio.CancelScope(shield=True):
-        try:
-            await db.rollback()
-        except Exception:
-            logger.warning("rollback after a cancelled turn failed (conversation %s)",
-                           conv_id, exc_info=True)
-        try:
-            async with AsyncSession(db.bind, expire_on_commit=False) as fresh:
-                fresh.info[RLS_COMPANY_IDS] = [company_id]
-                await fresh.execute(text(
-                    f"SET LOCAL lock_timeout = '{CLEAR_LOCK_TIMEOUT}'"))
-                await recording.clear_turn_mark(fresh, conv_id, company_id)
-        except Exception:
-            logger.exception("could not clear the turn mark (conversation %s)", conv_id)

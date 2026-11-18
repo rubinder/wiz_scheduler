@@ -264,6 +264,33 @@ class Settings(BaseSettings):
     # Reservations (#254): off until the feature is ready to ship.
     RESERVATIONS_ENABLED: bool = False
 
+    # AI host voice channel (#259 step 6). Amazon Connect numbers are claimed
+    # and released only while VOICE_PROVISIONING_ENABLED is true (a claimed
+    # number is billed daily). A number whose subscription ended is held for
+    # VOICE_RELEASE_HOLD_DAYS so a resubscribe keeps it.
+    # Turning the flag off stops all claims AND releases: numbers already
+    # claimed stay claimed (and billed) until it is on again or they are
+    # released in the Connect console.
+    VOICE_PROVISIONING_ENABLED: bool = False
+    CONNECT_INSTANCE_ARN: str = ""
+    CONNECT_CONTACT_FLOW_ID: str = ""
+    VOICE_RELEASE_HOLD_DAYS: int = 7
+    # Numbers checkout confirm claims inside its own request (each is a few
+    # Connect calls); a group with more locations gets the rest from the
+    # daily run.
+    VOICE_CLAIMS_PER_REQUEST: int = 3
+    # Toll-fraud bound on the staff handoff, an outbound call billed per
+    # minute: a location transfers at most this many calls per local day
+    # (reservations.voice_transfers; the number itself must be US/Canadian).
+    VOICE_TRANSFERS_PER_DAY: int = 50
+    # The Lambda behind Connect sends it as X-Voice-Bridge-Secret; the bridge
+    # endpoint 404s without it, and always while it is empty.
+    VOICE_BRIDGE_SECRET: str = ""
+    # Bridge turns per minute per caller number (anonymous calls: per
+    # contact) and per contact. Only the Lambda calls the bridge, so there is
+    # no per-address limit; this bounds one caller's abuse.
+    VOICE_CALLER_TURNS_PER_MINUTE: int = 30
+
     # AI host agent (#259). Prices are USD per million tokens.
     RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"
     RESERVATION_AGENT_INPUT_USD_PER_MTOK: float = 0.10

@@ -53,3 +53,13 @@ answers 404 while it is off.
 - `queries.count_upcoming`: what `archive_location` checks before archiving
   (409 `location_has_reservations`). `queries.effective_status`: read-only
   view that reports lapsed holds as `expired`.
+
+## Voice entry points
+
+- `backend/routers/voice_bridge.py`: the bridge endpoint the Lex code-hook Lambda calls.
+- `backend/reservations/agent/voice.py`: voice turn handling and spoken replies.
+- `backend/reservations/agent/gate.py`: shared channel helpers (subscription gate, cap, in-flight).
+- The voice confirmation check is `voice.action_matches`: a "yes" books only via a `confirm_*` action matching the last reply's `expect`.
+- `backend/reservations/voice_numbers.py`: per-location number claim and release.
+- `backend/services/connect_numbers.py`: Amazon Connect number API wrapper.
+- `infra/voice/bridge/handler.py`: the Lex V2 code-hook Lambda.

@@ -1158,3 +1158,109 @@ async def test_the_rows_own_subscription_is_never_backstopped(
     n = len(alerts)
     await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
     assert fake["cancelled"] == [] and len(alerts) == n
+
+
+# ---------------------------------------------------------------------------
+# Voice numbers follow the subscription (#259 step 6)
+# ---------------------------------------------------------------------------
+
+
+def _connect(monkeypatch):
+    from tests.reservations.test_voice_numbers import FakeConnect
+    from backend.services import connect_numbers
+
+    connect = FakeConnect()
+    monkeypatch.setattr(settings, "VOICE_PROVISIONING_ENABLED", True)
+    monkeypatch.setattr(settings, "CONNECT_INSTANCE_ARN", "arn:aws:connect:r:1:instance/i")
+    # No claim without a flow to route it (connect_numbers.can_claim).
+    monkeypatch.setattr(settings, "CONNECT_CONTACT_FLOW_ID", "flow-1")
+    monkeypatch.setattr(connect_numbers, "_make_client", lambda: connect)
+    connect_numbers.reset_client()
+    return connect
+
+
+async def _number(db_session):
+    from backend.reservations.voice_number_models import VoiceNumber
+
+    db_session.expire_all()
+    return (await db_session.execute(
+        select(VoiceNumber).where(VoiceNumber.location_id == LOCATION_ID))
+    ).scalar_one_or_none()
+
+
+async def test_webhooks_request_and_hold_the_number_but_never_claim(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.reservations import voice_numbers
+
+    connect = _connect(monkeypatch)
+    await _add_row(db_session, "incomplete")
+    r = await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
+    assert r.status_code == 200
+    assert (await _number(db_session)).status == "requested"
+    assert connect.calls == []  # the daily step claims, not the webhook
+
+    await voice_numbers.run_daily(db_session)
+    assert (await _number(db_session)).status == "active"
+
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    r = await _post(client, monkeypatch, "customer.subscription.deleted",
+                    _subscription(status="canceled"))
+    assert r.status_code == 200
+    held = await _number(db_session)
+    assert held.status == "releasing" and held.release_after is not None
+
+
+async def test_confirm_claims_and_a_claim_failure_still_returns_200(
+    client, manager_token, og, db_session, monkeypatch, fake,
+):
+    connect = _connect(monkeypatch)
+    connect.fail_claim = True
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session()
+    r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
+                          headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "active"
+    number = await _number(db_session)
+    assert number.status == "requested" and number.connect_phone_number_id is None
+    assert "claim" in connect.names()
+
+
+async def test_a_voice_number_failure_never_fails_the_webhook(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.reservations import voice_numbers
+
+    async def broken(db, og_id, now=None, **kw):
+        raise RuntimeError("db gone")
+    monkeypatch.setattr(voice_numbers, "ensure_for_group", broken)
+    await _add_row(db_session, "incomplete")
+    r = await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
+    assert r.status_code == 200
+    assert (await _row(db_session)).status == "active"
+
+
+async def test_subscription_deleted_runs_final_billing_before_the_voice_step(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.reservations import voice_numbers
+    from backend.services import billing_reservations as br
+
+    order: list[str] = []
+
+    async def finalize(db, og_id, sub_id):
+        order.append("finalize")
+        return {"og": og_id}
+
+    async def broken(db, og_id, now=None, **kw):
+        order.append("voice")
+        raise RuntimeError("db gone")
+    monkeypatch.setattr(br, "finalize_agent_billing", finalize)
+    monkeypatch.setattr(voice_numbers, "ensure_for_group", broken)
+    await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    r = await _post(client, monkeypatch, "customer.subscription.deleted",
+                    _subscription(status="canceled"))
+    assert r.status_code == 200
+    assert r.json()["reservation_agent"]["final"] == {"og": OG_ID}
+    assert order == ["finalize", "voice"]

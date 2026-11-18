@@ -1,0 +1,88 @@
+${jsonencode({
+  Version     = "2019-10-30"
+  StartAction = "set-voice"
+  Metadata = {
+    entryPointPosition = { x = 40, y = 40 }
+    ActionMetadata = {
+      "set-voice"      = { position = { x = 200, y = 40 } }
+      "host-bot"       = { position = { x = 440, y = 40 } }
+      "check-transfer" = { position = { x = 700, y = 40 } }
+      "transfer"       = { position = { x = 960, y = 40 } }
+      "disconnect"     = { position = { x = 1220, y = 200 } }
+    }
+  }
+  Actions = [
+    {
+      Identifier = "set-voice"
+      Type       = "UpdateContactTextToSpeechVoice"
+      Parameters = {
+        TextToSpeechVoice  = polly_voice
+        TextToSpeechEngine = "Neural"
+      }
+      # The flow language documents no error branches for this action.
+      Transitions = { NextAction = "host-bot" }
+    },
+    {
+      # Every turn goes to the bridge Lambda through the bot's code hook.
+      # fallback_transfer_to is deliberately not set: the flow cannot look up
+      # the location's staff number, so on a bridge failure the Lambda tells
+      # the caller to call back. A backend handoff still transfers (transfer_to).
+      Identifier = "host-bot"
+      Type       = "ConnectParticipantWithLexBot"
+      Parameters = {
+        Text     = "Thanks for calling. How can I help you?"
+        LexV2Bot = { AliasArn = lex_bot_alias_arn }
+        LexSessionAttributes = {
+          contact_id = "$.ContactId"
+          dialed     = "$.SystemEndpoint.Address"
+          caller     = "$.CustomerEndpoint.Address"
+        }
+      }
+      Transitions = {
+        NextAction = "check-transfer"
+        Errors = [
+          { NextAction = "check-transfer", ErrorType = "NoMatchingCondition" },
+          { NextAction = "check-transfer", ErrorType = "NoMatchingError" },
+          { NextAction = "check-transfer", ErrorType = "InputTimeLimitExceeded" },
+        ]
+      }
+    },
+    {
+      # Both the success and error branches land here: transfer only when
+      # the bridge's Close set transfer_to.
+      Identifier = "check-transfer"
+      Type       = "Compare"
+      Parameters = { ComparisonValue = "$.Lex.SessionAttributes.transfer_to" }
+      Transitions = {
+        NextAction = "transfer"
+        Conditions = [
+          { NextAction = "disconnect", Condition = { Operator = "Equals", Operands = [""] } },
+        ]
+        Errors = [{ NextAction = "transfer", ErrorType = "NoMatchingCondition" }]
+      }
+    },
+    {
+      Identifier = "transfer"
+      Type       = "TransferParticipantToThirdParty"
+      Parameters = {
+        ThirdPartyPhoneNumber              = "$.Lex.SessionAttributes.transfer_to"
+        ThirdPartyConnectionTimeLimitSeconds = "30"
+        ContinueFlowExecution              = "False"
+      }
+      Transitions = {
+        NextAction = "disconnect"
+        Errors = [
+          { NextAction = "disconnect", ErrorType = "CallFailed" },
+          { NextAction = "disconnect", ErrorType = "ConnectionTimeLimitExceeded" },
+          { NextAction = "disconnect", ErrorType = "NoMatchingError" },
+        ]
+      }
+    },
+    {
+      Identifier  = "disconnect"
+      Type        = "DisconnectParticipant"
+      Parameters  = {}
+      Transitions = {}
+    },
+  ]
+})}

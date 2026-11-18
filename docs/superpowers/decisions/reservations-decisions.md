@@ -158,6 +158,42 @@ Decisions made while building without stopping to ask (owner instruction,
     scheduling expects the AI host to stop too and is billed for it until
     the account is deleted.
 
+40. **Voice is off by default, and phone numbers follow the subscription.**
+    All Connect/Lex infrastructure is count-gated behind `voice_enabled`
+    (and number claiming behind `voice_provisioning_enabled`). A number is
+    claimed per location on subscribe and released 7 days after the
+    subscription stops answering. Claims happen in checkout confirm (its
+    own session) and the daily job, never in webhooks: the webhook path only
+    records `requested`, which keeps it under Stripe's timeout. Why: a
+    number costs money every day and a provider call can be slow. Cost if
+    wrong: a webhook-only subscription gets its number up to a day late; a
+    shorter grace period would drop a number a lapsed customer may want back.
+41. **The bridge Lambda is zipped by CI and no new Terraform provider is
+    added.** Steps the provider cannot do (building the Lex bot version and
+    alias) run in `terraform/voice/publish_lex_bot.sh` between two applies
+    (see `terraform/README.md`, voice section). Why: a provider swap or
+    addition is a larger change than a script the owner runs once. Cost if
+    wrong: a manual step on first switch-on and after a bot change.
+42. **The bridge dedupes turns by sequence number inside the atomic claim,
+    and a spoken "yes" books only through Lex confirmation.** The confirm
+    intent maps to `confirm_*` and is checked against the last reply's
+    `expect`, so a stray "yes" never books. Why: Lex and Lambda retry, and
+    speech is ambiguous. Cost if wrong: a retried turn double-acts, or a
+    caller must repeat a confirmation.
+43. **Deviation: voice records no asr/tts/transport latency stages.** Lex V2
+    gives the Lambda no timings, so only `llm` and `tools` are recorded.
+    Follow-up: return `server_ms` in the reply so transport can be derived
+    as round trip minus server time. Cost: less latency detail for voice.
+44. **No `fallback_transfer_to` for now.** A backend failure (timeout or
+    error) tells the caller to call back rather than transferring to the
+    restaurant's staff line. Why: a transfer needs a number we must trust
+    and test per location. Cost if wrong: a caller during an outage gets no
+    human; the Lambda backend timeout is 6 s so the fallback is not slow.
+45. **The daily reconcile schedule sits behind `agent_reconcile_enabled`**,
+    turned on together with RESERVATIONS, since it also claims and releases
+    numbers. Cost if wrong: if forgotten, overage is not re-synced and
+    numbers are claimed only at checkout.
+
 ## Before switching reservations on (owner checklist)
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
@@ -202,3 +238,48 @@ Decisions made while building without stopping to ask (owner instruction,
   customer-level invoice default): the final invoice must be charged to
   that card (it is created with the cancelled subscription's
   `default_payment_method`).
+
+### Voice channel (step 6)
+
+Setup steps are in the voice section of `terraform/README.md`.
+
+- Check that Amazon Connect and Lex V2 are available in the deployment
+  region.
+- Set `voice_enabled=true` and apply. The bridge secret is seeded
+  automatically.
+- Run `terraform/voice/publish_lex_bot.sh`, set `voice_lex_bot_alias_arn`,
+  and apply again.
+- Open the contact flow once in the Connect console.
+- Set `voice_provisioning_enabled`.
+- Make one live test call.
+- Turn on `agent_reconcile_enabled` together with RESERVATIONS (decision 45).
+- Run a live test of `find_owned` in `services/connect_numbers.py`
+  (`ListPhoneNumbersV2` with `PhoneNumberPrefix`); it was only tested
+  against stubs.
+- If the Lex build rejects the `AMAZON.FreeFormInput` slot, drop it.
+- If a number Claim is denied, widen the IAM policy.
+- Measure p95 turn time from the web chat's `agent_events` latency before
+  switch-on. If it is near the bridge Lambda's 6 s backend timeout, add a
+  voice-specific turn deadline or Lex progress updates first.
+- The live test call must include a handoff to staff, to check that the
+  transfer to the external number works.
+- During the live test, check that the WAF rate limits (`terraform/waf.tf`)
+  do not throttle the bridge Lambda's traffic (it reaches the app through
+  CloudFront from a shared pool of Lambda addresses).
+- The voice greeting is generic: `persona.greeting` is not used on voice
+  yet.
+- Restrict Amazon Connect's outbound destinations to the US and Canada
+  (a Service Quotas / Support request sets the countries); the app also
+  refuses any number outside them (`reservations/voice_transfers.py`).
+- Set a maximum duration for a transferred call if Connect allows it for an
+  external transfer; the provider's `aws_connect_contact_flow` has no such
+  setting, so it would go in the flow content or the instance's settings
+  in the console. If Connect has none, rely on the daily transfer cap and
+  the budget, and note it here.
+- Staff transfers are billed per minute: watch the voice budget, and add a
+  CloudWatch alarm on Connect outbound minutes if transfers become common.
+- Before turning `voice_provisioning_enabled` off, release the claimed
+  numbers (see the README); with it off the app releases nothing.
+- Expected costs: a Connect DID daily fee per number, plus per-minute
+  inbound, Lex speech requests, Polly neural characters, and the $50 budget
+  alarm. See AWS pricing for current rates.

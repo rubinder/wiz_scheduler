@@ -214,6 +214,7 @@ async def test_conversation_mid_turn_is_closed_not_deleted(
     c = diners["convs"]
     conv = await db_session.get(AgentConversation, c["caller"])
     conv.turn_started_at = datetime.now(timezone.utc)
+    conv.last_reply = {"say": "Your table for two, Ada, is at seven."}
     stale = await db_session.get(AgentConversation, c["held"])
     stale.turn_started_at = datetime.now(timezone.utc) - timedelta(
         seconds=recording.TURN_STALE_SECONDS + 60)
@@ -228,6 +229,7 @@ async def test_conversation_mid_turn_is_closed_not_deleted(
     db_session.expire_all()
     kept = await db_session.get(AgentConversation, c["caller"])
     assert kept.status == "closed" and kept.ended_at is not None
+    assert kept.last_reply is None  # the voice reply replay held the diner's details
     assert await db_session.get(AgentConversation, c["held"]) is None
 
     # Once the turn has ended, erasing again removes it.

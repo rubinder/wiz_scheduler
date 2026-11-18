@@ -1520,6 +1520,28 @@ async def _mark_overage_unpaid(db: AsyncSession, og_id: str, invoice: Any, outco
     return charges
 
 
+async def _ensure_voice(db: AsyncSession, og_id: str, *, claim: bool) -> None:
+    """Bring the group's voice numbers in line with its subscription
+    (reservations.voice_numbers.ensure_for_group), after the subscription
+    change is committed. Runs in its own session, so it never commits,
+    rolls back or expires the caller's objects. The webhook passes
+    claim=False (records requested rows and holds only; the daily step
+    claims); checkout confirm claims at most VOICE_CLAIMS_PER_REQUEST
+    numbers, leaving the rest to the daily step. Best effort: any failure is logged and
+    left to the daily run; it never raises into a webhook or checkout."""
+    from backend.reservations import voice_numbers
+    from backend.tenant import tenant_scope_disabled
+
+    try:
+        with tenant_scope_disabled():
+            async with AsyncSession(db.bind, expire_on_commit=False) as own:
+                await voice_numbers.ensure_for_group(
+                    own, og_id, claim=claim,
+                    max_claims=settings.VOICE_CLAIMS_PER_REQUEST if claim else None)
+    except Exception:  # noqa: BLE001 - the daily run retries
+        logger.exception("voice numbers not updated for og %s", og_id)
+
+
 async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | None = None) -> dict:
     """The daily job (backend/scripts/run_agent_overage_reconcile.py): for
     every group whose agent row still has a subscription that is not ended,
@@ -1638,6 +1660,8 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
     if (event_type == "customer.subscription.deleted" and row is not None
             and row.stripe_subscription_id == sub_id and row.status == "canceled"):
         out["final"] = await finalize_agent_billing(db, og_id, sub_id)
+    if row is not None:
+        await _ensure_voice(db, og_id, claim=False)
     return out
 
 
@@ -1753,6 +1777,7 @@ async def confirm_checkout(db: AsyncSession, og: OwnershipGroup, session_id: str
     await db.commit()
     if row is None:
         raise AlreadySubscribed("already_subscribed")
+    await _ensure_voice(db, og_id, claim=True)
     return row
 
 

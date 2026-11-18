@@ -181,3 +181,10 @@ class ReservationsConfigOut(BaseModel):
     enabled: bool
     # Mirrors agent/models.py OUTCOMES; the conversations filter reads it.
     conversation_outcomes: list[str]
+
+
+class VoiceNumberOut(BaseModel):
+    """The location's AI host phone number. status "none" when it has none."""
+    e164: str | None
+    status: Literal["none", "requested", "active", "releasing", "released"]
+    release_after: AwareDatetime | None = None
