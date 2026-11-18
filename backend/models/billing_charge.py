@@ -18,6 +18,8 @@ class BillingCharge(Base):
     kind: Mapped[str] = mapped_column(String, nullable=False)
     amount_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     stripe_object_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # The agent subscription an AI host overage charge belongs to (#259).
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     period: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

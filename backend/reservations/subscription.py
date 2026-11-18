@@ -60,6 +60,10 @@ __all__ = ["PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
 logger = logging.getLogger(__name__)
 
 ANSWERING_STATUSES = ("active", "trialing", "past_due")
+# Statuses whose usage overage is reconciled onto the next invoice. The same
+# set as ANSWERING_STATUSES today, kept apart because who may use the agent
+# and what Stripe will still invoice are separate questions.
+BILLABLE_STATUSES = ("active", "trialing", "past_due")
 _CENT = Decimal("0.01")
 BUSY_TEXT = "Online booking is busy right now — please call the restaurant."
 

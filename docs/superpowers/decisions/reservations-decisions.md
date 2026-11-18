@@ -155,9 +155,17 @@ Decisions made while building without stopping to ask (owner instruction,
   `checkout.session.completed`, `customer.subscription.updated/deleted`,
   `invoice.payment_failed/succeeded` and `invoice.upcoming`, are already
   subscribed for scheduling).
-- Once the endpoint is subscribed to `customer.subscription.created`, add it
-  to `stripe_reconcile.REQUIRED_WEBHOOK_EVENTS` (adding it before would raise
+- Stripe webhook endpoint: also add `invoice.voided` and
+  `invoice.marked_uncollectible` (Ruling W: an AI host invoice that is voided
+  or uncollectible marks its usage charges failed and alerts the operator;
+  without them those charges stay pending).
+- Once the endpoint is subscribed to `customer.subscription.created`,
+  `invoice.voided` and `invoice.marked_uncollectible`, add them to
+  `stripe_reconcile.REQUIRED_WEBHOOK_EVENTS` (adding them before would raise
   a reconcile alert every run).
+- Schedule `python -m backend.scripts.run_agent_overage_reconcile` daily
+  (step 6 infra): it re-syncs every agent subscription, bills overage, and
+  sends the final invoice of one whose deletion webhook was missed.
 - Customer Portal: do not allow switching prices across products (the AI
   host and scheduling subscriptions share the customer; a switch would move
   one subscription onto the other's price).

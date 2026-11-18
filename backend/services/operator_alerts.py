@@ -253,3 +253,39 @@ def send_agent_duplicate_subscription_alert(
         + "<p>The app retries on the subscription's next Stripe event.</p>",
         "agent_duplicate_subscription",
     )
+
+
+def send_agent_final_invoice_alert(og_id: str, subscription_id: str, period: str | None,
+                                   detail: str) -> bool:
+    """The final AI host invoice for a cancelled agent subscription (#259
+    step 5) could not be made: its last period's overage is not billed
+    until someone invoices it in Stripe. Never raises."""
+    logger.warning("[OPERATOR] agent_final_invoice og=%s subscription=%s period=%s detail=%s",
+                   og_id, subscription_id, period, detail)
+    return _send_operator_email(
+        f"[WizScheduler] Final AI host invoice failed for og={og_id}",
+        f"<p>The AI host subscription <code>{html.escape(subscription_id)}</code> of "
+        f"og={html.escape(og_id)} ended, and its final usage invoice (period "
+        f"{html.escape(period or '?')}) <strong>could not be created</strong>: "
+        f"{html.escape(detail)}.</p><p>Invoice its pending AI host usage items in "
+        f"Stripe by hand.</p>",
+        "agent_final_invoice",
+    )
+
+
+def send_agent_invoice_unpaid_alert(og_id: str, invoice_id: str, outcome: str,
+                                    amount_usd: float, charges: int) -> bool:
+    """An AI host invoice carrying usage overage was voided or marked
+    uncollectible (#259 step 5): its charges are marked failed and nothing
+    is billed again automatically. Never raises."""
+    logger.warning("[OPERATOR] agent_invoice_unpaid og=%s invoice=%s outcome=%s amount=%.2f charges=%d",
+                   og_id, invoice_id, outcome, amount_usd, charges)
+    return _send_operator_email(
+        f"[WizScheduler] AI host invoice {outcome} for og={og_id}",
+        f"<p>The AI host invoice <code>{html.escape(invoice_id)}</code> of "
+        f"og={html.escape(og_id)} was <strong>{html.escape(outcome)}</strong>. "
+        f"{charges} usage overage charge(s) totalling ${amount_usd:.2f} are marked "
+        f"failed. Nothing is re-billed automatically: decide in Stripe whether to "
+        f"invoice it again.</p>",
+        "agent_invoice_unpaid",
+    )

@@ -7,7 +7,9 @@ diner data and outlives the conversation, whose retention deletion sets
 conversation_id NULL. billing_charges.kind gains
 'invoice_item_reservation_agent' for the reconciled overage InvoiceItem and
 'agent_duplicate_refund' for a duplicate agent subscription cancelled and
-refunded by the webhook backstop.
+refunded by the webhook backstop, and a nullable stripe_subscription_id that
+names the agent subscription an overage charge belongs to (a cancel and a
+resubscribe on one day give two subscriptions the same period label).
 
 RLS: agent_usage has a company_id and gets 0058's policies;
 reservation_subscriptions is keyed by ownership group and follows 0052/0056
@@ -114,6 +116,8 @@ def upgrade() -> None:
 
     op.drop_constraint("billing_charges_kind_check", "billing_charges", type_="check")
     op.create_check_constraint("billing_charges_kind_check", "billing_charges", KINDS_NEW)
+    op.add_column("billing_charges",
+                  sa.Column("stripe_subscription_id", sa.String(), nullable=True))
 
 
 def _company_rls(T: str) -> None:
@@ -155,6 +159,7 @@ def downgrade() -> None:
         raise RuntimeError(
             f"{n} billing_charges rows of the reservation agent kinds "
             "exist; downgrading 0059 would violate billing_charges_kind_check")
+    op.drop_column("billing_charges", "stripe_subscription_id")
     op.drop_constraint("billing_charges_kind_check", "billing_charges", type_="check")
     op.create_check_constraint("billing_charges_kind_check", "billing_charges", KINDS_OLD)
     op.drop_table("agent_usage")  # its indexes and policies go with it
