@@ -1400,6 +1400,14 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.models.payroll_export import PayrollExport
     from backend.models.time_entry import TimeEntry
     from backend.models.preference_submission import EmployeePreferenceSubmission
+    from backend.reservations.models import (
+        DiningTable,
+        FloorSection,
+        Reservation,
+        ReservationRules,
+        ReservationTable,
+        TableCombination,
+    )
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1424,6 +1432,13 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     users (#189). company_id has no cascade, so go before companies.
         await db.execute(delete(EmployeePreferenceSubmission).where(
             EmployeePreferenceSubmission.company_id.in_(company_ids)))
+        # 0e. reservations (#254) — all six reference companies and/or
+        #     locations with NO ACTION FKs, so they go before locations.
+        #     Children first: reservation_tables refs reservations and
+        #     dining_tables; dining_tables refs floor_sections.
+        for model in (ReservationTable, Reservation, TableCombination,
+                      DiningTable, FloorSection, ReservationRules):
+            await db.execute(delete(model).where(model.company_id.in_(company_ids)))
         # 1. shifts — refs shift_schedules, employees, locations, roles
         await db.execute(delete(Shift).where(Shift.company_id.in_(company_ids)))
         # 2. shift_schedules — self-FK, refs employees/locations/roles

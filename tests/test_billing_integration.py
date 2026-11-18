@@ -2472,6 +2472,70 @@ async def test_delete_og_and_dependents_removes_payroll_rows(
     )).scalar_one_or_none() is None
 
 
+async def test_delete_og_and_dependents_removes_reservation_rows(
+    db_session: AsyncSession, og_with_card
+):
+    """The six reservations tables reference companies and locations with NO
+    ACTION FKs (#254), so before the fix any OG that ever took a booking could
+    not be deleted: the location DELETE tripped their FKs."""
+    from sqlalchemy import func
+    from sqlalchemy.dialects.postgresql import Range
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import Location, Region
+    from backend.reservations.models import (
+        DiningTable, FloorSection, Reservation, ReservationRules,
+        ReservationTable, TableCombination,
+    )
+
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add(region)
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id,
+                        name="L1", timezone="America/New_York")
+    db_session.add(location)
+    await db_session.flush()
+    section = FloorSection(company_id=COMPANY_ID, location_id=location.id, name="Main")
+    db_session.add(section)
+    await db_session.flush()
+    t1 = DiningTable(company_id=COMPANY_ID, location_id=location.id,
+                     section_id=section.id, label="T1", min_seats=1, max_seats=2,
+                     combinable=True)
+    t2 = DiningTable(company_id=COMPANY_ID, location_id=location.id,
+                     section_id=section.id, label="T2", min_seats=1, max_seats=2,
+                     combinable=True)
+    db_session.add_all([t1, t2])
+    await db_session.flush()
+    start = datetime(2026, 12, 1, 23, 0, tzinfo=timezone.utc)
+    res = Reservation(company_id=COMPANY_ID, location_id=location.id, party_size=2,
+                      start_at=start, end_at=start + timedelta(minutes=90),
+                      status="booked", source="staff")
+    db_session.add_all([
+        TableCombination(company_id=COMPANY_ID, location_id=location.id,
+                         name="T1+T2", table_ids=[t1.id, t2.id],
+                         min_seats=1, max_seats=4),
+        ReservationRules(company_id=COMPANY_ID, location_id=location.id, rules={}),
+        res,
+    ])
+    await db_session.flush()
+    db_session.add(ReservationTable(
+        company_id=COMPANY_ID, reservation_id=res.id, table_id=t1.id,
+        during=Range(start, start + timedelta(minutes=100), bounds="[)")))
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    for model in (ReservationTable, Reservation, TableCombination, DiningTable,
+                  FloorSection, ReservationRules):
+        assert (await db_session.execute(
+            select(func.count()).select_from(model)
+            .where(model.company_id == COMPANY_ID)
+        )).scalar() == 0, model.__tablename__
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+
+
 async def test_delete_og_and_dependents_handles_empty_og(
     db_session: AsyncSession
 ):
