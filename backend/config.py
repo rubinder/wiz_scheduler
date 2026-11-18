@@ -279,6 +279,12 @@ class Settings(BaseSettings):
     # Connect calls); a group with more locations gets the rest from the
     # daily run.
     VOICE_CLAIMS_PER_REQUEST: int = 3
+    # Toll-fraud bounds on the staff handoff, an outbound call billed per
+    # minute: the staff number must start with one of these country codes
+    # (reservations.rules.transfer_number_problem), and a location transfers
+    # at most VOICE_TRANSFERS_PER_DAY calls per local day.
+    VOICE_TRANSFER_COUNTRY_CODES: list[str] = ["+1"]
+    VOICE_TRANSFERS_PER_DAY: int = 50
     # The Lambda behind Connect sends it as X-Voice-Bridge-Secret; the bridge
     # endpoint 404s without it, and always while it is empty.
     VOICE_BRIDGE_SECRET: str = ""

@@ -32,6 +32,11 @@ stored reply's `expect`); one that answers no open question is not run.
 The Lambda's ASR, TTS and transport timings are recorded as latency stages
 on the turn's first event.
 
+A handoff to staff is an outbound call billed per minute: it is screened
+(`_screen_transfer`: rules.transfer_number_problem, and at most
+VOICE_TRANSFERS_PER_DAY per location per local day) and otherwise ends the
+call with the no-transfer line.
+
 No per-address limit (only the Lambda calls this); turns are limited per
 caller number (per contact for a withheld number) and per contact.
 """
@@ -55,7 +60,8 @@ from backend.reservations.agent import gate, recording, voice
 from backend.reservations.agent.core import AgentCore, TurnInput
 from backend.reservations.agent.gate import get_agent_core
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import get_rules
+from backend.reservations import subscription
+from backend.reservations.rules import get_rules, transfer_number_problem
 from backend.schemas.voice import VoiceTurnIn, VoiceTurnOut
 from backend.services.archive import active
 from backend.services.rate_limit import source_key_for, voice_caller_limiter
@@ -225,13 +231,35 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
                                                  ("transport", timings.transport_ms))
                       if ms is not None}
             await recording.add_latency(db, conv, before, stages)
-            reply = voice.spoken_reply(out)
+            reply = await _screen_transfer(db, location, body.dialed,
+                                           voice.spoken_reply(out), now)
     except BaseException:
         # handle_turn never raises an Exception: the call went away mid-turn.
         await gate.clear_mark_after_cancel(db, conv_id, company_id)
         raise
     await recording.remember_reply(db, conv, body.seq, reply)
     await db.commit()
+    return reply
+
+
+async def _screen_transfer(db: AsyncSession, location: Location, dialed: str,
+                           reply: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """A transfer is an outbound call billed per minute (toll fraud): one to
+    a number rules.transfer_number_problem refuses, or past
+    VOICE_TRANSFERS_PER_DAY at the location today, ends the call with the
+    no-transfer line instead."""
+    number = reply.get("transfer_to")
+    if not number:
+        return reply
+    problem = transfer_number_problem(number, dialed)
+    if problem:
+        logger.warning("voice_bridge.transfer_refused location=%s: %s", location.id, problem)
+        return voice.close(voice.NO_TRANSFER_TEXT, "transfer_refused")
+    done = await subscription.voice_transfers_today(db, location.id, now, location.timezone)
+    if done >= settings.VOICE_TRANSFERS_PER_DAY:
+        logger.warning("voice_bridge.transfer_cap location=%s transfers=%d",
+                       location.id, done)
+        return voice.close(voice.NO_TRANSFER_TEXT, "transfer_cap")
     return reply
 
 

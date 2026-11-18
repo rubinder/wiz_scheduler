@@ -538,3 +538,28 @@ async def test_approvals_404_when_flag_off(client, manager_token, seed_location,
     r = await client.get(f"{BASE}/locations/{LOCATION_ID}/approvals",
                          headers=_auth(manager_token))
     assert r.status_code == 404 and r.json()["detail"] == "Not found"
+
+
+async def test_staff_transfer_number_is_screened_for_toll_fraud(
+        client, manager_token, seed_location, db_session):
+    """Outbound transfers are billed per minute: only allowlisted country
+    codes, no NANP premium-rate area codes, never the AI host's own number."""
+    from backend.reservations.voice_number_models import VoiceNumber
+    from tests.reservations.conftest import AGENT_OG_ID, subscribe
+
+    await subscribe(db_session)
+    own = "+12125550199"
+    db_session.add(VoiceNumber(company_id=seed_location.company_id,
+                               ownership_group_id=AGENT_OG_ID, location_id=LOCATION_ID,
+                               e164=own, status="active", connect_phone_number_id="pn-1"))
+    await db_session.commit()
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    for bad in ("+442071234567", "+19005550100", "+19765550100", own):
+        r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
+                             json={**rules, "staff_transfer_number": bad}, headers=h)
+        assert r.status_code == 422, (bad, r.text)
+    for good in ("+12125550111", None):
+        r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
+                             json={**rules, "staff_transfer_number": good}, headers=h)
+        assert r.status_code == 200, (good, r.text)

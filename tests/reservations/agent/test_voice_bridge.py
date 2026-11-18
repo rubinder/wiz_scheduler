@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
+from sqlalchemy import text as sql
 
 from backend.config import settings
 from backend.main import app
@@ -487,3 +488,39 @@ async def test_erasure_during_a_turn_is_not_written_back(client, db_session, lin
     # A retry of the erased turn is not answered from a stored reply.
     again = (await _post(client, _body(1, text_="table for two, I'm Ada"))).json()
     assert "Ada" not in again["text"]
+
+
+# -- toll fraud: transfers ------------------------------------------------------------
+
+async def test_transfers_are_capped_per_location_per_day(client, db_session, line, llm,
+                                                          monkeypatch):
+    """Past VOICE_TRANSFERS_PER_DAY transfers today, a handoff closes the
+    call with the call-us line instead of dialling out."""
+    monkeypatch.setattr(settings, "VOICE_TRANSFERS_PER_DAY", 1)
+    await _staff(db_session, STAFF)
+    for contact, expect in (("contact-1", STAFF), ("contact-2", None)):
+        await _post(client, _body(0, contact=contact))
+        llm.push(reply(text("x"), stop="refusal"))
+        out = (await _post(client, _body(1, text_="hi", contact=contact))).json()
+        assert out["transfer_to"] == expect, contact
+    assert out["end_call"] is True and out["text"] == voice.NO_TRANSFER_TEXT
+    assert out["reason"] == "transfer_cap"
+
+
+async def test_a_disallowed_stored_transfer_number_is_never_dialled(
+        client, db_session, line, llm):
+    """A number saved before the screening (or the AI host's own number) is
+    refused at transfer time too."""
+    await _staff(db_session, STAFF)
+    for i, number in enumerate(("+19005550100", DIALED, "+442071234567")):
+        await db_session.execute(sql(
+            "UPDATE reservation_rules SET rules = jsonb_set(rules, "
+            "'{staff_transfer_number}', to_jsonb(CAST(:n AS text))) "
+            "WHERE location_id = :loc"), {"n": number, "loc": LOCATION_ID})
+        await db_session.commit()
+        contact = f"contact-{i + 10}"
+        await _post(client, _body(0, contact=contact))
+        llm.push(reply(text("x"), stop="refusal"))
+        out = (await _post(client, _body(1, text_="hi", contact=contact))).json()
+        assert out["transfer_to"] is None and out["end_call"] is True, number
+        assert out["reason"] == "transfer_refused"

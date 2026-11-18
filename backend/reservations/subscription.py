@@ -203,6 +203,25 @@ async def spend_today(
     return Decimal(total)
 
 
+async def voice_transfers_today(
+    db: AsyncSession, location_id: str, now: datetime, tz: ZoneInfo | str,
+) -> int:
+    """Calls the AI host transferred to staff at the location in its local
+    day (by start day, as spend_today): voice conversations whose stored
+    reply (remember_reply) carries a transfer_to. An erased conversation no
+    longer counts; that undercount is bounded by the erasures a manager runs."""
+    zone = tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)
+    start, end = _local_day_bounds(now, zone)
+    return int((await db.execute(
+        select(func.count()).select_from(AgentConversation)
+        .where(AgentConversation.location_id == location_id,
+               AgentConversation.channel == "voice",
+               AgentConversation.started_at >= start,
+               AgentConversation.started_at < end,
+               AgentConversation.last_reply["transfer_to"].astext.is_not(None))
+    )).scalar_one())
+
+
 async def cap_reached(
     db: AsyncSession, company_id: str, location: Location, now: datetime,
     inflight_turns: int,

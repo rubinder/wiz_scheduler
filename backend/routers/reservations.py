@@ -24,7 +24,12 @@ from backend.reservations.queries import (
     conversation_events, get_conversation, list_between, list_conversations,
     list_pending_approvals, table_labels,
 )
-from backend.reservations.rules import RulesSchema, get_rules, save_rules
+from backend.reservations.rules import (
+    RulesSchema,
+    get_rules,
+    save_rules,
+    transfer_number_problem,
+)
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
@@ -177,6 +182,12 @@ async def write_rules(
     scope: LocationScope = Depends(get_location_scope),
 ) -> RulesOut:
     await _location(db, scope, user, location_id)
+    if body.staff_transfer_number:
+        own = await voice_numbers.for_location(db, str(user.company_id), location_id)
+        problem = transfer_number_problem(body.staff_transfer_number,
+                                          own.e164 if own else None)
+        if problem:
+            raise HTTPException(status_code=422, detail=problem)
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)
