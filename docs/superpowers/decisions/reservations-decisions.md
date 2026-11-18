@@ -258,6 +258,23 @@ Setup steps are in the voice section of `terraform/README.md`.
   against stubs.
 - If the Lex build rejects the `AMAZON.FreeFormInput` slot, drop it.
 - If a number Claim is denied, widen the IAM policy.
+- Measure p95 turn time from the web chat's `agent_events` latency before
+  switch-on. If it is near the bridge Lambda's 6 s backend timeout, add a
+  voice-specific turn deadline or Lex progress updates first.
+- The live test call must include a handoff to staff, to check that the
+  transfer to the external number works.
+- During the live test, check that the WAF rate limits (`terraform/waf.tf`)
+  do not throttle the bridge Lambda's traffic (it reaches the app through
+  CloudFront from a shared pool of Lambda addresses).
+- The voice greeting is generic: `persona.greeting` is not used on voice
+  yet.
+- Keep Amazon Connect's outbound calling allowlist to the US only (a
+  Service Quotas / Support request sets the countries); the app also allows
+  only `VOICE_TRANSFER_COUNTRY_CODES`.
+- Staff transfers are billed per minute: watch the voice budget, and add a
+  CloudWatch alarm on Connect outbound minutes if transfers become common.
+- Before turning `voice_provisioning_enabled` off, release the claimed
+  numbers (see the README); with it off the app releases nothing.
 - Expected costs: a Connect DID daily fee per number, plus per-minute
   inbound, Lex speech requests, Polly neural characters, and the $50 budget
   alarm. See AWS pricing for current rates.

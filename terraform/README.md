@@ -348,15 +348,28 @@ the Lambda tells the caller to call back. Backend handoffs still transfer.
 
 The budget (`voice_budget_usd`, default 50) covers Amazon Connect, Lex,
 Polly and Lambda and emails `ops_alert_email` at 80% of actual spend. It
-alerts; it does not stop anything.
+alerts; it does not stop anything. Staff transfers are outbound calls billed
+per minute (the instance has `outbound_calls_enabled` for them); the app
+bounds them (allowlisted country codes, no 900/976 numbers, at most
+`VOICE_TRANSFERS_PER_DAY` per location per day), and the budget is the
+backstop.
+
+Contact flow logs carry caller numbers. Terraform creates their log group,
+`/aws/connect/<instance alias>`, with a 30-day retention before the
+instance, so Connect writes into it rather than creating one that never
+expires.
 
 Each run of `publish_lex_bot.sh` publishes a new bot version and leaves the
 old ones. Lex keeps at most 100 versions per bot; prune unused ones now and
 then with `aws lexv2-models delete-bot-version` (never the one alias `live`
 points at).
 
-To turn voice off, first set `voice_provisioning_enabled` false and release
-claimed numbers, then delete the bot alias (`aws lexv2-models
+To turn voice off, first release the claimed numbers while
+`voice_provisioning_enabled` is still true (the app releases a number only
+with provisioning on: end the subscriptions and let the daily run release
+them after their hold), or release them in the Connect console (Channels ->
+Phone numbers). Only then set `voice_provisioning_enabled` false: numbers
+still claimed at that point stay claimed, and billed daily. Then delete the bot alias (`aws lexv2-models
 delete-bot-alias`) and published versions, then apply with `voice_enabled`
 false. The bridge secret goes into Secrets Manager's 7-day recovery window,
 so turning voice back on within a week fails on the name; either wait, or
