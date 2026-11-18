@@ -17,7 +17,9 @@ from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
 )
 from backend.reservations.models import Reservation
-from backend.reservations.queries import list_between, table_labels
+from backend.reservations.queries import (
+    list_between, list_pending_approvals, table_labels,
+)
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ReservationOut, ReservationPatch, RulesOut, SlotOut, StatusIn,
@@ -32,10 +34,14 @@ def require_reservations_enabled() -> None:
         raise HTTPException(status_code=404, detail="Not found")
 
 
-router = APIRouter(
-    prefix="/reservations", tags=["reservations"],
-    dependencies=[Depends(require_reservations_enabled)],
-)
+router = APIRouter(prefix="/reservations", tags=["reservations"])
+gated = APIRouter(dependencies=[Depends(require_reservations_enabled)])
+
+
+@router.get("/config")
+async def read_config(_: User = Depends(require_manager)) -> dict[str, bool]:
+    """Whether reservations are on; the one route that answers when off."""
+    return {"enabled": settings.RESERVATIONS_ENABLED}
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     booking.SlotUnavailable: 409,
@@ -106,7 +112,7 @@ async def _out(db: AsyncSession, res: Reservation) -> ReservationOut:
     return ReservationOut.of(res, labels.get(res.id, []))
 
 
-@router.get("/locations/{location_id}/floor", response_model=FloorOut)
+@gated.get("/locations/{location_id}/floor", response_model=FloorOut)
 async def read_floor(
     location_id: str,
     user: User = Depends(require_manager),
@@ -117,7 +123,7 @@ async def read_floor(
     return await get_floor(db, str(user.company_id), location_id)
 
 
-@router.put("/locations/{location_id}/floor", response_model=FloorOut)
+@gated.put("/locations/{location_id}/floor", response_model=FloorOut)
 async def write_floor(
     location_id: str,
     body: FloorIn,
@@ -141,7 +147,7 @@ async def write_floor(
     return out
 
 
-@router.get("/locations/{location_id}/rules", response_model=RulesOut)
+@gated.get("/locations/{location_id}/rules", response_model=RulesOut)
 async def read_rules(
     location_id: str,
     user: User = Depends(require_manager),
@@ -153,7 +159,7 @@ async def read_rules(
     return RulesOut(rules=rules, version=version)
 
 
-@router.put("/locations/{location_id}/rules", response_model=RulesOut)
+@gated.put("/locations/{location_id}/rules", response_model=RulesOut)
 async def write_rules(
     location_id: str,
     body: RulesSchema,
@@ -167,7 +173,7 @@ async def write_rules(
     return RulesOut(rules=body, version=version)
 
 
-@router.get("/locations/{location_id}/slots", response_model=list[SlotOut])
+@gated.get("/locations/{location_id}/slots", response_model=list[SlotOut])
 async def read_slots(
     location_id: str,
     party_size: int = Query(ge=1),
@@ -188,7 +194,7 @@ async def read_slots(
             for s in slots]
 
 
-@router.get("/locations/{location_id}/reservations",
+@gated.get("/locations/{location_id}/reservations",
             response_model=list[ReservationOut])
 async def read_reservations(
     location_id: str,
@@ -203,7 +209,21 @@ async def read_reservations(
     return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
 
 
-@router.post("/locations/{location_id}/reservations", status_code=201,
+@gated.get("/locations/{location_id}/approvals",
+            response_model=list[ReservationOut])
+async def read_approvals(
+    location_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> list[ReservationOut]:
+    """Live pending requests on any day, so none lapses unseen."""
+    await _location(db, scope, user, location_id)
+    rows = await list_pending_approvals(db, str(user.company_id), location_id)
+    return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
+
+
+@gated.post("/locations/{location_id}/reservations", status_code=201,
              response_model=ReservationOut)
 async def create_reservation(
     location_id: str,
@@ -228,7 +248,7 @@ async def create_reservation(
     return await _out(db, res)
 
 
-@router.post("/locations/{location_id}/walk-ins", status_code=201,
+@gated.post("/locations/{location_id}/walk-ins", status_code=201,
              response_model=ReservationOut)
 async def seat_walk_in(
     location_id: str,
@@ -246,7 +266,7 @@ async def seat_walk_in(
     return await _out(db, res)
 
 
-@router.patch("/{reservation_id}", response_model=ReservationOut)
+@gated.patch("/{reservation_id}", response_model=ReservationOut)
 async def update_reservation(
     reservation_id: str,
     body: ReservationPatch,
@@ -264,7 +284,7 @@ async def update_reservation(
     return await _out(db, res)
 
 
-@router.post("/{reservation_id}/status", response_model=ReservationOut)
+@gated.post("/{reservation_id}/status", response_model=ReservationOut)
 async def change_status(
     reservation_id: str,
     body: StatusIn,
@@ -283,7 +303,7 @@ async def change_status(
     return await _out(db, res)
 
 
-@router.post("/{reservation_id}/approve", response_model=ReservationOut)
+@gated.post("/{reservation_id}/approve", response_model=ReservationOut)
 async def approve_reservation(
     reservation_id: str,
     user: User = Depends(require_manager),
@@ -297,7 +317,7 @@ async def approve_reservation(
     return await _out(db, res)
 
 
-@router.post("/{reservation_id}/decline", response_model=ReservationOut)
+@gated.post("/{reservation_id}/decline", response_model=ReservationOut)
 async def decline_reservation(
     reservation_id: str,
     user: User = Depends(require_manager),
@@ -309,3 +329,6 @@ async def decline_reservation(
         res = await booking.decline(db, str(user.company_id), reservation_id)
         await db.commit()
     return await _out(db, res)
+
+
+router.include_router(gated)

@@ -53,6 +53,8 @@ _ROUTES = [
     ("get", f"/locations/{LOCATION_ID}/slots?party_size=2&date=2030-01-01"),
     ("get", f"/locations/{LOCATION_ID}/reservations?date=2030-01-01"),
     ("post", f"/locations/{LOCATION_ID}/reservations"),
+    ("post", f"/locations/{LOCATION_ID}/walk-ins"),
+    ("get", f"/locations/{LOCATION_ID}/approvals"),
     ("patch", "/abcd1234"),
     ("post", "/abcd1234/status"),
     ("post", "/abcd1234/approve"),
@@ -431,3 +433,102 @@ async def test_archiving_a_location_with_upcoming_reservations_is_409(
                               headers=h)).status_code == 200
     r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
     assert r.status_code == 204
+
+
+async def test_config_reports_flag_without_gating(client, manager_token, monkeypatch):
+    h = _auth(manager_token)
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
+    r = await client.get(f"{BASE}/config", headers=h)
+    assert r.status_code == 200 and r.json() == {"enabled": False}
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
+    r = await client.get(f"{BASE}/config", headers=h)
+    assert r.status_code == 200 and r.json() == {"enabled": True}
+
+
+async def test_every_reservations_route_but_config_is_gated():
+    """A route added without the gate would answer while the flag is off."""
+    from fastapi.routing import APIRoute
+    from backend.main import app
+    from backend.routers.reservations import require_reservations_enabled
+
+    def calls(dependant) -> set:
+        out = {d.call for d in dependant.dependencies}
+        for d in dependant.dependencies:
+            out |= calls(d)
+        return out
+
+    def walk(routes, prefix: str = "", inherited: frozenset = frozenset()):
+        """APIRoutes with their full path and include-level dependencies.
+        FastAPI >= 0.16x keeps included routers nested (`original_router`);
+        older versions flatten them into app.routes."""
+        for r in routes:
+            if isinstance(r, APIRoute):
+                yield prefix + r.path, calls(r.dependant) | inherited
+            elif hasattr(r, "original_router"):
+                ctx = r.include_context
+                extra = frozenset(d.dependency for d in (ctx.dependencies or []))
+                yield from walk(r.original_router.routes, prefix + (ctx.prefix or ""),
+                                inherited | extra)
+
+    routes = [(path, deps) for path, deps in walk(app.routes)
+              if path.startswith("/api/v1/reservations")]
+    assert len(routes) >= 13
+    ungated = sorted(path for path, deps in routes
+                     if require_reservations_enabled not in deps)
+    assert ungated == ["/api/v1/reservations/config"]
+
+
+# --- approval queue ---------------------------------------------------------
+
+def _pending(company_id: str, location_id: str, start: datetime,
+             held_until: datetime | None, status: str = "pending_approval"):
+    from backend.reservations.models import Reservation
+    return Reservation(
+        company_id=company_id, location_id=location_id, party_size=2,
+        start_at=start, end_at=start + timedelta(hours=1), status=status,
+        source="web_agent", held_until=held_until, diner_name="P")
+
+
+async def test_approvals_lists_live_requests_on_any_day(
+    client, manager_token, seeded_floor, other_location, db_session
+):
+    from tests.conftest import COMPANY_ID
+    now = datetime.now(timezone.utc)
+    live_later = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(days=5), now + timedelta(hours=20))
+    live_soon = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(hours=3), None)
+    lapsed = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(days=2), now - timedelta(minutes=1))
+    past = _pending(COMPANY_ID, LOCATION_ID, now - timedelta(hours=1), now + timedelta(hours=5))
+    booked = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(days=1), None, status="booked")
+    elsewhere = _pending(COMPANY_ID, OTHER_LOCATION_ID, now + timedelta(days=1), None)
+    db_session.add_all([live_later, live_soon, lapsed, past, booked, elsewhere])
+    await db_session.commit()
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/approvals",
+                         headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    got = r.json()
+    assert [x["id"] for x in got] == [live_soon.id, live_later.id]
+    assert all(x["status"] == "pending_approval" for x in got)
+
+
+async def test_approvals_other_company_and_scope_are_404(
+    client, manager_token, regular_token, other_location, db_session
+):
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/New_York"))
+    await db_session.commit()
+    r = await client.get(f"{BASE}/locations/loc2xxxx/approvals", headers=_auth(manager_token))
+    assert r.status_code == 404
+    r = await client.get(f"{BASE}/locations/{OTHER_LOCATION_ID}/approvals",
+                         headers=_auth(regular_token))
+    assert r.status_code == 404
+
+
+async def test_approvals_404_when_flag_off(client, manager_token, seed_location, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/approvals",
+                         headers=_auth(manager_token))
+    assert r.status_code == 404 and r.json()["detail"] == "Not found"

@@ -26,7 +26,7 @@ const APP_SOURCE = import.meta.glob("../../App.tsx", {
 
 describe("manager navigation", () => {
   it("shows an admin every page", () => {
-    expect(paths(visibleManagerNav({ isAdmin: true }, true, true))).toEqual(paths(managerNav));
+    expect(paths(visibleManagerNav({ isAdmin: true }, true, true, true))).toEqual(paths(managerNav));
   });
 
   it("hides every admin-only page from a regular manager", () => {
@@ -66,6 +66,22 @@ describe("manager navigation", () => {
       );
     }
     expect(ADMIN_ONLY_PATHS).not.toContain("/manager/preference-reviews");
+  });
+
+  it("shows the reservations group only while reservations are enabled", () => {
+    for (const isAdmin of [true, false]) {
+      const off = visibleManagerNav({ isAdmin }, true, true, false);
+      expect(off.filter(isGroup).map((g) => g.labelKey)).not.toContain("groupReservations");
+      expect(paths(off)).not.toContain("/manager/reservations");
+      const on = visibleManagerNav({ isAdmin }, true, true, true);
+      expect(paths(on)).toEqual(
+        expect.arrayContaining([
+          "/manager/reservations",
+          "/manager/reservations/floor",
+          "/manager/reservations/rules",
+        ]),
+      );
+    }
   });
 
   it("guards admin-only routes in App.tsx with the same list", () => {

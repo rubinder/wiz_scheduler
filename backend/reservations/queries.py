@@ -79,3 +79,23 @@ async def list_between(
     )).scalars().all()
     labels = await table_labels(db, company_id, [r.id for r in rows])
     return [(r, labels.get(r.id, []), effective_status(r, now)) for r in rows]
+
+
+async def list_pending_approvals(
+    db: AsyncSession, company_id: str, location_id: str, now: datetime | None = None,
+) -> list[tuple[Reservation, list[str], str]]:
+    """The location's approval queue across every day: pending requests whose
+    hold is still live (held_until NULL or in the future) and that have not
+    started, soonest first, with table labels and `effective_status`."""
+    now = now or datetime.now(timezone.utc)
+    rows = (await db.execute(
+        select(Reservation).where(
+            Reservation.company_id == company_id,
+            Reservation.location_id == location_id,
+            Reservation.status == PENDING,
+            Reservation.start_at >= now,
+            or_(Reservation.held_until.is_(None), Reservation.held_until > now),
+        ).order_by(Reservation.start_at, Reservation.id)
+    )).scalars().all()
+    labels = await table_labels(db, company_id, [r.id for r in rows])
+    return [(r, labels.get(r.id, []), effective_status(r, now)) for r in rows]
