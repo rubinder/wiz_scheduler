@@ -359,11 +359,22 @@ data "aws_iam_policy_document" "voice_ecs_connect" {
   }
 
   statement {
-    sid = "ClaimReleaseAssociate"
+    sid     = "AssociateFlow"
+    actions = ["connect:AssociatePhoneNumberContactFlow"]
+    resources = [
+      "${aws_connect_instance.voice[0].arn}/contact-flow/*",
+      "arn:aws:connect:${var.aws_region}:${data.aws_caller_identity.current.account_id}:phone-number/*",
+    ]
+  }
+
+  # Claim takes the instance as TargetArn; scoped to this instance and
+  # account phone numbers. Unverified against live IAM evaluation: widen to
+  # "*" for these two actions if ClaimPhoneNumber is denied.
+  statement {
+    sid = "ClaimRelease"
     actions = [
       "connect:ClaimPhoneNumber",
       "connect:ReleasePhoneNumber",
-      "connect:AssociatePhoneNumberContactFlow",
     ]
     resources = [
       aws_connect_instance.voice[0].arn,

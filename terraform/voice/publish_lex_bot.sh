@@ -75,14 +75,19 @@ else
 fi
 aws lexv2-models wait bot-alias-available --bot-id "$bot_id" --bot-alias-id "$alias_id"
 
-region=$(aws configure get region || echo us-east-1)
+region="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || echo us-east-1)}}"
 account=$(aws sts get-caller-identity --query Account --output text)
 alias_arn="arn:aws:lex:${region}:${account}:bot-alias/${bot_id}/${alias_id}"
 
 echo "5/5 associate with Connect"
-aws connect associate-bot --instance-id "$instance_id" \
-  --lex-v2-bot "AliasArn=${alias_arn}" 2>/dev/null \
-  || echo "   (already associated)"
+associated=$(aws connect list-bots --instance-id "$instance_id" --lex-version V2 \
+  --query "length(LexBots[?LexV2Bot.AliasArn=='${alias_arn}'])" --output text)
+if [[ "$associated" == "0" ]]; then
+  aws connect associate-bot --instance-id "$instance_id" \
+    --lex-v2-bot "AliasArn=${alias_arn}"
+else
+  echo "   (already associated)"
+fi
 
 echo
 echo "voice_lex_bot_alias_arn = ${alias_arn}"

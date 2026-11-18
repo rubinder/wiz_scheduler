@@ -19,10 +19,8 @@ ${jsonencode({
         TextToSpeechVoice  = polly_voice
         TextToSpeechEngine = "Neural"
       }
-      Transitions = {
-        NextAction = "host-bot"
-        Errors     = [{ NextAction = "host-bot", ErrorType = "NoMatchingError" }]
-      }
+      # The flow language documents no error branches for this action.
+      Transitions = { NextAction = "host-bot" }
     },
     {
       # Every turn goes to the bridge Lambda through the bot's code hook.

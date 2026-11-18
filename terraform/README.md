@@ -350,10 +350,18 @@ The budget (`voice_budget_usd`, default 50) covers Amazon Connect, Lex,
 Polly and Lambda and emails `ops_alert_email` at 80% of actual spend. It
 alerts; it does not stop anything.
 
+Each run of `publish_lex_bot.sh` publishes a new bot version and leaves the
+old ones. Lex keeps at most 100 versions per bot; prune unused ones now and
+then with `aws lexv2-models delete-bot-version` (never the one alias `live`
+points at).
+
 To turn voice off, first set `voice_provisioning_enabled` false and release
 claimed numbers, then delete the bot alias (`aws lexv2-models
 delete-bot-alias`) and published versions, then apply with `voice_enabled`
-false.
+false. The bridge secret goes into Secrets Manager's 7-day recovery window,
+so turning voice back on within a week fails on the name; either wait, or
+delete it outright first:
+`aws secretsmanager delete-secret --secret-id wizscheduler/prod/VOICE_BRIDGE_SECRET --force-delete-without-recovery`.
 
 ## Variables Reference
 
