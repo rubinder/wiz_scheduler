@@ -21,7 +21,8 @@
 # -----------------------------------------------------------------------------
 
 locals {
-  voice_backend_url = var.domain_name != "" ? "https://${local.app_host}" : ""
+  voice_backend_url   = var.domain_name != "" ? "https://${local.app_host}" : ""
+  voice_connect_alias = "${var.app_name}-host"
 
   # Slot name -> built-in slot type. The bridge elicits all but `utterance`
   # by name (handler._ELICITS); `utterance` is the free-text catch-all.
@@ -315,17 +316,33 @@ resource "aws_lexv2models_slot" "voice" {
 
 # --- Amazon Connect -----------------------------------------------------------
 
+# Contact flow logs carry caller numbers. Connect writes them to
+# /aws/connect/<instance alias>, into an existing group of that name, so it
+# is created here first with a retention: they expire after 30 days.
+resource "aws_cloudwatch_log_group" "voice_connect_flows" {
+  count = var.voice_enabled ? 1 : 0
+
+  name              = "/aws/connect/${local.voice_connect_alias}"
+  retention_in_days = 30
+
+  tags = { Name = "${var.app_name}-host-flow-logs" }
+}
+
 resource "aws_connect_instance" "voice" {
   count = var.voice_enabled ? 1 : 0
 
-  instance_alias            = "${var.app_name}-host"
-  identity_management_type  = "CONNECT_MANAGED"
-  inbound_calls_enabled     = true
-  outbound_calls_enabled    = false
+  instance_alias           = local.voice_connect_alias
+  identity_management_type = "CONNECT_MANAGED"
+  inbound_calls_enabled    = true
+  # The handoff transfers to the location's external staff number, which
+  # Connect places as an outbound call. Nothing is billed unless used.
+  outbound_calls_enabled    = true
   contact_lens_enabled      = false
   contact_flow_logs_enabled = true
 
   tags = { Name = "${var.app_name}-host" }
+
+  depends_on = [aws_cloudwatch_log_group.voice_connect_flows]
 }
 
 # Created on the second apply, once publish_lex_bot.sh has made the alias.

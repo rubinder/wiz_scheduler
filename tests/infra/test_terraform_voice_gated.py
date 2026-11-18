@@ -62,3 +62,18 @@ def test_ecs_task_definition_unchanged_with_voice_off() -> None:
     assert "aws_secretsmanager_secret.voice_bridge[0]" not in text
     assert re.search(r"\], var\.voice_enabled \? \[", text)
     assert re.search(r"\] : \[\]\)", text)
+
+
+def test_connect_can_transfer_out_and_flow_logs_expire() -> None:
+    """The staff handoff is an outbound transfer, and the flow logs (caller
+    numbers) live in a group Terraform owns with a retention."""
+    text = (TERRAFORM / "voice.tf").read_text()
+    instance = re.search(r'resource "aws_connect_instance" "voice" \{(.*?)\n\}', text, re.S)
+    assert instance and re.search(r"outbound_calls_enabled\s*=\s*true", instance.group(1))
+    assert "depends_on = [aws_cloudwatch_log_group.voice_connect_flows]" in instance.group(1)
+    logs = re.search(
+        r'resource "aws_cloudwatch_log_group" "voice_connect_flows" \{(.*?)\n\}', text, re.S)
+    assert logs, "Connect flow-log group missing"
+    assert 'name              = "/aws/connect/${local.voice_connect_alias}"' in logs.group(1)
+    assert re.search(r"retention_in_days\s*=\s*30\b", logs.group(1))
+    assert re.search(r"instance_alias\s*=\s*local\.voice_connect_alias", instance.group(1))
