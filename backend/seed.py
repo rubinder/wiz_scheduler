@@ -423,6 +423,31 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
         (IntegrationImport, "integration_imports"),
     ):
         await _run(delete(model).where(model.location_id.in_(loc_ids)), label)
+    # Reservations (#254): NO ACTION FKs to locations, so before them, in the
+    # same child-first order as billing.delete_og_and_dependents.
+    # reservation_tables has no location_id: reach it through its reservation
+    # (a combination's tables are always at its location).
+    from backend.reservations.models import (
+        DiningTable, FloorSection, Reservation, ReservationRules,
+        ReservationTable, TableCombination,
+    )
+    doomed_reservations = (
+        select(Reservation.id).where(Reservation.location_id.in_(loc_ids))
+        .scalar_subquery()
+    )
+    await _run(
+        delete(ReservationTable).where(
+            ReservationTable.reservation_id.in_(doomed_reservations)),
+        "reservation_tables",
+    )
+    for model, label in (
+        (Reservation, "reservations"),
+        (TableCombination, "table_combinations"),
+        (DiningTable, "dining_tables"),
+        (FloorSection, "floor_sections"),
+        (ReservationRules, "reservation_rules"),
+    ):
+        await _run(delete(model).where(model.location_id.in_(loc_ids)), label)
     await _run(
         delete(Location).where(
             Location.company_id == COMPANY_ID, Location.id.in_(loc_ids)
