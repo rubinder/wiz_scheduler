@@ -12,6 +12,7 @@ import {
   localDateString,
   payloadToRulesForm,
   rulesFormToPayload,
+  validParty,
 } from "../../utils/reservations";
 import type { RulesForm } from "../../utils/reservations";
 import { border, text } from "../../theme";
@@ -59,6 +60,8 @@ export default function ReservationsRules() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [locationId, setLocationId] = useState("");
   const [form, setForm] = useState<RulesForm | null>(null);
+  /** JSON of the form as last loaded or saved; a different form has unsaved edits. */
+  const [baseline, setBaseline] = useState("");
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -120,7 +123,10 @@ export default function ReservationsRules() {
     setLoadError("");
     getRules(locationId)
       .then((out) => {
-        if (!cancelled) setForm(payloadToRulesForm(out.rules));
+        if (cancelled) return;
+        const loaded = payloadToRulesForm(out.rules);
+        setForm(loaded);
+        setBaseline(JSON.stringify(loaded));
       })
       .catch((e) => {
         if (!cancelled) setLoadError(errorText(e instanceof ApiError ? e.data : null));
@@ -134,6 +140,8 @@ export default function ReservationsRules() {
   useEffect(() => {
     if (location) setDate(localDateString(new Date(), location.timezone));
   }, [location]);
+
+  const dirty = form !== null && JSON.stringify(form) !== baseline;
 
   if (enabled === null) return <p className={text.muted}>{r.common.loading}</p>;
   if (!enabled) return <div className="glass-card p-6">{r.common.notEnabled}</div>;
@@ -155,11 +163,13 @@ export default function ReservationsRules() {
       + {label}
     </button>
   );
-  const numField = (label: string, key: keyof RulesForm, hint?: string) => (
+  /** `min`/`max` mirror the server's ge/le for the field. */
+  const numField = (label: string, key: keyof RulesForm, min: number, max?: number, hint?: string) => (
     <Field label={label} hint={hint}>
       <input
         type="number"
-        min={0}
+        min={min}
+        max={max}
         className={`${input} w-full`}
         value={form ? (form[key] as string) : ""}
         onChange={(e) => patch({ [key]: e.target.value } as Partial<RulesForm>)}
@@ -167,7 +177,12 @@ export default function ReservationsRules() {
     </Field>
   );
 
-  const periodEditor = (p: ServicePeriod, onChange: (p: ServicePeriod) => void, onRemove: () => void) => (
+  const periodEditor = (
+    p: ServicePeriod,
+    onChange: (p: ServicePeriod) => void,
+    onRemove: () => void,
+    position: number,
+  ) => (
     <div className="space-y-2 rounded border p-3">
       <div className="flex flex-wrap items-end gap-3">
         <Field label={r.rules.periodName}>
@@ -189,7 +204,7 @@ export default function ReservationsRules() {
             onChange={(e) => onChange({ ...p, last_seating: e.target.value })}
           />
         </Field>
-        {removeBtn(onRemove)}
+        {removeBtn(onRemove, `${r.rules.removePeriod} ${p.name.trim() || position}`)}
       </div>
       <div className="flex flex-wrap gap-3">
         {weekdayNames.map((name, d) => (
@@ -237,6 +252,11 @@ export default function ReservationsRules() {
     </div>
   );
 
+  const onLocationChange = (id: string) => {
+    if (dirty && !window.confirm(r.rules.discardConfirm)) return;
+    setLocationId(id);
+  };
+
   const onSave = async () => {
     if (!form) return;
     setSaving(true);
@@ -247,7 +267,9 @@ export default function ReservationsRules() {
     try {
       const out = await saveRules(forLocation, rulesFormToPayload(form));
       if (currentLocation.current !== forLocation) return;
-      setForm(payloadToRulesForm(out.rules));
+      const savedForm = payloadToRulesForm(out.rules);
+      setForm(savedForm);
+      setBaseline(JSON.stringify(savedForm));
       setSaved(true);
     } catch (e) {
       if (currentLocation.current !== forLocation) return;
@@ -265,6 +287,7 @@ export default function ReservationsRules() {
     const seq = ++previewSeq.current;
     const forLocation = locationId;
     const latest = () => seq === previewSeq.current && currentLocation.current === forLocation;
+    if (!validParty(partySize)) return;
     try {
       const out = await getSlots(forLocation, Number(partySize), date, asDiner);
       if (latest()) setSlots(out);
@@ -283,7 +306,7 @@ export default function ReservationsRules() {
         <div className="glass-card p-6 text-sm">{r.rules.noLocations}</div>
       ) : (
         <Field label={r.rules.location}>
-          <select className={`${input} block`} disabled={saving} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+          <select className={`${input} block`} disabled={saving} value={locationId} onChange={(e) => onLocationChange(e.target.value)}>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -293,7 +316,11 @@ export default function ReservationsRules() {
         </Field>
       )}
 
-      {loadError && <div className="glass-alert-error">{loadError}</div>}
+      {loadError && (
+        <div className="glass-alert-error" role="alert">
+          {loadError}
+        </div>
+      )}
       {locationId && !form && !loadError && <p className={text.muted}>{r.common.loading}</p>}
 
       {form && (
@@ -305,26 +332,32 @@ export default function ReservationsRules() {
                   p,
                   (np) => patch({ service_periods: setList(form.service_periods, i, np) }),
                   () => patch({ service_periods: dropAt(form.service_periods, i) }),
+                  i + 1,
                 )}
               </div>
             ))}
             {addBtn(r.rules.addPeriod, () =>
               patch({ service_periods: [...form.service_periods, { ...EMPTY_PERIOD }] }),
             )}
-            {numField(r.rules.slotInterval, "slot_interval_minutes")}
+            {numField(r.rules.slotInterval, "slot_interval_minutes", 5, 60)}
           </Section>
 
           <Section title={r.rules.durations}>
             {form.durations.map((d, i) => (
               <div key={i} className="flex flex-wrap items-end gap-3">
-                {(["max_party", "minutes", "churn_minutes"] as const).map((k) => (
+                {([
+                  ["max_party", 1, undefined],
+                  ["minutes", 30, 360],
+                  ["churn_minutes", 0, 120],
+                ] as const).map(([k, min, max]) => (
                   <Field
                     key={k}
                     label={k === "max_party" ? r.rules.maxParty : k === "minutes" ? r.rules.minutes : r.rules.churnMinutes}
                   >
                     <input
                       type="number"
-                      min={0}
+                      min={min}
+                      max={max}
                       className={`${input} w-28`}
                       value={d[k]}
                       onChange={(e) =>
@@ -343,14 +376,14 @@ export default function ReservationsRules() {
 
           <Section title={r.rules.maxPartySize}>
             <div className="grid gap-3 sm:grid-cols-2">
-              {numField(r.rules.maxSelfBookParty, "max_self_book_party")}
-              {numField(r.rules.maxPartySize, "max_party_size")}
-              {numField(r.rules.maxConcurrent, "max_concurrent_covers", r.rules.maxConcurrentHint)}
-              {numField(r.rules.maxPerSlot, "max_covers_per_slot", r.rules.maxPerSlotHint)}
-              {numField(r.rules.horizonDays, "booking_horizon_days")}
-              {numField(r.rules.cutoffMinutes, "cutoff_minutes")}
-              {numField(r.rules.holdTimeout, "hold_timeout_minutes")}
-              {numField(r.rules.pendingHoldHours, "pending_hold_hours")}
+              {numField(r.rules.maxSelfBookParty, "max_self_book_party", 1)}
+              {numField(r.rules.maxPartySize, "max_party_size", 1)}
+              {numField(r.rules.maxConcurrent, "max_concurrent_covers", 1, undefined, r.rules.maxConcurrentHint)}
+              {numField(r.rules.maxPerSlot, "max_covers_per_slot", 1, undefined, r.rules.maxPerSlotHint)}
+              {numField(r.rules.horizonDays, "booking_horizon_days", 1, 365)}
+              {numField(r.rules.cutoffMinutes, "cutoff_minutes", 0, 1440)}
+              {numField(r.rules.holdTimeout, "hold_timeout_minutes", 1, 30)}
+              {numField(r.rules.pendingHoldHours, "pending_hold_hours", 1, 72)}
             </div>
           </Section>
 
@@ -379,6 +412,7 @@ export default function ReservationsRules() {
                         p,
                         (np) => setO({ ...o, periods: setList(o.periods, j, np) }),
                         () => setO({ ...o, periods: dropAt(o.periods, j) }),
+                        j + 1,
                       )}
                     </div>
                   ))}
@@ -443,7 +477,11 @@ export default function ReservationsRules() {
               )}
             </div>
           )}
-          {saved && <div className="glass-alert-success">{r.common.saved}</div>}
+          {saved && (
+            <div className="glass-alert-success" role="status">
+              {r.common.saved}
+            </div>
+          )}
           <button type="button" className="glass-btn-primary" disabled={saving} onClick={onSave}>
             {saving ? r.common.saving : r.common.save}
           </button>
@@ -474,11 +512,20 @@ export default function ReservationsRules() {
                   {r.rules.viewStaff}
                 </label>
               </fieldset>
-              <button type="button" className="glass-btn-secondary" onClick={onPreview} disabled={!date || !location}>
+              <button
+                type="button"
+                className="glass-btn-secondary"
+                onClick={onPreview}
+                disabled={!date || !location || !validParty(partySize)}
+              >
                 {r.rules.showTimes}
               </button>
             </div>
-            {previewError && <div className="glass-alert-error">{previewError}</div>}
+            {previewError && (
+              <div className="glass-alert-error" role="alert">
+                {previewError}
+              </div>
+            )}
             {slots && slots.length === 0 && <p className={`text-sm ${text.muted}`}>{r.rules.noSlots}</p>}
             {slots && slots.length > 0 && location && (
               <ul className="flex flex-wrap gap-2">
