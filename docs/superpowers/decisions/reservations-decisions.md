@@ -57,3 +57,12 @@ Decisions made while building without stopping to ask (owner instruction,
 16. **Pacing counts bookings starting within the slot's interval**, so
     changing the interval doesn't make old bookings invisible to pacing.
 17. **Staff bookings don't need a phone number**; diner (agent) bookings do.
+18. **The AI host can never change a booking by itself.** Booking needs the
+    diner's Confirm button; cancelling and changing a booking also need a
+    button press after the agent proposes it (security review).
+19. **A diner gets 3 tries to look up a booking** by code + phone per
+    conversation, then must call or start over.
+20. **Large parties:** on web chat they become a request the restaurant
+    approves; on the phone the agent transfers to staff.
+21. **Each tool round commits on its own**, so one slow model reply never
+    holds a restaurant's booking lock.
