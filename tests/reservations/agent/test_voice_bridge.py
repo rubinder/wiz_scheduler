@@ -447,3 +447,43 @@ async def test_confirm_prompts_from_structured_data():
     assert voice.confirm_prompt(cancel) == \
         "Shall I cancel your booking for 4 on Friday, November 20th at 7 pm?"
     assert voice.confirm_prompt(TurnOutput("x", "text", None, False, None)) is None
+
+
+# -- erasure during a turn ----------------------------------------------------------
+
+async def test_erasure_during_a_turn_is_not_written_back(client, db_session, line, llm):
+    """The diner's data is erased while their turn waits on the model: the
+    conversation is closed, and the turn's reply and later events must not
+    put the diner's words back (remember_reply, record_event)."""
+    from backend.reservations.diner_data import erase_diner_data
+    from tests.conftest import get_test_session_factory
+
+    await _post(client, _body(0))
+    counts: dict = {}
+
+    async def erase_then_answer(_request):
+        async with get_test_session_factory()() as eraser:
+            counts.update(await erase_diner_data(eraser, COMPANY_ID, LOCATION_ID,
+                                                 CALLER))
+            await eraser.commit()
+        return reply(text("Ada, your table at seven is ready to book."))
+    llm.push(erase_then_answer)
+
+    out = (await _post(client, _body(1, text_="table for two, I'm Ada"))).json()
+    assert counts["conversations_closed_in_flight"] == 1
+    assert out["text"]  # the caller still hears the answer
+    conv = await _conv(db_session)
+    assert conv.status == "closed"
+    assert conv.last_reply is None
+    events = (await db_session.execute(
+        select(AgentEvent).where(AgentEvent.conversation_id == conv.id)
+        .order_by(AgentEvent.seq).execution_options(populate_existing=True)
+    )).scalars().all()
+    after = [e for e in events if e.type != "user_turn"]
+    assert after and all("Ada" not in str(e.payload) for e in after)
+    # The model call is still recorded and metered, without its words.
+    assert any(e.cost_usd > 0 for e in after)
+    assert conv.cost_usd == sum((e.cost_usd for e in events), Decimal(0))
+    # A retry of the erased turn is not answered from a stored reply.
+    again = (await _post(client, _body(1, text_="table for two, I'm Ada"))).json()
+    assert "Ada" not in again["text"]

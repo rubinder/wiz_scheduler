@@ -19,6 +19,12 @@ from backend.reservations.agent.models import (
     AgentEvent,
 )
 
+# last_seq of a conversation whose diner data was erased while a turn was
+# in flight (diner_data.erase_diner_data closes it instead of deleting it).
+# No turn number matches it (seq >= 0), so that turn's remember_reply writes
+# nothing, and record_event keeps the turn's cost but not its words.
+ERASED_SEQ = -1
+
 _MILLION = Decimal(1_000_000)
 _CENT_MILLIONTH = Decimal("0.000001")
 
@@ -100,7 +106,8 @@ async def remember_reply(db: AsyncSession, conv: AgentConversation, seq: int,
     a second run. Kept on a closing turn too: a retried "yes" that booked
     must hear its confirmation code again, not a goodbye. Only while the
     row still holds `seq`, so a later turn's number is never overwritten,
-    and a no-op on a row erased mid-turn. Does not commit."""
+    and a no-op on a row erased mid-turn (deleted, or closed with
+    last_seq = ERASED_SEQ). Does not commit."""
     await db.execute(
         update(AgentConversation)
         .where(AgentConversation.id == conv.id,
@@ -128,8 +135,16 @@ async def add_latency(db: AsyncSession, conv: AgentConversation, after_seq: int,
                       stages: Mapping[str, int]) -> None:
     """Merge channel-measured latency stages (voice: `asr`, `tts`) into the
     first event a turn recorded, the one after `after_seq`. Nothing when the
-    turn recorded no event. Does not commit."""
+    turn recorded no event, or the conversation was erased mid-turn. Does
+    not commit."""
     if not stages:
+        return
+    erased = (await db.execute(
+        select(AgentConversation.last_seq)
+        .where(AgentConversation.id == conv.id,
+               AgentConversation.company_id == conv.company_id)
+    )).scalar_one_or_none() == ERASED_SEQ
+    if erased:
         return
     first = (await db.execute(
         select(func.min(AgentEvent.seq))
@@ -163,7 +178,10 @@ async def record_event(
     usage: Mapping[str, int] | None = None,
 ) -> AgentEvent:
     """Append an event. Locks the conversation row so concurrent writers get
-    distinct, gapless seq numbers."""
+    distinct, gapless seq numbers. On a conversation erased mid-turn
+    (last_seq = ERASED_SEQ) the event is kept for its cost and usage but
+    its payload is dropped, so the turn writes none of the diner's words
+    back."""
     if type not in EVENT_TYPES:
         raise ValueError(f"invalid event type: {type!r}")
     # Lock the whole row and refresh it, so cost_usd below is the committed
@@ -181,6 +199,8 @@ async def record_event(
                AgentEvent.company_id == conv.company_id)
         .order_by(AgentEvent.seq.desc()).limit(1)
     )).scalar_one_or_none()
+    if locked.last_seq == ERASED_SEQ:
+        payload = {"erased": True}
     u = usage or {}
     cost = cost_of(u)
     event = AgentEvent(
