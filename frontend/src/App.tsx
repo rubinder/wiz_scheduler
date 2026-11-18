@@ -49,6 +49,7 @@ const AcceptManagerInvite = lazy(() => import("./pages/AcceptManagerInvite"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const ReserveChat = lazy(() => import("./pages/ReserveChat"));
 const PayrollArchiveRetrieve = lazy(() => import("./pages/PayrollArchiveRetrieve"));
 const PayrollArchiveDownload = lazy(() => import("./pages/PayrollArchiveDownload"));
 
@@ -131,6 +132,8 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/payroll-archive" element={<PayrollArchiveRetrieve />} />
         <Route path="/payroll-archive/download" element={<PayrollArchiveDownload />} />
+
+        <Route path="/r/:slug/:locationId" element={<ReserveChat />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>

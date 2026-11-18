@@ -1,0 +1,36 @@
+import { describe, expect, it } from "vitest";
+import type { TurnOutput } from "../api/publicReservations";
+import { actionsFor, inputHint, reduceTurn } from "./chat";
+
+const out = (reply_text: string): TurnOutput => ({ reply_text, expect: "text", hold: null, ended: false, handoff: null });
+
+describe("reduceTurn", () => {
+  it("appends diner then host", () => {
+    expect(reduceTurn([], "hi", out("hello"))).toEqual([
+      { from: "diner", text: "hi" },
+      { from: "host", text: "hello" },
+    ]);
+  });
+  it("null sent appends host only and does not mutate", () => {
+    const before = [{ from: "host" as const, text: "a" }];
+    expect(reduceTurn(before, null, out("b"))).toEqual([...before, { from: "host", text: "b" }]);
+    expect(before).toHaveLength(1);
+  });
+});
+
+describe("actionsFor", () => {
+  it("maps expect values", () => {
+    expect(actionsFor("confirm_hold")).toEqual(["confirm_hold", "decline_hold"]);
+    expect(actionsFor("confirm_cancel")).toEqual(["confirm_cancel"]);
+    expect(actionsFor("confirm_modify")).toEqual(["confirm_modify", "decline_hold"]);
+    for (const e of ["text", "handoff", "phone_number", "party_size", "confirmation_code"]) expect(actionsFor(e)).toEqual([]);
+  });
+});
+
+describe("inputHint", () => {
+  it("hints field types", () => {
+    expect(inputHint("phone_number").inputMode).toBe("tel");
+    expect(inputHint("party_size").inputMode).toBe("numeric");
+    expect(inputHint("text").placeholder).toBe("Type a message");
+  });
+});
