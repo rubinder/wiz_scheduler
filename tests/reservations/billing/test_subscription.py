@@ -1,7 +1,7 @@
 """AI host subscription queries (#259 step 5): billed amount, the answering
 subscription, spend today and period usage."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -12,6 +12,7 @@ from backend.reservations.subscription import (
     ReservationSubscription,
     active_for_location,
     billed_amount,
+    cap_reached,
     period_usage,
     spend_today,
     usage_period_start,
@@ -29,18 +30,33 @@ def test_billed_amount_rounds_half_up_to_the_cent():
     assert billed_amount(Decimal("0")) == Decimal("0.00")
 
 
-def test_usage_period_start_uses_the_containing_period_else_the_utc_month():
+def test_usage_period_start_uses_the_containing_period_else_the_utc_month_without_one():
     sub = ReservationSubscription(
         status="active",
         current_period_start=datetime(2026, 11, 10, 12, tzinfo=timezone.utc),
         current_period_end=datetime(2026, 12, 10, 12, tzinfo=timezone.utc))
     inside = datetime(2026, 12, 1, tzinfo=timezone.utc)
     assert usage_period_start(sub, inside) == sub.current_period_start
-    before = datetime(2026, 11, 9, 23, tzinfo=timezone.utc)
-    assert usage_period_start(sub, before) == datetime(2026, 11, 1, tzinfo=timezone.utc)
-    at_end = datetime(2026, 12, 10, 12, tzinfo=timezone.utc)
-    assert usage_period_start(sub, at_end) == datetime(2026, 12, 1, tzinfo=timezone.utc)
     assert usage_period_start(None, inside) == datetime(2026, 12, 1, tzinfo=timezone.utc)
+
+
+def test_usage_period_start_rolls_a_stale_period_by_whole_intervals():
+    start = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
+    sub = ReservationSubscription(status="active", current_period_start=start,
+                                  current_period_end=start + timedelta(days=30))
+    nxt = start + timedelta(days=30)
+    # Just past a stale end: the next period, not the calendar month.
+    assert usage_period_start(sub, nxt) == nxt
+    assert usage_period_start(sub, nxt + timedelta(seconds=1)) == nxt
+    assert usage_period_start(sub, start + timedelta(days=65)) == start + timedelta(days=60)
+    # Before the stored start: rolled backward.
+    assert usage_period_start(sub, start - timedelta(seconds=1)) == start - timedelta(days=30)
+    assert usage_period_start(sub, start - timedelta(days=31)) == start - timedelta(days=60)
+    # A start without an end, and no period at all.
+    open_ended = ReservationSubscription(status="active", current_period_start=start)
+    assert usage_period_start(open_ended, nxt) == start
+    bare = ReservationSubscription(status="incomplete")
+    assert usage_period_start(bare, nxt) == datetime(2026, 12, 1, tzinfo=timezone.utc)
 
 
 @pytest.mark.integration
@@ -49,8 +65,10 @@ async def test_active_for_location_needs_an_answering_status(db_session, seed_lo
     assert await active_for_location(db_session, COMPANY_ID, LOCATION_ID, NOW) is None
     sub = await subscribe(db_session, "active")
     assert (await active_for_location(db_session, COMPANY_ID, LOCATION_ID, NOW)).id == sub.id
-    for status, answers in (("trialing", True), ("canceled", False), ("past_due", False),
-                            ("unpaid", False), ("incomplete", False)):
+    # Ruling T: past_due keeps service while Stripe retries the card.
+    for status, answers in (("trialing", True), ("past_due", True), ("canceled", False),
+                            ("unpaid", False), ("incomplete", False),
+                            ("incomplete_expired", False)):
         sub.status = status
         await db_session.commit()
         got = await active_for_location(db_session, COMPANY_ID, LOCATION_ID, NOW)
@@ -94,3 +112,23 @@ async def test_period_usage_sums_one_period_of_one_group(db_session, seed_locati
     assert await period_usage(db_session, AGENT_OG_ID, p1) == Decimal("1.57")
     assert await period_usage(db_session, AGENT_OG_ID, p2) == Decimal("9.99")
     assert await period_usage(db_session, "nobodyxx", p1) == Decimal("0.00")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_cap_counts_a_bound_per_turn_in_flight(db_session, seed_location, monkeypatch):
+    from backend.config import settings
+    from backend.reservations.rules import get_rules, save_rules
+
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_TURN_COST_BOUND_USD", 0.05)
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    rules.daily_spend_cap_usd = 1.0
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    now = datetime.now(timezone.utc)
+    db_session.add(AgentConversation(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                                     channel="web", status="closed", started_at=now,
+                                     cost_usd=Decimal("0.9")))
+    await db_session.commit()
+    assert not await cap_reached(db_session, COMPANY_ID, seed_location, now, 0)
+    assert not await cap_reached(db_session, COMPANY_ID, seed_location, now, 1)  # 0.95
+    assert await cap_reached(db_session, COMPANY_ID, seed_location, now, 2)      # 1.00

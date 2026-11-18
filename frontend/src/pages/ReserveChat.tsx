@@ -5,7 +5,7 @@ import {
   getLocationInfo, sendTurn, startConversation,
   type Expect, type Hold, type LocationInfo, type Proposal, type TurnInput,
 } from "../api/publicReservations";
-import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startErrorFor, type ChatMessage } from "../utils/chat";
+import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startEnded, startErrorFor, type ChatMessage } from "../utils/chat";
 
 // Diner-facing copy is English only and deliberately not in i18n (the AI host
 // agent is English-only by design). Nothing is persisted: no token storage.
@@ -58,6 +58,7 @@ export default function ReserveChat() {
         // The start's reply is the greeting: shown once (the header names the location).
         setMessages([{ from: "host", text: c.reply_text }]);
         setExpect(c.expect);
+        if (startEnded(c)) setEnded(true);
       } catch (e) {
         if (!cancelled) setStartError(startErrorFor(e instanceof ApiError ? e.status : 0));
       }

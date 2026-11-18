@@ -26,10 +26,13 @@ hop limit is skipped.
   the turn cap and refuses a second concurrent turn with 409.
 
 Billing (#259 step 5), after the limits and the scope: every route 404s
-unless the location's ownership group has an AI host subscription that is
-`active` or `trialing` (`subscription.active_for_location`). Once the
-location's model spend today reaches its `daily_spend_cap_usd`, a new
-conversation is created closed (`blocked`, so it bills nothing) and a turn
+unless the location's ownership group has an AI host subscription that
+answers (`subscription.active_for_location`). At most
+RESERVATION_AGENT_LOCATION_MAX_INFLIGHT turns run at once per location; one
+more is refused with 409 `location_busy` and the chat stays open. Once the
+location's spend today plus a cost bound per turn in flight reaches its
+`daily_spend_cap_usd` (`subscription.cap_reached`), a new conversation is
+created closed (`blocked`, so it bills nothing; `ended: true`) and a turn
 closes its conversation, both answering `subscription.busy_text`.
 """
 
@@ -172,6 +175,8 @@ async def _busy(db: AsyncSession, scope: PublicScope) -> str:
     return await subscription.busy_text(db, scope.company_id, scope.location.id)
 
 
+LOCATION_BUSY_TEXT = "Lots of people are booking right now — please try again in a minute."
+
 CLEAR_LOCK_TIMEOUT = "2s"
 
 _core: AgentCore | None = None
@@ -229,11 +234,14 @@ async def start_conversation(
     conv = await recording.start_conversation(db, scope.company_id, location_id,
                                               "web", source_key=source_key_for(viewer))
     token = conv.public_token
-    if await subscription.cap_reached(db, scope.company_id, scope.location, now):
+    inflight = await recording.inflight_turns(db, location_id)
+    if await subscription.cap_reached(db, scope.company_id, scope.location, now,
+                                      inflight):
         await recording.finish(db, conv, "blocked")
         reply = await _busy(db, scope)
         await db.commit()
-        return ConversationOut(conversation_token=token, reply_text=reply, expect="text")
+        return ConversationOut(conversation_token=token, reply_text=reply,
+                               expect="text", ended=True)
     greeting = await _greeting(db, scope)
     await db.commit()
     return ConversationOut(conversation_token=token, reply_text=greeting, expect="text")
@@ -258,8 +266,13 @@ async def post_turn(
     )).scalar_one_or_none()
     if conv is None:
         raise _not_found()
-    claim = await recording.claim_turn(db, conv)
-    await db.commit()  # so a concurrent request sees the claim
+    claim = await recording.claim_turn_at_location(db, conv)
+    await db.commit()  # so a concurrent request sees the claim; frees the lock
+    if claim == "location_busy":
+        logger.info("reservation_agent.location_busy location=%s", scope.location.id)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail={"code": "location_busy",
+                                    "message": LOCATION_BUSY_TEXT})
     if claim == "busy":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail={"code": "turn_in_progress"})
@@ -268,7 +281,10 @@ async def post_turn(
     conv_id, company_id = conv.id, conv.company_id
     try:
         now = datetime.now(timezone.utc)
-        if await subscription.cap_reached(db, scope.company_id, scope.location, now):
+        others = await recording.inflight_turns(db, scope.location.id,
+                                                exclude_conversation_id=conv_id)
+        if await subscription.cap_reached(db, scope.company_id, scope.location, now,
+                                          others):
             # Closes as the turn cap does (a live hold released, outcome by
             # what the conversation achieved), clearing the turn mark.
             reply = await _busy(db, scope)

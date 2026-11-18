@@ -3,22 +3,40 @@ used.
 
 `ReservationSubscription` is the ownership group's separately billed agent
 subscription (one per group); Stripe keeps it current through the webhook,
-and nothing here calls Stripe. `AgentUsage` is one row per billable finished
-conversation: what it cost us and what it bills (cost x markup, to the cent),
-assigned to the subscription period it ended in. It carries no diner data and
-outlives the conversation (retention deletes agent_conversations after
-RETENTION_RESERVATIONS_DAYS; `conversation_id` is then set NULL).
+and nothing here calls Stripe. `AgentUsage` is one row per billable
+conversation: what it cost us and what it bills (cost x markup, to the cent).
+It is metered incrementally (Ruling S, `meter`): every cost-bearing event and
+the finish upsert the row with the conversation's running total, so a chat
+that is abandoned, never finished, or erased (GDPR) mid-way is still billed
+for what it spent. Its period is fixed when the row is first written. It
+carries no diner data and outlives the conversation (retention and erasure
+delete agent_conversations; `conversation_id` is then set NULL).
 
-The agent answers only while the group's subscription is `active` or
-`trialing` (`active_for_location`) and the location's spend today is under its
+The agent answers only while the group's subscription is `active`,
+`trialing` or `past_due` (Ruling T: Stripe is still retrying the card), see
+`active_for_location`, and while the location's spend today is under its
 `daily_spend_cap_usd` (`cap_reached`).
+
+Spend cap overshoot (Ruling S). `cap_reached` counts the recorded spend of
+the location's local day plus RESERVATION_AGENT_TURN_COST_BOUND_USD for every
+turn still in flight, and recording.claim_turn_at_location lets at most
+RESERVATION_AGENT_LOCATION_MAX_INFLIGHT turns run at once per location
+(claimed under a per-location advisory lock, so the count is exact). A turn
+that passes the check can therefore take the day past the cap only by what
+the in-flight turns spend beyond their reserved bound: at most
+MAX_INFLIGHT x (the worst single-turn cost - the bound), where the worst
+turn is RESERVATION_AGENT_MAX_TOOL_ROUNDS model calls of at most
+RESERVATION_AGENT_MAX_TOKENS output each. Conversation starts make no model
+call and add nothing.
 """
 
+import logging
 from datetime import datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -32,10 +50,15 @@ from backend.reservations.subscription_models import (
     AgentUsage,
     ReservationSubscription,
 )
+from backend.utils.id_gen import generate_short_id
 
 __all__ = ["PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
 
-ANSWERING_STATUSES = ("active", "trialing")
+# Ruling T (decision 38): past_due keeps service while Stripe retries the
+# card; unpaid, canceled, incomplete and incomplete_expired stop it.
+logger = logging.getLogger(__name__)
+
+ANSWERING_STATUSES = ("active", "trialing", "past_due")
 _CENT = Decimal("0.01")
 BUSY_TEXT = "Online booking is busy right now — please call the restaurant."
 
@@ -51,15 +74,22 @@ def _utc_month_start(at: datetime) -> datetime:
         day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-def usage_period_start(sub: ReservationSubscription | None, ended_at: datetime) -> datetime:
-    """The billing period a conversation that ended at `ended_at` belongs to:
-    the subscription's current period when it contains `ended_at`, otherwise
-    the UTC calendar month of `ended_at`."""
+def usage_period_start(sub: ReservationSubscription | None, at: datetime) -> datetime:
+    """The start of the billing period that contains `at`.
+
+    From the subscription's stored period, rolled forward (a stale period
+    the webhook has not moved yet) or backward by whole intervals of its
+    length until it contains `at`. With a start but no end, the start once
+    `at` is past it. Only with no stored period at all (or `at` before an
+    open-ended start): the UTC calendar month of `at`."""
     if sub is not None and sub.current_period_start is not None:
         start, end = sub.current_period_start, sub.current_period_end
-        if start <= ended_at and (end is None or ended_at < end):
+        if end is not None and end > start:
+            step = end - start
+            return start + ((at - start) // step) * step
+        if end is None and at >= start:
             return start
-    return _utc_month_start(ended_at)
+    return _utc_month_start(at)
 
 
 async def ownership_group_of(db: AsyncSession, company_id: str) -> str | None:
@@ -121,11 +151,15 @@ async def spend_today(
 
 async def cap_reached(
     db: AsyncSession, company_id: str, location: Location, now: datetime,
+    inflight_turns: int,
 ) -> bool:
-    """True once the location's spend today reaches its daily_spend_cap_usd."""
+    """True once the location's spend today, plus the cost bound of each of
+    `inflight_turns` other turns still running (recording.inflight_turns),
+    reaches its daily_spend_cap_usd. See the module notes on overshoot."""
     rules, _ = await get_rules(db, company_id, location.id)
     spent = await spend_today(db, location.id, now, location.timezone)
-    return spent >= Decimal(str(rules.daily_spend_cap_usd))
+    reserved = Decimal(str(settings.RESERVATION_AGENT_TURN_COST_BOUND_USD)) * inflight_turns
+    return spent + reserved >= Decimal(str(rules.daily_spend_cap_usd))
 
 
 async def busy_text(db: AsyncSession, company_id: str, location_id: str) -> str:
@@ -135,6 +169,41 @@ async def busy_text(db: AsyncSession, company_id: str, location_id: str) -> str:
     if phone:
         return BUSY_TEXT[:-1] + f" at {phone}."
     return BUSY_TEXT
+
+
+async def meter(db: AsyncSession, conv: AgentConversation, at: datetime) -> None:
+    """Upsert the conversation's AgentUsage row with its running cost (Ruling
+    S). Insert when the billed amount first exceeds 0.00, with the period
+    containing `at`; later calls update cost and billed amount only (the
+    period stays). Never for a `blocked` conversation, nor for a company
+    without an ownership group. A DB write only, in a savepoint: metering
+    never raises into the call path (it logs instead)."""
+    cost = conv.cost_usd or Decimal(0)
+    if conv.outcome == "blocked" or cost <= 0:
+        return
+    billed = billed_amount(cost)
+    if billed <= 0:
+        return
+    try:
+        async with db.begin_nested():
+            og_id = await ownership_group_of(db, conv.company_id)
+            if og_id is None:
+                logger.warning("agent usage not metered: company %s has no "
+                               "ownership group (conversation %s)",
+                               conv.company_id, conv.id)
+                return
+            sub = await for_group(db, og_id)
+            stmt = pg_insert(AgentUsage).values(
+                id=generate_short_id(), company_id=conv.company_id,
+                ownership_group_id=og_id, location_id=conv.location_id,
+                conversation_id=conv.id, cost_usd=cost, billed_usd=billed,
+                period_start=usage_period_start(sub, at), product=PRODUCT)
+            await db.execute(stmt.on_conflict_do_update(
+                index_elements=["conversation_id"],
+                set_={"cost_usd": stmt.excluded.cost_usd,
+                      "billed_usd": stmt.excluded.billed_usd}))
+    except Exception:
+        logger.exception("agent usage metering failed (conversation %s)", conv.id)
 
 
 async def period_usage(db: AsyncSession, og_id: str, period_start: datetime) -> Decimal:

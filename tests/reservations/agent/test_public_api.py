@@ -146,7 +146,8 @@ async def test_start_conversation_returns_token_and_greeting(client, db_session,
     r = await client.post(f"{BASE}/conversations")
     assert r.status_code == 201
     body = r.json()
-    assert set(body) == {"conversation_token", "reply_text", "expect"}
+    assert set(body) == {"conversation_token", "reply_text", "expect", "ended"}
+    assert body["ended"] is False
     assert len(body["conversation_token"]) == 43
     assert "Downtown Store" in body["reply_text"] and body["expect"] == "text"
     conv = (await db_session.execute(select(AgentConversation).where(

@@ -314,6 +314,11 @@ class Settings(BaseSettings):
     RESERVATIONS_PRICE_ID: str = ""
     RESERVATIONS_INCLUDED_USAGE_USD: float = 5.00
     RESERVATIONS_USAGE_MARKUP: float = 1.5
+    # Spend cap (Ruling S): each turn in flight counts as this much spend
+    # until it records its real cost, and at most this many turns run at
+    # once per location (more are answered 409 location_busy).
+    RESERVATION_AGENT_TURN_COST_BOUND_USD: float = 0.05
+    RESERVATION_AGENT_LOCATION_MAX_INFLIGHT: int = 10
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30

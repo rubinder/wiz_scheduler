@@ -28,7 +28,8 @@ KINDS_OLD = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
 KINDS_NEW = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
              "'invoice_item_employees', 'invoice_item_reservation_agent')")
 
-STATUSES = ("incomplete", "active", "trialing", "past_due", "canceled", "unpaid")
+STATUSES = ("incomplete", "incomplete_expired", "active", "trialing", "past_due",
+            "canceled", "unpaid")
 
 POLICIES: dict[str, str] = {
     "reservation_subscriptions": "ownership_group_id = ANY(app_ownership_group_ids())",

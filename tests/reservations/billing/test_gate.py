@@ -93,6 +93,7 @@ async def test_cap_reached_at_start_closes_the_new_conversation(
     assert r.status_code == 201
     body = r.json()
     assert body["reply_text"] == BUSY and body["expect"] == "text"
+    assert body["ended"] is True
     conv = (await db_session.execute(select(AgentConversation).where(
         AgentConversation.public_token == body["conversation_token"]))).scalar_one()
     assert (conv.status, conv.outcome) == ("closed", "blocked")
@@ -118,7 +119,7 @@ async def test_under_the_cap_the_agent_answers(client, db_session, seeded_floor,
     await _cap(db_session, 1.0)
     await _spend(db_session, "0.99")
     r = await client.post(f"{BASE}/conversations")
-    assert r.json()["reply_text"] != BUSY
+    assert r.json()["reply_text"] != BUSY and r.json()["ended"] is False
     llm.push(reply(text("Sure, for how many?")))
     r = await client.post(f"{BASE}/conversations/{r.json()['conversation_token']}/turns",
                           json={"text": "a table tonight"})
@@ -153,3 +154,64 @@ def test_cap_defaults_and_floor():
     assert RulesSchema().daily_spend_cap_usd == 20.0
     with pytest.raises(ValidationError):
         RulesSchema(daily_spend_cap_usd=0.5)
+
+
+async def _inflight(db, n: int) -> None:
+    """n other conversations at the location with a turn running now."""
+    now = datetime.now(timezone.utc)
+    db.add_all([AgentConversation(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                                  channel="web", status="open", started_at=now,
+                                  turn_started_at=now) for _ in range(n)])
+    await db.commit()
+
+
+async def test_turns_in_flight_count_toward_the_cap_at_start(
+        client, db_session, seeded_floor, llm, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_TURN_COST_BOUND_USD", 0.05)
+    await subscribe(db_session)
+    await _cap(db_session, 1.0)
+    await _spend(db_session, "0.96")
+    r = await client.post(f"{BASE}/conversations")
+    assert r.json()["ended"] is False  # 0.96 alone is under the cap
+    await _inflight(db_session, 1)     # 0.96 + 0.05
+    r = await client.post(f"{BASE}/conversations")
+    assert r.json()["reply_text"] == BUSY and r.json()["ended"] is True
+
+
+async def test_too_many_turns_in_flight_is_409_and_the_chat_stays_open(
+        client, db_session, seeded_floor, llm, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_LOCATION_MAX_INFLIGHT", 10)
+    await subscribe(db_session)
+    token = (await client.post(f"{BASE}/conversations")).json()["conversation_token"]
+    await _inflight(db_session, 10)
+    r = await client.post(f"{BASE}/conversations/{token}/turns", json={"text": "hi"})
+    assert r.status_code == 409
+    assert r.json()["detail"] == {
+        "code": "location_busy",
+        "message": "Lots of people are booking right now — please try again in a minute."}
+    conv = (await db_session.execute(select(AgentConversation).where(
+        AgentConversation.public_token == token))).scalar_one()
+    await db_session.refresh(conv)
+    assert (conv.status, conv.turn_count, conv.turn_started_at) == ("open", 0, None)
+    assert llm.requests == []
+
+
+async def test_cap_close_mid_conversation_meters_what_was_spent(
+        client, db_session, seeded_floor, llm):
+    await subscribe(db_session)
+    await _cap(db_session, 5.0)
+    token = (await client.post(f"{BASE}/conversations")).json()["conversation_token"]
+    llm.push(reply(text("For how many?"), usage={"input_tokens": 2_000_000}))  # $0.20
+    r = await client.post(f"{BASE}/conversations/{token}/turns", json={"text": "a table"})
+    assert r.status_code == 200
+    await _spend(db_session, "5")
+    r = await client.post(f"{BASE}/conversations/{token}/turns", json={"text": "four"})
+    assert r.json()["reply_text"] == BUSY and r.json()["ended"] is True
+    conv = (await db_session.execute(select(AgentConversation).where(
+        AgentConversation.public_token == token))).scalar_one()
+    await db_session.refresh(conv)
+    assert conv.status == "closed" and conv.outcome == "abandoned"
+    (row,) = (await db_session.execute(select(AgentUsage))).scalars().all()
+    assert row.conversation_id == conv.id
+    assert row.cost_usd == conv.cost_usd > 0
+    assert row.billed_usd == Decimal("0.30")
