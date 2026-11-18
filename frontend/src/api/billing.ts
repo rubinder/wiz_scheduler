@@ -252,6 +252,10 @@ export interface AgentUsage {
 export interface ReservationAgentStatus {
   /** False until the operator has set the AI host price; Subscribe answers 503 not_configured. */
   configured: boolean;
+  /** The monthly subscription price the card shows (server setting). */
+  price_usd_monthly: number;
+  /** Usage is billed at model cost x this (1.5 = cost + 50%). */
+  usage_markup: number;
   /** Stripe subscription status, or null when the group never subscribed. */
   status: string | null;
   answering: boolean;

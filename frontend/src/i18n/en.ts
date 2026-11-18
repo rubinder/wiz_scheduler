@@ -1642,7 +1642,7 @@ const en = {
       title: "AI Host Billing",
       description: "The reservation AI host has its own subscription, separate from scheduling.",
       cardTitle: "AI host subscription",
-      price: "$10/month, includes $5 of usage, then our cost + 50%",
+      price: "{price}/month, includes {included} of usage, then our cost + {markup}%",
       subscribe: "Subscribe",
       redirecting: "Redirecting to payment...",
       manage: "Manage",

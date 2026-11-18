@@ -1634,7 +1634,7 @@ const fr = {
       title: "Facturation de l'hôte IA",
       description: "L'hôte IA des réservations a son propre abonnement, distinct de la planification.",
       cardTitle: "Abonnement à l'hôte IA",
-      price: "10 $/mois, 5 $ d'utilisation inclus, puis notre coût + 50 %",
+      price: "{price}/mois, {included} d'utilisation inclus, puis notre coût + {markup} %",
       subscribe: "S'abonner",
       redirecting: "Redirection vers le paiement...",
       manage: "Gérer",

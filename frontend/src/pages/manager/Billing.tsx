@@ -12,6 +12,7 @@ import {
   checkoutReturn,
   formatDollars,
   periodEndLabel,
+  priceValues,
   survivesCancellationUntil,
   usageAmounts,
 } from "../../utils/agentBilling";
@@ -78,10 +79,12 @@ export default function Billing() {
           setAgent(s);
           setNotice("");
           return;
-        } catch {
+        } catch (err) {
           if (cancelled) return;
           setNotice("");
-          setError(b.confirmFailed);
+          // 409 already_subscribed: the webhook or an earlier return got
+          // there first; the subscription is recorded, so just show it.
+          if (!(err instanceof ApiError && err.status === 409)) setError(b.confirmFailed);
         }
       }
       if (!cancelled) await load();
@@ -157,7 +160,7 @@ export default function Billing() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
               <h2 className={`text-lg font-semibold ${text.heading}`}>{b.cardTitle}</h2>
-              <p className={`text-sm ${text.secondary}`}>{b.price}</p>
+              <p className={`text-sm ${text.secondary}`}>{fill(b.price, priceValues(agent, lang))}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {canSubscribe(agent.status) && (

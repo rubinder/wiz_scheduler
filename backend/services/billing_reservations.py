@@ -1800,6 +1800,8 @@ async def status_summary(
         })
     return {
         "configured": bool(settings.RESERVATIONS_PRICE_ID),
+        "price_usd_monthly": _money(Decimal(str(settings.RESERVATIONS_PRICE_MONTHLY_USD))),
+        "usage_markup": float(settings.RESERVATIONS_USAGE_MARKUP),
         "status": row.status if row else None,
         "answering": bool(row and row.status in ANSWERING_STATUSES),
         "current_period_start": row.current_period_start.isoformat() if row and row.current_period_start else None,

@@ -2,7 +2,7 @@
  * Display helpers for the AI host billing card. The server decides whether
  * the AI host answers (`answering`); these only choose labels.
  */
-import type { AgentUsage } from "../api/billing";
+import type { AgentUsage, ReservationAgentStatus } from "../api/billing";
 
 export type AgentStatusKey =
   | "none"
@@ -35,6 +35,31 @@ export function canSubscribe(status: string | null): boolean {
 /** Whole-cent dollar amounts (the API rounds them); utils/conversations.formatUsd is for sub-cent costs. */
 export function formatDollars(amount: number, locale: string): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(amount);
+}
+
+/** Whole amounts without cents ("$10"), others to the cent ("$12.50"). */
+function priceAmount(amount: number, locale: string): string {
+  const whole = Number.isInteger(amount);
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  }).format(amount);
+}
+
+/** The price line's placeholders, from the API (the server's settings), never hardcoded. */
+export function priceValues(
+  s: Pick<ReservationAgentStatus, "price_usd_monthly" | "usage_markup"> & {
+    usage: Pick<AgentUsage, "included_usd">;
+  },
+  locale: string,
+): { price: string; included: string; markup: string } {
+  return {
+    price: priceAmount(s.price_usd_monthly, locale),
+    included: priceAmount(s.usage.included_usd, locale),
+    markup: String(Math.round((s.usage_markup - 1) * 100)),
+  };
 }
 
 export function usageAmounts(

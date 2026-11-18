@@ -596,6 +596,9 @@ async def test_status_reports_usage_and_spend_against_cap(
     assert body["usage"]["billed_usd"] == 6.5
     assert body["usage"]["included_usd"] == 5.0
     assert body["usage"]["overage_usd"] == 1.5
+    # The billing card's price line is rendered from these, not hardcoded.
+    assert body["price_usd_monthly"] == 10.0
+    assert body["usage_markup"] == 1.5
     [loc] = body["locations"]
     assert loc["location_id"] == LOCATION_ID
     assert loc["spend_today_usd"] == 1.23

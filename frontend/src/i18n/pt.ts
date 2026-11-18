@@ -1634,7 +1634,7 @@ const pt = {
       title: "Faturação do anfitrião IA",
       description: "O anfitrião IA de reservas tem a sua própria assinatura, separada da de escalas.",
       cardTitle: "Assinatura do anfitrião IA",
-      price: "US$ 10/mês, inclui US$ 5 de uso, depois o nosso custo + 50%",
+      price: "{price}/mês, inclui {included} de uso, depois o nosso custo + {markup}%",
       subscribe: "Assinar",
       redirecting: "Redirecionando para o pagamento...",
       manage: "Gerenciar",

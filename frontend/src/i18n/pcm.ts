@@ -1634,7 +1634,7 @@ const pcm = {
       title: "AI Host Bill",
       description: "Di reservation AI host get im own subscription, e no join scheduling own.",
       cardTitle: "Di AI host subscription",
-      price: "$10 every month, e cover $5 usage, after dat na our cost + 50%",
+      price: "{price} every month, e cover {included} usage, after dat na our cost + {markup}%",
       subscribe: "Subscribe",
       redirecting: "We dey carry you go payment...",
       manage: "Manage am",
