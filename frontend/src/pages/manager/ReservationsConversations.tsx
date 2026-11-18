@@ -85,8 +85,9 @@ export default function ReservationsConversations() {
   const tz = location?.timezone ?? "UTC";
 
   const errorText = (e: unknown): string => {
-    const code = errorCode(e instanceof ApiError ? e.data : null);
-    const own = numberErrorKey(code);
+    const detail = e instanceof ApiError ? e.data : null;
+    const code = errorCode(detail);
+    const own = numberErrorKey(code, detail);
     if (own) return r.numbers[own];
     return (code && (r.errors as Record<string, string>)[code]) || r.errors.generic;
   };

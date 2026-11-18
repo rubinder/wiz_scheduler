@@ -1773,6 +1773,9 @@ const vi = {
       alreadyBlocked: "Người gọi này đã bị chặn tại địa điểm này từ trước.",
       viewLists: "Mở danh sách số",
       erasedRules: "Đã xóa {deleted} mục danh sách số tại đây. Còn {remaining} mục áp dụng cho tất cả địa điểm: quản trị viên có thể xóa chúng trong Danh sách số.",
+      numberAllowedHere: "Số này đang ở danh sách cho phép tại đây; hãy xóa nó trước.",
+      numberAllowedAll: "Số này đang ở danh sách cho phép cho tất cả địa điểm; hãy nhờ quản trị viên xóa nó trước.",
+      archivedLocation: "Địa điểm đã lưu trữ",
     },
   },
 } as const;

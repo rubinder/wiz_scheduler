@@ -67,6 +67,7 @@ _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     number_rules.InvalidNumber: 422,
     number_rules.ExpiryInPast: 422,
     number_rules.NoCallerNumber: 409,
+    number_rules.NumberAllowed: 409,
 }
 
 
@@ -79,7 +80,7 @@ async def _domain_errors(db: AsyncSession) -> AsyncIterator[None]:
         await db.rollback()
         raise HTTPException(
             status_code=_ERROR_STATUS.get(type(e), 400),
-            detail={"code": e.code, "message": str(e)},
+            detail={"code": e.code, "message": str(e), **getattr(e, "extra", {})},
         )
 
 

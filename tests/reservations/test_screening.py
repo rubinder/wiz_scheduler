@@ -52,8 +52,10 @@ async def test_no_rules_answers_by_default(db_session, locations):
 
 
 async def test_location_allow_beats_location_block(db_session, locations):
+    # Two permanent entries for one scope cannot exist (uq_number_rules_permanent);
+    # an expiring one beside a permanent one can.
     await _rule(db_session, "block")
-    await _rule(db_session, "allow")
+    await _rule(db_session, "allow", expires_at=NOW + timedelta(days=1))
     assert await _decide(db_session) == ("answer", "allow_list")
 
 
@@ -84,7 +86,8 @@ async def test_company_block(db_session, locations):
 async def test_another_locations_rules_do_not_apply(db_session, locations):
     await _rule(db_session, "block", location_id=OTHER_LOCATION_ID)
     assert await _decide(db_session) == ("answer", "default")
-    await _rule(db_session, "allow", location_id=OTHER_LOCATION_ID)
+    await _rule(db_session, "allow", location_id=OTHER_LOCATION_ID,
+                expires_at=NOW + timedelta(days=1))
     await _spam(db_session, 1, 5)
     assert await _decide(db_session) == ("block", "ftc")
 

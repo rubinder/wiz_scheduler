@@ -1773,6 +1773,9 @@ const es = {
       alreadyBlocked: "Este llamante ya estaba bloqueado en esta ubicación.",
       viewLists: "Abrir listas de números",
       erasedRules: "{deleted} entradas de listas de números eliminadas aquí. Quedan {remaining} entradas para todas las ubicaciones: un administrador puede quitarlas en Listas de números.",
+      numberAllowedHere: "Este número está en una lista de permitidos aquí; quítelo primero.",
+      numberAllowedAll: "Este número está en la lista de permitidos de todas las ubicaciones; pida primero a un administrador que lo quite.",
+      archivedLocation: "Ubicación archivada",
     },
   },
 } as const;

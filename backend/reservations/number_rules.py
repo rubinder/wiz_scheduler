@@ -17,7 +17,14 @@ Uniqueness. One active entry per scope (a location, or company-wide) and
 number, whatever its action: an allow and a block for the same number at
 the same scope would contradict each other. "Active" moves with the clock,
 so no index can hold it; create and edit take a transaction-scoped advisory
-lock per company and number, and the check runs under it.
+lock per company and number, and the check runs under it. Entries that
+never expire also have a partial unique index (uq_number_rules_permanent)
+as the backstop.
+
+A location block under an active allow (that location's or company-wide)
+would never apply, since an allow wins (screening.decide): creating one, by
+POST or Mark as spam, is NumberAllowed (409 number_allowed, with the scope
+of the allow).
 
 Number rules are diner data: diner_data exports and erases them. Deleting
 one is a hard delete (a rule is not history; screened_calls keep only the
@@ -29,6 +36,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Location, User
@@ -61,6 +69,22 @@ class NoCallerNumber(ReservationError):
     code = "no_caller_number"
 
 
+class NumberAllowed(ReservationError):
+    """A location block (a POST or Mark as spam) under an active allow for
+    the number, at that location (scope "here") or company-wide (scope
+    "all_locations"): the allow would win, so the block would do nothing.
+    Remove the allow first."""
+    code = "number_allowed"
+
+    def __init__(self, scope: str) -> None:
+        super().__init__(f"this number is on an allow list ({scope}); remove it first")
+        self.scope = scope
+
+    @property
+    def extra(self) -> dict[str, str]:
+        return {"scope": self.scope}
+
+
 @dataclass(frozen=True)
 class RuleView:
     rule: NumberRule
@@ -75,6 +99,11 @@ async def rule_zone(db: AsyncSession, company_id: str, location_id: str | None) 
     if location_id is not None:
         q = q.where(Location.id == location_id)
     else:
+        # A company-wide entry has no location of its own. Its "end of day"
+        # uses the company's first active location by name (then id): stable
+        # across reads and, for the usual single-zone company, the zone the
+        # manager means. With no active location, UTC. Ruled by the
+        # controller (#259 step 7, task 4); a per-company zone would replace it.
         q = q.where(active(Location)).order_by(Location.name, Location.id).limit(1)
     tz = (await db.execute(q)).scalar_one_or_none()
     return ZoneInfo(tz) if tz else ZoneInfo("UTC")
@@ -150,6 +179,34 @@ async def _active_at_scope(db: AsyncSession, company_id: str, location_id: str |
             ).scalar_one_or_none()
 
 
+async def _allowed_over(db: AsyncSession, company_id: str, location_id: str,
+                        e164: str, now: datetime) -> str | None:
+    """"here" or "all_locations" when an active allow for the number covers
+    the location (a location allow first), else None."""
+    scopes = set((await db.execute(
+        select(NumberRule.location_id).where(
+            NumberRule.company_id == company_id, NumberRule.e164 == e164,
+            NumberRule.action == "allow", active_rule_clause(now),
+            or_(NumberRule.location_id == location_id, NumberRule.location_id.is_(None)))
+    )).scalars().all())
+    if location_id in scopes:
+        return "here"
+    if None in scopes:
+        return "all_locations"
+    return None
+
+
+async def _flush_unique(db: AsyncSession) -> None:
+    """Flush; the permanent-entry unique index (uq_number_rules_permanent)
+    is a DuplicateRule."""
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        if "uq_number_rules_permanent" in str(e.orig):
+            raise DuplicateRule("an active entry for this number already exists here") from e
+        raise
+
+
 async def _expires_at(db: AsyncSession, company_id: str, location_id: str | None,
                       expires_on: date | None, now: datetime) -> datetime | None:
     if expires_on is None:
@@ -169,13 +226,17 @@ async def create_rule(db: AsyncSession, company_id: str, *, e164: str, action: s
         raise InvalidNumber("number must be E.164, e.g. +12125550100")
     expires_at = await _expires_at(db, company_id, location_id, expires_on, now)
     await _lock_number(db, company_id, e164)
+    if action == BLOCK and location_id is not None:
+        allowed = await _allowed_over(db, company_id, location_id, e164, now)
+        if allowed:
+            raise NumberAllowed(allowed)
     if await _active_at_scope(db, company_id, location_id, e164, now):
         raise DuplicateRule("an active entry for this number already exists here")
     rule = NumberRule(company_id=company_id, location_id=location_id, e164=e164,
                       action=action, expires_at=expires_at, note=note or None,
                       created_by_user_id=user_id, created_at=now)
     db.add(rule)
-    await db.flush()
+    await _flush_unique(db)
     return rule
 
 
@@ -187,19 +248,28 @@ async def update_rule(db: AsyncSession, rule: NumberRule, *, action: str | None,
                       note: "str | None | object" = _UNSET,
                       now: datetime) -> NumberRule:
     """Action, expiry and note only; scope and number never change (delete
-    and recreate). `_UNSET` leaves a field as it is. Flushes."""
+    and recreate). `_UNSET` leaves a field as it is, and so does an
+    `expires_on` equal to the current one (an expired entry stays editable:
+    its past date is not re-checked). Flushes."""
     if action is not None:
         rule.action = action
     if note is not _UNSET:
         rule.note = note or None  # type: ignore[assignment]
+    if expires_on is not _UNSET and expires_on == (await view(db, rule, now)).expires_on:
+        expires_on = _UNSET
     if expires_on is not _UNSET:
-        rule.expires_at = await _expires_at(
+        new_at = await _expires_at(
             db, rule.company_id, rule.location_id, expires_on, now)  # type: ignore[arg-type]
         await _lock_number(db, rule.company_id, rule.e164)
-        if rule_active(rule, now) and await _active_at_scope(
-                db, rule.company_id, rule.location_id, rule.e164, now, exclude_id=rule.id):
+        # Checked before the row changes, so autoflush cannot hit the
+        # unique index first.
+        with db.no_autoflush:
+            clash = (new_at is None or new_at > now) and await _active_at_scope(
+                db, rule.company_id, rule.location_id, rule.e164, now, exclude_id=rule.id)
+        if clash:
             raise DuplicateRule("an active entry for this number already exists here")
-    await db.flush()
+        rule.expires_at = new_at
+    await _flush_unique(db)
     return rule
 
 
@@ -216,23 +286,24 @@ async def mark_spam(db: AsyncSession, conv: AgentConversation, user_id: str | No
                     now: datetime) -> tuple[NumberRule, bool]:
     """A permanent block at the conversation's location for its caller.
     Idempotent: an active block there is returned as it is (created False).
-    An active allow there is a DuplicateRule (delete it first). Flushes."""
+    An active allow there or company-wide is NumberAllowed. Flushes."""
     caller = conv.caller_number
     if not spam_markable(conv):
         raise NoCallerNumber("only a phone call with a caller number can be marked as spam")
     assert caller is not None
     await _lock_number(db, conv.company_id, caller)
+    allowed = await _allowed_over(db, conv.company_id, conv.location_id, caller, now)
+    if allowed:
+        raise NumberAllowed(allowed)
     existing = await _active_at_scope(db, conv.company_id, conv.location_id, caller, now)
     if existing is not None:
-        if existing.action == BLOCK:
-            return existing, False
-        raise DuplicateRule("this number is on the allow list here")
+        return existing, False
     rule = NumberRule(company_id=conv.company_id, location_id=conv.location_id,
                       e164=caller, action=BLOCK, expires_at=None,
                       note=spam_note(conv.id), created_by_user_id=user_id,
                       created_at=now)
     db.add(rule)
-    await db.flush()
+    await _flush_unique(db)
     return rule, True
 
 

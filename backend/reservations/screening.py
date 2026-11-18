@@ -17,24 +17,23 @@ HMAC voice conversations use, never the number). Screening makes no model
 call and creates no conversation: a blocked call is not usage.
 """
 
-import re
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
+from backend.reservations.booking import E164
 from backend.reservations.screening_models import NumberRule, ScreenedCall, SpamNumber
 from backend.services.rate_limit import source_key_for
 
 ANSWER = "answer"
 BLOCK = "block"
 
-_E164 = re.compile(r"^\+[1-9][0-9]{1,14}$")
-
-
 def valid_e164(number: str | None) -> bool:
-    return bool(number) and _E164.fullmatch(number) is not None
+    """E.164 by booking.E164, the one definition (diner phones, rule numbers,
+    caller IDs)."""
+    return bool(number) and E164.fullmatch(number) is not None
 
 
 def spam_markable(conv) -> bool:

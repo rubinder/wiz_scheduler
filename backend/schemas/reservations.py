@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import Reservation
@@ -184,11 +184,17 @@ class NumberRuleIn(BaseModel):
 class NumberRulePatch(BaseModel):
     """Action, expiry and note only: the number and the scope never change
     (delete and recreate). An omitted field is left as it is; expires_on
-    null means never."""
+    null means never; action may be omitted but not null."""
     model_config = ConfigDict(extra="forbid")
     action: RuleAction | None = None
     expires_on: date | None = None
     note: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _action_not_null(self) -> "NumberRulePatch":
+        if "action" in self.model_fields_set and self.action is None:
+            raise ValueError("action cannot be null")
+        return self
 
 
 class NumberRuleOut(BaseModel):

@@ -4,8 +4,8 @@
 import type { NumberRuleIn, NumberRuleOut, NumberRulePatch } from "../types/reservations";
 import { dateParts } from "./availabilityDates";
 
-/** Same shape the server accepts (screening.valid_e164). */
-const E164 = /^\+[1-9][0-9]{1,14}$/;
+/** Same shape the server accepts (booking.E164: + then 7 to 15 digits). */
+const E164 = /^\+[1-9][0-9]{6,14}$/;
 
 /** The number as E.164 once spaces, dashes, dots and brackets are dropped, or null. */
 export function normalizeE164(input: string): string | null {
@@ -78,16 +78,46 @@ export function formToCreate(form: RuleForm): NumberRuleIn | null {
   };
 }
 
-/** The edit body: action, expiry and note only. */
-export function formToPatch(form: RuleForm): NumberRulePatch | null {
+/**
+ * The edit body: only the fields that differ from `original` (action, expiry
+ * and note), so an expired entry can take a new note without re-sending its
+ * past date. Null while the note is too long.
+ */
+export function formToPatch(form: RuleForm, original: NumberRuleOut): NumberRulePatch | null {
   if (form.note.length > NOTE_MAX) return null;
-  return { action: form.action, expires_on: form.expiresOn || null, note: form.note.trim() || null };
+  const patch: NumberRulePatch = {};
+  if (form.action !== original.action) patch.action = form.action;
+  const expiresOn = form.expiresOn || null;
+  if (expiresOn !== original.expires_on) patch.expires_on = expiresOn;
+  const note = form.note.trim() || null;
+  if (note !== original.note) patch.note = note;
+  return patch;
 }
 
-/** The `reservations.numbers` message key for a number-list error code, or null for the shared ones. */
-export function numberErrorKey(
-  code: string | null,
-): "duplicateRule" | "expiryInPast" | "noCallerNumber" | "adminOnly" | null {
+/** Whether a patch changes anything. */
+export function patchIsEmpty(patch: NumberRulePatch): boolean {
+  return Object.keys(patch).length === 0;
+}
+
+export type NumberErrorKey =
+  | "duplicateRule"
+  | "expiryInPast"
+  | "noCallerNumber"
+  | "adminOnly"
+  | "numberAllowedHere"
+  | "numberAllowedAll";
+
+/**
+ * The `reservations.numbers` message key for a number-list error code, or
+ * null for the shared ones. `detail` is the ApiError detail: number_allowed
+ * carries the allow's scope ("here" or "all_locations").
+ */
+export function numberErrorKey(code: string | null, detail?: unknown): NumberErrorKey | null {
+  if (code === "number_allowed") {
+    const scope =
+      detail && typeof detail === "object" ? (detail as { scope?: unknown }).scope : undefined;
+    return scope === "all_locations" ? "numberAllowedAll" : "numberAllowedHere";
+  }
   switch (code) {
     case "duplicate_rule":
       return "duplicateRule";

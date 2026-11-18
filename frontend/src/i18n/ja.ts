@@ -1773,6 +1773,9 @@ const ja = {
       alreadyBlocked: "この発信者はこの店舗ですでにブロックされています。",
       viewLists: "番号リストを開く",
       erasedRules: "ここで番号リストのエントリーを {deleted} 件削除しました。すべての店舗向けのエントリー {remaining} 件は残っています。管理者が番号リストで削除できます。",
+      numberAllowedHere: "この番号はここで許可リストに入っています。先に削除してください。",
+      numberAllowedAll: "この番号はすべての店舗の許可リストに入っています。先に管理者に削除を依頼してください。",
+      archivedLocation: "アーカイブ済みの店舗",
     },
   },
 } as const;

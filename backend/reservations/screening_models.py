@@ -10,7 +10,9 @@ ingest writes them from its own session, which runs as the table owner
 
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import (
+    CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func, text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -39,6 +41,12 @@ class NumberRule(Base):
     __table_args__ = (
         CheckConstraint(_in("action", RULE_ACTIONS), name="ck_number_rules_action"),
         Index("ix_number_rules_company_id_e164", "company_id", "e164"),
+        # Backstop for number_rules.py's one-active-entry check, for the
+        # entries that never expire (expiring ones move with the clock, so
+        # only the advisory-locked check can hold them).
+        Index("uq_number_rules_permanent", text("company_id"),
+              text("coalesce(location_id, '')"), text("e164"), unique=True,
+              postgresql_where=text("expires_at IS NULL")),
     )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)

@@ -91,8 +91,9 @@ async def test_company_wide_expiry_uses_first_active_location_zone(
 async def test_invalid_number_and_past_expiry_are_422(
     client, manager_token, seed_location
 ):
-    r = await _post(client, manager_token, e164="212-555-0142")
-    assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_phone"
+    for bad in ("212-555-0142", "+12345"):  # booking.E164: at least 7 digits
+        r = await _post(client, manager_token, e164=bad)
+        assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_phone"
     r = await _post(client, manager_token,
                     expires_on=(_utc_today() - timedelta(days=2)).isoformat())
     assert r.status_code == 422 and r.json()["detail"]["code"] == "expiry_in_past"
@@ -202,6 +203,52 @@ async def test_patch_changes_only_action_expiry_and_note(
         assert r.status_code == 422
 
 
+async def test_patch_note_on_an_expired_rule_keeps_its_date(
+    client, manager_token, seed_location, db_session
+):
+    past = datetime.now(timezone.utc) - timedelta(days=3)
+    rid = await _add(db_session, expires_at=past)
+    h = _auth(manager_token)
+    listed = (await client.get(f"{BASE}/number-rules", headers=h)).json()
+    expires_on = next(x for x in listed if x["id"] == rid)["expires_on"]
+    r = await client.patch(f"{BASE}/number-rules/{rid}", json={"note": "old"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["note"] == "old" and r.json()["active"] is False
+    # Sending the unchanged date is not a new expiry either.
+    r = await client.patch(f"{BASE}/number-rules/{rid}",
+                           json={"expires_on": expires_on, "action": "allow"}, headers=h)
+    assert r.status_code == 200, r.text
+    db_session.expire_all()
+    assert (await db_session.get(NumberRule, rid)).expires_at == past
+    # A different past date still is.
+    r = await client.patch(f"{BASE}/number-rules/{rid}",
+                           json={"expires_on": (_utc_today() - timedelta(days=10)).isoformat()},
+                           headers=h)
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "expiry_in_past"
+
+
+async def test_patch_null_action_is_422(client, manager_token, seed_location, db_session):
+    rid = await _add(db_session)
+    r = await client.patch(f"{BASE}/number-rules/{rid}", json={"action": None},
+                           headers=_auth(manager_token))
+    assert r.status_code == 422
+
+
+async def test_permanent_rules_have_a_unique_index(seed_location, db_session):
+    from sqlalchemy.exc import IntegrityError
+
+    await _add(db_session, location_id=None)
+    db_session.add(NumberRule(company_id=COMPANY_ID, location_id=None, e164=NUM,
+                              action="allow"))
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
+    await db_session.rollback()
+    # Expiring entries and other scopes are not held by it.
+    await _add(db_session, location_id=LOCATION_ID)
+    await _add(db_session, location_id=None,
+               expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+
+
 async def test_patch_reviving_an_expired_duplicate_is_409(
     client, manager_token, seed_location, db_session
 ):
@@ -293,14 +340,34 @@ async def test_mark_spam_needs_a_voice_caller_number(
     assert (await db_session.execute(select(NumberRule))).first() is None
 
 
-async def test_mark_spam_over_an_allow_entry_is_409(
-    client, manager_token, seed_location, db_session
+@pytest.mark.parametrize("allow_at, scope", [(LOCATION_ID, "here"), (None, "all_locations")])
+async def test_mark_spam_under_an_allow_is_409_number_allowed(
+    client, manager_token, seed_location, db_session, allow_at, scope
 ):
-    await _add(db_session, action="allow")
+    await _add(db_session, action="allow", location_id=allow_at)
     conv = await _conv(db_session)
     r = await client.post(f"{BASE}/conversations/{conv.id}/mark-spam",
                           headers=_auth(manager_token))
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "duplicate_rule"
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "number_allowed"
+    assert r.json()["detail"]["scope"] == scope
+
+
+async def test_location_block_under_an_allow_is_409_number_allowed(
+    client, manager_token, other_location, db_session
+):
+    await _add(db_session, action="allow", location_id=None)
+    await _add(db_session, action="allow", location_id=OTHER_LOCATION_ID, e164=OTHER)
+    r = await _post(client, manager_token)
+    assert r.status_code == 409 and r.json()["detail"] == {
+        "code": "number_allowed", "scope": "all_locations",
+        "message": r.json()["detail"]["message"]}
+    r = await _post(client, manager_token, e164=OTHER, location_id=OTHER_LOCATION_ID)
+    assert r.json()["detail"]["code"] == "number_allowed"
+    assert r.json()["detail"]["scope"] == "here"
+    # An allow elsewhere does not stop a block here, and an allow is never refused.
+    assert (await _post(client, manager_token, e164=OTHER)).status_code == 201
+    assert (await _post(client, manager_token, action="allow")).status_code == 201
 
 
 async def test_mark_spam_out_of_scope_is_404(

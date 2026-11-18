@@ -54,6 +54,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_number_rules_company_id_e164", "number_rules",
                     ["company_id", "e164"])
+    # One permanent entry per scope and number (number_rules.py backstop).
+    op.execute(
+        "CREATE UNIQUE INDEX uq_number_rules_permanent ON number_rules "
+        "(company_id, coalesce(location_id, ''), e164) WHERE expires_at IS NULL")
     _company_rls("number_rules")
 
     op.create_table(

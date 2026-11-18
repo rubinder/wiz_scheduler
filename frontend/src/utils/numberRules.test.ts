@@ -8,6 +8,7 @@ import {
   formToPatch,
   normalizeE164,
   numberErrorKey,
+  patchIsEmpty,
   ruleStatus,
   ruleToForm,
   showE164Hint,
@@ -37,6 +38,7 @@ describe("number rules helpers", () => {
   it("rejects numbers without a + country code or with a leading zero", () => {
     expect(normalizeE164("2125550142")).toBeNull();
     expect(normalizeE164("+0212555")).toBeNull();
+    expect(normalizeE164("+12345")).toBeNull(); // the server wants at least 7 digits
     expect(normalizeE164("+1234567890123456")).toBeNull();
     expect(normalizeE164("anonymous")).toBeNull();
   });
@@ -85,13 +87,22 @@ describe("number rules helpers", () => {
   });
 
   it("edits only action, expiry and note", () => {
-    const form = ruleToForm(rule({ expires_on: "2026-12-04", note: "n", location_id: null }));
+    const original = rule({ expires_on: "2026-12-04", note: "n", location_id: null });
+    const form = ruleToForm(original);
     expect(form).toEqual({ number: "+12125550142", action: "block", scope: "", expiresOn: "2026-12-04", note: "n" });
-    expect(formToPatch({ ...form, action: "allow", expiresOn: "" })).toEqual({
+    expect(formToPatch({ ...form, action: "allow", expiresOn: "" }, original)).toEqual({
       action: "allow",
       expires_on: null,
-      note: "n",
     });
+  });
+
+  it("sends only changed fields, so an expired entry keeps its past date", () => {
+    const expired = rule({ active: false, expires_on: "2026-01-01", note: null });
+    const patch = formToPatch({ ...ruleToForm(expired), note: " Old robocaller " }, expired)!;
+    expect(patch).toEqual({ note: "Old robocaller" });
+    expect(patchIsEmpty(patch)).toBe(false);
+    expect(patchIsEmpty(formToPatch(ruleToForm(expired), expired)!)).toBe(true);
+    expect(formToPatch({ ...ruleToForm(expired), note: "x".repeat(201) }, expired)).toBeNull();
   });
 
   it("maps number-list error codes to their messages", () => {
@@ -99,5 +110,9 @@ describe("number rules helpers", () => {
     expect(numberErrorKey("no_caller_number")).toBe("noCallerNumber");
     expect(numberErrorKey("invalid_phone")).toBeNull();
     expect(numberErrorKey(null)).toBeNull();
+    expect(numberErrorKey("number_allowed", { code: "number_allowed", scope: "here" })).toBe("numberAllowedHere");
+    expect(numberErrorKey("number_allowed", { code: "number_allowed", scope: "all_locations" })).toBe(
+      "numberAllowedAll",
+    );
   });
 });

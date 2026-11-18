@@ -1773,6 +1773,9 @@ const de = {
       alreadyBlocked: "Dieser Anrufer war an diesem Standort bereits gesperrt.",
       viewLists: "Nummernlisten öffnen",
       erasedRules: "{deleted} Nummernlisten-Einträge hier gelöscht. {remaining} Einträge für alle Standorte bleiben: Ein Admin kann sie in den Nummernlisten entfernen.",
+      numberAllowedHere: "Diese Nummer steht hier auf einer Zulassen-Liste; entfernen Sie sie zuerst.",
+      numberAllowedAll: "Diese Nummer steht auf der Zulassen-Liste für alle Standorte; bitten Sie zuerst einen Admin, sie zu entfernen.",
+      archivedLocation: "Archivierter Standort",
     },
   },
 } as const;

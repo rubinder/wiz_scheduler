@@ -1773,6 +1773,9 @@ const zh = {
       alreadyBlocked: "该来电者此前已在此门店被屏蔽。",
       viewLists: "打开号码名单",
       erasedRules: "已在此删除 {deleted} 条号码名单条目。适用于所有门店的 {remaining} 条条目仍保留：管理员可在号码名单中删除。",
+      numberAllowedHere: "此号码在此处的允许名单上，请先将其移除。",
+      numberAllowedAll: "此号码在适用于所有门店的允许名单上，请先请管理员将其移除。",
+      archivedLocation: "已归档的门店",
     },
   },
 } as const;

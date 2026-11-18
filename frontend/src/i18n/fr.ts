@@ -1773,6 +1773,9 @@ const fr = {
       alreadyBlocked: "Cet appelant était déjà bloqué dans cet établissement.",
       viewLists: "Ouvrir les listes de numéros",
       erasedRules: "{deleted} entrées de listes de numéros supprimées ici. {remaining} entrées pour tous les établissements restent : un administrateur peut les retirer dans Listes de numéros.",
+      numberAllowedHere: "Ce numéro figure sur une liste d'autorisation ici ; retirez-le d'abord.",
+      numberAllowedAll: "Ce numéro figure sur la liste d'autorisation de tous les établissements ; demandez d'abord à un administrateur de le retirer.",
+      archivedLocation: "Établissement archivé",
     },
   },
 } as const;

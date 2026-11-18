@@ -1773,6 +1773,9 @@ const pcm = {
       alreadyBlocked: "We don already block this caller for this location.",
       viewLists: "Open the number lists",
       erasedRules: "We don delete {deleted} number-list entries for here. {remaining} entries for all locations still dey: admin fit remove dem for Number Lists.",
+      numberAllowedHere: "This number dey allow list for here; remove am first.",
+      numberAllowedAll: "This number dey the allow list for all locations; beg admin make e remove am first.",
+      archivedLocation: "Location wey dem don archive",
     },
   },
 } as const;

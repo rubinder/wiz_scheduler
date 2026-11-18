@@ -1773,6 +1773,9 @@ const trLang = {
       alreadyBlocked: "Bu arayan bu şubede zaten engelliydi.",
       viewLists: "Numara listelerini aç",
       erasedRules: "Burada {deleted} numara listesi kaydı silindi. Tüm şubelere ait {remaining} kayıt duruyor: bir yönetici bunları Numara Listeleri'nden kaldırabilir.",
+      numberAllowedHere: "Bu numara burada izin listesinde; önce onu kaldırın.",
+      numberAllowedAll: "Bu numara tüm şubelerin izin listesinde; önce bir yöneticiden kaldırmasını isteyin.",
+      archivedLocation: "Arşivlenmiş şube",
     },
   },
 } as const;

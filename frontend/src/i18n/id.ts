@@ -1773,6 +1773,9 @@ const ind = {
       alreadyBlocked: "Penelepon ini sudah diblokir di lokasi ini.",
       viewLists: "Buka daftar nomor",
       erasedRules: "{deleted} entri daftar nomor dihapus di sini. {remaining} entri untuk semua lokasi tetap ada: admin dapat menghapusnya di Daftar Nomor.",
+      numberAllowedHere: "Nomor ini ada di daftar izin di sini; hapus dulu.",
+      numberAllowedAll: "Nomor ini ada di daftar izin untuk semua lokasi; minta admin menghapusnya dulu.",
+      archivedLocation: "Lokasi yang diarsipkan",
     },
   },
 } as const;

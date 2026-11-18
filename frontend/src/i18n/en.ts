@@ -1781,6 +1781,9 @@ const en = {
       alreadyBlocked: "This caller was already blocked at this location.",
       viewLists: "Open number lists",
       erasedRules: "{deleted} number-list entries deleted here. {remaining} entries for all locations remain: an admin can remove them in Number lists.",
+      numberAllowedHere: "This number is on an allow list here; remove it first.",
+      numberAllowedAll: "This number is on the allow list for all locations; ask an admin to remove it first.",
+      archivedLocation: "Archived location",
     },
   },
 } as const;

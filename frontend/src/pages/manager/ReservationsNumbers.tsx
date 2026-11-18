@@ -22,6 +22,7 @@ import {
   formToPatch,
   NOTE_MAX,
   numberErrorKey,
+  patchIsEmpty,
   ruleStatus,
   ruleToForm,
   showE164Hint,
@@ -71,8 +72,9 @@ export default function ReservationsNumbers() {
   const seq = useRef(0);
 
   const errorText = (e: unknown): string => {
-    const code = errorCode(e instanceof ApiError ? e.data : null);
-    const own = numberErrorKey(code);
+    const detail = e instanceof ApiError ? e.data : null;
+    const code = errorCode(detail);
+    const own = numberErrorKey(code, detail);
     if (own) return n[own];
     return (code && (r.errors as Record<string, string>)[code]) || r.errors.generic;
   };
@@ -116,8 +118,9 @@ export default function ReservationsNumbers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, filter]);
 
+  /** listLocations returns active locations only: anything else is an archived (or no longer visible) one. */
   const locationName = (id: string | null): string =>
-    id === null ? n.allLocations : (locations.find((l) => l.id === id)?.name ?? id);
+    id === null ? n.allLocations : (locations.find((l) => l.id === id)?.name ?? n.archivedLocation);
 
   const startAdd = () => {
     setEditingId(null);
@@ -134,14 +137,17 @@ export default function ReservationsNumbers() {
 
   const save = async () => {
     if (busy) return;
-    const patch = editingId ? formToPatch(form) : null;
+    const original = editingId ? (rules ?? []).find((x) => x.id === editingId) : undefined;
+    const patch = editingId && original ? formToPatch(form, original) : null;
     const create = editingId ? null : formToCreate(form);
     if (!patch && !create) return;
     setBusy(true);
     setFormError("");
     setNotice("");
     try {
-      if (editingId && patch) await updateNumberRule(editingId, patch);
+      if (editingId && patch) {
+        if (!patchIsEmpty(patch)) await updateNumberRule(editingId, patch);
+      }
       else if (create) await createNumberRule(create);
       setNotice(r.common.saved);
       startAdd();
@@ -174,7 +180,8 @@ export default function ReservationsNumbers() {
 
   const input = `glass-input-sm text-sm ${border.default} ${text.primary}`;
   const hintBad = showE164Hint(form.number);
-  const valid = editingId ? formToPatch(form) !== null : formToCreate(form) !== null;
+  const editing = editingId ? (rules ?? []).find((x) => x.id === editingId) : undefined;
+  const valid = editingId ? !!editing && formToPatch(form, editing) !== null : formToCreate(form) !== null;
   const scopeChoices = locations.map((l) => l.id);
   if (isAdmin) scopeChoices.push("");
   // An entry being edited keeps its scope even when it is not offered for new entries (archived, company-wide).

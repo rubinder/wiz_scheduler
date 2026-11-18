@@ -74,6 +74,7 @@ const KNOWN_ERRORS = new Set([
   "expiry_in_past",
   "no_caller_number",
   "admin_only",
+  "number_allowed",
 ]);
 
 /** Maps an ApiError.data detail ({code, message}) to an i18n key. */
