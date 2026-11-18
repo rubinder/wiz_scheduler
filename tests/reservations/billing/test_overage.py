@@ -788,7 +788,10 @@ async def test_a_failed_final_deletes_its_draft_records_nothing_and_alerts(
     assert (out["amount_usd"], out["final_invoice"]) == (0.0, None)
     assert items["invoices_deleted"] == ["in_final_1"]
     assert sorted(items["live"]) == ["ii_1", "ii_prev"]       # untouched
-    assert len(sent) == 1 and sent[0][:3] == (OG_ID, AGENT_SUB, PERIOD)
+    [body] = sent
+    assert "Nothing was moved or billed" in body and "do not create new ones" in body
+    assert "invoice the existing pending AI host usage items <code>ii_1</code>, <code>ii_prev</code>" in body
+    assert "do NOT" not in body and "do nothing" not in body
     assert {c.stripe_object_id: c.status for c in await _charges(db_session)} == {
         "ii_1": "pending", "ii_prev": "pending"}
     # A retry starts clean: the key replays the deleted draft, so -r1.
@@ -800,10 +803,14 @@ async def test_a_failed_final_deletes_its_draft_records_nothing_and_alerts(
 
 
 def _alerts(monkeypatch) -> list:
+    """The bodies of the operator emails the final-invoice alert sends."""
     sent: list = []
-    monkeypatch.setattr("backend.services.operator_alerts.send_agent_final_invoice_alert",
-                        lambda *a: sent.append(a) or True)
+    monkeypatch.setattr("backend.services.operator_alerts._send_operator_email",
+                        lambda subject, body, label: sent.append(body) or True)
     return sent
+
+
+DRAFT_ROW = "final invoice in_final_1; draft"
 
 
 async def _two_pending_then_cancel(db, og, fake, items, tail: str | None = None) -> None:
@@ -838,12 +845,23 @@ async def test_a_finalize_that_really_failed_leaves_the_draft_for_the_next_run(
     assert items["invoices_deleted"] == [] and items["finalized"] == []
     assert items["by_id"]["in_final_1"]["status"] == "draft"
     assert _on_invoice(items, "in_final_1") == {PERIOD: 250, PREV: 40}
-    assert len(sent) == 1 and "left in Stripe for the next run" in sent[0][3]
-    assert {c.stripe_object_id: c.status for c in await _charges(db_session)} == {
-        "ii_1": "pending", "ii_prev": "pending"}
+    [body] = sent
+    assert ("Draft <code>in_final_1</code> holds the amounts — do NOT invoice by hand; the "
+            "next run finalizes it (or finalize it in Stripe)") in body
+    assert "invoice the existing" not in body
+    # The old rows are untouched; the draft's items are recorded as a draft.
+    assert {c.stripe_object_id: (c.status, c.error_message) for c in await _charges(db_session)} == {
+        "ii_1": ("pending", None), "ii_prev": ("pending", None),
+        "ii_2": ("pending", DRAFT_ROW), "ii_3": ("pending", DRAFT_ROW)}
 
+    # The next daily run finalizes that draft (the row is canceled by then:
+    # the webhook that called finalize had synced it).
+    (await _row(db_session)).status = "canceled"
+    await db_session.commit()
     items["hooks"].clear()
-    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    daily = await br.reconcile_all_agent_subscriptions(db_session)
+    assert daily["errors"] == [] and daily["synced"] == []
+    [out] = daily["finalized"]
     assert (out["action"], out["final_invoice"]) == ("finalized", "in_final_1")
     assert len(items["invoices"]) == 1 and len(items["created"]) == 3
     assert items["finalized"] == [("in_final_1", {"auto_advance": True})]
@@ -852,6 +870,76 @@ async def test_a_finalize_that_really_failed_leaves_the_draft_for_the_next_run(
                   if c.error_message == "final invoice in_final_1") == [
         (PREV, "pending", Decimal("0.40")), (PERIOD, "pending", Decimal("2.50"))]
     assert {c.status for c in rows if c.stripe_object_id in ("ii_1", "ii_prev")} == {"superseded"}
+    # Done: the daily run leaves it alone from now on.
+    fake["calls"].clear()
+    assert (await br.reconcile_all_agent_subscriptions(db_session))["finalized"] == []
+    assert fake["calls"] == [] and len(sent) == 1
+
+
+async def test_a_kept_draft_with_no_earlier_charge_is_finalized_by_the_daily_run(
+    og, db_session, fake, items, monkeypatch,
+):
+    """No reconcile ever ran, so the only trace of the kept draft is the
+    row the failed run recorded for it."""
+    _alerts(monkeypatch)
+    await _add_row(db_session, status="canceled")
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    items["hooks"]["finalize"] = _down
+    assert "error" in await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    [row] = await _charges(db_session)
+    assert (row.status, row.error_message) == ("pending", DRAFT_ROW)
+    items["hooks"].clear()
+    [out] = (await br.reconcile_all_agent_subscriptions(db_session))["finalized"]
+    assert (out["action"], out["final_invoice"]) == ("finalized", "in_final_1")
+    assert items["finalized"] == [("in_final_1", {"auto_advance": True})] and len(items["invoices"]) == 1
+    [row] = await _charges(db_session)
+    assert (row.status, row.error_message, Decimal(row.amount_usd)) == (
+        "pending", "final invoice in_final_1", Decimal("2.50"))
+
+
+async def test_the_daily_run_retries_a_final_that_never_moved_anything(
+    og, db_session, fake, items, monkeypatch,
+):
+    _alerts(monkeypatch)
+    await _add_row(db_session, status="canceled")
+    await _usage(db_session, "7.50")
+    await db_session.commit()
+    db_session.add(_charge(PERIOD, "2.50", "ii_old", "pending"))
+    await db_session.commit()
+    items["live"]["ii_old"] = {"id": "ii_old", "subscription": AGENT_SUB, "amount": 250,
+                               "metadata": {"kind": KIND, "period": PERIOD,
+                                            "subscription": AGENT_SUB}}
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    [out] = (await br.reconcile_all_agent_subscriptions(db_session))["finalized"]
+    assert (out["final_invoice"], out["amount_usd"]) == ("in_final_1", 2.5)
+    assert "ii_old" not in items["live"]
+
+
+async def test_a_cleanup_failure_with_nothing_owed_never_tells_the_operator_to_invoice(
+    og, db_session, fake, items, monkeypatch,
+):
+    """Every amount is on the finalized final invoice already (adopted from
+    Stripe); only the old item cannot be removed."""
+    sent = _alerts(monkeypatch)
+    await _two_pending_then_cancel(db_session, og, fake, items)
+    real_commit = db_session.commit
+
+    async def lost():
+        monkeypatch.setattr(db_session, "commit", real_commit)
+        raise RuntimeError("connection lost")
+    monkeypatch.setattr(db_session, "commit", lost)
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    sent.clear()
+    items["live"]["ii_1"] = {"id": "ii_1", "amount": 250, "subscription": AGENT_SUB,
+                             "metadata": {"kind": KIND, "period": PERIOD,
+                                          "subscription": AGENT_SUB}}  # its delete never landed
+    items["hooks"]["delete"] = lambda item_id: (_ for _ in ()).throw(stripe.APIConnectionError("down"))
+    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    assert "error" in out and len(items["invoices"]) == 1
+    [body] = sent
+    assert "Nothing is left to bill — do NOT invoice by hand" in body and "<code>ii_1</code>" in body
+    assert "invoice the existing" not in body
 
 
 # ---------------------------------------------------------------------------
@@ -947,15 +1035,21 @@ async def test_a_commit_lost_after_the_finalize_adopts_the_invoice_on_the_rerun(
     assert "RuntimeError" in out["error"]
     assert items["by_id"]["in_final_1"]["status"] == "open"
     assert items["invoices_deleted"] == [] and _on_invoice(items, "in_final_1") == {PERIOD: 250, PREV: 40}
-    assert {c.stripe_object_id: c.status for c in await _charges(db_session)} == {
-        "ii_1": "pending", "ii_prev": "pending"}       # nothing was recorded
+    [body] = sent
+    assert ("Invoice <code>in_final_1</code> is already open/paid in Stripe — do nothing; "
+            "the next run records it") in body
+    assert "invoice the existing" not in body and "finalizes it" not in body
+    # The old rows are as they were; the invoice's items are marked for the daily run.
+    assert {c.stripe_object_id: (c.status, c.error_message) for c in await _charges(db_session)} == {
+        "ii_1": ("pending", None), "ii_prev": ("pending", None),
+        "ii_2": ("pending", DRAFT_ROW), "ii_3": ("pending", DRAFT_ROW)}
 
     for action in ("adopted", "noop"):
         out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
         assert "error" not in out and (out["action"], out["amount_usd"]) == (action, 0.0)
         assert len(items["invoices"]) == 1, "a second final invoice"
         assert len(items["finalized"]) == 1 and len(items["created"]) == 3
-    assert len(sent) == 1 and "finalized in Stripe but not recorded" in sent[0][3]
+    assert len(sent) == 1
     rows = await _charges(db_session)
     assert sorted((c.period, Decimal(c.amount_usd)) for c in rows if c.status == "pending") == [
         (PREV, Decimal("0.40")), (PERIOD, Decimal("2.50"))]
@@ -1033,7 +1127,8 @@ async def test_a_replayed_key_never_makes_a_second_invoice_next_to_an_unrecorded
         await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
     except RuntimeError:
         await db_session.rollback()
-    assert items["by_id"]["in_final_1"]["status"] == "open" and await _charges(db_session) == []
+    assert items["by_id"]["in_final_1"]["status"] == "open"
+    assert [c.error_message for c in await _charges(db_session)] == [DRAFT_ROW]
     items["hooks"]["invoice_list"] = lambda params: _Page([])
     out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
     assert "error" not in out and (out["action"], out["amount_usd"]) == ("adopted", 0.0)
@@ -1072,7 +1167,9 @@ async def test_an_old_item_that_cannot_be_deleted_stops_the_final_invoice(
     out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
     assert "APIConnectionError" in out["error"] and out["amount_usd"] == 0.0
     assert items["finalized"] == [] and len(sent) == 1
-    assert [(c.stripe_object_id, c.status) for c in await _charges(db_session)] == [("ii_1", "pending")]
+    assert "Draft <code>in_final_1</code> holds the amounts — do NOT invoice by hand" in sent[0]
+    assert {c.stripe_object_id: (c.status, c.error_message) for c in await _charges(db_session)} == {
+        "ii_1": ("pending", None), "ii_2": ("pending", DRAFT_ROW)}
     del items["hooks"]["delete"]
     out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
     assert (out["final_invoice"], out["action"]) == ("in_final_1", "finalized")

@@ -255,20 +255,55 @@ def send_agent_duplicate_subscription_alert(
     )
 
 
-def send_agent_final_invoice_alert(og_id: str, subscription_id: str, period: str | None,
-                                   detail: str) -> bool:
+def send_agent_final_invoice_alert(
+    og_id: str, subscription_id: str, period: str | None, detail: str,
+    case: str = "not_billed", invoice_id: str | None = None,
+    item_ids: tuple[str, ...] = (),
+) -> bool:
     """The final AI host invoice for a cancelled agent subscription (#259
-    step 5) could not be made: its last period's overage is not billed
-    until someone invoices it in Stripe. Never raises."""
-    logger.warning("[OPERATOR] agent_final_invoice og=%s subscription=%s period=%s detail=%s",
-                   og_id, subscription_id, period, detail)
+    step 5) did not complete. `case` says where it stopped, because what
+    the operator should do differs, and the wrong move charges twice:
+      finalized_unrecorded  the invoice is finalized in Stripe, only our
+                            record is missing: do nothing;
+      draft_kept            a draft holds the amounts: never invoice by hand;
+      nothing_owed          nothing is left to bill, only old items could
+                            not be removed: never invoice by hand;
+      not_billed            nothing was moved: the pending items (item_ids)
+                            are still the only bill.
+    Never raises."""
+    logger.warning("[OPERATOR] agent_final_invoice og=%s subscription=%s period=%s case=%s "
+                   "invoice=%s items=%s detail=%s", og_id, subscription_id, period, case,
+                   invoice_id, ",".join(item_ids), detail)
+    inv = f"<code>{html.escape(invoice_id or '?')}</code>"
+    items = ", ".join(f"<code>{html.escape(i)}</code>" for i in item_ids)
+    if case == "finalized_unrecorded":
+        subject = "Final AI host invoice finalized but not recorded"
+        action = (f"<p><strong>Invoice {inv} is already open/paid in Stripe — do nothing; "
+                  f"the next run records it.</strong> Do not invoice anything by hand.</p>")
+    elif case == "draft_kept":
+        subject = "Final AI host invoice left as a draft"
+        action = (f"<p><strong>Draft {inv} holds the amounts — do NOT invoice by hand; the "
+                  f"next run finalizes it (or finalize it in Stripe).</strong> If it turns "
+                  f"out to be finalized already, the next run records it.</p>")
+    elif case == "nothing_owed":
+        subject = "Final AI host cleanup failed"
+        action = ("<p><strong>Nothing is left to bill — do NOT invoice by hand.</strong> "
+                  + (f"The old pending items {items} are already covered and could not be "
+                     f"removed; " if items else "")
+                  + "the next run retries (or delete those items in Stripe).</p>")
+    else:
+        subject = "Final AI host invoice failed"
+        action = ("<p>Nothing was moved or billed. The next daily run retries. To bill by "
+                  "hand, invoice the existing pending AI host usage items"
+                  + (f" {items}" if items else "")
+                  + " in Stripe; do not create new ones (the retry skips an item that is "
+                    "already on an invoice).</p>")
     return _send_operator_email(
-        f"[WizScheduler] Final AI host invoice failed for og={og_id}",
+        f"[WizScheduler] {subject} for og={og_id}",
         f"<p>The AI host subscription <code>{html.escape(subscription_id)}</code> of "
         f"og={html.escape(og_id)} ended, and its final usage invoice (period "
-        f"{html.escape(period or '?')}) <strong>could not be created</strong>: "
-        f"{html.escape(detail)}.</p><p>Invoice its pending AI host usage items in "
-        f"Stripe by hand.</p>",
+        f"{html.escape(period or '?')}) <strong>did not complete</strong>: "
+        f"{html.escape(detail)}.</p>{action}",
         "agent_final_invoice",
     )
 

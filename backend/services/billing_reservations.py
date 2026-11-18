@@ -570,6 +570,9 @@ def _verify_session(session: Any, og: OwnershipGroup) -> str:
 OVERAGE_KIND = "invoice_item_reservation_agent"
 # error_message of a pending charge whose item went onto the final invoice.
 FINAL_MARK = "final invoice "
+# ...and the suffix while that invoice is a draft the run could not finalize
+# (the daily run looks for it).
+DRAFT_SUFFIX = "; draft"
 _MAX_KEY_RETRIES = 3
 
 
@@ -960,6 +963,10 @@ class _FinalRun:
         # may be gone already, the draft is where the amounts live).
         self.keep = False
         self.finalized = False
+        self.invoice: str | None = None            # the draft kept / finalized
+        self.held: list[tuple[str, str, int]] = []  # its items once checked
+        self.nothing_owed = False
+        self.movable_items: tuple[str, ...] = ()    # old items not yet moved
 
 
 def _final_invoice_of(charge: Any) -> str | None:
@@ -1091,6 +1098,8 @@ def _undo(created_items: list[str], invoice_id: str | None) -> list[str]:
 def _discard_draft(inv_id: str, run: _FinalRun) -> None:
     """Delete a draft final invoice, its items first (so none is ever left
     pending on the customer). Raises on a Stripe error."""
+    if run.invoice == inv_id:
+        run.keep, run.invoice, run.held = False, None, []
     for item in _invoice_items_on(inv_id):
         _delete_invoice_item(_as_id(item), run.deleted)
     try:
@@ -1160,6 +1169,10 @@ async def _final_pass(
                 charge = by_item[item_id] = _final_charge(og_id, sub_id, p, cents, item_id, inv_id)
                 db.add(charge)
                 adopted += 1
+            elif charge.status == "pending" and (charge.error_message or "").endswith(DRAFT_SUFFIX):
+                # Recorded as a kept draft; it was finalized after all.
+                charge.error_message = f"{FINAL_MARK}{inv_id}"
+                adopted += 1
             if charge.status == "pending":  # a webhook that was missed, or came first
                 if status == "paid":
                     charge.status = "succeeded"
@@ -1220,6 +1233,8 @@ async def _final_pass(
         wanted[p] = _cents(max(Decimal(0), amount - final_billed[p]))
     wanted = {p: c for p, c in wanted.items() if c > 0}
 
+    run.movable_items = tuple(c.stripe_object_id for c in movable if c.stripe_object_id)
+    run.nothing_owed = not wanted
     out: dict = {"final_invoice": None, "amount_usd": 0.0, "retired": movable}
     if adopted:
         out["adopted"] = adopted
@@ -1271,7 +1286,7 @@ async def _final_pass(
         if run.new_invoice == invoice_id:
             run.new_invoice = None
         raise _Replan(f"draft {invoice_id} held {dict(actual)}, owed {wanted}")
-    run.keep = True
+    run.keep, run.invoice, run.held = True, invoice_id, held
     _delete_moved(movable)
 
     try:
@@ -1291,11 +1306,67 @@ async def _final_pass(
         charge = by_item.get(item_id)
         if charge is None or charge.status == "superseded":
             db.add(_final_charge(og_id, sub_id, p, cents, item_id, invoice_id))
+        elif charge.status == "pending":
+            charge.error_message = f"{FINAL_MARK}{invoice_id}"
     out.update(final_invoice=invoice_id, action="invoiced" if made else "finalized",
                amount_usd=float(Decimal(made) / 100),
                why=f"replaced by final invoice {invoice_id}")
     await db.flush()
     return out
+
+
+async def _mark_kept_draft(db: AsyncSession, og_id: str, sub_id: str, run: _FinalRun) -> list[str]:
+    """After a failed run that left its draft (or an invoice it finalized
+    but could not record): record the invoice's items as pending charges
+    marked as a draft, so the daily run finds the group again
+    (_unfinished_finals). The next pass corrects them from Stripe. Never
+    raises; returns what went wrong."""
+    from backend.models.billing_charge import BillingCharge
+
+    try:
+        await _lock_group(db, og_id)
+        ids = [item_id for item_id, _, _ in run.held]
+        have = set((await db.execute(
+            select(BillingCharge.stripe_object_id).where(
+                BillingCharge.ownership_group_id == og_id, BillingCharge.kind == OVERAGE_KIND,
+                BillingCharge.stripe_object_id.in_(ids), BillingCharge.status != "superseded")
+        )).scalars().all()) if ids else set()
+        for item_id, p, cents in run.held:
+            if item_id not in have:
+                charge = _final_charge(og_id, sub_id, p, cents, item_id, run.invoice or "")
+                charge.error_message += DRAFT_SUFFIX
+                db.add(charge)
+        await db.commit()
+        return []
+    except Exception as e:  # noqa: BLE001
+        logger.exception("final AI host invoice og %s: draft %s not recorded", og_id, run.invoice)
+        try:
+            await db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return [f"draft {run.invoice} not recorded for the daily retry: {type(e).__name__}"]
+
+
+async def _unfinished_finals(db: AsyncSession) -> list[tuple[str, str]]:
+    """(group, subscription) of canceled agent subscriptions with final
+    billing still to do: a pending overage charge that is not on a
+    finalized final invoice (a regular item never moved, or a kept draft)."""
+    from backend.models.billing_charge import BillingCharge
+
+    return [(og_id, sub_id) for og_id, sub_id in (await db.execute(
+        select(ReservationSubscription.ownership_group_id,
+               ReservationSubscription.stripe_subscription_id)
+        .where(ReservationSubscription.status == "canceled",
+               ReservationSubscription.stripe_subscription_id.is_not(None),
+               select(BillingCharge.id).where(
+                   BillingCharge.ownership_group_id == ReservationSubscription.ownership_group_id,
+                   BillingCharge.stripe_subscription_id == ReservationSubscription.stripe_subscription_id,
+                   BillingCharge.kind == OVERAGE_KIND, BillingCharge.status == "pending",
+                   BillingCharge.error_message.is_(None)
+                   | BillingCharge.error_message.not_like(f"{FINAL_MARK}%")
+                   | BillingCharge.error_message.like(f"%{DRAFT_SUFFIX}")).exists())
+        .order_by(ReservationSubscription.ownership_group_id)
+    )).all()]
 
 
 async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> dict:
@@ -1352,15 +1423,23 @@ async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> d
             await db.rollback()  # nothing is recorded unless the commit went through
         except Exception as rollback_error:  # noqa: BLE001
             problems.append(f"rollback failed: {rollback_error}")
+        case = "not_billed"
         if run.finalized:
+            case = "finalized_unrecorded"
             problems.append("the invoice was finalized in Stripe but not recorded; "
                             "the next run adopts it from Stripe")
         elif run.keep:
+            case = "draft_kept"
             problems.append("the draft holding what is owed was left in Stripe for the next run")
+        elif run.nothing_owed:
+            case = "nothing_owed"
         else:
             problems += _undo(run.created_items, run.new_invoice)
+        if run.keep and run.invoice:
+            problems += await _mark_kept_draft(db, og_id, sub_id, run)
         detail = "; ".join([f"{type(e).__name__}: {str(e)[:300]}"] + problems)
-        send_agent_final_invoice_alert(og_id, sub_id, period, detail)
+        send_agent_final_invoice_alert(og_id, sub_id, period, detail, case=case,
+                                       invoice_id=run.invoice, item_ids=run.movable_items)
         return {**summary, "amount_usd": 0.0, "final_invoice": None,
                 "error": f"{type(e).__name__}: {str(e)[:200]}"}
 
@@ -1427,13 +1506,25 @@ async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | No
     every group whose agent row still has a subscription that is not ended,
     re-sync the row from Stripe; one that has ended meanwhile (a missed
     customer.subscription.deleted) gets its final invoice
-    (finalize_agent_billing); each still billable is reconciled. One group's
-    failure never stops the others."""
+    (finalize_agent_billing); each still billable is reconciled. Before
+    that, ended subscriptions with unfinished final billing are retried
+    (_unfinished_finals). One group's failure never stops the others."""
     from backend.tenant import tenant_scope_disabled
 
     now = now or datetime.now(timezone.utc)
     out: dict[str, list] = {"synced": [], "reconciled": [], "finalized": [], "errors": []}
     with tenant_scope_disabled():
+        # Ended subscriptions whose final billing did not complete (a kept
+        # draft, an item never moved): finalize is re-runnable and a no-op
+        # once nothing remains.
+        for og_id, sub_id in await _unfinished_finals(db):
+            try:
+                result = await finalize_agent_billing(db, og_id, sub_id)
+                (out["errors"] if "error" in result else out["finalized"]).append(result)
+            except Exception as e:  # noqa: BLE001 - one group never stops the run
+                logger.exception("agent final billing retry failed for og %s", og_id)
+                await db.rollback()
+                out["errors"].append({"og": og_id, "error": f"{type(e).__name__}: {str(e)[:200]}"})
         groups = (await db.execute(
             select(ReservationSubscription.ownership_group_id,
                    ReservationSubscription.stripe_subscription_id)
