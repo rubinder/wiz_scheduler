@@ -1,20 +1,27 @@
 """Conversation recording: start, append events, finish, and cost."""
 
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Mapping
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.reservations.agent.models import AgentConversation, AgentEvent
+from backend.reservations.agent.models import (
+    CHANNELS,
+    EVENT_TYPES,
+    OUTCOMES,
+    AgentConversation,
+    AgentEvent,
+)
 
 _MILLION = Decimal(1_000_000)
+_CENT_MILLIONTH = Decimal("0.000001")
 
 
 def cost_of(usage: Mapping[str, int] | None) -> Decimal:
-    """USD cost of one model call from the per-million-token price settings."""
+    """USD cost of one model call, rounded to 6 places (the column scale), from the per-million-token price settings."""
     u = usage or {}
     prices = (
         ("input_tokens", settings.RESERVATION_AGENT_INPUT_USD_PER_MTOK),
@@ -25,13 +32,15 @@ def cost_of(usage: Mapping[str, int] | None) -> Decimal:
     total = Decimal(0)
     for key, price in prices:
         total += Decimal(int(u.get(key, 0) or 0)) * Decimal(str(price)) / _MILLION
-    return total
+    return total.quantize(_CENT_MILLIONTH, rounding=ROUND_HALF_UP)
 
 
 async def start_conversation(
     db: AsyncSession, company_id: str, location_id: str, channel: str,
     caller_number: str | None = None,
 ) -> AgentConversation:
+    if channel not in CHANNELS:
+        raise ValueError(f"invalid channel: {channel!r}")
     conv = AgentConversation(
         company_id=company_id, location_id=location_id, channel=channel,
         caller_number=caller_number, status="open",
@@ -49,12 +58,17 @@ async def record_event(
 ) -> AgentEvent:
     """Append an event. Locks the conversation row so concurrent writers get
     distinct, gapless seq numbers."""
-    await db.execute(
-        select(AgentConversation.id)
+    if type not in EVENT_TYPES:
+        raise ValueError(f"invalid event type: {type!r}")
+    # Lock the whole row and refresh it, so cost_usd below is the committed
+    # value and not a stale in-memory one.
+    locked = (await db.execute(
+        select(AgentConversation)
         .where(AgentConversation.id == conv.id,
                AgentConversation.company_id == conv.company_id)
         .with_for_update()
-    )
+        .execution_options(populate_existing=True)
+    )).scalar_one()
     last = (await db.execute(
         select(AgentEvent.seq)
         .where(AgentEvent.conversation_id == conv.id,
@@ -74,12 +88,14 @@ async def record_event(
         cost_usd=cost,
     )
     db.add(event)
-    conv.cost_usd = (conv.cost_usd or Decimal(0)) + cost
+    locked.cost_usd = (locked.cost_usd or Decimal(0)) + cost
     await db.flush()
     return event
 
 
 async def finish(db: AsyncSession, conv: AgentConversation, outcome: str) -> None:
+    if outcome not in OUTCOMES:
+        raise ValueError(f"invalid outcome: {outcome!r}")
     conv.outcome = outcome
     conv.status = "closed"
     conv.ended_at = datetime.now(timezone.utc)

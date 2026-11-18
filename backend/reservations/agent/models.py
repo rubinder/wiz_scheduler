@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -42,8 +43,19 @@ def _reservation_fk() -> Mapped[str | None]:
     )
 
 
+def _in(col: str, values: tuple[str, ...]) -> str:
+    return f"{col} IN (" + ", ".join(f"'{v}'" for v in values) + ")"
+
+
 class AgentConversation(Base):
     __tablename__ = "agent_conversations"
+    __table_args__ = (
+        CheckConstraint(_in("channel", CHANNELS), name="ck_agent_conversations_channel"),
+        CheckConstraint(_in("status", ("open", "closed")),
+                        name="ck_agent_conversations_status"),
+        CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
+                        name="ck_agent_conversations_outcome"),
+    )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
     company_id: Mapped[str] = mapped_column(
@@ -82,6 +94,7 @@ class AgentEvent(Base):
     __tablename__ = "agent_events"
     __table_args__ = (
         UniqueConstraint("conversation_id", "seq", name="uq_agent_events_conv_seq"),
+        CheckConstraint(_in("type", EVENT_TYPES), name="ck_agent_events_type"),
     )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)

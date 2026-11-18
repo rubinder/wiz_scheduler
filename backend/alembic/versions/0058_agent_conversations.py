@@ -14,6 +14,16 @@ depends_on = None
 
 TABLES = ["agent_conversations", "agent_events"]
 
+CHANNELS = ("web", "voice")
+EVENT_TYPES = ("user_turn", "assistant_turn", "tool_call", "tool_result",
+               "error", "handoff", "action")
+OUTCOMES = ("booked", "modified", "cancelled", "handed_off", "abandoned",
+            "failed", "blocked")
+
+
+def _in(col: str, values: tuple[str, ...]) -> str:
+    return f"{col} IN (" + ", ".join(f"'{v}'" for v in values) + ")"
+
 
 def _resv(name: str) -> sa.Column:
     return sa.Column(name, sa.String(8),
@@ -50,6 +60,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.UniqueConstraint("public_token", name="uq_agent_conversations_public_token"),
+        sa.CheckConstraint(_in("channel", CHANNELS), name="ck_agent_conversations_channel"),
+        sa.CheckConstraint(_in("status", ("open", "closed")),
+                           name="ck_agent_conversations_status"),
+        sa.CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
+                           name="ck_agent_conversations_outcome"),
     )
     op.create_index("ix_agent_conversations_company_id", "agent_conversations", ["company_id"])
     op.create_index("ix_agent_conversations_location_id", "agent_conversations", ["location_id"])
@@ -71,6 +86,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("CURRENT_TIMESTAMP")),
         sa.UniqueConstraint("conversation_id", "seq", name="uq_agent_events_conv_seq"),
+        sa.CheckConstraint(_in("type", EVENT_TYPES), name="ck_agent_events_type"),
     )
     op.create_index("ix_agent_events_company_id", "agent_events", ["company_id"])
     op.create_index("ix_agent_events_conversation_id", "agent_events", ["conversation_id"])

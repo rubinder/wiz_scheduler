@@ -258,6 +258,9 @@ class Settings(BaseSettings):
     # Auto-reload (real-time billing for AI + schedules)
     AUTORELOAD_DEFAULT_ENABLED: bool = True
 
+    AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
+    AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
+
     # Reservations (#254): off until the feature is ready to ship.
     RESERVATIONS_ENABLED: bool = False
 
@@ -272,8 +275,6 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
     RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
     RESERVATION_AGENT_MAX_TOKENS: int = 1024
-    AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
-    AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30
