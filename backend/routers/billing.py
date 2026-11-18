@@ -336,7 +336,15 @@ async def get_billing_charges(
 
     result = await db.execute(
         select(BillingCharge)
-        .where(BillingCharge.ownership_group_id == og_id)
+        .where(
+            BillingCharge.ownership_group_id == og_id,
+            # An operator record of a duplicate AI host subscription that was
+            # cancelled and refunded (#259): its amount is money returned, not
+            # charged, and the page has no label for it yet. Hidden for now.
+            BillingCharge.kind != "agent_duplicate_refund",
+            # An AI host usage item replaced by a final invoice: never billed.
+            BillingCharge.status != "superseded",
+        )
         .order_by(BillingCharge.created_at.desc())
         .limit(clamp_limit(limit, default=50, max=200))
     )
@@ -432,6 +440,43 @@ async def reactivate_checkout(
     return ReactivateCheckoutResponse(session_id=session.id, url=session.url)
 
 
+def _get(obj: object, key: str) -> object:
+    """A field of a Stripe object, a plain dict or a test double. Stripe 17
+    objects are not dicts and `items` would collide with a method name, so
+    they are read by key."""
+    if isinstance(obj, dict):
+        return obj.get(key)
+    if isinstance(obj, stripe.StripeObject):
+        return obj[key] if key in obj else None
+    return getattr(obj, key, None)
+
+
+def _assert_scheduling_session(session: object) -> None:
+    """400 session_mismatch unless the Checkout session bought the
+    scheduling plan. The reservation AI host's Checkout runs on the same
+    Stripe customer and is paid too; accepting it here would set
+    stripe_subscription_id to the agent subscription, i.e. a paid
+    scheduling plan for the price of the AI host."""
+    from backend.reservations.subscription_models import PRODUCT as AGENT_PRODUCT
+
+    if _get(_get(session, "metadata") or {}, "product") == AGENT_PRODUCT:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+    if not settings.STRIPE_PRICE_ID:
+        return
+    sub_ref = _get(session, "subscription")
+    sub_id = sub_ref if isinstance(sub_ref, str) else _get(sub_ref, "id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+    except stripe.StripeError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+    items = _get(_get(sub, "items") or {}, "data") or []
+    prices = {_get(_get(item, "price") or {}, "id") for item in items}
+    if settings.STRIPE_PRICE_ID not in prices:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+
+
 @router.post("/confirm-reactivation")
 async def confirm_reactivation(
     body: ConfirmReactivationRequest,
@@ -454,6 +499,8 @@ async def confirm_reactivation(
 
     if session.payment_status != "paid":
         raise HTTPException(status_code=400, detail="Payment not completed")
+
+    _assert_scheduling_session(session)
 
     og.stripe_customer_id = session.customer
     og.stripe_subscription_id = session.subscription
@@ -593,6 +640,8 @@ async def confirm_upgrade(
         raise HTTPException(
             status_code=400, detail="Session does not belong to this account"
         )
+
+    _assert_scheduling_session(session)
 
     og.stripe_customer_id = session.customer
     og.stripe_subscription_id = session.subscription
@@ -802,3 +851,91 @@ async def payroll_archive_confirm(
         )
     og = await _load_og(db, current_user)
     return PayrollArchiveStatus(**await offer_status(db, og))
+
+
+# ---------------------------------------------------------------------------
+# AI host subscription (#259 step 5). Stripe work lives in
+# services/billing_reservations; cancel and card changes go through the
+# Customer Portal (/billing/portal-link).
+# ---------------------------------------------------------------------------
+
+
+class AgentCheckoutResponse(BaseModel):
+    url: str
+
+
+class AgentConfirmRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=255)
+
+
+def _agent_http_error(e: Exception) -> HTTPException:
+    from backend.services import billing_reservations as br
+
+    if isinstance(e, br.NotConfigured):
+        return HTTPException(status_code=503, detail="not_configured")
+    if isinstance(e, br.AlreadySubscribed):
+        return HTTPException(status_code=409, detail="already_subscribed")
+    if isinstance(e, br.SessionInvalid):
+        return HTTPException(status_code=400, detail=str(e))
+    return HTTPException(status_code=502, detail=str(e))
+
+
+def _require_reservations() -> None:
+    if not settings.RESERVATIONS_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post("/reservation-agent/checkout", response_model=AgentCheckoutResponse)
+async def reservation_agent_checkout(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AgentCheckoutResponse:
+    """Start the AI host subscription in Stripe Checkout."""
+    from backend.services import billing_reservations as br
+
+    _require_reservations()
+    og = await _load_og(db, current_user)
+    try:
+        url = await br.create_checkout(db, og, current_user.email)
+    except br.AgentBillingError as e:
+        raise _agent_http_error(e)
+    return AgentCheckoutResponse(url=url)
+
+
+@router.post("/reservation-agent/confirm")
+async def reservation_agent_confirm(
+    body: AgentConfirmRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record the subscription from the returning Checkout session.
+    Idempotent with the webhook. Not gated on RESERVATIONS_ENABLED: a
+    session that was paid is honored even if the flag went off in between."""
+    from datetime import datetime, timezone
+
+    from backend.services import billing_reservations as br
+
+    og = await _load_og(db, current_user)
+    og_id = og.id
+    try:
+        await br.confirm_checkout(db, og, body.session_id)
+    except br.AgentBillingError as e:
+        raise _agent_http_error(e)
+    return await br.status_summary(
+        db, og_id, str(current_user.company_id), datetime.now(timezone.utc))
+
+
+@router.get("/reservation-agent")
+async def reservation_agent_status(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Subscription status, this period's usage and per-location spend today."""
+    from datetime import datetime, timezone
+
+    from backend.services import billing_reservations as br
+
+    _require_reservations()
+    og = await _load_og(db, current_user)
+    return await br.status_summary(
+        db, og.id, str(current_user.company_id), datetime.now(timezone.utc))

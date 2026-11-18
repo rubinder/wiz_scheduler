@@ -8,6 +8,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
+from backend.reservations import subscription
 from backend.reservations.agent.models import (
     CHANNELS,
     EVENT_TYPES,
@@ -90,16 +91,22 @@ async def record_event(
     db.add(event)
     locked.cost_usd = (locked.cost_usd or Decimal(0)) + cost
     await db.flush()
+    if cost > 0:
+        # Ruling S: billed as it is spent, not only at finish.
+        await subscription.meter(db, locked, datetime.now(timezone.utc))
     return event
 
 
 async def finish(db: AsyncSession, conv: AgentConversation, outcome: str) -> None:
+    """Close the conversation and meter it (subscription.meter). Does not
+    commit."""
     if outcome not in OUTCOMES:
         raise ValueError(f"invalid outcome: {outcome!r}")
     conv.outcome = outcome
     conv.status = "closed"
     conv.ended_at = datetime.now(timezone.utc)
     await db.flush()
+    await subscription.meter(db, conv, conv.ended_at)
 
 
 # Longer than the worst live turn (MAX_TOOL_ROUNDS x the model timeout),
@@ -139,6 +146,39 @@ async def claim_turn(db: AsyncSession, conv: AgentConversation) -> Claim:
     if conv.status == "open" and conv.turn_started_at is not None:
         return "busy"
     return "closed"
+
+
+LocationClaim = Literal["claimed", "closed", "busy", "location_busy"]
+
+
+async def inflight_turns(db: AsyncSession, location_id: str,
+                         exclude_conversation_id: str | None = None) -> int:
+    """Turns running now at the location: open conversations whose in-flight
+    mark is younger than TURN_STALE_SECONDS."""
+    q = (select(func.count()).select_from(AgentConversation)
+         .where(AgentConversation.location_id == location_id,
+                AgentConversation.status == "open",
+                AgentConversation.turn_started_at
+                >= func.now() - text(f"interval '{TURN_STALE_SECONDS} seconds'")))
+    if exclude_conversation_id is not None:
+        q = q.where(AgentConversation.id != exclude_conversation_id)
+    return int((await db.execute(q)).scalar_one())
+
+
+async def claim_turn_at_location(db: AsyncSession,
+                                 conv: AgentConversation) -> LocationClaim:
+    """`claim_turn`, refused with `location_busy` (nothing claimed) while
+    RESERVATION_AGENT_LOCATION_MAX_INFLIGHT other turns run at the location.
+    Count and claim run under a transaction-scoped advisory lock per
+    location, so two requests cannot both take the last place; the caller's
+    commit releases it. Does not commit."""
+    await db.execute(select(func.pg_advisory_xact_lock(
+        func.hashtextextended("reservation_agent_turns:" + conv.location_id, 0))))
+    running = await inflight_turns(db, conv.location_id,
+                                   exclude_conversation_id=conv.id)
+    if running >= settings.RESERVATION_AGENT_LOCATION_MAX_INFLIGHT:
+        return "location_busy"
+    return await claim_turn(db, conv)
 
 
 def end_turn(conv: AgentConversation) -> None:

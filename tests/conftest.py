@@ -173,6 +173,9 @@ async def _apply_rls_policies(conn) -> None:
     # Payroll archives (#218), keyed by ownership group without a foreign key.
     for statement in _migration_module("0056_payroll_archives.py").STATEMENTS:
         await conn.execute(text(statement))
+    # AI host subscriptions (#259 step 5), keyed by ownership group.
+    for statement in _migration_module("0059_reservation_subscriptions.py").STATEMENTS:
+        await conn.execute(text(statement))
 
 
 def _migration_0052():

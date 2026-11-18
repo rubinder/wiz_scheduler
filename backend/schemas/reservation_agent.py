@@ -26,6 +26,9 @@ class ConversationOut(BaseModel):
     conversation_token: str
     reply_text: str
     expect: Expect
+    # True when the conversation was closed at its start (the location's
+    # spend cap): the widget disables input.
+    ended: bool = False
 
 
 class TurnIn(BaseModel):

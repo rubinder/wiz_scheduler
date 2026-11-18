@@ -193,3 +193,134 @@ def send_payroll_archive_review_alert(
         f"whether to record it or refund it.</p>",
         "payroll_archive_needs_review",
     )
+
+def send_agent_duplicate_subscription_alert(
+    og_id: str,
+    duplicate_subscription_id: str,
+    kept_subscription_id: str | None,
+    payment_intent_id: str | None,
+    amount_usd: float,
+    *,
+    cancelled: bool,
+    refund: str,
+    errors: list[str],
+    superseded: bool = False,
+) -> bool:
+    """A second live AI host subscription (#259 step 5) arrived for a group
+    that already has one. States what actually happened: whether the
+    duplicate was cancelled, and whether its latest invoice was refunded
+    (`refund`: "refunded", "none" = nothing paid, "failed", or "unknown" =
+    the invoice could not be read). `superseded`: the subscription it
+    duplicated ended and this one became the account's subscription, so
+    nothing more was done. Never raises."""
+    logger.warning(
+        "[OPERATOR] agent_duplicate_subscription og=%s duplicate=%s kept=%s pi=%s "
+        "amount=%.2f cancelled=%s refund=%s errors=%s superseded=%s",
+        og_id, duplicate_subscription_id, kept_subscription_id, payment_intent_id,
+        amount_usd, cancelled, refund, errors, superseded,
+    )
+    if superseded:
+        return _send_operator_email(
+            f"[WizScheduler] Duplicate AI host subscription for og={og_id} is now its subscription",
+            f"<p>The duplicate AI host subscription "
+            f"<code>{html.escape(duplicate_subscription_id)}</code> for "
+            f"og={html.escape(og_id)} became the account's subscription (the one "
+            f"it duplicated ended): no action taken. It is billing normally now. "
+            f"Earlier: cancelled={'yes' if cancelled else 'no'}, refund={html.escape(refund)}.</p>",
+            "agent_duplicate_subscription",
+        )
+    if cancelled:
+        cancel_text = "was cancelled"
+    else:
+        cancel_text = ("<strong>could NOT be cancelled: cancel FAILED, it is still "
+                       "billing. Cancel it in Stripe</strong>")
+    refund_text = {
+        "refunded": f"its latest invoice was refunded (${amount_usd:.2f})",
+        "none": "its latest invoice had nothing paid to refund",
+        "failed": (f"<strong>the refund of its latest invoice (${amount_usd:.2f}) "
+                   f"FAILED: refund it in Stripe</strong>"),
+    }.get(refund, ("<strong>refund status unknown (its invoice could not be read): "
+                   "check Stripe</strong>"))
+    detail = "".join(f"<li><code>{html.escape(e[:300])}</code></li>" for e in errors)
+    return _send_operator_email(
+        f"[WizScheduler] Duplicate AI host subscription for og={og_id}",
+        f"<p>og={html.escape(og_id)} already has the AI host subscription "
+        f"<code>{html.escape(kept_subscription_id or '?')}</code>. The second "
+        f"one, <code>{html.escape(duplicate_subscription_id)}</code>, "
+        f"{cancel_text}, and {refund_text} (payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>).</p>"
+        + (f"<ul>{detail}</ul>" if detail else "")
+        + "<p>The app retries on the subscription's next Stripe event.</p>",
+        "agent_duplicate_subscription",
+    )
+
+
+def send_agent_final_invoice_alert(
+    og_id: str, subscription_id: str, period: str | None, detail: str,
+    case: str = "not_billed", invoice_id: str | None = None,
+    item_ids: tuple[str, ...] = (),
+) -> bool:
+    """The final AI host invoice for a cancelled agent subscription (#259
+    step 5) did not complete. `case` says where it stopped, because what
+    the operator should do differs, and the wrong move charges twice:
+      finalized_unrecorded  the invoice is finalized in Stripe, only our
+                            record is missing: do nothing;
+      draft_kept            a draft holds the amounts: never invoice by hand;
+      nothing_owed          nothing is left to bill, only old items could
+                            not be removed: never invoice by hand;
+      not_billed            nothing was moved: the pending items (item_ids)
+                            are still the only bill.
+    Never raises."""
+    logger.warning("[OPERATOR] agent_final_invoice og=%s subscription=%s period=%s case=%s "
+                   "invoice=%s items=%s detail=%s", og_id, subscription_id, period, case,
+                   invoice_id, ",".join(item_ids), detail)
+    inv = f"<code>{html.escape(invoice_id or '?')}</code>"
+    items = ", ".join(f"<code>{html.escape(i)}</code>" for i in item_ids)
+    if case == "finalized_unrecorded":
+        subject = "Final AI host invoice finalized but not recorded"
+        action = (f"<p><strong>Invoice {inv} is already open/paid in Stripe — do nothing; "
+                  f"the next run records it.</strong> Do not invoice anything by hand.</p>")
+    elif case == "draft_kept":
+        subject = "Final AI host invoice left as a draft"
+        action = (f"<p><strong>Draft {inv} holds the amounts — do NOT invoice by hand; the "
+                  f"next run finalizes it (or finalize it in Stripe).</strong> If it turns "
+                  f"out to be finalized already, the next run records it.</p>")
+    elif case == "nothing_owed":
+        subject = "Final AI host cleanup failed"
+        action = ("<p><strong>Nothing is left to bill — do NOT invoice by hand.</strong> "
+                  + (f"The old pending items {items} are already covered and could not be "
+                     f"removed; " if items else "")
+                  + "the next run retries (or delete those items in Stripe).</p>")
+    else:
+        subject = "Final AI host invoice failed"
+        action = ("<p>Nothing was moved or billed. The next daily run retries. To bill by "
+                  "hand, invoice the existing pending AI host usage items"
+                  + (f" {items}" if items else "")
+                  + " in Stripe; do not create new ones (the retry skips an item that is "
+                    "already on an invoice).</p>")
+    return _send_operator_email(
+        f"[WizScheduler] {subject} for og={og_id}",
+        f"<p>The AI host subscription <code>{html.escape(subscription_id)}</code> of "
+        f"og={html.escape(og_id)} ended, and its final usage invoice (period "
+        f"{html.escape(period or '?')}) <strong>did not complete</strong>: "
+        f"{html.escape(detail)}.</p>{action}",
+        "agent_final_invoice",
+    )
+
+
+def send_agent_invoice_unpaid_alert(og_id: str, invoice_id: str, outcome: str,
+                                    amount_usd: float, charges: int) -> bool:
+    """An AI host invoice carrying usage overage was voided or marked
+    uncollectible (#259 step 5): its charges are marked failed and nothing
+    is billed again automatically. Never raises."""
+    logger.warning("[OPERATOR] agent_invoice_unpaid og=%s invoice=%s outcome=%s amount=%.2f charges=%d",
+                   og_id, invoice_id, outcome, amount_usd, charges)
+    return _send_operator_email(
+        f"[WizScheduler] AI host invoice {outcome} for og={og_id}",
+        f"<p>The AI host invoice <code>{html.escape(invoice_id)}</code> of "
+        f"og={html.escape(og_id)} was <strong>{html.escape(outcome)}</strong>. "
+        f"{charges} usage overage charge(s) totalling ${amount_usd:.2f} are marked "
+        f"failed. Nothing is re-billed automatically: decide in Stripe whether to "
+        f"invoice it again.</p>",
+        "agent_invoice_unpaid",
+    )

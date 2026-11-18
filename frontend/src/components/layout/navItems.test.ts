@@ -74,6 +74,7 @@ describe("manager navigation", () => {
       expect(off.filter(isGroup).map((g) => g.labelKey)).not.toContain("groupReservations");
       expect(paths(off)).not.toContain("/manager/reservations");
       expect(paths(off)).not.toContain("/manager/reservations/conversations");
+      expect(paths(off)).not.toContain("/manager/billing");
       const on = visibleManagerNav({ isAdmin }, true, true, true);
       expect(paths(on)).toEqual(
         expect.arrayContaining([
@@ -84,6 +85,11 @@ describe("manager navigation", () => {
         ]),
       );
     }
+  });
+
+  it("shows AI host billing to admins only, and only while reservations are enabled", () => {
+    expect(paths(visibleManagerNav({ isAdmin: true }, true, true, true))).toContain("/manager/billing");
+    expect(paths(visibleManagerNav({ isAdmin: false }, true, true, true))).not.toContain("/manager/billing");
   });
 
   it("guards admin-only routes in App.tsx with the same list", () => {

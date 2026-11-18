@@ -33,7 +33,8 @@ export interface TurnOutput {
   handoff: { reason: string; phone: string | null } | null;
   proposal?: Proposal | null;
 }
-export interface Conversation { conversation_token: string; reply_text: string; expect: Expect }
+/** `ended` is true when the chat was closed at its start (the location is at its spend cap). */
+export interface Conversation { conversation_token: string; reply_text: string; expect: Expect; ended?: boolean }
 export type TurnInput = { text: string } | { action: "confirm_hold" | "decline_hold" | "confirm_cancel" | "confirm_modify" };
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {

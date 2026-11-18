@@ -340,3 +340,114 @@ async def test_confirm_upgrade_rejects_missing_client_reference_id(
     await db_session.refresh(og)
     assert og.stripe_customer_id is None
     assert og.stripe_subscription_id is None
+
+
+# ---------------------------------------------------------------------------
+# Final review FIX 1: an AI-host (reservation agent) Checkout session is the
+# group's own, paid, and once carried client_reference_id = og.id; it must
+# never be accepted as a scheduling plan upgrade.
+# ---------------------------------------------------------------------------
+
+
+def _agent_session(og_id: str, customer: str = "cus_agent_1") -> MagicMock:
+    return MagicMock(
+        payment_status="paid",
+        customer=customer,
+        subscription="sub_agent_1",
+        client_reference_id=str(og_id),
+        metadata={"product": "reservation_agent", "og_id": str(og_id)},
+    )
+
+
+def _sub_with_price(price_id: str) -> dict:
+    return {"id": "sub_x", "items": {"data": [{"price": {"id": price_id}}]}}
+
+
+async def test_confirm_upgrade_rejects_agent_session_and_leaves_plan_free(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    import stripe
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve",
+                        lambda sid: _agent_session(free_tenant["og_id"]))
+    monkeypatch.setattr(stripe.Subscription, "retrieve",
+                        lambda sid: _sub_with_price("price_agent"))
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_agent"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "session_mismatch"
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.stripe_subscription_id is None
+    plan = await client.get(
+        "/api/v1/billing/plan",
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+    assert plan.json()["plan"] == "free"
+
+
+async def test_confirm_upgrade_rejects_session_whose_subscription_is_another_price(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    """No product metadata, but the subscription is not the scheduling price."""
+    import stripe
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setattr(_s, "STRIPE_PRICE_ID", "price_sched")
+    session = MagicMock(payment_status="paid", customer="cus_1", subscription="sub_other",
+                        client_reference_id=str(free_tenant["og_id"]), metadata={})
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: session)
+    monkeypatch.setattr(stripe.Subscription, "retrieve",
+                        lambda sid: _sub_with_price("price_agent"))
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_other"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "session_mismatch"
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.stripe_subscription_id is None
+
+
+async def test_confirm_upgrade_accepts_scheduling_price_session(
+    client: AsyncClient, db_session: AsyncSession, free_tenant: dict, monkeypatch
+):
+    import stripe
+    from backend.config import settings as _s
+
+    monkeypatch.setattr(_s, "STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.setattr(_s, "STRIPE_PRICE_ID", "price_sched")
+    session = MagicMock(payment_status="paid", customer="cus_1", subscription="sub_sched",
+                        client_reference_id=str(free_tenant["og_id"]), metadata={})
+    retrieved: list[str] = []
+
+    def fake_sub(sid):
+        retrieved.append(sid)
+        return _sub_with_price("price_sched")
+
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: session)
+    monkeypatch.setattr(stripe.Subscription, "retrieve", fake_sub)
+
+    resp = await client.post(
+        "/api/v1/billing/confirm-upgrade",
+        json={"session_id": "cs_sched"},
+        headers={"Authorization": f"Bearer {free_tenant['token']}"},
+    )
+
+    assert resp.status_code == 200
+    assert retrieved == ["sub_sched"]
+    og = await db_session.get(OwnershipGroup, free_tenant["og_id"])
+    await db_session.refresh(og)
+    assert og.stripe_subscription_id == "sub_sched"

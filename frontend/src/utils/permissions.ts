@@ -60,7 +60,7 @@ export function canEditEmployee(
 
 /**
  * Company-wide pages (spec Q1): company settings, regions, roles, role
- * equivalents, the team, and payroll. Hidden from regular managers'
+ * equivalents, the team, payroll, and billing (the AI host subscription). Hidden from regular managers'
  * navigation and redirected to the dashboard by the route guard.
  */
 export const ADMIN_ONLY_PATHS: readonly string[] = [
@@ -70,6 +70,7 @@ export const ADMIN_ONLY_PATHS: readonly string[] = [
   "/manager/roles",
   "/manager/role-equivalents",
   "/manager/payroll",
+  "/manager/billing",
 ];
 
 export function isAdminOnlyPath(pathname: string): boolean {

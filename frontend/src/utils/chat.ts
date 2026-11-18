@@ -1,4 +1,4 @@
-import type { Expect, Proposal, SlotSummary, TurnOutput } from "../api/publicReservations";
+import type { Conversation, Expect, Proposal, SlotSummary, TurnOutput } from "../api/publicReservations";
 
 export type ChatMessage = { from: "diner" | "host"; text: string };
 export type ChatAction = "confirm_hold" | "decline_hold" | "confirm_cancel" | "confirm_modify";
@@ -50,9 +50,15 @@ export function inputHint(expect: Expect): { placeholder: string; inputMode: "te
   }
 }
 
+/** Whether a chat is already over when it starts (the location is at its spend cap). */
+export function startEnded(c: Pick<Conversation, "ended">): boolean {
+  return c.ended === true;
+}
+
 /** What to tell the diner when a turn request fails, and whether the chat is over. */
 export function noticeForError(status: number, detail?: { code?: string } | null): { notice: string; ended: boolean } {
   if (status === 409 && detail?.code === "turn_in_progress") return { notice: "Still working on your last message…", ended: false };
+  if (status === 409 && detail?.code === "location_busy") return { notice: "Lots of people are booking right now — please try again in a minute.", ended: false };
   if (status === 429) return { notice: "Too many messages, try again later", ended: false };
   if (status === 404) return { notice: "This chat has ended", ended: true };
   return { notice: "Something went wrong. Please try again.", ended: false };

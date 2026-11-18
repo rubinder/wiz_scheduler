@@ -36,6 +36,7 @@ import ReservationsHost from "./pages/manager/ReservationsHost";
 import ReservationsFloor from "./pages/manager/ReservationsFloor";
 import ReservationsRules from "./pages/manager/ReservationsRules";
 import ReservationsConversations from "./pages/manager/ReservationsConversations";
+import Billing from "./pages/manager/Billing";
 import PreferenceReviews from "./pages/manager/PreferenceReviews";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
@@ -166,6 +167,7 @@ export default function App() {
             <Route path="reservations/floor" element={<ReservationsFloor />} />
             <Route path="reservations/rules" element={<ReservationsRules />} />
             <Route path="reservations/conversations" element={<ReservationsConversations />} />
+            <Route path="billing" element={<Billing />} />
             <Route path="special-hours" element={<SpecialHours />} />
             <Route path="schedule" element={<Schedule />} />
             <Route path="export-schedules" element={<ExportSchedules />} />

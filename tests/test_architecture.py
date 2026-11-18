@@ -20,6 +20,12 @@ ALLOWLIST = Path(__file__).resolve().parent / "architecture_allowlist.json"
 
 _STRIPE_MONEY = {("PaymentIntent", "create"), ("PaymentIntent", "confirm"), ("Refund", "create"),
                  ("Charge", "create"), ("Invoice", "pay")}
+# The same calls through a StripeClient: client.v1.refunds.create(...), etc.
+_STRIPE_CLIENT_MONEY = {("payment_intents", "create"), ("payment_intents", "confirm"),
+                        ("refunds", "create"), ("charges", "create"), ("invoices", "pay"),
+                        # The AI host's subscription billing (#259): what bills a customer.
+                        ("invoice_items", "create"), ("invoices", "create"),
+                        ("invoices", "finalize_invoice"), ("subscriptions", "create")}
 
 
 def _rel(p: Path) -> str:
@@ -62,7 +68,8 @@ def _violations() -> set[tuple[str, str, str]]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 inner = node.func.value
-                if isinstance(inner, ast.Attribute) and (inner.attr, node.func.attr) in _STRIPE_MONEY and not in_billing:
+                money = _STRIPE_MONEY | _STRIPE_CLIENT_MONEY
+                if isinstance(inner, ast.Attribute) and (inner.attr, node.func.attr) in money and not in_billing:
                     found.add(("stripe-outside-billing", rel, f"{inner.attr}.{node.func.attr}"))
             if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -110,6 +117,20 @@ def test_planted_violation_is_caught(tmp_path, monkeypatch):
     (backend / "services" / "x.py").write_text(
         "import stripe\nstripe.Refund.create(amount=1)\n"
         "def f(emp, now):\n    emp.archived_at = now\n")
+    (backend / "services" / "y.py").write_text(
+        "import stripe\nclient = stripe.StripeClient('k')\n"
+        "client.v1.refunds.create({'payment_intent': 'pi'})\n"
+        "client.v1.payment_intents.create({})\nclient.v1.payment_intents.confirm('pi')\n"
+        "client.v1.charges.create({})\nclient.v1.invoices.pay('in')\n"
+        "client.v1.invoice_items.create({})\nclient.v1.invoices.create({})\n"
+        "client.v1.invoices.finalize_invoice('in')\nclient.v1.subscriptions.create({})\n"
+        "client.v1.invoices.retrieve('in')\nclient.v1.refunds.list()\n"
+        "client.v1.subscriptions.retrieve('sub')\n")
+    # Client-style money calls are allowed in billing*.py, as the class style is.
+    (backend / "services" / "billing_x.py").write_text(
+        "def f(c):\n    c.v1.refunds.create({})\n    c.v1.invoices.pay('in')\n"
+        "    c.v1.invoice_items.create({})\n    c.v1.invoices.create({})\n"
+        "    c.v1.invoices.finalize_invoice('in')\n    c.v1.subscriptions.create({})\n")
     module = sys.modules[__name__]
     monkeypatch.setattr(module, "REPO", tmp_path)
     monkeypatch.setattr(module, "BACKEND", backend)
@@ -118,6 +139,13 @@ def test_planted_violation_is_caught(tmp_path, monkeypatch):
     assert ("model-imports-service", "backend/models/m.py", "services.plan") in v
     assert ("stripe-outside-billing", "backend/services/x.py", "Refund.create") in v
     assert ("archived-at-outside-archive", "backend/services/x.py", "archived_at =") in v
+    for call in ("refunds.create", "payment_intents.create", "payment_intents.confirm",
+                 "charges.create", "invoices.pay", "invoice_items.create", "invoices.create",
+                 "invoices.finalize_invoice", "subscriptions.create"):
+        assert ("stripe-outside-billing", "backend/services/y.py", call) in v
+    assert not any(d in ("invoices.retrieve", "refunds.list", "subscriptions.retrieve")
+                   for _, _, d in v)
+    assert not any(f == "backend/services/billing_x.py" for _, f, _ in v)
     assert ("product-imports-evals", "backend/reservations/agent.py",
             "backend.reservations.evals") in v
     assert ("product-imports-evals", "backend/reservations/voice.py",

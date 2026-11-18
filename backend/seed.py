@@ -434,6 +434,12 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
     from backend.reservations.agent.models import (
         AgentConversation, AgentEvent, ReservationLookupFailure,
     )
+    from backend.reservations.subscription_models import AgentUsage
+    # Usage rows point at the location (and the conversation, SET NULL).
+    await _run(
+        delete(AgentUsage).where(AgentUsage.location_id.in_(loc_ids)),
+        "agent_usage",
+    )
     doomed_conversations = (
         select(AgentConversation.id)
         .where(AgentConversation.location_id.in_(loc_ids)).scalar_subquery()

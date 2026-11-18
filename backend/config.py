@@ -307,6 +307,21 @@ class Settings(BaseSettings):
     # right; anything further left is whatever the client sent.
     TRUSTED_PROXY_HOPS: int = 2
     RESERVATION_AGENT_MAX_TOKENS: int = 1024
+    # AI host subscription (#259 step 5): a licensed monthly price, the
+    # first RESERVATIONS_INCLUDED_USAGE_USD of billed usage per period free,
+    # and usage billed at model cost x RESERVATIONS_USAGE_MARKUP. Empty
+    # price id: the subscribe endpoints answer 503 not_configured.
+    # RESERVATIONS_PRICE_MONTHLY_USD is what the billing card shows; Stripe
+    # charges the price RESERVATIONS_PRICE_ID names, so keep the two equal.
+    RESERVATIONS_PRICE_ID: str = ""
+    RESERVATIONS_PRICE_MONTHLY_USD: float = 10.00
+    RESERVATIONS_INCLUDED_USAGE_USD: float = 5.00
+    RESERVATIONS_USAGE_MARKUP: float = 1.5
+    # Spend cap (Ruling S): each turn in flight counts as this much spend
+    # until it records its real cost, and at most this many turns run at
+    # once per location (more are answered 409 location_busy).
+    RESERVATION_AGENT_TURN_COST_BOUND_USD: float = 0.05
+    RESERVATION_AGENT_LOCATION_MAX_INFLIGHT: int = 10
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30

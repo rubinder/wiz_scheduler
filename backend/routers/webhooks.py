@@ -47,6 +47,15 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)) -
     obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
     logger.info("Stripe webhook received: %s", event_type)
 
+    # The AI host subscription (#259 step 5) first: its invoices and
+    # subscription share the group's Stripe customer with the scheduling
+    # subscription, and must never reach the scheduling branches below.
+    from backend.services import billing_reservations
+
+    if await billing_reservations.is_agent_event(db, event_type, obj):
+        outcome = await billing_reservations.handle_agent_event(db, event_type, obj)
+        return {"received": True, "type": event_type, "reservation_agent": outcome}
+
     def _customer_id() -> str | None:
         return obj.get("customer") if isinstance(obj, dict) else obj.customer
 

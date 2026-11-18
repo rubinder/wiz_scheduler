@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TurnOutput } from "../api/publicReservations";
-import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startErrorFor } from "./chat";
+import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startEnded, startErrorFor } from "./chat";
 
 const out = (reply_text: string): TurnOutput => ({ reply_text, expect: "text", hold: null, ended: false, handoff: null });
 
@@ -62,6 +62,9 @@ describe("noticeForError", () => {
     expect(noticeForError(429).notice).toBe("Too many messages, try again later");
     expect(noticeForError(404)).toEqual({ notice: "This chat has ended", ended: true });
     expect(noticeForError(409, { code: "other" }).ended).toBe(false);
+    expect(noticeForError(409, { code: "location_busy" })).toEqual({
+      notice: "Lots of people are booking right now — please try again in a minute.", ended: false,
+    });
     expect(noticeForError(0).ended).toBe(false);
   });
 });
@@ -78,5 +81,13 @@ describe("sanitizeTel", () => {
   it("keeps only + and digits", () => {
     expect(sanitizeTel("+1 (212) 555-0100")).toBe("+12125550100");
     expect(sanitizeTel('x"><script>')).toBe("");
+  });
+});
+
+describe("startEnded", () => {
+  it("is true only for a chat closed at its start", () => {
+    expect(startEnded({ ended: true })).toBe(true);
+    expect(startEnded({ ended: false })).toBe(false);
+    expect(startEnded({})).toBe(false);
   });
 });

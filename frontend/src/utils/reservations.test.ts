@@ -89,10 +89,18 @@ describe("rules form conversion", () => {
     pending_hold_hours: 24,
     persona: { voice_id: "v1", greeting: "Hi", facts: ["We have parking"] },
     staff_transfer_number: null,
+    daily_spend_cap_usd: 35.5,
   };
 
   it("round-trips a rules object", () => {
     expect(rulesFormToPayload(payloadToRulesForm(rules))).toEqual(rules);
+  });
+
+  it("round-trips the daily AI host spend cap, so a save never resets it", () => {
+    const form = payloadToRulesForm(rules);
+    expect(form.daily_spend_cap_usd).toBe("35.5");
+    form.daily_spend_cap_usd = " 12 ";
+    expect(rulesFormToPayload(form).daily_spend_cap_usd).toBe(12);
   });
 
   it("turns blank capacity, pacing and transfer number into null", () => {

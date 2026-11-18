@@ -2016,6 +2016,77 @@ async def test_confirm_reactivation_rejects_foreign_customer(
     assert og_with_card.canceled_at is not None
 
 
+async def test_confirm_reactivation_rejects_agent_session(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    """Final review FIX 1: the group's own paid AI-host Checkout session is
+    not a scheduling reactivation."""
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    old_sub = og_with_card.stripe_subscription_id
+    await db_session.commit()
+
+    fake_session = MagicMock(
+        payment_status="paid",
+        customer="cus_test_abc",
+        subscription="sub_agent_1",
+        metadata={"product": "reservation_agent", "og_id": og_with_card.id},
+    )
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: {
+        "items": {"data": [{"price": {"id": "price_agent"}}]}})
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_agent"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "session_mismatch"
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+    assert og_with_card.stripe_subscription_id == old_sub
+
+
+async def test_confirm_reactivation_rejects_other_price_and_accepts_scheduling_price(
+    client: AsyncClient, manager_token, db_session, og_with_card, monkeypatch
+):
+    import stripe
+    og_with_card.canceled_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    fake_session = MagicMock(payment_status="paid", customer="cus_test_abc",
+                             subscription="sub_r", metadata={})
+    price = {"id": "price_agent"}
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: fake_session)
+    monkeypatch.setattr(stripe.Subscription, "retrieve", lambda sid: {
+        "items": {"data": [{"price": price}]}})
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setattr(settings, "STRIPE_PRICE_ID", "price_sched")
+
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_r"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "session_mismatch"
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is not None
+
+    price["id"] = "price_sched"
+    response = await client.post(
+        "/api/v1/billing/confirm-reactivation",
+        json={"session_id": "cs_r"},
+        headers={"Authorization": f"Bearer {manager_token}"},
+    )
+    assert response.status_code == 200
+    await db_session.refresh(og_with_card)
+    assert og_with_card.canceled_at is None
+    assert og_with_card.stripe_subscription_id == "sub_r"
+
+
 async def test_send_subscription_ended_email_calls_resend(
     db_session: AsyncSession, og_with_card, monkeypatch
 ):

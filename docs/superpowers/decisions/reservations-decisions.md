@@ -132,6 +132,31 @@ Decisions made while building without stopping to ask (owner instruction,
     forces `RLS_ENFORCE` off for its duration (isolation is the schema, not
     row-level security) and restores it after. Cost if wrong: run history
     lives on one developer's disk, not in a shared table.
+37. **AI host overage is billed as reconciled InvoiceItems, not Metronome
+    or Billing Meters.** Stripe recommends Metronome for new usage-based
+    billing; that adds a vendor. Billing Meters is a lower-level primitive.
+    The app already bills overage as reconciled InvoiceItems on the
+    subscription's upcoming invoice, and the agent overage uses the same
+    pattern: exact (we hold per-conversation billed amounts), no new vendor
+    or dependency, and the invoice line reads "AI host usage over $5 —
+    <period>". The AI host is a separate $10/month subscription
+    (`services/billing_reservations.py`) with the first $5.00 of billed usage
+    per period included, then cost x 1.5. Cost if wrong: moving to Meters or
+    Metronome later replaces only the reconcile job.
+38. **Ruling T: past_due keeps the AI host answering.** The agent answers
+    while the subscription is `active`, `trialing` or `past_due` (Stripe is
+    still retrying the card); `unpaid`, `paused`, `incomplete` and
+    `canceled` stop it. The billing card labels past_due "Payment issue —
+    Stripe is retrying". Cost if wrong: a restaurant whose card keeps
+    failing gets AI host service until Stripe's retries run out.
+39. **The AI host subscription lives and dies with the account.** It is
+    separate from the scheduling subscription and keeps running (and
+    billing) through the scheduling subscription's cancellation grace
+    period; deleting the account (day 90) cancels it in Stripe first. The
+    billing card (step 5, Task 4) must warn about this when the scheduling
+    subscription is cancelled. Cost if wrong: a customer who cancels
+    scheduling expects the AI host to stop too and is billed for it until
+    the account is deleted.
 
 ## Before switching reservations on (owner checklist)
 
@@ -142,3 +167,38 @@ Decisions made while building without stopping to ask (owner instruction,
 - Legal: privacy policy / DPA wording for diner data (spec section 11).
 - Set each location's staff transfer number.
 - Run the evaluation suite (step 4) live once and record the baseline.
+- Stripe: create the AI host product with a licensed $10/month recurring
+  price and set `RESERVATIONS_PRICE_ID` to it (empty, the subscribe routes
+  answer 503 `not_configured` and the billing card says billing is not
+  available yet). Overage needs no Stripe price (decision 37).
+- Stripe webhook endpoint: add `customer.subscription.created` (the AI host
+  subscription's row can be created from it; the other agent events,
+  `checkout.session.completed`, `customer.subscription.updated/deleted`,
+  `invoice.payment_failed/succeeded` and `invoice.upcoming`, are already
+  subscribed for scheduling).
+- Stripe webhook endpoint: also add `invoice.voided` and
+  `invoice.marked_uncollectible` (Ruling W: an AI host invoice that is voided
+  or uncollectible marks its usage charges failed and alerts the operator;
+  without them those charges stay pending).
+- Once the endpoint is subscribed to `customer.subscription.created`,
+  `invoice.voided` and `invoice.marked_uncollectible`, add them to
+  `stripe_reconcile.REQUIRED_WEBHOOK_EVENTS` (adding them before would raise
+  a reconcile alert every run).
+- Schedule `python -m backend.scripts.run_agent_overage_reconcile` daily
+  (step 6 infra): it re-syncs every agent subscription, bills overage, and
+  sends the final invoice of one whose deletion webhook was missed.
+- Customer Portal: do not allow switching prices across products (the AI
+  host and scheduling subscriptions share the customer; a switch would move
+  one subscription onto the other's price).
+- The frontend billing page at `/manager/billing` (the agent Checkout's
+  return URL, admins only) exists since step 5 Task 4; after the first live
+  subscribe, check that the return confirms the subscription.
+- Before charging real customers for the AI host, run one Stripe test-mode
+  pass of the final-invoice path (cancel a subscription with overage):
+  confirm Stripe refuses deleting an invoice item that is on a finalized
+  invoice, `invoices.list` returns draft and void invoices, deleted objects
+  answer `resource_missing`, and the code takes the expected branch.
+  Include a customer whose card is only on the AI host subscription (no
+  customer-level invoice default): the final invoice must be charged to
+  that card (it is created with the cancelled subscription's
+  `default_payment_method`).

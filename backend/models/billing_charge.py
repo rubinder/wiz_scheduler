@@ -18,6 +18,8 @@ class BillingCharge(Base):
     kind: Mapped[str] = mapped_column(String, nullable=False)
     amount_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     stripe_object_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # The agent subscription an AI host overage charge belongs to (#259).
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     period: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -27,11 +29,12 @@ class BillingCharge(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('autoreload', 'purchase', 'invoice_item_storage', 'invoice_item_employees')",
+            "kind IN ('autoreload', 'purchase', 'invoice_item_storage', 'invoice_item_employees', "
+            "'invoice_item_reservation_agent', 'agent_duplicate_refund')",
             name="billing_charges_kind_check",
         ),
         CheckConstraint(
-            "status IN ('succeeded', 'failed', 'pending')",
+            "status IN ('succeeded', 'failed', 'pending', 'superseded')",
             name="billing_charges_status_check",
         ),
         Index(
