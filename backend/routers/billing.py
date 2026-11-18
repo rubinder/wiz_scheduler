@@ -802,3 +802,91 @@ async def payroll_archive_confirm(
         )
     og = await _load_og(db, current_user)
     return PayrollArchiveStatus(**await offer_status(db, og))
+
+
+# ---------------------------------------------------------------------------
+# AI host subscription (#259 step 5). Stripe work lives in
+# services/billing_reservations; cancel and card changes go through the
+# Customer Portal (/billing/portal-link).
+# ---------------------------------------------------------------------------
+
+
+class AgentCheckoutResponse(BaseModel):
+    url: str
+
+
+class AgentConfirmRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=255)
+
+
+def _agent_http_error(e: Exception) -> HTTPException:
+    from backend.services import billing_reservations as br
+
+    if isinstance(e, br.NotConfigured):
+        return HTTPException(status_code=503, detail="not_configured")
+    if isinstance(e, br.AlreadySubscribed):
+        return HTTPException(status_code=409, detail="already_subscribed")
+    if isinstance(e, br.SessionInvalid):
+        return HTTPException(status_code=400, detail=str(e))
+    return HTTPException(status_code=502, detail=str(e))
+
+
+def _require_reservations() -> None:
+    if not settings.RESERVATIONS_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post("/reservation-agent/checkout", response_model=AgentCheckoutResponse)
+async def reservation_agent_checkout(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AgentCheckoutResponse:
+    """Start the AI host subscription in Stripe Checkout."""
+    from backend.services import billing_reservations as br
+
+    _require_reservations()
+    og = await _load_og(db, current_user)
+    try:
+        url = await br.create_checkout(db, og, current_user.email)
+    except br.AgentBillingError as e:
+        raise _agent_http_error(e)
+    return AgentCheckoutResponse(url=url)
+
+
+@router.post("/reservation-agent/confirm")
+async def reservation_agent_confirm(
+    body: AgentConfirmRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record the subscription from the returning Checkout session.
+    Idempotent with the webhook. Not gated on RESERVATIONS_ENABLED: a
+    session that was paid is honored even if the flag went off in between."""
+    from datetime import datetime, timezone
+
+    from backend.services import billing_reservations as br
+
+    og = await _load_og(db, current_user)
+    og_id = og.id
+    try:
+        await br.confirm_checkout(db, og, body.session_id)
+    except br.AgentBillingError as e:
+        raise _agent_http_error(e)
+    return await br.status_summary(
+        db, og_id, str(current_user.company_id), datetime.now(timezone.utc))
+
+
+@router.get("/reservation-agent")
+async def reservation_agent_status(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Subscription status, this period's usage and per-location spend today."""
+    from datetime import datetime, timezone
+
+    from backend.services import billing_reservations as br
+
+    _require_reservations()
+    og = await _load_og(db, current_user)
+    return await br.status_summary(
+        db, og.id, str(current_user.company_id), datetime.now(timezone.utc))

@@ -142,3 +142,8 @@ Decisions made while building without stopping to ask (owner instruction,
 - Legal: privacy policy / DPA wording for diner data (spec section 11).
 - Set each location's staff transfer number.
 - Run the evaluation suite (step 4) live once and record the baseline.
+- Stripe webhook endpoint: add `customer.subscription.created` (the AI host
+  subscription's row can be created from it; the other agent events,
+  `checkout.session.completed`, `customer.subscription.updated/deleted`,
+  `invoice.payment_failed/succeeded` and `invoice.upcoming`, are already
+  subscribed for scheduling).
