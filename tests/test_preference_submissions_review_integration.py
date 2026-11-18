@@ -584,7 +584,10 @@ async def test_approve_emails_employee_without_scale_values(client, db_session, 
     ld = me_body["last_decision"]
     assert ld["status"] == "approved"
     assert not ({"weight", "level", "employee_importance", "relationship"} & _keys(ld))
-    assert "0.3" not in str(ld) and "0.9" not in str(ld)
+    # Look for leaked scale values in the decision's values, not its
+    # timestamps: "...:10.31Z" contains "0.3" and made this test flaky.
+    values = {k: v for k, v in ld.items() if not str(k).endswith("_at")}
+    assert "0.3" not in str(values) and "0.9" not in str(values)
 
 
 async def test_deny_emails_linked_user_when_employee_has_no_email(client, db_session, setup,
