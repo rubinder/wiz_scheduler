@@ -3,9 +3,9 @@ the AI host's phone channel. The rules that write it live in
 backend/reservations/voice_numbers.py; kept apart so backend.models can
 register the table without an import cycle (as subscription_models)."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -49,3 +49,18 @@ class VoiceNumber(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
         onupdate=func.now())
+
+
+class VoiceTransferCount(Base):
+    """Staff transfers the AI host made at a location on a local date
+    (reservations.voice_transfers.reserve): the per-day toll-fraud cap.
+    Holds no diner data, so diner-data erasure leaves it alone."""
+
+    __tablename__ = "voice_transfer_counts"
+
+    location_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("locations.id"), primary_key=True)
+    local_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

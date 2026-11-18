@@ -268,9 +268,14 @@ Setup steps are in the voice section of `terraform/README.md`.
   CloudFront from a shared pool of Lambda addresses).
 - The voice greeting is generic: `persona.greeting` is not used on voice
   yet.
-- Keep Amazon Connect's outbound calling allowlist to the US only (a
-  Service Quotas / Support request sets the countries); the app also allows
-  only `VOICE_TRANSFER_COUNTRY_CODES`.
+- Restrict Amazon Connect's outbound destinations to the US and Canada
+  (a Service Quotas / Support request sets the countries); the app also
+  refuses any number outside them (`reservations/voice_transfers.py`).
+- Set a maximum duration for a transferred call if Connect allows it for an
+  external transfer; the provider's `aws_connect_contact_flow` has no such
+  setting, so it would go in the flow content or the instance's settings
+  in the console. If Connect has none, rely on the daily transfer cap and
+  the budget, and note it here.
 - Staff transfers are billed per minute: watch the voice budget, and add a
   CloudWatch alarm on Connect outbound minutes if transfers become common.
 - Before turning `voice_provisioning_enabled` off, release the claimed

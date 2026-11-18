@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import settings
 from backend.reservations.models import ReservationRules
 
 
@@ -121,28 +120,6 @@ class RulesSchema(BaseModel):
             if o.date == d:
                 return list(o.periods)
         return [p for p in self.service_periods if d.weekday() in p.weekdays]
-
-
-# NANP premium-rate area codes: a transfer there bills by the minute to us.
-BLOCKED_TRANSFER_PREFIXES = ("+1900", "+1976")
-
-
-def transfer_number_problem(number: str, own_number: str | None = None) -> str | None:
-    """Why the AI host may not transfer calls to `number`, or None. The
-    handoff is an outbound call from Amazon Connect billed per minute, so
-    a staff number must be in an allowlisted country
-    (settings.VOICE_TRANSFER_COUNTRY_CODES), not a premium-rate NANP area
-    code, and not the location's own AI host number (a loop). Checked when
-    the rules are saved and again before every transfer (a number saved
-    before this check, or a setting narrowed since). Not a RulesSchema
-    validator, so a stored number that fails it never stops get_rules."""
-    if not any(number.startswith(code) for code in settings.VOICE_TRANSFER_COUNTRY_CODES):
-        return "staff_transfer_number must be in an allowed country"
-    if number.startswith(BLOCKED_TRANSFER_PREFIXES):
-        return "staff_transfer_number cannot be a premium-rate number"
-    if own_number and number == own_number:
-        return "staff_transfer_number cannot be this location's AI host number"
-    return None
 
 
 async def _row(

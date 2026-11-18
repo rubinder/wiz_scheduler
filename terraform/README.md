@@ -350,9 +350,10 @@ The budget (`voice_budget_usd`, default 50) covers Amazon Connect, Lex,
 Polly and Lambda and emails `ops_alert_email` at 80% of actual spend. It
 alerts; it does not stop anything. Staff transfers are outbound calls billed
 per minute (the instance has `outbound_calls_enabled` for them); the app
-bounds them (allowlisted country codes, no 900/976 numbers, at most
-`VOICE_TRANSFERS_PER_DAY` per location per day), and the budget is the
-backstop.
+bounds them (US and Canadian numbers only, no premium-rate or service area
+codes, never one of our AI host numbers, at most `VOICE_TRANSFERS_PER_DAY`
+per location per day: `backend/reservations/voice_transfers.py`), and the
+budget is the backstop.
 
 Contact flow logs carry caller numbers. Terraform creates their log group,
 `/aws/connect/<instance alias>`, with a 30-day retention before the

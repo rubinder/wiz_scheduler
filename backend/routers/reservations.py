@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
-from backend.reservations import booking, diner_data, voice_numbers
+from backend.reservations import booking, diner_data, voice_numbers, voice_transfers
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -24,12 +24,7 @@ from backend.reservations.queries import (
     conversation_events, get_conversation, list_between, list_conversations,
     list_pending_approvals, table_labels,
 )
-from backend.reservations.rules import (
-    RulesSchema,
-    get_rules,
-    save_rules,
-    transfer_number_problem,
-)
+from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
@@ -183,9 +178,7 @@ async def write_rules(
 ) -> RulesOut:
     await _location(db, scope, user, location_id)
     if body.staff_transfer_number:
-        own = await voice_numbers.for_location(db, str(user.company_id), location_id)
-        problem = transfer_number_problem(body.staff_transfer_number,
-                                          own.e164 if own else None)
+        problem = await voice_transfers.number_problem(db, body.staff_transfer_number)
         if problem:
             raise HTTPException(status_code=422, detail={
                 "code": "transfer_number_not_allowed", "message": problem})

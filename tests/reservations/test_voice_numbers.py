@@ -325,6 +325,11 @@ async def test_group_deletion_releases_numbers_and_deletes_rows(
     await subscribe(db_session, "active")
     await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
     pn = (await _rows(db_session))[LOCATION_ID].connect_phone_number_id
+    from backend.reservations import voice_transfers
+    from backend.reservations.voice_number_models import VoiceTransferCount
+    assert await voice_transfers.reserve(db_session, COMPANY_ID, LOCATION_ID,
+                                         NOW.date(), 5)
+    await db_session.commit()
     fake.calls.clear()
 
     alerts: list = []
@@ -335,6 +340,7 @@ async def test_group_deletion_releases_numbers_and_deletes_rows(
     await db_session.commit()
     assert fake.calls == [("release", {"PhoneNumberId": pn})]
     assert await _rows(db_session) == {}
+    assert (await db_session.execute(select(VoiceTransferCount))).all() == []
     assert alerts == []
 
 
