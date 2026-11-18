@@ -194,11 +194,13 @@ Decisions made while building without stopping to ask (owner instruction,
     numbers. Cost if wrong: if forgotten, overage is not re-synced and
     numbers are claimed only at checkout.
 
-46. **Screening precedence: allow beats block, location beats company,
-    then FTC, then answer.** Withheld (no caller ID) callers are always
-    answered. Why: a manager's explicit allow must never be silently
-    overridden, and a caller we cannot identify cannot be judged. Cost if
-    wrong: a withheld spammer reaches the agent and is billed as usage.
+46. **Screening precedence: an allow at either scope beats any block; then
+    FTC; then answer.** Withheld (no caller ID) callers are always
+    answered. A company-wide allow added later overrides an existing
+    location block, by design. Why: a manager's explicit allow must never be
+    silently overridden, and a caller we cannot identify cannot be judged.
+    Cost if wrong: a withheld spammer reaches the agent and is billed as
+    usage.
 47. **Screening fails open.** The backend has 1 s to decide, the Lambda 3 s;
     any error, timeout or cold start answers the call. Why: a missed
     real booking costs more than one spam call. Cost if wrong: during an
