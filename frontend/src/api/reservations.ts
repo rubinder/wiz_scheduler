@@ -7,11 +7,16 @@ import type {
   DinerEraseOut,
   FloorIn,
   FloorOut,
+  MarkSpamOut,
+  NumberRuleIn,
+  NumberRuleOut,
+  NumberRulePatch,
   ReservationOut,
   ReservationPatch,
   ReservationsConfig,
   RulesOut,
   RulesSchema,
+  ScreeningStatsOut,
   SettableStatus,
   SlotOut,
   WalkInIn,
@@ -107,4 +112,33 @@ export function exportDinerData(locationId: string, phone: string): Promise<Dine
 /** Erase one diner's data at a location: contact details scrubbed, conversations deleted. */
 export function eraseDinerData(locationId: string, phone: string): Promise<DinerEraseOut> {
   return apiFetch(`${base(locationId)}/diner-data/erase`, { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+/** Number-list entries: one location's plus the company-wide ones, or every entry in scope. */
+export function listNumberRules(locationId?: string): Promise<NumberRuleOut[]> {
+  const qs = locationId ? `?${new URLSearchParams({ location_id: locationId }).toString()}` : "";
+  return apiFetch(`/reservations/number-rules${qs}`);
+}
+
+export function createNumberRule(body: NumberRuleIn): Promise<NumberRuleOut> {
+  return apiFetch("/reservations/number-rules", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updateNumberRule(id: string, body: NumberRulePatch): Promise<NumberRuleOut> {
+  return apiFetch(`/reservations/number-rules/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export function deleteNumberRule(id: string): Promise<void> {
+  return apiFetch(`/reservations/number-rules/${id}`, { method: "DELETE" });
+}
+
+/** Block the conversation's caller at its location (idempotent; returns the entry). */
+export function markConversationSpam(conversationId: string): Promise<MarkSpamOut> {
+  return apiFetch(`/reservations/conversations/${conversationId}/mark-spam`, { method: "POST" });
+}
+
+/** Screened calls over the last 7 days, at one location or every location in scope. */
+export function getScreeningStats(locationId?: string): Promise<ScreeningStatsOut> {
+  const qs = locationId ? `?${new URLSearchParams({ location_id: locationId }).toString()}` : "";
+  return apiFetch(`/reservations/screening-stats${qs}`);
 }

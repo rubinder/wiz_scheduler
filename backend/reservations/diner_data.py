@@ -10,6 +10,15 @@ the agent's booking-lookup failures for that phone. Erasing clears the
 reservations' contact fields (the rows stay for covers analytics), deletes
 the conversations (their events cascade) and the lookup failures.
 
+Number-list entries for that number (#259 step 7) are diner data too. The
+request is per location and so is the manager's scope: export lists this
+location's entries and the company-wide ones (location_id NULL), and erase
+deletes this location's entries only. Company-wide entries are never erased
+here (only an admin may change them, from the number lists page); erase
+reports how many remain as `company_rules_remaining`. Other locations'
+entries are neither listed nor erased. screened_calls keep only a keyed
+hash of the caller and are not looked up by number.
+
 Erasing takes the location lock first, like every reservations write
 (locations before reservations), so a concurrent hold or booking for the
 same diner waits for it and cannot slip a row in between the snapshot and
@@ -41,11 +50,12 @@ from backend.reservations.agent.models import (
     AgentEvent,
     ReservationLookupFailure,
 )
-from backend.reservations import booking
+from backend.reservations import booking, number_rules
 from backend.reservations.agent.recording import ERASED_SEQ, TURN_STALE_SECONDS
 from backend.reservations.booking import E164, InvalidPhone
 from backend.reservations.models import Reservation
 from backend.reservations.queries import conversation_events
+from backend.reservations.screening_models import NumberRule
 
 
 @dataclass(frozen=True)
@@ -53,6 +63,7 @@ class DinerData:
     reservations: list[Reservation]
     conversations: list[AgentConversation]
     events: dict[str, list[AgentEvent]]
+    number_rules: list[number_rules.RuleView]
 
 
 def _require_phone(phone: str) -> None:
@@ -115,7 +126,14 @@ async def find_diner_data(
         .order_by(AgentConversation.started_at, AgentConversation.id)
     )).scalars().all())
     events = await conversation_events(db, company_id, [c.id for c in conversations])
-    return DinerData(reservations, conversations, events)
+    rules = list((await db.execute(
+        select(NumberRule).where(
+            NumberRule.company_id == company_id, NumberRule.e164 == phone,
+            or_(NumberRule.location_id == location_id, NumberRule.location_id.is_(None)))
+        .order_by(NumberRule.created_at, NumberRule.id)
+    )).scalars().all())
+    views = await number_rules.views(db, company_id, rules, datetime.now(timezone.utc))
+    return DinerData(reservations, conversations, events, views)
 
 
 def _in_flight():
@@ -197,6 +215,16 @@ async def erase_diner_data(
             ReservationLookupFailure.phone == phone,
         )
     )).rowcount
+    rules = (await db.execute(
+        delete(NumberRule).where(NumberRule.company_id == company_id,
+                                 NumberRule.location_id == location_id,
+                                 NumberRule.e164 == phone)
+    )).rowcount
+    company_rules = (await db.execute(
+        select(func.count()).select_from(NumberRule).where(
+            NumberRule.company_id == company_id, NumberRule.location_id.is_(None),
+            NumberRule.e164 == phone)
+    )).scalar_one()
     await db.flush()
     return {
         "reservations_scrubbed": scrubbed,
@@ -204,4 +232,6 @@ async def erase_diner_data(
         "conversations_closed_in_flight": closed,
         "conversations_still_in_flight": max(0, total - deleted - closed),
         "lookup_failures_deleted": lookups,
+        "number_rules_deleted": rules,
+        "company_rules_remaining": company_rules,
     }

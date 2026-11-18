@@ -37,6 +37,22 @@ def valid_e164(number: str | None) -> bool:
     return bool(number) and _E164.fullmatch(number) is not None
 
 
+def spam_markable(conv) -> bool:
+    """Whether "Mark as spam" applies to an AgentConversation: a phone call
+    with a caller number (number_rules.mark_spam refuses anything else)."""
+    return conv.channel == "voice" and valid_e164(conv.caller_number)
+
+
+def active_rule_clause(now: datetime):
+    """SQL: a NumberRule applies at `now` (no expiry, or expiring later)."""
+    return or_(NumberRule.expires_at.is_(None), NumberRule.expires_at > now)
+
+
+def rule_active(rule: NumberRule, now: datetime) -> bool:
+    """`active_rule_clause` for a loaded row."""
+    return rule.expires_at is None or rule.expires_at > now
+
+
 async def is_ftc_blocked(db: AsyncSession, e164: str, now: datetime) -> bool:
     """At least SPAM_MIN_REPORTS complaints over the last SPAM_WINDOW_DAYS
     report dates (today included, UTC)."""
@@ -59,7 +75,7 @@ async def decide(db: AsyncSession, company_id: str, location_id: str,
             NumberRule.company_id == company_id,
             NumberRule.e164 == caller,
             or_(NumberRule.location_id.is_(None), NumberRule.location_id == location_id),
-            or_(NumberRule.expires_at.is_(None), NumberRule.expires_at > now),
+            active_rule_clause(now),
         )
     )).scalars().all())
     if "allow" in actions:

@@ -129,7 +129,9 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
     assert r.json() == {"reservations_scrubbed": 2, "conversations_deleted": 3,
                         "conversations_closed_in_flight": 0,
                         "conversations_still_in_flight": 0,
-                        "lookup_failures_deleted": 1}
+                        "lookup_failures_deleted": 1,
+                        "number_rules_deleted": 0,
+                        "company_rules_remaining": 0}
 
     db_session.expire_all()
     for rid in diners["ada"]:
@@ -154,7 +156,7 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
 
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
                          json={"phone": ADA}, headers=_auth(manager_token))
-    assert r.json() == {"reservations": [], "conversations": []}
+    assert r.json() == {"reservations": [], "conversations": [], "number_rules": []}
 
 
 async def test_other_company_is_404(client, manager_token, seeded_floor, db_session):

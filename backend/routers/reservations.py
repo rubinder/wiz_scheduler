@@ -6,14 +6,16 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
-from backend.reservations import booking, diner_data, voice_numbers, voice_transfers
+from backend.reservations import (
+    booking, diner_data, number_rules, voice_numbers, voice_transfers,
+)
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -27,8 +29,9 @@ from backend.reservations.queries import (
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
-    ReservationsConfigOut, RulesOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
+    DinerEraseOut, DinerPhoneIn, MarkSpamOut, NumberRuleIn, NumberRuleOut, NumberRulePatch,
+    ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
+    ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
@@ -60,6 +63,10 @@ _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     booking.CodeExhausted: 503,
     booking.InvalidPhone: 422,
     booking.PhoneRequired: 422,
+    number_rules.DuplicateRule: 409,
+    number_rules.InvalidNumber: 422,
+    number_rules.ExpiryInPast: 422,
+    number_rules.NoCallerNumber: 409,
 }
 
 
@@ -405,6 +412,7 @@ async def read_diner_data(
                       for r in found.reservations],
         conversations=[ConversationDetailOut.with_events(c, found.events[c.id])
                        for c in found.conversations],
+        number_rules=[NumberRuleOut.of(v) for v in found.number_rules],
     )
 
 
@@ -440,6 +448,149 @@ async def read_voice_number(
     if row is None:
         return VoiceNumberOut(e164=None, status="none")
     return VoiceNumberOut(e164=row.e164, status=row.status, release_after=row.release_after)
+
+
+# ── Number lists (#259 step 7) ──
+# A location entry follows LocationScope like every location route. A
+# company-wide entry (location_id null) is readable by every manager, since
+# it applies at their locations, but only an admin may create, edit or
+# delete one (403 admin_only).
+
+
+def _require_company_wide_admin(scope: LocationScope) -> None:
+    if scope.restricted:
+        raise HTTPException(status_code=403, detail={
+            "code": "admin_only",
+            "message": "Only an admin can change entries for all locations"})
+
+
+async def _rule_for_write(
+    db: AsyncSession, scope: LocationScope, user: User, rule_id: str,
+):
+    rule = await number_rules.get_rule(db, str(user.company_id), rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Number rule not found")
+    if rule.location_id is None:
+        _require_company_wide_admin(scope)
+    else:
+        scope.require(rule.location_id, "Number rule")
+    return rule
+
+
+@gated.get("/number-rules", response_model=list[NumberRuleOut])
+async def read_number_rules(
+    location_id: str | None = None,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> list[NumberRuleOut]:
+    """One location's entries plus the company-wide ones; without
+    location_id, every entry in scope plus the company-wide ones."""
+    if location_id is not None:
+        await _location(db, scope, user, location_id, include_archived=True)
+    rows = await number_rules.list_rules(
+        db, str(user.company_id), scope, location_id, datetime.now(timezone.utc))
+    return [NumberRuleOut.of(v) for v in rows]
+
+
+@gated.post("/number-rules", status_code=201, response_model=NumberRuleOut)
+async def create_number_rule(
+    body: NumberRuleIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> NumberRuleOut:
+    if body.location_id is None:
+        _require_company_wide_admin(scope)
+    else:
+        await _location(db, scope, user, body.location_id)
+    now = datetime.now(timezone.utc)
+    async with _domain_errors(db):
+        rule = await number_rules.create_rule(
+            db, str(user.company_id), e164=body.e164.strip(), action=body.action,
+            location_id=body.location_id, expires_on=body.expires_on,
+            note=body.note, user_id=user.id, now=now)
+        out = NumberRuleOut.of(await number_rules.view(db, rule, now))
+        await db.commit()
+    return out
+
+
+@gated.patch("/number-rules/{rule_id}", response_model=NumberRuleOut)
+async def update_number_rule(
+    rule_id: str,
+    body: NumberRulePatch,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> NumberRuleOut:
+    rule = await _rule_for_write(db, scope, user, rule_id)
+    sent = body.model_fields_set
+    now = datetime.now(timezone.utc)
+    kwargs: dict = {}
+    if "expires_on" in sent:
+        kwargs["expires_on"] = body.expires_on
+    if "note" in sent:
+        kwargs["note"] = body.note
+    async with _domain_errors(db):
+        await number_rules.update_rule(db, rule, action=body.action, now=now, **kwargs)
+        out = NumberRuleOut.of(await number_rules.view(db, rule, now))
+        await db.commit()
+    return out
+
+
+@gated.delete("/number-rules/{rule_id}", status_code=204)
+async def delete_number_rule(
+    rule_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> Response:
+    """A hard delete: an entry is not history."""
+    rule = await _rule_for_write(db, scope, user, rule_id)
+    await number_rules.delete_rule(db, rule)
+    await db.commit()
+    return Response(status_code=204)
+
+
+@gated.post("/conversations/{conversation_id}/mark-spam", response_model=MarkSpamOut)
+async def mark_conversation_spam(
+    conversation_id: str,
+    response: Response,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> MarkSpamOut:
+    """A permanent block for the caller at the conversation's location: 201
+    when created, 200 with the existing block when there is one."""
+    conv = await get_conversation(db, str(user.company_id), conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    scope.require(conv.location_id, "Conversation")
+    now = datetime.now(timezone.utc)
+    async with _domain_errors(db):
+        rule, created = await number_rules.mark_spam(db, conv, user.id, now)
+        out = MarkSpamOut(**NumberRuleOut.of(await number_rules.view(db, rule, now)).model_dump(),
+                          created=created)
+        await db.commit()
+    response.status_code = 201 if created else 200
+    return out
+
+
+@gated.get("/screening-stats", response_model=ScreeningStatsOut)
+async def read_screening_stats(
+    location_id: str | None = None,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> ScreeningStatsOut:
+    """Calls screened over the last 7 days, at one location or every
+    location in scope."""
+    if location_id is not None:
+        await _location(db, scope, user, location_id, include_archived=True)
+    stats = await number_rules.screening_stats(
+        db, str(user.company_id), scope, location_id, datetime.now(timezone.utc))
+    return ScreeningStatsOut(days=number_rules.STATS_DAYS, blocked_list=stats.blocked_list,
+                             blocked_ftc=stats.blocked_ftc, answered=stats.answered)
 
 
 router.include_router(gated)
