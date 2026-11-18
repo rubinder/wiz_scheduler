@@ -21,10 +21,9 @@ sees a Stripe shape.
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Iterator
+from typing import Any
 
 import stripe
 from sqlalchemy import select
@@ -220,37 +219,29 @@ async def _locked_row(db: AsyncSession, og_id: str) -> ReservationSubscription |
     )).scalar_one_or_none()
 
 
-# Stripe calls made while the group row is locked: a short timeout and one
-# network retry, so a slow Stripe cannot hold the lock for the SDK's
-# default 80 s x 3. The SDK reads stripe.default_http_client per request;
-# it is swapped only for one synchronous call (no await inside), so no
-# other coroutine on the loop sees it.
-LOCKED_STRIPE_TIMEOUT_S = 15
-_locked_http_client: Any = None
+# Every Stripe call in this module goes through one StripeClient with a
+# short timeout and one network retry, so a slow Stripe cannot hold the
+# group row lock for the SDK's default 80 s x 3. Built lazily (the key is
+# read at use time) and rebuilt if the key changes; nothing global in the
+# stripe module is touched.
+STRIPE_TIMEOUT_S = 15
+_client_cache: dict[str, Any] = {}
 
 
-@contextmanager
-def _short_stripe() -> Iterator[None]:
-    global _locked_http_client
-    if _locked_http_client is None:
-        try:
-            _locked_http_client = stripe.new_default_http_client(timeout=LOCKED_STRIPE_TIMEOUT_S)
-        except TypeError:  # a client without a timeout option
-            _locked_http_client = False
-    previous = stripe.default_http_client
-    if _locked_http_client:
-        stripe.default_http_client = _locked_http_client
-    try:
-        yield
-    finally:
-        stripe.default_http_client = previous
+def _client() -> Any:
+    return stripe_client()
 
 
-def _locked_call(fn: Any, *args: Any, **kwargs: Any) -> Any:
-    """One Stripe call under the group lock (short timeout, one retry)."""
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-    with _short_stripe():
-        return fn(*args, max_network_retries=1, **kwargs)
+def stripe_client() -> Any:
+    """The module's StripeClient for the current STRIPE_SECRET_KEY."""
+    key = settings.STRIPE_SECRET_KEY
+    client = _client_cache.get(key)
+    if client is None:
+        _client_cache.clear()
+        client = _client_cache[key] = stripe.StripeClient(
+            key, http_client=stripe.RequestsClient(timeout=STRIPE_TIMEOUT_S),
+            max_network_retries=1)
+    return client
 
 
 def _status(raw: Any, sub_id: str) -> str | None:
@@ -337,7 +328,7 @@ class SubscriptionMissing(AgentBillingError):
 
 def _retrieve_subscription(sub_id: str) -> Any:
     try:
-        return _locked_call(stripe.Subscription.retrieve, sub_id)
+        return _client().v1.subscriptions.retrieve(sub_id)
     except stripe.InvalidRequestError as e:
         if getattr(e, "code", None) == "resource_missing":
             raise SubscriptionMissing(sub_id) from e
@@ -358,7 +349,7 @@ async def _sync_from_stripe(db: AsyncSession, og_id: str, sub_id: str) -> tuple[
     sub = _retrieve_subscription(sub_id)
     row, duplicate = await _apply(db, og_id, sub)
     if duplicate or await _duplicate_record(db, og_id, sub_id) is not None:
-        return None, await _resolve_duplicate(db, og_id, sub)
+        return row, await _resolve_duplicate(db, og_id, sub)
     return row, None
 
 
@@ -389,32 +380,80 @@ async def _duplicate_record(db: AsyncSession, og_id: str, sub_id: str | None) ->
     )).scalar_one_or_none()
 
 
+def _refund(payment_intent_id: str | None, sub_id: str) -> bool:
+    """Fully refund a duplicate's payment through this module's client, once
+    (idempotency key agent-dup-refund-<sub>). Same contract as
+    billing.refund_payment_intent: True when refunded now or already, False
+    when Stripe refused; never raises."""
+    if not payment_intent_id:
+        return False
+    try:
+        _client().v1.refunds.create(
+            {"payment_intent": payment_intent_id},
+            {"idempotency_key": f"agent-dup-refund-{sub_id}"})
+        return True
+    except stripe.StripeError as e:
+        if getattr(e, "code", None) == "charge_already_refunded":
+            return True
+        logger.warning("agent duplicate %s: refund of %s failed: %s", sub_id, payment_intent_id, e)
+        return False
+
+
+# A duplicate record's error_message starts with its outcome, which a retry
+# compares and keeps: "cancelled=yes|no refund=<state>", then any errors.
+def _record_outcome(record: Any) -> tuple[bool, str] | None:
+    head = (record.error_message or "").split(";", 1)[0].split()
+    try:
+        fields = dict(part.split("=", 1) for part in head)
+        return fields["cancelled"] == "yes", fields["refund"]
+    except (KeyError, ValueError):
+        return None
+
+
 async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
     """Backstop for a second live agent subscription on one group: cancel it
     in Stripe, refund its latest paid invoice, keep one
     agent_duplicate_refund BillingCharge per subscription with the outcome,
     and alert the operator with what actually happened.
 
-    A `succeeded` record (cancelled, and refunded or nothing paid) makes a
-    replay a no-op. A `failed` one is retried on every later event: the
-    cancel if Stripe still has the subscription live, the refund (Stripe
-    idempotency key agent-dup-refund-<sub>, so it refunds once) if it was
-    not done. The operator is alerted the first time and whenever the
-    outcome changes. Never raises on a Stripe error."""
+    A `succeeded` record (cancelled, and refunded or nothing paid; or
+    superseded) makes a replay a no-op. A `failed` one is retried on every
+    later event: the cancel while Stripe still has it live, the refund
+    (once, by its idempotency key) unless an earlier attempt already
+    refunded or found nothing paid. If the group's row has meanwhile moved
+    onto this subscription (the one it duplicated ended), it is the account's
+    subscription now: nothing is cancelled or refunded, the record is closed
+    as superseded. The operator is alerted the first time and whenever the
+    outcome (status, cancelled, refund) changes. Never raises on a Stripe
+    error."""
     from backend.models.billing_charge import BillingCharge
-    from backend.services.billing import refund_payment_intent
     from backend.services.operator_alerts import send_agent_duplicate_subscription_alert
 
     sub_id = _as_id(_field(sub, "id"))
     record = await _duplicate_record(db, og_id, sub_id)
     if record is not None and record.status == "succeeded":
         return {"duplicate": sub_id, "outcome": "already_handled"}
+    previous = _record_outcome(record) if record is not None else None
+    row = await _locked_row(db, og_id)
+    kept = row.stripe_subscription_id if row else None
+
+    if (record is not None and row is not None and kept == sub_id
+            and row.status in ANSWERING_STATUSES):
+        cancelled, refund = previous or (False, "none")
+        record.status = "succeeded"
+        record.error_message = (f"cancelled={'yes' if cancelled else 'no'} refund={refund}; "
+                                "superseded: became the account's subscription, no action taken")
+        await db.flush()
+        send_agent_duplicate_subscription_alert(
+            og_id, sub_id, kept, None, float(record.amount_usd), cancelled=cancelled,
+            refund=refund, errors=[], superseded=True)
+        return {"duplicate": sub_id, "outcome": "superseded"}
 
     errors: list[str] = []
     cancelled = _field(sub, "status") in TERMINAL_STATUSES
     if not cancelled:
         try:
-            _locked_call(stripe.Subscription.cancel, sub_id)
+            _client().v1.subscriptions.cancel(sub_id)
             cancelled = True
         except stripe.StripeError as e:
             errors.append(f"cancel failed: {e}")
@@ -422,42 +461,45 @@ async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
 
     # refund: "refunded", "none" (nothing was paid), "failed" (Stripe
     # refused) or "unknown" (the invoice could not be read).
-    amount, pi, refund = Decimal(0), None, "none"
-    invoice_id = _as_id(_field(sub, "latest_invoice"))
-    if invoice_id:
-        try:
-            invoice = _locked_call(stripe.Invoice.retrieve, invoice_id, expand=["payments"])
-        except stripe.StripeError as e:
-            refund = "unknown"
-            errors.append(f"invoice {invoice_id} not read: {e}")
-            logger.warning("agent duplicate %s: invoice %s not read: %s", sub_id, invoice_id, e)
-        else:
-            amount = Decimal(int(_field(invoice, "amount_paid") or 0)) / 100
-            pi = _invoice_payment_intent(invoice)
-            if amount > 0:
-                with _short_stripe():
-                    ok = refund_payment_intent(pi, f"agent-dup-refund-{sub_id}")
-                refund = "refunded" if ok else "failed"
-                if not ok:
-                    errors.append(f"refund of payment {pi or '?'} failed")
+    amount = Decimal(record.amount_usd) if record is not None else Decimal(0)
+    pi = None
+    if previous is not None and previous[1] in ("refunded", "none"):
+        refund = previous[1]
+    else:
+        refund = "none"
+        invoice_id = _as_id(_field(sub, "latest_invoice"))
+        if invoice_id:
+            try:
+                invoice = _client().v1.invoices.retrieve(invoice_id, {"expand": ["payments"]})
+            except stripe.StripeError as e:
+                refund = "unknown"  # the amount found earlier, if any, is kept
+                errors.append(f"invoice {invoice_id} not read: {e}")
+                logger.warning("agent duplicate %s: invoice %s not read: %s",
+                               sub_id, invoice_id, e)
+            else:
+                amount = Decimal(int(_field(invoice, "amount_paid") or 0)) / 100
+                pi = _invoice_payment_intent(invoice)
+                if amount > 0:
+                    refund = "refunded" if _refund(pi, sub_id) else "failed"
+                    if refund == "failed":
+                        errors.append(f"refund of payment {pi or '?'} failed")
 
     done = cancelled and refund in ("refunded", "none")
     status = "succeeded" if done else "failed"
-    message = "; ".join(errors)[:1000] or None
-    changed = record is None or (record.status, record.error_message) != (status, message)
+    changed = previous is None or (record.status, *previous) != (status, cancelled, refund)
     if record is None:
         record = BillingCharge(ownership_group_id=og_id, kind=DUPLICATE_REFUND_KIND,
                                stripe_object_id=sub_id)
         db.add(record)
     record.amount_usd = amount
     record.status = status
-    record.error_message = message
+    record.error_message = "; ".join(
+        [f"cancelled={'yes' if cancelled else 'no'} refund={refund}"] + errors)[:1000]
     await db.flush()
     if changed:
-        row = await _locked_row(db, og_id)
         send_agent_duplicate_subscription_alert(
-            og_id, sub_id, row.stripe_subscription_id if row else None, pi,
-            float(amount), cancelled=cancelled, refund=refund, errors=errors)
+            og_id, sub_id, kept, pi, float(amount), cancelled=cancelled, refund=refund,
+            errors=errors)
     return {"duplicate": sub_id, "cancelled": cancelled, "refund": refund,
             "outcome": "handled" if done else "needs_attention"}
 
@@ -551,25 +593,29 @@ async def _clear_the_way(db: AsyncSession, og: OwnershipGroup) -> None:
     leftover incomplete, unpaid or paused ones, and expire open agent sessions, so at most one session
     can be paid."""
     customer = og.stripe_customer_id
-    subs = _locked_call(stripe.Subscription.list, customer=customer, status="all", limit=100)
+    client = _client()
+    subs = client.v1.subscriptions.list({"customer": customer, "status": "all", "limit": 100})
     adopted = False
     for sub in subs.auto_paging_iter():
         if not _is_agent_metadata(_metadata(sub)):
             continue
         status = _field(sub, "status")
         if status in ANSWERING_STATUSES:
-            row, _ = await _sync_from_stripe(db, og.id, _as_id(_field(sub, "id")))
+            try:
+                row, _ = await _sync_from_stripe(db, og.id, _as_id(_field(sub, "id")))
+            except SubscriptionMissing:
+                continue  # gone since the list: nothing to clear
             adopted = adopted or row is not None
         elif status in LEFTOVER_STATUSES:
-            _locked_call(stripe.Subscription.cancel, _as_id(_field(sub, "id")))
+            client.v1.subscriptions.cancel(_as_id(_field(sub, "id")))
     if adopted:
         await db.commit()
         raise AlreadySubscribed("already_subscribed")
-    sessions = _locked_call(stripe.checkout.Session.list, customer=customer,
-                            status="open", limit=100)
+    sessions = client.v1.checkout.sessions.list(
+        {"customer": customer, "status": "open", "limit": 100})
     for s in sessions.auto_paging_iter():
         if _is_agent_metadata(_metadata(s)):
-            _locked_call(stripe.checkout.Session.expire, _as_id(_field(s, "id")))
+            client.v1.checkout.sessions.expire(_as_id(_field(s, "id")))
 
 
 async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> str:
@@ -584,29 +630,27 @@ async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> s
     if row is not None and row.status in ANSWERING_STATUSES:
         await db.rollback()
         raise AlreadySubscribed("already_subscribed")
-    stripe.api_key = settings.STRIPE_SECRET_KEY
     try:
         if not og.stripe_customer_id:
-            customer = _locked_call(
-                stripe.Customer.create, email=email, name=og.name, metadata={"og_id": og.id},
-                idempotency_key=f"og-customer-{og.id}")
+            customer = _client().v1.customers.create(
+                {"email": email, "name": og.name, "metadata": {"og_id": og.id}},
+                {"idempotency_key": f"og-customer-{og.id}"})
             og.stripe_customer_id = _as_id(customer)
             await db.flush()
         else:
             await _clear_the_way(db, og)
         md = {"product": PRODUCT, "og_id": og.id}
         success_url, cancel_url = _return_urls()
-        session = _locked_call(
-            stripe.checkout.Session.create,
-            mode="subscription",
-            customer=og.stripe_customer_id,
-            line_items=[{"price": settings.RESERVATIONS_PRICE_ID, "quantity": 1}],
-            subscription_data={"metadata": md},
-            metadata=md,
-            client_reference_id=og.id,
-            success_url=success_url,
-            cancel_url=cancel_url,
-        )
+        session = _client().v1.checkout.sessions.create({
+            "mode": "subscription",
+            "customer": og.stripe_customer_id,
+            "line_items": [{"price": settings.RESERVATIONS_PRICE_ID, "quantity": 1}],
+            "subscription_data": {"metadata": md},
+            "metadata": md,
+            "client_reference_id": og.id,
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+        })
     except stripe.StripeError as e:
         await db.commit()  # keep a customer created above; release the lock
         raise StripeFailure(str(e)) from e
@@ -619,9 +663,8 @@ async def confirm_checkout(db: AsyncSession, og: OwnershipGroup, session_id: str
     Idempotent with the checkout.session.completed webhook."""
     if not settings.STRIPE_SECRET_KEY:
         raise NotConfigured("not_configured")
-    stripe.api_key = settings.STRIPE_SECRET_KEY
     try:
-        session = stripe.checkout.Session.retrieve(session_id)
+        session = _client().v1.checkout.sessions.retrieve(session_id)
     except stripe.StripeError as e:
         raise SessionInvalid("invalid session") from e
     sub_id = _verify_session(session, og)
@@ -649,7 +692,7 @@ async def cancel_for_deleted_group(db: AsyncSession, og_id: str) -> bool:
         row = await for_group(db, og_id)
         if row is None or not row.stripe_subscription_id or row.status in TERMINAL_STATUSES:
             return False
-        _locked_call(stripe.Subscription.cancel, row.stripe_subscription_id)
+        _client().v1.subscriptions.cancel(row.stripe_subscription_id)
         return True
     except Exception:
         logger.exception("agent subscription not cancelled for deleted og %s", og_id)

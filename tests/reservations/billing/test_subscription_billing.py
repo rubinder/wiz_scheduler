@@ -129,47 +129,70 @@ class _Page(list):
         return iter(list(self))
 
 
+def _down(*a, **k):
+    raise stripe.APIConnectionError("down")
+
+
 @pytest.fixture(autouse=True)
 def fake(monkeypatch):
-    """A small in-memory Stripe: subscriptions by id (retrieve, list,
-    cancel), open Checkout sessions (list, expire), invoices and refunds."""
+    """A small in-memory Stripe behind billing_reservations' StripeClient:
+    subscriptions by id (retrieve, list, cancel), Checkout sessions (create,
+    retrieve, list, expire), customers, invoices and refunds. A test
+    overrides one call with `fake["hooks"][name] = fn`."""
+    from backend.services import billing_reservations as br
+
     state: dict = {"subs": {AGENT_SUB: _subscription()}, "calls": [], "sessions": [],
                    "cancelled": [], "expired": [], "invoices": {}, "refunds": [],
-                   "listed_subs": None}
+                   "listed_subs": None, "hooks": {}}
+    hooks = state["hooks"]
 
-    def retrieve(sub_id, **kw):
+    def hooked(name, default):
+        return lambda *a, **k: hooks.get(name, default)(*a, **k)
+
+    def retrieve(sub_id, params=None, options=None):
         state["calls"].append(sub_id)
-        state["retrieve_kw"] = kw
         if sub_id not in state["subs"]:
             raise stripe.InvalidRequestError(f"No such subscription: {sub_id}", "id",
                                              code="resource_missing")
         return state["subs"][sub_id]
 
-    def sub_list(**kw):
-        assert kw["customer"] == CUSTOMER and kw["status"] == "all"
+    def sub_list(params=None, options=None):
+        assert params["customer"] == CUSTOMER and params["status"] == "all"
         subs = state["listed_subs"] if state["listed_subs"] is not None else []
         return _Page(subs)
 
-    def cancel(sub_id, **kw):
+    def cancel(sub_id, params=None, options=None):
         state["cancelled"].append(sub_id)
         if sub_id in state["subs"]:
             state["subs"][sub_id]["status"] = "canceled"
         return {"id": sub_id, "status": "canceled"}
 
-    def refund(**kw):
-        state["refunds"].append(kw)
+    def refund(params=None, options=None):
+        state["refunds"].append({"payment_intent": params["payment_intent"],
+                                 "idempotency_key": (options or {}).get("idempotency_key")})
         return {"id": "re_1"}
 
-    monkeypatch.setattr(stripe.Subscription, "retrieve", retrieve)
-    monkeypatch.setattr(stripe.Subscription, "list", sub_list)
-    monkeypatch.setattr(stripe.Subscription, "cancel", cancel)
-    monkeypatch.setattr(stripe.checkout.Session, "list",
-                        lambda **kw: _Page(state["sessions"]))
-    monkeypatch.setattr(stripe.checkout.Session, "expire",
-                        lambda sid, **kw: state["expired"].append(sid))
-    monkeypatch.setattr(stripe.Invoice, "retrieve",
-                        lambda iid, **kw: state["invoices"][iid])
-    monkeypatch.setattr(stripe.Refund, "create", refund)
+    def no_call(name):
+        def fail(*a, **k):
+            pytest.fail(f"unexpected Stripe call: {name}")
+        return fail
+
+    client = SimpleNamespace(v1=SimpleNamespace(
+        subscriptions=SimpleNamespace(retrieve=hooked("retrieve", retrieve),
+                                      list=hooked("sub_list", sub_list),
+                                      cancel=hooked("cancel", cancel)),
+        checkout=SimpleNamespace(sessions=SimpleNamespace(
+            create=hooked("session_create", no_call("checkout.sessions.create")),
+            retrieve=hooked("session_retrieve", no_call("checkout.sessions.retrieve")),
+            list=hooked("session_list", lambda params=None, options=None: _Page(state["sessions"])),
+            expire=hooked("session_expire",
+                          lambda sid, params=None, options=None: state["expired"].append(sid)))),
+        customers=SimpleNamespace(create=hooked("customer_create", no_call("customers.create"))),
+        invoices=SimpleNamespace(retrieve=hooked(
+            "invoice_retrieve", lambda iid, params=None, options=None: state["invoices"][iid])),
+        refunds=SimpleNamespace(create=hooked("refund", refund)),
+    ))
+    monkeypatch.setattr(br, "_client", lambda: client)
     return state
 
 
@@ -178,13 +201,13 @@ def fake(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-async def test_checkout_session_parameters(client, manager_token, og, monkeypatch):
+async def test_checkout_session_parameters(client, manager_token, og, monkeypatch, fake):
     seen = {}
 
-    def create(**kw):
-        seen.update(kw)
+    def create(params, options=None):
+        seen.update(params)
         return SimpleNamespace(id="cs_1", url="https://checkout.stripe.test/cs_1")
-    monkeypatch.setattr(stripe.checkout.Session, "create", create)
+    fake["hooks"]["session_create"] = create
 
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -202,20 +225,20 @@ async def test_checkout_session_parameters(client, manager_token, og, monkeypatc
 
 
 async def test_checkout_creates_a_customer_for_a_group_without_one(
-    client, manager_token, og, db_session, monkeypatch,
+    client, manager_token, og, db_session, monkeypatch, fake,
 ):
     og.stripe_customer_id = None
     og.stripe_subscription_id = None
     await db_session.commit()
     created = {}
 
-    def make_customer(**kw):
-        created.update(kw)
+    def make_customer(params, options=None):
+        created.update(params)
         return SimpleNamespace(id="cus_new")
     seen = {}
-    monkeypatch.setattr(stripe.Customer, "create", make_customer)
-    monkeypatch.setattr(stripe.checkout.Session, "create",
-                        lambda **kw: seen.update(kw) or SimpleNamespace(url="u"))
+    fake["hooks"]["customer_create"] = make_customer
+    fake["hooks"]["session_create"] = lambda params, options=None: (
+        seen.update(params) or SimpleNamespace(url="u"))
 
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -245,11 +268,10 @@ async def test_checkout_refused_to_a_regular_manager(client, regular_token, og):
 
 @pytest.mark.parametrize("status", ["active", "trialing", "past_due"])
 async def test_second_subscribe_while_live_is_409(
-    client, manager_token, og, db_session, monkeypatch, status,
+    client, manager_token, og, db_session, monkeypatch, status, fake,
 ):
     await _add_row(db_session, status)
-    monkeypatch.setattr(stripe.checkout.Session, "create",
-                        lambda **kw: pytest.fail("no session for a live subscription"))
+    fake["hooks"]["session_create"] = lambda *a, **k: pytest.fail("no session for a live subscription")
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 409
     assert r.json()["detail"] == "already_subscribed"
@@ -259,10 +281,10 @@ async def test_resubscribe_after_canceled_replaces_the_row(
     client, manager_token, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "canceled", sub_id="sub_old")
-    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
+    fake["hooks"]["session_create"] = lambda params, options=None: SimpleNamespace(url="u")
     assert (await client.post(f"{BASE}/checkout", headers=_auth(manager_token))).status_code == 200
 
-    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session("sub_new"))
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session("sub_new")
     fake["subs"]["sub_new"] = _subscription("sub_new")
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
@@ -279,9 +301,9 @@ async def test_resubscribe_after_canceled_replaces_the_row(
 
 
 async def test_confirm_records_the_subscription_then_the_webhook_changes_nothing(
-    client, manager_token, og, db_session, monkeypatch,
+    client, manager_token, og, db_session, monkeypatch, fake,
 ):
-    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session())
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session()
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -301,10 +323,10 @@ async def test_confirm_records_the_subscription_then_the_webhook_changes_nothing
 
 
 async def test_webhook_first_then_confirm_is_one_row(
-    client, manager_token, og, db_session, monkeypatch,
+    client, manager_token, og, db_session, monkeypatch, fake,
 ):
     assert (await _post(client, monkeypatch, "checkout.session.completed", _session())).status_code == 200
-    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session())
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session()
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -320,9 +342,9 @@ async def test_webhook_first_then_confirm_is_one_row(
     _session(sub_id=None),
 ])
 async def test_confirm_rejects_a_session_that_is_not_ours(
-    client, manager_token, og, db_session, monkeypatch, session,
+    client, manager_token, og, db_session, monkeypatch, session, fake,
 ):
-    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: session)
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: session
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
     assert r.status_code == 400
@@ -631,8 +653,7 @@ async def test_checkout_adopts_a_live_agent_subscription_stripe_has(
     client, manager_token, og, db_session, monkeypatch, fake,
 ):
     fake["listed_subs"] = [_subscription(SCHED_SUB, metadata={}), fake["subs"][AGENT_SUB]]
-    monkeypatch.setattr(stripe.checkout.Session, "create",
-                        lambda **kw: pytest.fail("no session while one is live"))
+    fake["hooks"]["session_create"] = lambda *a, **k: pytest.fail("no session while one is live")
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 409
     row = await _row(db_session)
@@ -651,7 +672,7 @@ async def test_checkout_cancels_incomplete_and_expires_open_agent_sessions(
         {"id": "cs_agent", "metadata": {"product": "reservation_agent", "og_id": OG_ID}},
         {"id": "cs_upgrade", "metadata": {}},
     ]
-    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
+    fake["hooks"]["session_create"] = lambda params, options=None: SimpleNamespace(url="u")
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert fake["cancelled"] == ["sub_inc"]
@@ -723,9 +744,7 @@ async def test_a_failed_cancel_is_retried_on_later_events(
 
     await _add_row(db_session, "active")
     sub = _paid_duplicate(fake)
-    real_cancel = stripe.Subscription.cancel
-    monkeypatch.setattr(stripe.Subscription, "cancel",
-                        lambda sid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    fake["hooks"]["cancel"] = _down
     await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
     await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
     charge = (await db_session.execute(select(BillingCharge).where(
@@ -736,12 +755,13 @@ async def test_a_failed_cancel_is_retried_on_later_events(
     # Every refund attempt carries the one idempotency key: Stripe refunds once.
     assert {r["idempotency_key"] for r in fake["refunds"]} == {"agent-dup-refund-sub_dup"}
 
-    monkeypatch.setattr(stripe.Subscription, "cancel", real_cancel)
+    del fake["hooks"]["cancel"]
     await _post(client, monkeypatch, "invoice.payment_succeeded", _invoice("sub_dup"))
     db_session.expire_all()
     charge = (await db_session.execute(select(BillingCharge).where(
         BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
-    assert charge.status == "succeeded" and charge.error_message is None
+    assert charge.status == "succeeded"
+    assert charge.error_message == "cancelled=yes refund=refunded"
     assert fake["cancelled"] == ["sub_dup"]
     assert len(alerts) == 2 and alerts[1][1]["cancelled"] is True
     assert (await _row(db_session)).stripe_subscription_id == AGENT_SUB
@@ -754,15 +774,13 @@ async def test_a_failed_refund_is_retried_after_the_cancel(
 
     await _add_row(db_session, "active")
     sub = _paid_duplicate(fake)
-    real_refund = stripe.Refund.create
-    monkeypatch.setattr(stripe.Refund, "create",
-                        lambda **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    fake["hooks"]["refund"] = _down
     await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
     assert fake["cancelled"] == ["sub_dup"]
     assert alerts[0][1]["refund"] == "failed"
     # The cancelled duplicate's next event: Stripe says canceled, but the
     # failed record sends it back to the backstop for the refund.
-    monkeypatch.setattr(stripe.Refund, "create", real_refund)
+    del fake["hooks"]["refund"]
     await _post(client, monkeypatch, "customer.subscription.deleted", dict(sub))
     db_session.expire_all()
     charge = (await db_session.execute(select(BillingCharge).where(
@@ -779,8 +797,7 @@ async def test_an_unreadable_invoice_is_refund_unknown_not_nothing_to_refund(
 
     await _add_row(db_session, "active")
     sub = _paid_duplicate(fake)
-    monkeypatch.setattr(stripe.Invoice, "retrieve",
-                        lambda iid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    fake["hooks"]["invoice_retrieve"] = _down
     r = await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
     dup = r.json()["reservation_agent"]["duplicate"]
     assert (dup["refund"], dup["outcome"]) == ("unknown", "needs_attention")
@@ -814,7 +831,7 @@ async def test_a_duplicate_paid_through_checkout_is_backstopped_and_confirm_is_4
 ):
     await _add_row(db_session, "active")
     _paid_duplicate(fake)
-    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session("sub_dup"))
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session("sub_dup")
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
     assert r.status_code == 409
@@ -841,8 +858,7 @@ async def test_group_deletion_goes_ahead_when_stripe_cancel_fails(og, db_session
     from backend.services.billing import delete_og_and_dependents
 
     await _add_row(db_session, "active")
-    monkeypatch.setattr(stripe.Subscription, "cancel",
-                        lambda sid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    fake["hooks"]["cancel"] = _down
     await delete_og_and_dependents(db_session, og)
     await db_session.commit()
     db_session.expire_all()
@@ -909,7 +925,7 @@ async def test_checkout_cancels_leftover_unpaid_and_paused_agent_subscriptions(
     fake["listed_subs"] = [_subscription("sub_unpaid", status="unpaid"),
                            _subscription("sub_paused", status="paused"),
                            _subscription("sub_sched_unpaid", status="unpaid", metadata={})]
-    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
+    fake["hooks"]["session_create"] = lambda params, options=None: SimpleNamespace(url="u")
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert fake["cancelled"] == ["sub_unpaid", "sub_paused"]
@@ -940,26 +956,22 @@ async def test_locked_reads_see_another_writers_commit(og, db_session):
     await db_session.rollback()
 
 
-async def test_stripe_calls_under_the_lock_use_one_retry_and_a_short_timeout(
-    client, og, db_session, monkeypatch, fake,
-):
+async def test_the_stripe_client_has_a_short_timeout_and_one_retry(monkeypatch):
+    """Calls made under the group lock go through a dedicated StripeClient;
+    nothing global in the stripe module is changed."""
     from backend.services import billing_reservations as br
 
-    seen = {}
-    real = fake["subs"][AGENT_SUB]
-
-    def retrieve(sub_id, **kw):
-        seen["kw"] = kw
-        seen["client"] = stripe.default_http_client
-        return real
-    monkeypatch.setattr(stripe.Subscription, "retrieve", retrieve)
-    before = stripe.default_http_client
-    await _add_row(db_session, "active")
-    await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
-    assert seen["kw"] == {"max_network_retries": 1}
-    assert seen["client"] is br._locked_http_client
-    assert seen["client"]._timeout == br.LOCKED_STRIPE_TIMEOUT_S
-    assert stripe.default_http_client is before
+    before = (stripe.default_http_client, stripe.api_key, stripe.max_network_retries)
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_one")
+    c1 = br.stripe_client()
+    assert br.stripe_client() is c1
+    assert c1._requestor._options.api_key == "sk_test_one"
+    assert c1._requestor._options.max_network_retries == 1
+    assert c1._requestor._client._timeout == br.STRIPE_TIMEOUT_S == 15
+    monkeypatch.setattr(settings, "STRIPE_SECRET_KEY", "sk_test_two")
+    c2 = br.stripe_client()
+    assert c2 is not c1 and c2._requestor._options.api_key == "sk_test_two"
+    assert (stripe.default_http_client, stripe.api_key, stripe.max_network_retries) == before
 
 
 async def test_duplicate_refund_records_are_not_listed_as_charges(
@@ -976,3 +988,98 @@ async def test_duplicate_refund_records_are_not_listed_as_charges(
     await db_session.commit()
     r = await client.get("/api/v1/billing/charges", headers=_auth(manager_token))
     assert [c["kind"] for c in r.json()["charges"]] == ["purchase"]
+
+
+# Review 3: superseded duplicates, retries keep what they knew -------------
+
+
+async def test_a_duplicate_that_became_the_only_subscription_is_left_alone(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    fake["hooks"]["cancel"] = _down
+    fake["hooks"]["refund"] = _down
+    await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    assert alerts[-1][1]["cancelled"] is False and alerts[-1][1]["refund"] == "failed"
+
+    # The kept subscription ends; the row moves onto the duplicate.
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    await _post(client, monkeypatch, "customer.subscription.deleted", _subscription(status="canceled"))
+    del fake["hooks"]["cancel"], fake["hooks"]["refund"]
+    r = await _post(client, monkeypatch, "invoice.payment_succeeded", _invoice("sub_dup"))
+    assert r.status_code == 200
+
+    row = await _row(db_session)
+    assert (row.stripe_subscription_id, row.status) == ("sub_dup", "active")
+    assert fake["cancelled"] == [] and fake["refunds"] == []
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "succeeded" and "superseded" in charge.error_message
+    assert alerts[-1][1].get("superseded") is True
+    n = len(alerts)
+    # Later events for it are ordinary events for the account's subscription.
+    await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
+    assert fake["cancelled"] == [] and fake["refunds"] == [] and len(alerts) == n
+    assert (await _row(db_session)).status == "active"
+
+
+async def test_superseded_alert_says_no_action(monkeypatch):
+    from backend.services import operator_alerts
+
+    sent = []
+    monkeypatch.setattr(operator_alerts, "_send_operator_email",
+                        lambda subject, body, label: sent.append(body) or True)
+    operator_alerts.send_agent_duplicate_subscription_alert(
+        OG_ID, "sub_dup", "sub_dup", None, 10.0, cancelled=False, refund="failed",
+        errors=[], superseded=True)
+    assert "became the account's subscription" in sent[0] and "no action taken" in sent[0]
+
+
+async def test_a_retry_keeps_the_amount_and_alerts_only_on_a_new_outcome(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    fake["hooks"]["refund"] = _down
+    await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    assert alerts[-1][1]["refund"] == "failed"
+    # Retry: the invoice cannot be read now. The $10 found earlier is kept,
+    # and the outcome changed (failed -> unknown), so one more alert.
+    fake["hooks"]["invoice_retrieve"] = _down
+    await _post(client, monkeypatch, "customer.subscription.deleted", dict(sub))
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert float(charge.amount_usd) == 10.0 and charge.status == "failed"
+    assert len(alerts) == 2 and alerts[-1][1]["refund"] == "unknown"
+    # Same outcome with a different error text: no new alert.
+    fake["hooks"]["invoice_retrieve"] = lambda *a, **k: (_ for _ in ()).throw(
+        stripe.APIConnectionError("still down, differently"))
+    await _post(client, monkeypatch, "customer.subscription.deleted", dict(sub))
+    assert len(alerts) == 2
+
+
+async def test_confirm_answers_400_when_stripe_has_no_such_subscription(
+    client, manager_token, og, db_session, fake,
+):
+    fake["hooks"]["session_retrieve"] = lambda sid, *a, **k: _session("sub_ghost")
+    r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
+                          headers=_auth(manager_token))
+    assert r.status_code == 400
+    assert await _row(db_session) is None
+
+
+async def test_checkout_treats_a_vanished_listed_subscription_as_nothing_to_clear(
+    client, manager_token, og, db_session, fake,
+):
+    fake["listed_subs"] = [_subscription("sub_vanished")]  # listed, then gone
+    fake["hooks"]["session_create"] = lambda params, options=None: SimpleNamespace(url="u")
+    r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert await _row(db_session) is None

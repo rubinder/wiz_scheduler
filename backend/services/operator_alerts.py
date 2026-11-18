@@ -204,18 +204,31 @@ def send_agent_duplicate_subscription_alert(
     cancelled: bool,
     refund: str,
     errors: list[str],
+    superseded: bool = False,
 ) -> bool:
     """A second live AI host subscription (#259 step 5) arrived for a group
     that already has one. States what actually happened: whether the
     duplicate was cancelled, and whether its latest invoice was refunded
     (`refund`: "refunded", "none" = nothing paid, "failed", or "unknown" =
-    the invoice could not be read). Never raises."""
+    the invoice could not be read). `superseded`: the subscription it
+    duplicated ended and this one became the account's subscription, so
+    nothing more was done. Never raises."""
     logger.warning(
         "[OPERATOR] agent_duplicate_subscription og=%s duplicate=%s kept=%s pi=%s "
-        "amount=%.2f cancelled=%s refund=%s errors=%s",
+        "amount=%.2f cancelled=%s refund=%s errors=%s superseded=%s",
         og_id, duplicate_subscription_id, kept_subscription_id, payment_intent_id,
-        amount_usd, cancelled, refund, errors,
+        amount_usd, cancelled, refund, errors, superseded,
     )
+    if superseded:
+        return _send_operator_email(
+            f"[WizScheduler] Duplicate AI host subscription for og={og_id} is now its subscription",
+            f"<p>The duplicate AI host subscription "
+            f"<code>{html.escape(duplicate_subscription_id)}</code> for "
+            f"og={html.escape(og_id)} became the account's subscription (the one "
+            f"it duplicated ended): no action taken. It is billing normally now. "
+            f"Earlier: cancelled={'yes' if cancelled else 'no'}, refund={html.escape(refund)}.</p>",
+            "agent_duplicate_subscription",
+        )
     if cancelled:
         cancel_text = "was cancelled"
     else:
