@@ -1220,7 +1220,7 @@ async def test_confirm_claims_and_a_claim_failure_still_returns_200(
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "active"
     number = await _number(db_session)
-    assert number.status == "requested" and number.e164 is not None
+    assert number.status == "requested" and number.connect_phone_number_id is None
     assert "claim" in connect.names()
 
 

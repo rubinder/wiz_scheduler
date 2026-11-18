@@ -100,6 +100,29 @@ async def claim(country: str = "US", prefix: str | None = None, *,
     return e164, phone_number_id
 
 
+def _find_owned(e164: str) -> str | None:
+    kwargs: dict[str, Any] = {"TargetArn": settings.CONNECT_INSTANCE_ARN,
+                              "PhoneNumberPrefix": e164, "MaxResults": 100}
+    while True:
+        page = _client().list_phone_numbers_v2(**kwargs)
+        for summary in page.get("ListPhoneNumbersSummaryList") or []:
+            if summary.get("PhoneNumber") == e164:
+                return summary["PhoneNumberId"]
+        token = page.get("NextToken")
+        if not token:
+            return None
+        kwargs["NextToken"] = token
+
+
+async def find_owned(e164: str) -> str | None | Literal["disabled"]:
+    """The phone_number_id of `e164` if our instance has claimed it, else
+    None: how a claim whose answer was lost is told apart from one that
+    never happened."""
+    if not enabled():
+        return DISABLED
+    return await asyncio.to_thread(_find_owned, e164)
+
+
 async def associate(phone_number_id: str,
                     contact_flow_id: str | None = None) -> None | Literal["disabled"]:
     """Route calls to the number into the AI host's contact flow."""

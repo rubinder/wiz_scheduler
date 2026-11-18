@@ -24,9 +24,16 @@ No orphaned claims. A claim is three committed steps on the row, each under
 the row's lock (FOR UPDATE SKIP LOCKED, so a concurrent run skips the row):
 search a number and store its e164; claim that e164 with the row's
 ClientToken and store the phone number id; route it and mark it `active`.
-A retry after any failure repeats the same claim (same e164, same token),
-which Connect treats as idempotent. A released row has its e164 cleared,
-so a number Connect offers again is never blocked by an old row.
+When claim_phone_number fails, connect_numbers.find_owned (ListPhoneNumbersV2)
+tells a claim whose answer was lost (owned: store its id and route it) from
+one that never happened (not owned: clear the e164, search again next run).
+If that check fails too, the row keeps its e164 and the retry repeats the
+same claim (same e164, same token), which Connect treats as idempotent. A
+row with a searched e164 and no id is never treated as never claimed: a
+hold sends it to `releasing`, and `release_due` (and group deletion)
+resolve it through find_owned before giving it back. A released row has
+its e164 cleared, so a number Connect offers again is never blocked by an
+old row.
 
 No lost updates. Holds, reactivations and the release itself are
 compare-and-set: UPDATE ... WHERE id AND status = <seen> AND
@@ -89,21 +96,24 @@ async def _locked(db: AsyncSession, row_id: str) -> VoiceNumber | None:
     )).scalar_one_or_none()
 
 
-async def _state(db: AsyncSession, row_id: str) -> tuple[str, str | None] | None:
+State = tuple[str, str | None, str | None]  # (status, phone number id, e164)
+
+
+async def _state(db: AsyncSession, row_id: str) -> State | None:
     row = (await db.execute(
-        select(VoiceNumber.status, VoiceNumber.connect_phone_number_id)
+        select(VoiceNumber.status, VoiceNumber.connect_phone_number_id, VoiceNumber.e164)
         .where(VoiceNumber.id == row_id))).first()
-    return (row[0], row[1]) if row else None
+    return (row[0], row[1], row[2]) if row else None
 
 
-async def _cas(db: AsyncSession, row_id: str, seen_status: str,
-               seen_phone_number_id: str | None, values: dict) -> bool:
-    """Write `values` only if the row is still (seen_status,
-    seen_phone_number_id)."""
+async def _cas(db: AsyncSession, row_id: str, seen: State, values: dict) -> bool:
+    """Write `values` only if the row is still exactly `seen`."""
+    status, pn, e164 = seen
     hit = (await db.execute(
         update(VoiceNumber)
-        .where(VoiceNumber.id == row_id, VoiceNumber.status == seen_status,
-               VoiceNumber.connect_phone_number_id.is_not_distinct_from(seen_phone_number_id))
+        .where(VoiceNumber.id == row_id, VoiceNumber.status == status,
+               VoiceNumber.connect_phone_number_id.is_not_distinct_from(pn),
+               VoiceNumber.e164.is_not_distinct_from(e164))
         .values(**values)
         .returning(VoiceNumber.id)
         .execution_options(synchronize_session=False)
@@ -112,24 +122,26 @@ async def _cas(db: AsyncSession, row_id: str, seen_status: str,
 
 
 async def _hold(db: AsyncSession, row_id: str, now: datetime) -> str | None:
-    """The location no longer wants its number: a claimed one goes on hold,
-    one never claimed is released. Commits. Returns the resulting status."""
+    """The location no longer wants its number: one that may be claimed (a
+    phone number id, or a searched e164 whose claim may have gone through)
+    goes on hold; one never searched is released. Commits. Returns the
+    resulting status."""
     for _ in range(_CAS_TRIES):
         seen = await _state(db, row_id)
         if seen is None:
             await db.rollback()
             return None
-        status, pn = seen
+        status, pn, e164 = seen
         if status in ("releasing", "released"):
             await db.rollback()
             return status
-        if pn is None:
+        if pn is None and e164 is None:
             target, values = "released", {"status": "released", "e164": None,
                                           "release_after": None}
         else:
             target, values = "releasing", {"status": "releasing",
                                            "release_after": _hold_until(now)}
-        if await _cas(db, row_id, status, pn, values):
+        if await _cas(db, row_id, seen, values):
             await db.commit()
             return target
         await db.rollback()
@@ -145,11 +157,10 @@ async def _reactivate(db: AsyncSession, row_id: str) -> str | None:
         if seen is None:
             await db.rollback()
             return None
-        status, pn = seen
-        if status != "releasing":
+        if seen[0] != "releasing":
             await db.rollback()
-            return status
-        if await _cas(db, row_id, status, pn, {"status": "active", "release_after": None}):
+            return seen[0]
+        if await _cas(db, row_id, seen, {"status": "active", "release_after": None}):
             await db.commit()
             return "active"
         await db.rollback()
@@ -194,7 +205,18 @@ async def _provision(db: AsyncSession, row_id: str) -> str:
             if (row := await _relock(db, row_id)) is None:
                 return "skipped"
         if row.connect_phone_number_id is None:
-            pn = await connect_numbers.claim_number(row.e164, client_token=client_token(row_id))
+            try:
+                pn = await connect_numbers.claim_number(row.e164,
+                                                        client_token=client_token(row_id))
+            except Exception:  # noqa: BLE001 - did the claim go through?
+                logger.exception("claim of %s for location %s failed; checking ownership",
+                                 row.e164, location_id)
+                pn = await connect_numbers.find_owned(row.e164)
+                if pn is None:
+                    # Not ours: search again next time.
+                    row.e164 = None
+                    await db.commit()
+                    return "requested"
             if pn == connect_numbers.DISABLED:
                 await db.rollback()
                 return "requested"
@@ -278,8 +300,6 @@ async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = 
                     out["reactivated"].append(loc_id)
             if status == "active" or (row_id is not None and status is None):
                 continue
-            if status == "releasing":  # lost the race repeatedly; next run
-                continue
             if row_id is None or status == "released":
                 row_id = await _request(db, og_id, company_id, loc_id, row_id)
                 if row_id is None:
@@ -312,9 +332,15 @@ async def release_due(db: AsyncSession, now: datetime | None = None) -> dict:
                 continue
             location_id = row.location_id
             try:
-                if row.connect_phone_number_id:
-                    if await connect_numbers.release(row.connect_phone_number_id) \
-                            == connect_numbers.DISABLED:
+                pn = row.connect_phone_number_id
+                if pn is None and row.e164:
+                    # Searched; the claim may have gone through unseen.
+                    pn = await connect_numbers.find_owned(row.e164)
+                    if pn == connect_numbers.DISABLED:
+                        await db.rollback()
+                        continue
+                if pn:
+                    if await connect_numbers.release(pn) == connect_numbers.DISABLED:
                         await db.rollback()
                         continue
                 row.status = "released"
@@ -394,38 +420,47 @@ async def location_for_number(db: AsyncSession, e164: str) -> tuple[str, str] | 
 
 async def release_for_deleted_group(db: AsyncSession, og_id: str) -> list[str]:
     """Give back the group's claimed numbers at once, before its data is
-    deleted (day 90): no hold, the group is gone. Best effort, like
-    billing_reservations.cancel_for_deleted_group: never raises, so it never
-    blocks the deletion. A number it could not release (Connect failed, or
-    provisioning is off) goes to the operator, since its row is deleted with
-    the group. Returns the phone number ids it released. Does not write; the
-    caller deletes the rows."""
+    deleted (day 90): no hold, the group is gone. A row with only a searched
+    e164 is resolved through connect_numbers.find_owned first. Best effort,
+    like billing_reservations.cancel_for_deleted_group: never raises, so it
+    never blocks the deletion. Anything it could not release or resolve
+    (Connect failed, or provisioning is off) goes to the operator, since the
+    rows are deleted with the group. Returns the phone number ids it
+    released. Does not write; the caller deletes the rows."""
     from backend.services.operator_alerts import send_voice_numbers_unreleased_alert
 
     released: list[str] = []
     try:
         with tenant_scope_disabled():
-            ids = list((await db.execute(
-                select(VoiceNumber.connect_phone_number_id)
+            rows = (await db.execute(
+                select(VoiceNumber.connect_phone_number_id, VoiceNumber.e164)
                 .where(VoiceNumber.ownership_group_id == og_id,
                        VoiceNumber.status != "released",
-                       VoiceNumber.connect_phone_number_id.is_not(None))
-                .order_by(VoiceNumber.connect_phone_number_id)
-            )).scalars().all())
+                       (VoiceNumber.connect_phone_number_id.is_not(None))
+                       | (VoiceNumber.e164.is_not(None)))
+                .order_by(VoiceNumber.location_id)
+            )).all()
     except Exception:  # noqa: BLE001
         logger.exception("voice numbers of deleted og %s not read", og_id)
         return released
+    unresolved: list[str] = []
     reason = "Connect refused or failed"
-    for phone_number_id in ids:
+    for pn, e164 in rows:
         try:
-            if await connect_numbers.release(phone_number_id) == connect_numbers.DISABLED:
+            if pn is None:
+                pn = await connect_numbers.find_owned(e164)
+                if pn is None:
+                    continue  # never claimed: nothing to give back
+            if pn == connect_numbers.DISABLED or \
+                    await connect_numbers.release(pn) == connect_numbers.DISABLED:
                 reason = "VOICE_PROVISIONING_ENABLED is off"
+                unresolved.append(pn if pn and pn != connect_numbers.DISABLED else e164 or "?")
                 continue
-            released.append(phone_number_id)
+            released.append(pn)
         except Exception:  # noqa: BLE001
-            logger.exception("voice number %s of deleted og %s not released",
-                             phone_number_id, og_id)
-    unreleased = [i for i in ids if i not in released]
-    if unreleased:
-        send_voice_numbers_unreleased_alert(og_id, unreleased, reason)
+            logger.exception("voice number %s (%s) of deleted og %s not released",
+                             pn, e164, og_id)
+            unresolved.append(pn or e164 or "?")
+    if unresolved:
+        send_voice_numbers_unreleased_alert(og_id, unresolved, reason)
     return released

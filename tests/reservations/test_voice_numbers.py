@@ -29,6 +29,10 @@ class FakeConnect:
         self.fail_claim = False
         self.fail_associate = False
         self.fixed: str | None = None  # offer this number on every search
+        self.lose_claim_answer = False  # the claim goes through, then raises
+        self.fail_find = False
+        # Numbers the instance holds: e164 -> phone number id.
+        self.owned: dict[str, str] = {"+10005550000": "pn-someone-else"}
 
     def names(self) -> list[str]:
         return [name for name, _ in self.calls]
@@ -43,7 +47,25 @@ class FakeConnect:
         self.calls.append(("claim", kw))
         if self.fail_claim:
             raise RuntimeError("ServiceQuotaExceededException")
+        self.owned[kw["PhoneNumber"]] = f"pn-{kw['PhoneNumber']}"
+        if self.lose_claim_answer:
+            raise RuntimeError("ReadTimeoutError")
         return {"PhoneNumberId": f"pn-{kw['PhoneNumber']}", "PhoneNumberArn": "arn:x"}
+
+    def list_phone_numbers_v2(self, **kw):
+        """One number per page, to exercise pagination."""
+        self.calls.append(("list", kw))
+        if self.fail_find:
+            raise RuntimeError("ThrottlingException")
+        numbers = sorted(self.owned.items())
+        i = int(kw.get("NextToken", 0))
+        if i >= len(numbers):
+            return {"ListPhoneNumbersSummaryList": []}
+        e164, pn = numbers[i]
+        page = {"ListPhoneNumbersSummaryList": [{"PhoneNumber": e164, "PhoneNumberId": pn}]}
+        if i + 1 < len(numbers):
+            page["NextToken"] = str(i + 1)
+        return page
 
     def associate_phone_number_contact_flow(self, **kw):
         self.calls.append(("associate", kw))
@@ -52,6 +74,7 @@ class FakeConnect:
 
     def release_phone_number(self, **kw):
         self.calls.append(("release", kw))
+        self.owned = {e: p for e, p in self.owned.items() if p != kw["PhoneNumberId"]}
 
 
 @pytest.fixture
@@ -207,17 +230,19 @@ async def test_claim_failure_stays_requested_and_the_daily_run_retries(
     assert (row.status, row.connect_phone_number_id) == ("requested", None)
     token = f"wizscheduler-voice-{row.id}"
 
+    # Connect says the number is not ours: the searched e164 is cleared.
+    assert row.e164 is None
+
     fake.fail_claim = False
     daily = await voice_numbers.run_daily(db_session, NOW)
     assert daily["errors"] == []
     row = (await _rows(db_session))[LOCATION_ID]
     assert row.status == "active"
-    # Same row, same number, same idempotency token on the retry; no new search.
+    # Same row and token; a fresh search for the retry.
     claims = [kw for n, kw in fake.calls if n == "claim"]
     assert len(claims) == 2
     assert {kw["ClientToken"] for kw in claims} == {token}
-    assert {kw["PhoneNumber"] for kw in claims} == {row.e164}
-    assert fake.names().count("search") == 1
+    assert fake.names().count("search") == 2
 
 
 async def test_routing_failure_keeps_the_claimed_number_and_retries_routing_only(
@@ -357,11 +382,13 @@ async def test_a_claim_lost_after_search_retries_the_same_number_and_token(
     whose answer was lost is repeated exactly (Connect: idempotent)."""
     await subscribe(db_session, "active")
     fake.fail_claim = True
+    fake.fail_find = True  # ownership unknown: keep the searched number
     await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
     row = (await _rows(db_session))[LOCATION_ID]
     assert row.status == "requested" and row.e164 is not None
     assert row.connect_phone_number_id is None
     searched = row.e164
+    fake.fail_find = False
 
     fake.fail_claim = False
     fake.calls.clear()
@@ -383,6 +410,10 @@ async def test_a_request_unclaimed_for_a_day_is_a_daily_error(db_session, seed_l
     errors = (await voice_numbers.run_daily(db_session, NOW))["errors"]
     assert [(e["og"], e["location"]) for e in errors] == [(AGENT_OG_ID, LOCATION_ID)]
     assert "not claimed" in errors[0]["error"]
+
+    # Once the claim works the old request is no longer reported.
+    fake.fail_claim = False
+    assert (await voice_numbers.run_daily(db_session, NOW))["errors"] == []
 
 
 async def test_a_released_number_offered_again_can_be_claimed_by_another_location(
@@ -452,7 +483,7 @@ async def test_a_hold_racing_a_claim_holds_the_claimed_number(
                                     .values(e164="+12125550111",
                                             connect_phone_number_id="pn-raced"))
                 await other.commit()
-            return ("requested", None)
+            return ("requested", None, None)
         return seen
     monkeypatch.setattr(voice_numbers, "_state", stale_then_real)
 
@@ -468,3 +499,90 @@ async def test_webhook_mode_requests_without_calling_connect(db_session, seed_lo
     out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW, claim=False)
     assert out["pending"] == [LOCATION_ID] and fake.calls == []
     assert (await _rows(db_session))[LOCATION_ID].status == "requested"
+
+
+async def test_a_claim_that_went_through_unseen_is_found_and_routed(
+        db_session, seed_location, fake):
+    await subscribe(db_session, "active")
+    fake.lose_claim_answer = True
+    out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert out["claimed"] == [LOCATION_ID]
+    row = (await _rows(db_session))[LOCATION_ID]
+    assert row.status == "active" and row.connect_phone_number_id == f"pn-{row.e164}"
+    assert fake.names() == ["search", "claim", "list", "list", "associate"]
+    lists = [kw for n, kw in fake.calls if n == "list"]
+    assert lists[0] == {"TargetArn": ARN, "PhoneNumberPrefix": row.e164, "MaxResults": 100}
+    assert lists[1]["NextToken"] == "1"
+
+
+async def test_a_searched_unclaimed_number_is_held_then_resolved_before_release(
+        db_session, seed_location, fake):
+    """e164 saved, no phone id: maybe claimed. A hold keeps it (releasing);
+    release_due asks Connect and releases it only if it is ours."""
+    await subscribe(db_session, "active")
+    fake.fail_claim = True
+    fake.fail_find = True
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    row = (await _rows(db_session))[LOCATION_ID]
+    assert row.e164 and row.connect_phone_number_id is None
+    fake.fail_find = False
+    fake.owned[row.e164] = "pn-unseen"  # it did go through
+
+    await _set_status(db_session, "canceled")
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert (await _rows(db_session))[LOCATION_ID].status == "releasing"
+
+    fake.calls.clear()
+    await voice_numbers.release_due(db_session, NOW + timedelta(days=8))
+    assert ("release", {"PhoneNumberId": "pn-unseen"}) in fake.calls
+    row = (await _rows(db_session))[LOCATION_ID]
+    assert (row.status, row.e164) == ("released", None)
+
+
+async def test_a_searched_number_not_ours_is_released_without_a_connect_release(
+        db_session, seed_location, fake):
+    await subscribe(db_session, "active")
+    fake.fail_claim = True
+    fake.fail_find = True
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    fake.fail_find = False
+    await _set_status(db_session, "canceled")
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+
+    fake.calls.clear()
+    await voice_numbers.release_due(db_session, NOW + timedelta(days=8))
+    assert "release" not in fake.names() and "list" in fake.names()
+    assert (await _rows(db_session))[LOCATION_ID].status == "released"
+
+
+async def test_group_deletion_resolves_searched_numbers_and_alerts_on_unresolved(
+        db_session, seed_location, other_location, fake, monkeypatch):
+    from backend.models import OwnershipGroup
+    from backend.services.billing import delete_og_and_dependents
+
+    await subscribe(db_session, "active")
+    fake.fail_claim = True
+    fake.fail_find = True
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    rows = await _rows(db_session)
+    owned = rows[LOCATION_ID].e164
+    unknown = rows[OTHER_LOCATION_ID].e164
+    fake.owned[owned] = "pn-unseen"
+    alerts: list = []
+    monkeypatch.setattr(operator_alerts, "send_voice_numbers_unreleased_alert",
+                        lambda *a: alerts.append(a))
+    fake.fail_find = False
+    real_find = fake.list_phone_numbers_v2
+
+    def find(**kw):
+        if kw["PhoneNumberPrefix"] == unknown:
+            raise RuntimeError("ThrottlingException")
+        return real_find(**kw)
+    fake.list_phone_numbers_v2 = find
+
+    og = await db_session.get(OwnershipGroup, AGENT_OG_ID)
+    await delete_og_and_dependents(db_session, og)
+    await db_session.commit()
+    assert ("release", {"PhoneNumberId": "pn-unseen"}) in fake.calls
+    assert alerts == [(AGENT_OG_ID, [unknown], "Connect refused or failed")]
+    assert await _rows(db_session) == {}
