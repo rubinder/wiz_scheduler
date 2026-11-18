@@ -431,3 +431,13 @@ async def test_archiving_a_location_with_upcoming_reservations_is_409(
                               headers=h)).status_code == 200
     r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
     assert r.status_code == 204
+
+
+async def test_config_reports_flag_without_gating(client, manager_token, monkeypatch):
+    h = _auth(manager_token)
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
+    r = await client.get(f"{BASE}/config", headers=h)
+    assert r.status_code == 200 and r.json() == {"enabled": False}
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
+    r = await client.get(f"{BASE}/config", headers=h)
+    assert r.status_code == 200 and r.json() == {"enabled": True}

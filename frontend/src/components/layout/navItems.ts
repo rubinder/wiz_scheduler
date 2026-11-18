@@ -11,6 +11,8 @@ export interface NavItem {
   requiresEmployees?: boolean;
   /** Hidden while the company has employee preference submissions off (#189). */
   requiresPreferenceSubmissions?: boolean;
+  /** Hidden while reservations are off for this deployment. */
+  requiresReservations?: boolean;
 }
 
 export interface NavGroup {
@@ -93,6 +95,18 @@ export const managerNav: NavEntry[] = [
       { to: "/manager/payroll", labelKey: "payroll" },
     ],
   },
+  {
+    labelKey: "groupReservations",
+    children: [
+      { to: "/manager/reservations", labelKey: "hostView", requiresReservations: true },
+      { to: "/manager/reservations/floor", labelKey: "floorPlan", requiresReservations: true },
+      {
+        to: "/manager/reservations/rules",
+        labelKey: "reservationRules",
+        requiresReservations: true,
+      },
+    ],
+  },
   { to: "/manager/data-privacy", labelKey: "dataPrivacy" },
 ];
 
@@ -107,17 +121,19 @@ export const employeeNav: NavEntry[] = [
  * The manager entries this manager should see: company-wide pages
  * (utils/permissions ADMIN_ONLY_PATHS) are dropped for regular managers,
  * items needing employees wait for the first one, and a group left with no
- * children is dropped. Preference reviews wait for the company switch.
+ * children is dropped. Preference reviews wait for the company switch; reservations for the flag.
  */
 export function visibleManagerNav(
   access: Pick<ManagerAccess, "isAdmin">,
   hasEmployees: boolean,
   preferenceSubmissionsEnabled = false,
+  reservationsEnabled = false,
 ): NavEntry[] {
   const show = (item: NavItem) =>
     (access.isAdmin || !isAdminOnlyPath(item.to)) &&
     (!item.requiresEmployees || hasEmployees) &&
-    (!item.requiresPreferenceSubmissions || preferenceSubmissionsEnabled);
+    (!item.requiresPreferenceSubmissions || preferenceSubmissionsEnabled) &&
+    (!item.requiresReservations || reservationsEnabled);
   const out: NavEntry[] = [];
   for (const entry of managerNav) {
     if (isGroup(entry)) {

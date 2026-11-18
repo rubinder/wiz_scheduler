@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, useLocation } from "react-router-dom";
+import { getConfig as getReservationsConfig } from "../../api/reservations";
 import { getCompany } from "../../api/company";
 import { listEmployees } from "../../api/employees";
 import { getOpenShiftCount, OPEN_SHIFTS_CHANGED } from "../../api/openShifts";
@@ -68,6 +69,19 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     };
   }, [userId]);
 
+  // Reservations are a deployment flag; the config route answers either way.
+  const [reservationsEnabled, setReservationsEnabled] = useState(false);
+  useEffect(() => {
+    if (!isManager) return;
+    let cancelled = false;
+    getReservationsConfig()
+      .then((c) => !cancelled && setReservationsEnabled(!!c.enabled))
+      .catch(() => !cancelled && setReservationsEnabled(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [isManager]);
+
   const [openShiftCount, setOpenShiftCount] = useState(0);
 
   // Open approved shifts in the next 14 days (#174). Refetched on every
@@ -97,9 +111,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const entries = useMemo(
     () =>
       isManager
-        ? visibleManagerNav({ isAdmin }, hasEmployees, prefSubmissions)
+        ? visibleManagerNav({ isAdmin }, hasEmployees, prefSubmissions, reservationsEnabled)
         : visibleEmployeeNav(prefSubmissions),
-    [isManager, isAdmin, hasEmployees, prefSubmissions],
+    [isManager, isAdmin, hasEmployees, prefSubmissions, reservationsEnabled],
   );
 
   // Auto-expand whichever group owns the active route, so a deep link never

@@ -1,0 +1,75 @@
+import { apiFetch } from "./client";
+import type {
+  BookingIn,
+  FloorIn,
+  FloorOut,
+  ReservationOut,
+  ReservationPatch,
+  RulesOut,
+  RulesSchema,
+  SettableStatus,
+  SlotOut,
+  WalkInIn,
+} from "../types/reservations";
+
+const base = (locationId: string) => `/reservations/locations/${locationId}`;
+
+export function getConfig(): Promise<{ enabled: boolean }> {
+  return apiFetch("/reservations/config");
+}
+
+export function getFloor(locationId: string): Promise<FloorOut> {
+  return apiFetch(`${base(locationId)}/floor`);
+}
+
+export function saveFloor(locationId: string, floor: FloorIn): Promise<FloorOut> {
+  return apiFetch(`${base(locationId)}/floor`, { method: "PUT", body: JSON.stringify(floor) });
+}
+
+export function getRules(locationId: string): Promise<RulesOut> {
+  return apiFetch(`${base(locationId)}/rules`);
+}
+
+export function saveRules(locationId: string, rules: RulesSchema): Promise<RulesOut> {
+  return apiFetch(`${base(locationId)}/rules`, { method: "PUT", body: JSON.stringify(rules) });
+}
+
+/** Staff view by default; applyCutoff previews what diners see. */
+export function getSlots(
+  locationId: string,
+  partySize: number,
+  date: string,
+  applyCutoff?: boolean,
+): Promise<SlotOut[]> {
+  const qs = new URLSearchParams({ party_size: String(partySize), date });
+  if (applyCutoff) qs.set("apply_cutoff", "true");
+  return apiFetch(`${base(locationId)}/slots?${qs.toString()}`);
+}
+
+export function listReservations(locationId: string, date: string): Promise<ReservationOut[]> {
+  return apiFetch(`${base(locationId)}/reservations?${new URLSearchParams({ date }).toString()}`);
+}
+
+export function createReservation(locationId: string, body: BookingIn): Promise<ReservationOut> {
+  return apiFetch(`${base(locationId)}/reservations`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function seatWalkIn(locationId: string, body: WalkInIn): Promise<ReservationOut> {
+  return apiFetch(`${base(locationId)}/walk-ins`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updateReservation(id: string, body: ReservationPatch): Promise<ReservationOut> {
+  return apiFetch(`/reservations/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export function setReservationStatus(id: string, status: SettableStatus): Promise<ReservationOut> {
+  return apiFetch(`/reservations/${id}/status`, { method: "POST", body: JSON.stringify({ status }) });
+}
+
+export function approveReservation(id: string): Promise<ReservationOut> {
+  return apiFetch(`/reservations/${id}/approve`, { method: "POST" });
+}
+
+export function declineReservation(id: string): Promise<ReservationOut> {
+  return apiFetch(`/reservations/${id}/decline`, { method: "POST" });
+}

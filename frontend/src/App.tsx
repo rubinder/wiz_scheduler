@@ -32,6 +32,9 @@ import ShiftTemplates from "./pages/manager/ShiftTemplates";
 import SpecialHours from "./pages/manager/SpecialHours";
 import Team from "./pages/manager/Team";
 import QuickEntry from "./pages/manager/QuickEntry";
+import ReservationsHost from "./pages/manager/ReservationsHost";
+import ReservationsFloor from "./pages/manager/ReservationsFloor";
+import ReservationsRules from "./pages/manager/ReservationsRules";
 import PreferenceReviews from "./pages/manager/PreferenceReviews";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
@@ -155,6 +158,9 @@ export default function App() {
             <Route path="check-in-qr" element={<CheckInQr />} />
             <Route path="check-in-report" element={<CheckInReport />} />
             <Route path="payroll" element={<Payroll />} />
+            <Route path="reservations" element={<ReservationsHost />} />
+            <Route path="reservations/floor" element={<ReservationsFloor />} />
+            <Route path="reservations/rules" element={<ReservationsRules />} />
             <Route path="special-hours" element={<SpecialHours />} />
             <Route path="schedule" element={<Schedule />} />
             <Route path="export-schedules" element={<ExportSchedules />} />
