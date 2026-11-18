@@ -21,7 +21,8 @@ DECISIONS = ("answer", "block")
 REASONS = ("allow_list", "block_list", "ftc", "default", "withheld")
 # spam_ingest_files.status (reservations.ftc_ingest): ok = rows replaced;
 # empty = parsed, no valid number; missing = 404, not published (today,
-# holidays); error = fetch or parse failed. Only ok moves the next run's start.
+# holidays); error = fetch or parse failed. Every later run re-fetches a date
+# until it is ok, except a missing one older than MISSING_RETRY_DAYS.
 INGEST_STATUSES = ("ok", "empty", "missing", "error")
 
 

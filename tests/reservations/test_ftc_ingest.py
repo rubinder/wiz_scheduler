@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.reservations import ftc_ingest
-from backend.reservations.ftc_ingest import alert_reasons, ingest, ingest_file, parse, parse_counted
+from backend.reservations.ftc_ingest import _record, alert_reasons, ingest, ingest_file, parse, parse_counted
 from backend.reservations.screening_models import SpamIngestFile, SpamNumber
 
 pytestmark = pytest.mark.integration
@@ -135,7 +135,7 @@ async def test_first_run_fetches_weekdays_from_two_weeks_back(db_session: AsyncS
 
 
 @pytest.mark.asyncio
-async def test_later_run_starts_after_the_newest_ok_file(db_session: AsyncSession):
+async def test_later_run_fetches_only_dates_not_yet_ok(db_session: AsyncSession):
     db_session.add_all([SpamIngestFile(file_date=date(2026, 11, 13), status="ok", rows=1),
                         SpamIngestFile(file_date=date(2026, 11, 16), status="error")])
     await db_session.commit()
@@ -145,6 +145,76 @@ async def test_later_run_starts_after_the_newest_ok_file(db_session: AsyncSessio
 
     assert fetch.calls == [_url(date(2026, 11, d)) for d in (16, 17, 18)]
     assert (await _files(db_session))[date(2026, 11, 16)] == ("ok", 3)
+
+
+@pytest.mark.asyncio
+async def test_a_failed_date_is_retried_after_a_later_ok(db_session: AsyncSession):
+    tue, wed = date(2026, 11, 17), TODAY
+    db_session.add_all([SpamIngestFile(file_date=date(2026, 11, 16), status="ok", rows=1),
+                        SpamIngestFile(file_date=tue, status="error"),
+                        SpamIngestFile(file_date=wed, status="ok", rows=1)])
+    await db_session.commit()
+    fetch = FakeFetch({tue: _csv("standard.csv")})
+
+    await ingest(db_session, TODAY, fetch=fetch)
+
+    assert fetch.calls == [_url(tue)]
+    assert (await _files(db_session))[tue] == ("ok", 3)
+
+
+@pytest.mark.asyncio
+async def test_empty_dates_are_retried_and_old_missing_ones_are_not(db_session: AsyncSession):
+    old_missing = date(2026, 11, 6)    # 12 days back: a holiday, give up
+    recent_missing = date(2026, 11, 9)  # 9 days back: maybe late, ask again
+    empty = date(2026, 11, 10)
+    db_session.add_all([
+        SpamIngestFile(file_date=date(2026, 11, 5), status="ok", rows=1),
+        SpamIngestFile(file_date=old_missing, status="missing"),
+        SpamIngestFile(file_date=recent_missing, status="missing"),
+        SpamIngestFile(file_date=empty, status="empty"),
+    ] + [SpamIngestFile(file_date=date(2026, 11, d), status="ok", rows=1)
+         for d in (11, 12, 13, 16, 17, 18)])
+    await db_session.commit()
+    fetch = FakeFetch({})
+
+    await ingest(db_session, TODAY, fetch=fetch)
+
+    assert fetch.calls == [_url(recent_missing), _url(empty)]
+
+
+@pytest.mark.asyncio
+async def test_record_never_downgrades_an_ok_file(db_session: AsyncSession):
+    d = date(2026, 11, 17)
+    await ingest_file(db_session, d, _csv("standard.csv"))
+    for status in ("error", "missing", "empty"):
+        await _record(db_session, d, status, 0)
+        await db_session.commit()
+    assert (await _files(db_session))[d] == ("ok", 3)
+    await _record(db_session, d, "ok", 7)
+    await db_session.commit()
+    assert (await _files(db_session))[d] == ("ok", 7)
+
+
+@pytest.mark.asyncio
+async def test_a_failure_to_record_an_error_does_not_stop_the_run(
+        db_session: AsyncSession, monkeypatch):
+    real = ftc_ingest._record
+
+    async def flaky(db, file_date, status, rows):
+        if status == "error":
+            raise RuntimeError("db hiccup")
+        await real(db, file_date, status, rows)
+
+    monkeypatch.setattr(ftc_ingest, "_record", flaky)
+    db_session.add(SpamIngestFile(file_date=date(2026, 11, 13), status="ok", rows=1))
+    await db_session.commit()
+    fetch = FakeFetch({date(2026, 11, 16): RuntimeError("boom"),
+                       date(2026, 11, 17): _csv("standard.csv")})
+
+    summary = await ingest(db_session, TODAY, fetch=fetch)
+
+    assert [e["date"] for e in summary["errors"]] == ["2026-11-16"]
+    assert (await _files(db_session))[date(2026, 11, 17)] == ("ok", 3)
 
 
 @pytest.mark.asyncio
