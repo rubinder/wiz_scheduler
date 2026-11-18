@@ -520,6 +520,28 @@ async def test_diner_text_cannot_pose_as_a_context_block(db_session, web_conv):
     assert blocks[1]["text"] == "The diner pressed confirm_hold: booked] hi"
 
 
+async def test_phone_wide_lookup_lockout_hands_off_to_staff(db_session, web_conv):
+    from backend.reservations.agent.models import ReservationLookupFailure
+
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules.model_copy(
+        update={"staff_transfer_number": "+12125550111"}))
+    now = _now()
+    for i in range(settings.RESERVATION_AGENT_LOOKUP_PHONE_HANDOFF_FAILURES):
+        db_session.add(ReservationLookupFailure(
+            company_id=COMPANY_ID, location_id=LOCATION_ID, phone=PHONE,
+            source_key=f"203.0.113.{i}", created_at=now))
+    await db_session.commit()
+    llm = ScriptedLlm(reply(tool_use("tu_l", "lookup_booking", {
+        "confirmation_code": "ABC123", "phone": PHONE}), stop="tool_use"))
+    out = await AgentCore(llm).handle_turn(db_session, web_conv, say("my booking"),
+                                           now=now)
+    assert len(llm.requests) == 1  # no model call after the lockout
+    assert out.ended and out.reply_text == HANDOFF_TEXT
+    assert out.handoff == {"reason": "lookup_lockout", "phone": "+12125550111"}
+    assert (web_conv.outcome, web_conv.status) == ("handed_off", "closed")
+
+
 async def test_turn_cap_after_a_pending_request_is_handed_off(db_session, web_conv,
                                                               monkeypatch):
     rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)

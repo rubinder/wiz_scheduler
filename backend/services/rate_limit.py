@@ -94,26 +94,35 @@ def source_ip_from_request(request) -> str:
     return "unknown"
 
 
-def trusted_client_ip(request) -> str:
-    """The client IP as the trusted proxies saw it, not as the client claims.
+def trusted_client_keys(request) -> tuple[str, str]:
+    """(viewer_key, hop_key) for the AI host agent's limiters (#259).
 
-    Each of the TRUSTED_PROXY_HOPS proxies (CloudFront, then the ALB) appends
-    the address it received from, so the entry that many places from the
-    right is the one a client cannot forge; entries left of it are whatever
-    the client sent. Falls back to request.client.host when the header is
-    absent or shorter than that (local dev, tests), then "unknown".
+    Each proxy appends the address it received from. Through CloudFront the
+    ALB passes `[client-sent..., viewer, edge]`, so:
+    - viewer_key, the entry TRUSTED_PROXY_HOPS from the right, is the diner
+      as CloudFront saw them;
+    - hop_key, the last entry, is the peer the ALB itself saw.
+    The ALB also takes traffic straight from the internet, and then the
+    viewer entry is whatever the client sent; the hop entry is still the
+    sender's real address. So a request must pass a per-viewer limit and a
+    looser per-hop one: CloudFront traffic is limited per diner, a forged
+    header only moves the per-viewer count. Without the header (local dev,
+    tests) both keys are request.client.host, then "unknown".
 
-    Used by the AI host agent's limiters (#259). source_ip_from_request is
-    kept as it is for the older limiters and logs.
+    source_ip_from_request is kept as it is for the older limiters and logs.
     """
     hops = max(1, settings.TRUSTED_PROXY_HOPS)
     parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",")]
     parts = [p for p in parts if p]
-    if len(parts) >= hops:
-        return parts[-hops]
-    if request.client:
-        return request.client.host
-    return "unknown"
+    peer = request.client.host if request.client else "unknown"
+    hop = parts[-1] if parts else peer
+    viewer = parts[-hops] if len(parts) >= hops else hop
+    return viewer[:64], hop[:64]
+
+
+def trusted_client_ip(request) -> str:
+    """The viewer key alone (see trusted_client_keys)."""
+    return trusted_client_keys(request)[0]
 
 
 # Module-level singletons. Configured at import time from settings; tests
@@ -185,8 +194,24 @@ reservation_agent_info_limiter = SlidingWindowLimiter(
     window_seconds=3600,
 )
 
-# Per-location cap on conversation starts, so rotating IPs cannot flood one
-# restaurant with conversations. Keyed by location id.
+# The same two budgets per hop key (trusted_client_keys), 10x looser.
+reservation_agent_hop_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_HOP_TURNS_PER_HOUR,
+    window_seconds=3600,
+)
+reservation_agent_hop_info_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_HOP_INFO_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Conversation starts per "location|viewer_key".
+reservation_agent_viewer_starts_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR,
+    window_seconds=3600,
+)
+
+# Location-wide start count. Observe-only: when it is full the route logs a
+# warning for the operator and still starts the conversation.
 reservation_agent_location_starts_limiter = SlidingWindowLimiter(
     max_requests=settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR,
     window_seconds=3600,

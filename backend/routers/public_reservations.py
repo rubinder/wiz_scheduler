@@ -7,11 +7,14 @@ request to it (ORM tenant filter and Postgres RLS) before any tenant table
 is read. Every route 404s when reservations are off or the company or
 location is unknown or archived.
 
-Abuse limits, all keyed on `trusted_client_ip` (the X-Forwarded-For entry
-the proxies wrote, not one a client can forge):
-- one per-IP window counts conversation starts and turns, checked before
-  anything is loaded or any model is called; a looser one covers the info
-  read; conversation starts are also capped per location;
+Abuse limits, keyed by `trusted_client_keys` (Ruling N): every request must
+pass a per-viewer limit (the diner as CloudFront saw them) and a 10x looser
+per-hop limit (the peer the ALB saw), so a forged X-Forwarded-For sent
+straight to the ALB is still limited by its real address.
+- one window counts conversation starts and turns, checked before anything
+  is loaded or any model is called; a looser one covers the info read;
+- starts are also limited per (location, viewer); a location past
+  RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR is logged, not blocked;
 - each turn is claimed atomically (`recording.claim_turn`), which enforces
   the turn cap and refuses a second concurrent turn with 409.
 """
@@ -20,11 +23,13 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
+from backend.database import RLS_COMPANY_IDS
 from backend.dependencies import bind_rls_context, get_db
 from backend.models import Company, Location
 from backend.reservations.agent import recording
@@ -38,10 +43,13 @@ from backend.schemas.reservation_agent import (
 from backend.services.archive import active
 from backend.services.rate_limit import (
     SlidingWindowLimiter,
+    reservation_agent_hop_info_limiter,
+    reservation_agent_hop_limiter,
     reservation_agent_info_limiter,
     reservation_agent_ip_limiter,
     reservation_agent_location_starts_limiter,
-    trusted_client_ip,
+    reservation_agent_viewer_starts_limiter,
+    trusted_client_keys,
 )
 from backend.tenant import tenant_context
 
@@ -66,14 +74,19 @@ def _limit(limiter: SlidingWindowLimiter, key: str, what: str) -> None:
                             detail="Too many requests. Try again later.")
 
 
-def consume_ip_limit(request: Request) -> None:
+def consume_ip_limit(request: Request) -> str:
     """Runs before the scope lookup and before the body is validated, so a
-    malformed request still spends a token."""
-    _limit(reservation_agent_ip_limiter, trusted_client_ip(request), "ip")
+    malformed request still spends a token. Returns the viewer key."""
+    viewer, hop = trusted_client_keys(request)
+    _limit(reservation_agent_hop_limiter, hop, "hop")
+    _limit(reservation_agent_ip_limiter, viewer, "ip")
+    return viewer
 
 
 def consume_info_limit(request: Request) -> None:
-    _limit(reservation_agent_info_limiter, trusted_client_ip(request), "ip")
+    viewer, hop = trusted_client_keys(request)
+    _limit(reservation_agent_hop_info_limiter, hop, "hop")
+    _limit(reservation_agent_info_limiter, viewer, "ip")
 
 
 @dataclass(frozen=True)
@@ -147,18 +160,23 @@ async def location_info(
 
 
 @router.post("/{slug}/{location_id}/conversations", response_model=ConversationOut,
-             status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(consume_ip_limit)])
+             status_code=status.HTTP_201_CREATED)
 async def start_conversation(
+    viewer: str = Depends(consume_ip_limit),
     scope: PublicScope = Depends(public_company_scope),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationOut:
     """The greeting turn: no model call, and nothing for the model's history
     (its system prompt already carries the greeting)."""
-    _limit(reservation_agent_location_starts_limiter, scope.location.id, "location")
+    location_id = scope.location.id
+    _limit(reservation_agent_viewer_starts_limiter, f"{location_id}|{viewer}",
+           "location_viewer")
+    if not reservation_agent_location_starts_limiter.check_and_record(location_id):
+        # Operator signal only: many diners may share a busy restaurant.
+        logger.warning("reservation_agent.location_starts_high location=%s", location_id)
     greeting = await _greeting(db, scope)
-    conv = await recording.start_conversation(db, scope.company_id, scope.location.id,
-                                              "web")
+    conv = await recording.start_conversation(db, scope.company_id, location_id,
+                                              "web", source_key=viewer)
     token = conv.public_token
     await db.commit()
     return ConversationOut(conversation_token=token, reply_text=greeting, expect="text")
@@ -189,5 +207,28 @@ async def post_turn(
                             detail={"code": "turn_in_progress"})
     if claim == "closed":
         raise _not_found()
-    out = await core.handle_turn(db, conv, TurnInput(text=body.text, action=body.action))
+    conv_id, company_id = conv.id, conv.company_id
+    try:
+        out = await core.handle_turn(db, conv,
+                                     TurnInput(text=body.text, action=body.action))
+    except BaseException:
+        # handle_turn never raises an Exception, so this is a cancellation
+        # (the diner went away mid-turn): clear the in-flight mark so the
+        # next turn is not refused until it goes stale.
+        await _clear_mark_after_cancel(db, conv_id, company_id)
+        raise
     return TurnOut.from_turn(out)
+
+
+async def _clear_mark_after_cancel(db: AsyncSession, conv_id: str,
+                                   company_id: str) -> None:
+    """Best effort, on a fresh session (the request's own may be
+    mid-statement), shielded: the cancellation that brought us here would
+    otherwise cancel every await in it too."""
+    with anyio.CancelScope(shield=True):
+        try:
+            async with AsyncSession(db.bind, expire_on_commit=False) as fresh:
+                fresh.info[RLS_COMPANY_IDS] = [company_id]
+                await recording.clear_turn_mark(fresh, conv_id, company_id)
+        except Exception:
+            logger.exception("could not clear the turn mark (conversation %s)", conv_id)

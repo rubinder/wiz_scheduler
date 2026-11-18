@@ -275,10 +275,19 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
     RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
     RESERVATION_AGENT_IP_INFO_PER_HOUR: int = 300
+    # Per hop key (the address the ALB saw: a CloudFront edge, or the real
+    # peer of traffic sent straight to the ALB), 10x the per-viewer limits.
+    RESERVATION_AGENT_HOP_TURNS_PER_HOUR: int = 600
+    RESERVATION_AGENT_HOP_INFO_PER_HOUR: int = 3000
+    # Conversation starts per (location, viewer); past the location-wide
+    # figure a warning is logged for the operator, nothing is blocked.
+    RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR: int = 20
     RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR: int = 120
-    # Wrong booking lookups per (location, phone) across conversations
-    # before lookups for that phone are refused (#259).
+    # Wrong booking lookups (#259), counted across conversations in the
+    # lockout window: per (location, phone, viewer) they refuse lookups;
+    # per (location, phone) from anyone they hand the diner to staff.
     RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES: int = 5
+    RESERVATION_AGENT_LOOKUP_PHONE_HANDOFF_FAILURES: int = 20
     RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES: int = 15
     RETENTION_LOOKUP_FAILURES_DAYS: int = 1
     # Proxies that append to X-Forwarded-For in front of the app

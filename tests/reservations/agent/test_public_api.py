@@ -19,8 +19,10 @@ from backend.reservations.rules import get_rules, save_rules
 from backend.routers.public_reservations import get_agent_core
 from backend.tenant import get_tenant_context
 from backend.services.rate_limit import (
+    reservation_agent_hop_limiter,
     reservation_agent_info_limiter,
     reservation_agent_location_starts_limiter,
+    trusted_client_keys,
 )
 from tests.conftest import COMPANY2_ID, COMPANY_ID, LOCATION_ID
 from tests.reservations.agent.fakes import ScriptedLlm, last_tool_result, reply, text, tool_use
@@ -294,13 +296,59 @@ async def test_forged_leftmost_xff_does_not_escape_the_limit(client, seeded_floo
     assert r.status_code == 429 and llm.requests == []
 
 
-async def test_starts_are_capped_per_location(client, db_session, seeded_floor, llm):
+async def test_starts_are_limited_per_location_and_viewer(client, db_session,
+                                                          seeded_floor, llm):
+    ip = _via("198.51.100.20")
+    for _ in range(settings.RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR):
+        await _start(client, headers=ip)
+    assert (await client.post(f"{BASE}/conversations", headers=ip)).status_code == 429
+    # Another diner here, and the same diner at another restaurant, may start.
+    await _start(client, headers=_via("198.51.100.21"))
+    loc2 = await _other_company(db_session)
+    await _start(client, base=f"{ROOT}/other-co/{loc2}", headers=ip)
+
+
+async def test_a_busy_location_is_logged_not_blocked(client, db_session, seeded_floor,
+                                                     llm, caplog):
     for _ in range(settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR):
         assert reservation_agent_location_starts_limiter.check_and_record(LOCATION_ID)
-    r = await client.post(f"{BASE}/conversations", headers=_via("198.51.100.20"))
-    assert r.status_code == 429
-    loc2 = await _other_company(db_session)
-    await _start(client, base=f"{ROOT}/other-co/{loc2}", headers=_via("198.51.100.20"))
+    with caplog.at_level("WARNING"):
+        token = await _start(client, headers=_via("198.51.100.22"))
+    assert any("location_starts_high" in r.getMessage() and LOCATION_ID in r.getMessage()
+               for r in caplog.records)
+    conv = (await db_session.execute(select(AgentConversation).where(
+        AgentConversation.public_token == token))).scalar_one()
+    assert conv.source_key == "198.51.100.22"
+
+
+async def test_direct_to_alb_forgery_is_limited_by_the_hop_key(client, seeded_floor, llm):
+    real = "203.0.113.66"  # the sender's own address, appended by the ALB
+    token = await _start(client, headers={"X-Forwarded-For": f"9.9.9.1, {real}"})
+    for _ in range(settings.RESERVATION_AGENT_HOP_TURNS_PER_HOUR - 2):
+        assert reservation_agent_hop_limiter.check_and_record(real)
+    llm.push(reply(text("Hello.")))
+    r = await _turn(client, token, {"text": "hi"},
+                    headers={"X-Forwarded-For": f"9.9.9.2, {real}"})
+    assert r.status_code == 200  # the 600th from this peer
+    r = await _turn(client, token, {"text": "hi"},
+                    headers={"X-Forwarded-For": f"9.9.9.3, {real}"})
+    assert r.status_code == 429 and len(llm.requests) == 1
+    assert (await client.get(BASE, headers={"X-Forwarded-For": f"9.9.9.4, {real}"})
+            ).status_code == 200  # the info read has its own, looser budget
+
+
+async def test_trusted_client_keys_shapes():
+    from starlette.requests import Request
+
+    def keys(xff: str | None):
+        headers = [(b"x-forwarded-for", xff.encode())] if xff is not None else []
+        return trusted_client_keys(Request({"type": "http", "headers": headers,
+                                            "client": ("10.1.1.1", 5)}))
+
+    assert keys("198.51.100.7, 130.176.1.1") == ("198.51.100.7", "130.176.1.1")
+    assert keys("1.2.3.4, 198.51.100.7, 130.176.1.1") == ("198.51.100.7", "130.176.1.1")
+    assert keys("203.0.113.66") == ("203.0.113.66", "203.0.113.66")
+    assert keys(None) == ("10.1.1.1", "10.1.1.1")
 
 
 async def test_info_read_has_its_own_looser_ip_limit(client, seeded_floor, llm):
@@ -363,10 +411,56 @@ async def test_a_stale_in_flight_mark_does_not_block(client, db_session, seeded_
     token = await _start(client)
     conv = (await db_session.execute(select(AgentConversation).where(
         AgentConversation.public_token == token))).scalar_one()
-    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(seconds=120)
     await db_session.commit()
     assert (await _turn(client, token, {"text": "hi"})).status_code == 409
-    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(seconds=160)
     await db_session.commit()
     llm.push(reply(text("Hello.")))
     assert (await _turn(client, token, {"text": "hi"})).status_code == 200
+
+
+async def test_each_round_refreshes_the_in_flight_mark(client, db_session, seeded_floor,
+                                                       llm):
+    from tests.conftest import get_test_session_factory
+
+    token = await _start(client)
+    seen = []
+
+    async def mark() -> datetime:
+        async with get_test_session_factory()() as other:
+            return (await other.execute(select(AgentConversation.turn_started_at).where(
+                AgentConversation.public_token == token))).scalar_one()
+
+    async def first(request):
+        seen.append(await mark())
+        return reply(tool_use("tu_r", "restaurant_info", {}), stop="tool_use")
+
+    async def second(request):
+        seen.append(await mark())
+        return reply(text("We're open for dinner."))
+
+    llm.push(first, second)
+    assert (await _turn(client, token, {"text": "hours?"})).status_code == 200
+    assert seen[0] is not None and seen[1] > seen[0]
+    assert await mark() is None
+
+
+async def test_a_cancelled_turn_clears_its_mark(isolated_client, seeded_floor):
+    started = asyncio.Event()
+
+    async def hang(request):
+        started.set()
+        await asyncio.Event().wait()  # never answers
+
+    llm = ScriptedLlm(hang)
+    app.dependency_overrides[get_agent_core] = lambda: AgentCore(llm)
+    token = await _start(isolated_client)
+    task = asyncio.create_task(_turn(isolated_client, token, {"text": "one"}))
+    await asyncio.wait_for(started.wait(), 10)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    llm.push(reply(text("Back.")))
+    r = await _turn(isolated_client, token, {"text": "two"})
+    assert r.status_code == 200 and r.json()["reply_text"] == "Back."

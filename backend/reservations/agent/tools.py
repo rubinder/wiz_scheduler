@@ -149,8 +149,9 @@ class ToolOutcome:
 
 
 class _ToolError(Exception):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, handoff: bool = False) -> None:
         super().__init__(code)
+        self.handoff = handoff
         self.code = code
 
 
@@ -329,15 +330,21 @@ async def _hold_slot(db: AsyncSession, conv: AgentConversation,
 
 
 async def _recent_lookup_failures(db: AsyncSession, conv: AgentConversation,
-                                  phone: str, now: datetime) -> int:
+                                  phone: str, now: datetime, *,
+                                  by_source: bool = False) -> int:
+    """Failures for this phone at this location in the lockout window; with
+    `by_source`, only those from this conversation's viewer key."""
     since = now - timedelta(minutes=settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES)
-    return (await db.execute(
-        select(func.count()).select_from(ReservationLookupFailure).where(
-            ReservationLookupFailure.company_id == conv.company_id,
-            ReservationLookupFailure.location_id == conv.location_id,
-            ReservationLookupFailure.phone == phone,
-            ReservationLookupFailure.created_at > since)
-    )).scalar_one()
+    q = select(func.count()).select_from(ReservationLookupFailure).where(
+        ReservationLookupFailure.company_id == conv.company_id,
+        ReservationLookupFailure.location_id == conv.location_id,
+        ReservationLookupFailure.phone == phone,
+        ReservationLookupFailure.created_at > since)
+    if by_source:
+        q = q.where(ReservationLookupFailure.source_key.is_(None)
+                    if conv.source_key is None
+                    else ReservationLookupFailure.source_key == conv.source_key)
+    return (await db.execute(q)).scalar_one()
 
 
 async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
@@ -346,12 +353,18 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
         raise _ToolError("too_many_attempts")
     code, phone = inp.get("confirmation_code"), inp.get("phone")
     phone = phone.strip() if isinstance(phone, str) else None
-    # The per-phone lockout spans conversations, so a new conversation per
-    # guess does not reset it. Keyed on the exact phone lookup() matches:
-    # a reformatted number can never find the booking anyway.
-    if phone and await _recent_lookup_failures(db, conv, phone, now) \
-            >= settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES:
-        raise _ToolError("too_many_attempts")
+    # The lockouts span conversations, so a new conversation per guess does
+    # not reset them. Keyed on the exact phone lookup() matches: a
+    # reformatted number can never find the booking anyway. From one viewer
+    # the lookups are refused; from anyone, past a higher figure, the diner
+    # is handed to staff, who can verify them another way.
+    if phone:
+        if await _recent_lookup_failures(db, conv, phone, now) \
+                >= settings.RESERVATION_AGENT_LOOKUP_PHONE_HANDOFF_FAILURES:
+            raise _ToolError("too_many_attempts", handoff=True)
+        if await _recent_lookup_failures(db, conv, phone, now, by_source=True) \
+                >= settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES:
+            raise _ToolError("too_many_attempts")
     res = None
     if isinstance(code, str) and phone:
         res = await booking.lookup(db, conv.company_id, conv.location_id, code, phone)
@@ -360,7 +373,7 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
         if phone:
             db.add(ReservationLookupFailure(
                 company_id=conv.company_id, location_id=conv.location_id,
-                phone=phone, created_at=now))
+                phone=phone, source_key=conv.source_key, created_at=now))
         conv.failed_lookups = (conv.failed_lookups or 0) + 1
         conv.verified_reservation_id = None
         conv.pending_cancel_id = None
@@ -491,7 +504,9 @@ async def execute_tool(
             await db.flush()
         return outcome
     except _ToolError as exc:
-        return ToolOutcome({"error": exc.code}, is_error=True)
+        # A handoff error (the phone-wide lookup lockout) ends the turn with staff.
+        return ToolOutcome({"error": exc.code, "handoff": True} if exc.handoff
+                           else {"error": exc.code}, is_error=True)
     except ReservationError as exc:
         return ToolOutcome({"error": exc.code}, is_error=True)
     except Exception:

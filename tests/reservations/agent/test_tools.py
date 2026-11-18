@@ -396,14 +396,42 @@ async def test_lookups_stop_after_three_failures(db_session, web_conv, monkeypat
     assert web_conv.failed_lookups == 3
 
 
-async def _wrong_lookups(db, n: int, now, phone=PHONE) -> None:
+async def _wrong_lookups(db, n: int, now, phone=PHONE, source=None) -> None:
     """n wrong lookups for phone, each from a fresh conversation."""
     for _ in range(n):
-        conv = await recording.start_conversation(db, COMPANY_ID, LOCATION_ID, "web")
+        conv = await recording.start_conversation(db, COMPANY_ID, LOCATION_ID, "web",
+                                                  source_key=source)
         out = await execute_tool(db, conv, "lookup_booking", {
             "confirmation_code": "ZZZZZZ", "phone": phone}, now=now)
         assert out.result == {"found": False}
     await db.commit()
+
+
+async def test_lookup_lockout_is_per_viewer_until_the_phone_wide_handoff(db_session,
+                                                                        seeded_floor):
+    now = _now()
+    res = await _booked(db_session, now)
+    args = {"confirmation_code": res.confirmation_code, "phone": PHONE}
+    await _wrong_lookups(db_session, 5, now, source="198.51.100.1")
+    rows = (await db_session.execute(select(ReservationLookupFailure))).scalars().all()
+    assert {r.source_key for r in rows} == {"198.51.100.1"}
+    same = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web",
+                                              source_key="198.51.100.1")
+    out = await execute_tool(db_session, same, "lookup_booking", args, now=now)
+    assert out.result == {"error": "too_many_attempts"}
+    # Another diner looking up the same phone is not locked out by them...
+    other = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID,
+                                               "web", source_key="198.51.100.2")
+    out = await execute_tool(db_session, other, "lookup_booking", args, now=now)
+    assert out.result["found"] is True
+    # ...until the phone-wide figure, from many viewers: hand off to staff.
+    for i in range(15):
+        await _wrong_lookups(db_session, 1, now, source=f"203.0.113.{i}")
+    late = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web",
+                                              source_key="198.51.100.3")
+    out = await execute_tool(db_session, late, "lookup_booking", args, now=now)
+    assert out.is_error and out.result == {"error": "too_many_attempts", "handoff": True}
+    assert late.verified_reservation_id is None
 
 
 async def test_lookup_lockout_spans_conversations(db_session, web_conv, monkeypatch):

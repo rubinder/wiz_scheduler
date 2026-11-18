@@ -37,13 +37,13 @@ def cost_of(usage: Mapping[str, int] | None) -> Decimal:
 
 async def start_conversation(
     db: AsyncSession, company_id: str, location_id: str, channel: str,
-    caller_number: str | None = None,
+    caller_number: str | None = None, source_key: str | None = None,
 ) -> AgentConversation:
     if channel not in CHANNELS:
         raise ValueError(f"invalid channel: {channel!r}")
     conv = AgentConversation(
         company_id=company_id, location_id=location_id, channel=channel,
-        caller_number=caller_number, status="open",
+        caller_number=caller_number, source_key=source_key, status="open",
         started_at=datetime.now(timezone.utc),
     )
     db.add(conv)
@@ -102,7 +102,9 @@ async def finish(db: AsyncSession, conv: AgentConversation, outcome: str) -> Non
     await db.flush()
 
 
-TURN_STALE_SECONDS = 60
+# Longer than the worst live turn (MAX_TOOL_ROUNDS x the model timeout),
+# and the mark is refreshed at every round commit besides.
+TURN_STALE_SECONDS = 150
 Claim = Literal["claimed", "closed", "busy"]
 
 
@@ -142,3 +144,20 @@ async def claim_turn(db: AsyncSession, conv: AgentConversation) -> Claim:
 def end_turn(conv: AgentConversation) -> None:
     """Clear the in-flight mark; flushed with the turn's last commit."""
     conv.turn_started_at = None
+
+
+def touch_turn(conv: AgentConversation) -> None:
+    """Refresh the in-flight mark; flushed with the round's commit."""
+    conv.turn_started_at = datetime.now(timezone.utc)
+
+
+async def clear_turn_mark(db: AsyncSession, conv_id: str, company_id: str) -> None:
+    """Clear the in-flight mark by id and commit. For a turn that was
+    cancelled mid-way, on a session of the caller's choosing."""
+    await db.execute(
+        update(AgentConversation)
+        .where(AgentConversation.id == conv_id,
+               AgentConversation.company_id == company_id)
+        .values(turn_started_at=None)
+        .execution_options(synchronize_session=False))
+    await db.commit()

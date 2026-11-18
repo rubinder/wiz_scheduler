@@ -44,6 +44,7 @@ def upgrade() -> None:
         sa.Column("channel", sa.String(), nullable=False),
         sa.Column("public_token", sa.String(43), nullable=False),
         sa.Column("caller_number", sa.String(), nullable=True),
+        sa.Column("source_key", sa.String(64), nullable=True),
         sa.Column("status", sa.String(), nullable=False, server_default=sa.text("'open'")),
         sa.Column("outcome", sa.String(), nullable=True),
         _resv("reservation_id"), _resv("held_reservation_id"),
@@ -100,6 +101,7 @@ def upgrade() -> None:
         sa.Column("company_id", sa.String(8), sa.ForeignKey("companies.id"), nullable=False),
         sa.Column("location_id", sa.String(8), sa.ForeignKey("locations.id"), nullable=False),
         sa.Column("phone", sa.String(), nullable=False),
+        sa.Column("source_key", sa.String(64), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("CURRENT_TIMESTAMP")),
     )

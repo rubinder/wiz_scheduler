@@ -203,6 +203,7 @@ class AgentCore:
         await recording.record_event(db, conv, "user_turn",
                                      {"content": content, "raw": json.dumps(content)})
         _append(messages, "user", content)
+        recording.touch_turn(conv)
         await db.commit()
 
         rounds = settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS
@@ -239,6 +240,7 @@ class AgentCore:
 
             started = time.perf_counter()
             results: list[dict[str, Any]] = []
+            lockout = False
             for block in uses:
                 name, tool_input = block.get("name"), block.get("input")
                 await recording.record_event(db, conv, "tool_call", {
@@ -253,6 +255,8 @@ class AgentCore:
                         reason = (tool_input or {}).get("reason", "")
                         handoff = {"reason": reason if isinstance(reason, str) else "",
                                    "phone": rules.staff_transfer_number}
+                elif outcome.result.get("handoff") is True:
+                    lockout = True  # phone-wide lookup lockout: staff take over
                 result = {"type": "tool_result", "tool_use_id": block.get("id"),
                           "content": json.dumps(outcome.result)}
                 if outcome.is_error:
@@ -262,8 +266,11 @@ class AgentCore:
                                          {"content": results, "raw": json.dumps(results)},
                                          latency_ms={"tools": _ms(started)})
             messages.append({"role": "user", "content": results})
+            if lockout:
+                raise _Handoff("lookup_lockout")
             # Release the round's locks (a hold locks its location) before
             # the next model call.
+            recording.touch_turn(conv)
             await db.commit()
 
         assert response is not None

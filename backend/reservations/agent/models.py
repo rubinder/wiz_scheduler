@@ -67,6 +67,9 @@ class AgentConversation(Base):
     public_token: Mapped[str] = mapped_column(
         String(43), nullable=False, unique=True, default=new_public_token)
     caller_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The rate-limit viewer key the conversation was started from
+    # (rate_limit.trusted_client_keys); keys the lookup lockout.
+    source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="open", server_default=text("'open'"))
     outcome: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -78,9 +81,10 @@ class AgentConversation(Base):
     pending_cancel_id: Mapped[str | None] = _reservation_fk()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
-    # Set when a turn is claimed (recording.claim_turn), cleared when it
-    # ends, so a concurrent turn on the same conversation is refused. A turn
-    # that died without clearing it is treated as over after 60 seconds.
+    # Set when a turn is claimed (recording.claim_turn), refreshed at each
+    # round commit, cleared when it ends, so a concurrent turn on the same
+    # conversation is refused. A mark older than recording.TURN_STALE_SECONDS
+    # is a turn that died without clearing it.
     turn_started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
     # Wrong code/phone lookups; tools.py refuses lookups past the cap.
@@ -157,5 +161,6 @@ class ReservationLookupFailure(Base):
     location_id: Mapped[str] = mapped_column(
         String(8), ForeignKey("locations.id"), nullable=False)
     phone: Mapped[str] = mapped_column(String, nullable=False)
+    source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
