@@ -1,0 +1,9 @@
+﻿Company_Phone_Number,Created_Date,Violation_Date,Consumer_City,Consumer_State,Consumer_Area_Code,Subject,Recorded_Message_Or_Robocall
+2125550142,2026-11-17 08:01:02,2026-11-16 17:30:00,New York,New York,212,Reducing your debt,Y
+(212) 555-0142,2026-11-17 08:05:00,2026-11-16 18:00:00,Brooklyn,New York,718,Reducing your debt,Y
+1-646-555-0199,2026-11-17 09:00:00,2026-11-17 08:00:00,Queens,New York,718,Medical & prescriptions,N
++1 917 555 0100,2026-11-17 09:10:00,2026-11-17 08:30:00,Bronx,New York,718,Warranties & protection plans,Y
+,2026-11-17 09:20:00,2026-11-17 09:00:00,Albany,New York,518,Other,N
+555-0100,2026-11-17 09:30:00,2026-11-17 09:10:00,Albany,New York,518,Other,N
+44 20 7946 0958 12,2026-11-17 09:40:00,2026-11-17 09:20:00,Albany,New York,518,Other,N
+not a number,2026-11-17 09:50:00,2026-11-17 09:30:00,Albany,New York,518,Other,N

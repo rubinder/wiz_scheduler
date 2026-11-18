@@ -19,6 +19,10 @@ from backend.utils.id_gen import generate_short_id
 RULE_ACTIONS = ("allow", "block")
 DECISIONS = ("answer", "block")
 REASONS = ("allow_list", "block_list", "ftc", "default", "withheld")
+# spam_ingest_files.status (reservations.ftc_ingest): ok = rows replaced;
+# empty = parsed, no valid number; missing = 404, not published (today,
+# holidays); error = fetch or parse failed. Only ok moves the next run's start.
+INGEST_STATUSES = ("ok", "empty", "missing", "error")
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -53,11 +57,10 @@ class NumberRule(Base):
 
 
 class SpamNumber(Base):
-    """FTC Do Not Call complaints about a number on one report date."""
+    """FTC Do Not Call complaints about a number on one report date. The
+    primary key leads with e164, so it serves the screening lookup too."""
 
     __tablename__ = "spam_numbers"
-    __table_args__ = (Index("ix_spam_numbers_e164", "e164"),)
-
     e164: Mapped[str] = mapped_column(String(20), primary_key=True)
     report_date: Mapped[date] = mapped_column(Date, primary_key=True)
     reports: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.Column("report_date", sa.Date(), primary_key=True),
         sa.Column("reports", sa.Integer(), nullable=False, server_default="1"),
     )
-    op.create_index("ix_spam_numbers_e164", "spam_numbers", ["e164"])
+    # No separate e164 index: the primary key leads with it.
     op.create_table(
         "spam_ingest_files",
         sa.Column("file_date", sa.Date(), primary_key=True),
