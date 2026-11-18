@@ -1697,8 +1697,10 @@ async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> s
             "customer": og.stripe_customer_id,
             "line_items": [{"price": settings.RESERVATIONS_PRICE_ID, "quantity": 1}],
             "subscription_data": {"metadata": md},
+            # No client_reference_id: the scheduling confirm-upgrade binds a
+            # session to the group by it. Confirm here binds by customer and
+            # metadata (_verify_session).
             "metadata": md,
-            "client_reference_id": og.id,
             "success_url": success_url,
             "cancel_url": cancel_url,
         })

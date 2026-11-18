@@ -440,6 +440,43 @@ async def reactivate_checkout(
     return ReactivateCheckoutResponse(session_id=session.id, url=session.url)
 
 
+def _get(obj: object, key: str) -> object:
+    """A field of a Stripe object, a plain dict or a test double. Stripe 17
+    objects are not dicts and `items` would collide with a method name, so
+    they are read by key."""
+    if isinstance(obj, dict):
+        return obj.get(key)
+    if isinstance(obj, stripe.StripeObject):
+        return obj[key] if key in obj else None
+    return getattr(obj, key, None)
+
+
+def _assert_scheduling_session(session: object) -> None:
+    """400 session_mismatch unless the Checkout session bought the
+    scheduling plan. The reservation AI host's Checkout runs on the same
+    Stripe customer and is paid too; accepting it here would set
+    stripe_subscription_id to the agent subscription, i.e. a paid
+    scheduling plan for the price of the AI host."""
+    from backend.reservations.subscription_models import PRODUCT as AGENT_PRODUCT
+
+    if _get(_get(session, "metadata") or {}, "product") == AGENT_PRODUCT:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+    if not settings.STRIPE_PRICE_ID:
+        return
+    sub_ref = _get(session, "subscription")
+    sub_id = sub_ref if isinstance(sub_ref, str) else _get(sub_ref, "id")
+    if not sub_id:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+    try:
+        sub = stripe.Subscription.retrieve(sub_id)
+    except stripe.StripeError:
+        raise HTTPException(status_code=400, detail="Invalid session")
+    items = _get(_get(sub, "items") or {}, "data") or []
+    prices = {_get(_get(item, "price") or {}, "id") for item in items}
+    if settings.STRIPE_PRICE_ID not in prices:
+        raise HTTPException(status_code=400, detail="session_mismatch")
+
+
 @router.post("/confirm-reactivation")
 async def confirm_reactivation(
     body: ConfirmReactivationRequest,
@@ -462,6 +499,8 @@ async def confirm_reactivation(
 
     if session.payment_status != "paid":
         raise HTTPException(status_code=400, detail="Payment not completed")
+
+    _assert_scheduling_session(session)
 
     og.stripe_customer_id = session.customer
     og.stripe_subscription_id = session.subscription
@@ -601,6 +640,8 @@ async def confirm_upgrade(
         raise HTTPException(
             status_code=400, detail="Session does not belong to this account"
         )
+
+    _assert_scheduling_session(session)
 
     og.stripe_customer_id = session.customer
     og.stripe_subscription_id = session.subscription

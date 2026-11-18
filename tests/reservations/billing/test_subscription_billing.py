@@ -227,6 +227,9 @@ async def test_checkout_session_parameters(client, manager_token, og, monkeypatc
     md = {"product": "reservation_agent", "og_id": OG_ID}
     assert seen["subscription_data"] == {"metadata": md}
     assert seen["metadata"] == md
+    # Never client_reference_id: the scheduling confirm-upgrade binds by it,
+    # and an agent session must not look like a scheduling one (final review).
+    assert "client_reference_id" not in seen
     assert "agent_checkout=success" in seen["success_url"]
     assert "session_id={CHECKOUT_SESSION_ID}" in seen["success_url"]
     assert "agent_checkout=cancel" in seen["cancel_url"]
