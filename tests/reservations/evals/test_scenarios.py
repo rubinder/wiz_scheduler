@@ -213,3 +213,10 @@ async def test_positive_expectations_load(tmp_path: Path) -> None:
 async def test_positive_expectations_are_strict(tmp_path: Path, extra: dict) -> None:
     with pytest.raises(ScenarioInvalid):
         load_scenarios(_copy_with(tmp_path, lambda d: d["expect"].update(extra)))
+
+
+async def test_book_goal() -> None:
+    by_id = {s.id: s for s in load_scenarios()}
+    assert {sid for sid, s in by_id.items() if s.book_goal} == {
+        "book_four_friday_7pm", "book_with_ambiguous_date", "change_mind_mid_booking",
+        "fully_booked_night", "outside_service_hours"}

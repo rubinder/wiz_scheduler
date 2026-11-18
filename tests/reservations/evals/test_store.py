@@ -18,9 +18,11 @@ from tests.conftest import get_test_session_factory
 
 
 def _metrics(turns: int, calls: int, cost: float, p50: float, p95: float,
-             outcome: str = "booked") -> dict:
+             outcome: str = "booked", book_goal: bool = True,
+             turn_ms: list[float] | None = None) -> dict:
     return {"diner_turns": turns, "model_calls": calls, "total_cost_usd": cost,
-            "llm_p50_ms": p50, "llm_p95_ms": p95, "outcome": outcome}
+            "llm_p50_ms": p50, "llm_p95_ms": p95, "outcome": outcome,
+            "book_goal": book_goal, "turn_ms": turn_ms or []}
 
 
 def _result(sid: str, attempt: int, passed: bool, **m) -> EvalResult:
@@ -36,34 +38,47 @@ def _run() -> EvalRun:
 
 def test_report_math_with_repeats() -> None:
     results = [
-        _result("alpha", 1, True, turns=2, calls=4, cost=0.01, p50=100, p95=200),
-        _result("alpha", 2, True, turns=4, calls=6, cost=0.03, p50=300, p95=500),
+        _result("alpha", 1, True, turns=2, calls=4, cost=0.01, p50=100, p95=200,
+                turn_ms=[1000, 3000]),
+        _result("alpha", 2, False, turns=4, calls=6, cost=0.03, p50=300, p95=500,
+                outcome="abandoned", turn_ms=[2000, 4000]),
         _result("beta", 1, True, turns=3, calls=3, cost=0.02, p50=200, p95=250,
-                outcome="abandoned"),
+                outcome="abandoned", book_goal=False, turn_ms=[500]),
         _result("beta", 2, False, turns=5, calls=5, cost=0.04, p50=400, p95=900,
-                outcome="failed"),
+                outcome="failed", book_goal=False, turn_ms=[9000]),
     ]
     text = format_report(_run(), results)
     lines = text.splitlines()
+    assert "llm_p50" in lines[1] and "turn_p95" in lines[1]
     alpha = next(ln for ln in lines if ln.startswith("alpha"))
     beta = next(ln for ln in lines if ln.startswith("beta"))
-    assert alpha.split() == ["alpha", "2/2", "3.0", "5.0", "0.0400", "200", "500"]
-    assert beta.split() == ["beta", "1/2", "4.0", "4.0", "0.0600", "300", "900"]
-    assert "pass rate 3/4 (75%)" in text
-    assert "median turn latency 250 ms" in text
-    # 0.10 total over the two passing booked attempts.
-    assert "cost per booking $0.0500" in text
+    # turn p50 / p95 pool every turn of every attempt (nearest rank).
+    assert alpha.split() == ["alpha", "1/2", "3.0", "5.0", "0.0400", "200", "500",
+                             "2000", "4000"]
+    assert beta.split() == ["beta", "1/2", "4.0", "4.0", "0.0600", "300", "900",
+                            "500", "9000"]
+    assert "pass rate 2/4 (50%)" in text
+    # Six turns: 500 1000 2000 3000 4000 9000.
+    assert "turn p50 2000 ms, p95 9000 ms" in text
+    assert "llm call p50 250 ms" in text
+    # Both alpha attempts (book goal) cost 0.04; one passed.
+    assert "cost per booking $0.0400 (1 passing of 2 book-goal attempts)" in text
+    assert "cost per conversation $0.0250" in text
 
 
 def test_cost_per_booking_is_na_without_a_passing_booking() -> None:
     results = [_result("a", 1, False, turns=1, calls=1, cost=0.01, p50=1, p95=1)]
     text = format_report(_run(), results)
     assert "cost per booking n/a" in text
+    assert "cost per conversation $0.0100" in text
     assert "pass rate 0/1 (0%)" in text
 
 
 def test_report_of_nothing_does_not_divide_by_zero() -> None:
-    assert "pass rate 0/0 (0%)" in format_report(_run(), [])
+    text = format_report(_run(), [])
+    assert "pass rate 0/0 (0%)" in text
+    assert "cost per conversation n/a" in text
+    assert "turn p50 - ms, p95 - ms" in text
 
 
 @pytest.mark.integration

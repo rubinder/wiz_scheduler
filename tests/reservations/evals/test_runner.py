@@ -102,6 +102,12 @@ async def test_scripted_booking_passes_the_checker() -> None:
     assert "find_slots" not in str(out.transcript)
     assert out.transcript[2] == ("diner", "[pressed Confirm]")
     assert out.presses == [("confirm_hold", "action")]
+    # One timing per diner turn: the typed line and the press.
+    m = out.check.metrics
+    assert len(m["turn_ms"]) == 2 and all(ms > 0 for ms in m["turn_ms"])
+    assert m["turn_p50_ms"] == min(m["turn_ms"])
+    assert m["turn_p95_ms"] == max(m["turn_ms"])
+    assert m["book_goal"] is True
     # The press runs ACTION_STEP after the text turn that raised it.
     [booked] = [r for r in await _rows(out.conversation_id) if r.status == BOOKED]
     assert booked.updated_at == scenario.now + ACTION_STEP

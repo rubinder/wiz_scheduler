@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.agent.prompt import build_system_prompt
+from backend.reservations.evals.checker import percentile
 from backend.reservations.evals.models import EvalResult, EvalRun
 from backend.reservations.evals.runner import SuiteResult
 from backend.reservations.rules import RulesSchema
@@ -102,6 +103,12 @@ def _nums(results: Sequence[EvalResult], key: str) -> list[float]:
             if isinstance(r.metrics.get(key), (int, float))]
 
 
+def _pooled(results: Sequence[EvalResult], key: str) -> list[float]:
+    """Every attempt's list under `key`, joined."""
+    return [float(v) for r in results for v in (r.metrics.get(key) or [])
+            if isinstance(v, (int, float))]
+
+
 def _med(values: list[float]) -> float | None:
     return statistics.median(values) if values else None
 
@@ -114,16 +121,21 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
     """A fixed-width table per scenario, then totals.
 
     Per scenario: pass fraction, median diner turns, median model calls,
-    total cost, and llm latency (p50: median of the attempts' p50; p95: the
-    worst attempt's p95). Totals: pass rate, median turn latency (median of
-    every attempt's llm p50), and cost per booking (total cost over passing
-    attempts whose outcome was "booked"; "n/a" when none)."""
+    total cost; llm call latency (llm_p50: median of the attempts' p50,
+    llm_p95: the worst attempt's p95); and turn latency, the wall-clock time
+    of each diner turn (turn_p50 / turn_p95 over every turn of every
+    attempt). Totals: pass rate, turn p50 / p95 over every turn, llm call
+    p50 (median of every attempt's p50), total cost, cost per booking (the
+    cost of every attempt of a book-goal scenario over the passing ones;
+    "n/a" when none passed) and cost per conversation (total cost over all
+    attempts)."""
     by_scenario: dict[str, list[EvalResult]] = {}
     for r in results:
         by_scenario.setdefault(r.scenario_id, []).append(r)
     width = max([len("scenario")] + [len(s) for s in by_scenario])
     head = (f"{'scenario':<{width}}  {'pass':>5}  {'turns':>5}  {'calls':>5}  "
-            f"{'cost_usd':>9}  {'p50_ms':>7}  {'p95_ms':>7}")
+            f"{'cost_usd':>9}  {'llm_p50':>7}  {'llm_p95':>7}  "
+            f"{'turn_p50':>8}  {'turn_p95':>8}")
     lines = [f"eval run {run.id}  {run.mode}  git {run.git_sha[:10]}  "
              f"agent {run.agent_model}  diner {run.diner_model}  repeat {run.repeat}",
              head, "-" * len(head)]
@@ -131,25 +143,35 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
         rs = by_scenario[sid]
         k = sum(1 for r in rs if r.passed)
         p95 = _nums(rs, "llm_p95_ms")
+        turns = _pooled(rs, "turn_ms")
         lines.append(
             f"{sid:<{width}}  {f'{k}/{len(rs)}':>5}  "
             f"{_num(_med(_nums(rs, 'diner_turns')), 1):>5}  "
             f"{_num(_med(_nums(rs, 'model_calls')), 1):>5}  "
             f"{sum(_nums(rs, 'total_cost_usd')):>9.4f}  "
             f"{_num(_med(_nums(rs, 'llm_p50_ms'))):>7}  "
-            f"{_num(max(p95) if p95 else None):>7}")
+            f"{_num(max(p95) if p95 else None):>7}  "
+            f"{_num(percentile(turns, 50)):>8}  "
+            f"{_num(percentile(turns, 95)):>8}")
     total = len(results)
     passed = sum(1 for r in results if r.passed)
     pct = round(100 * passed / total) if total else 0
-    cost = sum(sum(_nums([r], "total_cost_usd")) for r in results)
-    bookings = sum(1 for r in results
-                   if r.passed and r.metrics.get("outcome") == "booked")
-    per_booking = f"${cost / bookings:.4f}" if bookings else "n/a"
+    cost = sum(_nums(results, "total_cost_usd"))
+    book = [r for r in results if r.metrics.get("book_goal") is True]
+    booked = sum(1 for r in book if r.passed)
+    per_booking = (f"${sum(_nums(book, 'total_cost_usd')) / booked:.4f}"
+                   if booked else "n/a")
+    per_conversation = f"${cost / total:.4f}" if total else "n/a"
+    turns = _pooled(results, "turn_ms")
     lines += ["",
               f"pass rate {passed}/{total} ({pct}%)",
-              f"median turn latency {_num(_med(_nums(results, 'llm_p50_ms')))} ms",
+              f"turn p50 {_num(percentile(turns, 50))} ms, "
+              f"p95 {_num(percentile(turns, 95))} ms",
+              f"llm call p50 {_num(_med(_nums(results, 'llm_p50_ms')))} ms",
               f"total cost ${cost:.4f}",
-              f"cost per booking {per_booking}"]
+              f"cost per booking {per_booking} "
+              f"({booked} passing of {len(book)} book-goal attempts)",
+              f"cost per conversation {per_conversation}"]
     return "\n".join(lines)
 
 

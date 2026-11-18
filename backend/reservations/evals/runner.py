@@ -18,9 +18,14 @@ is closed the way the turn cap closes it (`AgentCore.close_conversation`),
 and the database end state is graded by `checker.check`. A run that stopped
 because the diner went silent, a turn was not claimed or the runner errored
 (FAILED_STOPS) fails whatever the end state.
+
+Turn latency: each diner turn (a typed line or a button press) times
+`core.handle_turn` on the wall clock, the wait a diner sees, as `turn_ms`;
+the metrics carry the list and its p50 / p95.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any, Callable
@@ -32,7 +37,7 @@ from backend.database import RLS_COMPANY_IDS
 from backend.reservations.agent import recording, tools
 from backend.reservations.agent.core import Action, AgentCore, TurnInput, TurnOutput
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.evals.checker import CheckResult, check
+from backend.reservations.evals.checker import CheckResult, check, percentile
 from backend.reservations.evals.diner import DONE, Diner, Transcript
 from backend.reservations.evals.scenarios_io import Scenario
 from backend.reservations.evals.seed import SeededScenario, seed_scenario
@@ -172,6 +177,7 @@ class _Turn:
     reservation_before: str | None
     reservation_after: str | None
     open_after: bool
+    turn_ms: float  # core.handle_turn, wall clock
 
 
 async def _turn(db_factory: DbFactory, seeded: SeededScenario, conv_id: str,
@@ -191,13 +197,16 @@ async def _turn(db_factory: DbFactory, seeded: SeededScenario, conv_id: str,
         if claim != "claimed":
             return None
         before = conv.reservation_id
+        started = time.perf_counter()
         out = await core.handle_turn(db, conv, turn, now=now)
+        turn_ms = (time.perf_counter() - started) * 1000
         after = (await db.execute(
             select(AgentConversation.reservation_id, AgentConversation.status)
             .where(AgentConversation.id == conv_id,
                    AgentConversation.company_id == seeded.company_id)
         )).one()
-        return _Turn(out, before, after.reservation_id, after.status == "open")
+        return _Turn(out, before, after.reservation_id, after.status == "open",
+                     turn_ms)
 
 
 def _press_succeeded(t: _Turn) -> bool:
@@ -223,6 +232,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
 
     transcript: Transcript = []
     presses: list[tuple[str, str]] = []
+    turn_ms: list[float] = []
     state = PolicyState()
     diner_turns = empties = 0
     now = scenario.now
@@ -249,6 +259,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         if t is None:
             stop = "not_claimed"
             break
+        turn_ms.append(round(t.turn_ms, 1))
         transcript.append(("host", visible_text(t.out)))
         if last:
             stop = "done"
@@ -266,6 +277,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         if t is None:
             stop = "not_claimed"
             break
+        turn_ms.append(round(t.turn_ms, 1))
         transcript.append(("host", visible_text(t.out)))
         if action in _CONFIRMS:
             ok = _press_succeeded(t)
@@ -288,6 +300,9 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         )).scalar_one()
         await core.close_conversation(db, conv, now=now)
         result = await check(db, seeded, conv, scenario)
+    result = replace(result, metrics={
+        **result.metrics, "book_goal": scenario.book_goal, "turn_ms": turn_ms,
+        "turn_p50_ms": percentile(turn_ms, 50), "turn_p95_ms": percentile(turn_ms, 95)})
     if stop in FAILED_STOPS:
         result = CheckResult(passed=False,
                              failures=[*result.failures, f"run stopped: {stop}"],
@@ -314,7 +329,8 @@ async def run_suite(db_factory: DbFactory, scenarios: list[Scenario], *,
                 outcome = ScenarioOutcome(
                     scenario_id=scenario.id, conversation_id=None,
                     check=CheckResult(passed=False,
-                                      failures=[f"runner error: {exc!r}"]),
+                                      failures=[f"runner error: {exc!r}"],
+                                      metrics={"book_goal": scenario.book_goal}),
                     transcript=[], stop="error")
             outcomes.append(outcome)
             by_scenario.setdefault(scenario.id, []).append(outcome.check.passed)

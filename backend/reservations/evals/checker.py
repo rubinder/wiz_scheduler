@@ -97,7 +97,7 @@ def _mismatches(r: Reservation, exp: ExpectedBooking, facts: dict[str, str],
     return wrong
 
 
-def _percentile(values: list[float], pct: float) -> float | None:
+def percentile(values: list[float], pct: float) -> float | None:
     """Nearest-rank percentile; None for no values."""
     if not values:
         return None
@@ -310,8 +310,8 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
         "diner_turns": sum(1 for e in events if e.type == "user_turn"),
         "model_calls": sum(1 for e in events if e.type == "assistant_turn"),
         "total_cost_usd": float(conv.cost_usd or Decimal(0)),
-        "llm_p50_ms": _percentile(llm_ms, 50),
-        "llm_p95_ms": _percentile(llm_ms, 95),
+        "llm_p50_ms": percentile(llm_ms, 50),
+        "llm_p95_ms": percentile(llm_ms, 95),
         "handoff": handed_off,
         "errors": errors,
         "outcome": conv.outcome,

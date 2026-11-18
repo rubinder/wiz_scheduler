@@ -132,6 +132,12 @@ class Scenario:
     goal_kind: str | None = None
     source: Path | None = field(default=None, compare=False)
 
+    @property
+    def book_goal(self) -> bool:
+        """A booking scenario, for cost per booking: goal_kind "book", or
+        "booked" among the expected outcomes."""
+        return self.goal_kind == "book" or "booked" in self.expect.outcomes
+
     def floor_in(self) -> FloorIn:
         return FloorIn.model_validate(self.floor)
 
