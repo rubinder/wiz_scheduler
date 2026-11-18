@@ -14,7 +14,9 @@ reservation rows before their location, or it can deadlock against this.
 
 `ReservationTable.active` always equals `status in ACTIVE_STATUSES`. Every
 held or pending row has `held_until` set (fail closed); it is cleared only
-when the row becomes booked.
+when the row becomes booked. A pending row without a confirmation code is
+an unsubmitted request: held for `hold_timeout_minutes` like any hold, and
+not approvable until `confirm` gives it a code and the approval window.
 
 Functions flush; callers commit. On any `ReservationError` (or other
 exception) the caller must roll back: a failed flush leaves the session's
@@ -339,11 +341,9 @@ async def hold(
     slot = await _find_exact_slot(db, company_id, location_id, party_size, start, now,
                                   apply_cutoff=apply_cutoff)
     pending = party_size > rules.max_self_book_party and source != SOURCE_STAFF
-    if pending:
-        # Approval after the booking time is meaningless: lapse at start_at.
-        held_until = min(now + timedelta(hours=rules.pending_hold_hours), _utc(slot.start))
-    else:
-        held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
+    # An unsubmitted request (no code yet) is held like any hold; `confirm`
+    # extends it to the approval window once the diner submits it.
+    held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
     res = Reservation(
         company_id=company_id, location_id=location_id, party_size=party_size,
         start_at=slot.start, end_at=slot.end, status=PENDING if pending else HELD,
@@ -383,6 +383,12 @@ async def confirm(
     res.updated_at = now
     if res.confirmation_code is None:
         await _assign_code(db, res)
+        if res.status == PENDING:
+            # Submitted: hold the tables for the approval window, but never
+            # past the booking time (approval after it is meaningless).
+            rules, _ = await get_rules(db, company_id, res.location_id)
+            res.held_until = min(now + timedelta(hours=rules.pending_hold_hours),
+                                 _utc(res.start_at))
     if res.status == HELD:
         await _set_status(db, res, BOOKED, now)
     await db.flush()
@@ -414,7 +420,8 @@ async def approve(
     res = await _load_for_write(db, company_id, reservation_id, now)
     if res.status == EXPIRED:
         raise HoldExpired()
-    if res.status != PENDING:
+    if res.status != PENDING or res.confirmation_code is None:
+        # A code-less pending row is an unsubmitted request, not one to approve.
         raise InvalidTransition()
     if _utc(res.start_at) <= now:
         raise HoldExpired()
@@ -427,7 +434,7 @@ async def decline(
 ) -> Reservation:
     now = _now(now)
     res = await _load_for_write(db, company_id, reservation_id, now)
-    if res.status != PENDING:
+    if res.status != PENDING or res.confirmation_code is None:
         raise InvalidTransition()
     await _set_status(db, res, DECLINED, now)
     return res
