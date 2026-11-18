@@ -41,3 +41,15 @@ answers 404 while it is off.
   `LocationScope.require`), calls a service and maps `ReservationError`
   subclasses to HTTP statuses, rolling back first. Services flush; the router
   commits. Staff routes pass `apply_cutoff=False`.
+
+## Write entry points added in review
+
+- `booking.begin_location_write(db, company_id, location_id, now)`: locks the
+  location row (refusing an archived location) and sweeps lapsed holds. Every
+  reservation or floor write calls it first; lock locations before
+  reservations.
+- `booking.seat_walk_in`: books from now and seats in one write, through the
+  same evaluator (`find_slots(at=...)`), never a second one.
+- `queries.count_upcoming`: what `archive_location` checks before archiving
+  (409 `location_has_reservations`). `queries.effective_status`: read-only
+  view that reports lapsed holds as `expired`.
