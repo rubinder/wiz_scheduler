@@ -101,6 +101,8 @@ def test_planted_violation_is_caught(tmp_path, monkeypatch):
         (backend / sub).mkdir(parents=True)
     (backend / "reservations" / "agent.py").write_text(
         "from backend.reservations.evals.checker import check\n")
+    (backend / "reservations" / "voice.py").write_text(
+        "from backend.reservations import evals\n")
     (backend / "reservations" / "evals" / "run.py").write_text(
         "from backend.reservations.evals.checker import check\n")
     (backend / "routers" / "a.py").write_text("from backend.routers.b import thing\n")
@@ -117,5 +119,7 @@ def test_planted_violation_is_caught(tmp_path, monkeypatch):
     assert ("stripe-outside-billing", "backend/services/x.py", "Refund.create") in v
     assert ("archived-at-outside-archive", "backend/services/x.py", "archived_at =") in v
     assert ("product-imports-evals", "backend/reservations/agent.py",
+            "backend.reservations.evals") in v
+    assert ("product-imports-evals", "backend/reservations/voice.py",
             "backend.reservations.evals") in v
     assert not any(f.startswith("backend/reservations/evals/") for _, f, _ in v)

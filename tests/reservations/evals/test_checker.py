@@ -257,3 +257,21 @@ async def test_kept_booking_is_not_reported_as_unexpected(db_session: AsyncSessi
     await db_session.commit()
     result = await check(db_session, seeded, conv, scenario)
     assert result.failures == []
+
+
+async def test_moved_kept_booking_fails(db_session: AsyncSession) -> None:
+    """A kept row that was moved (still booked, linked to the conversation)
+    is a failure, not an allowed booking."""
+    scenario, seeded, conv = await _setup(db_session, "cancel_with_wrong_phone")
+    [code] = scenario.expect.kept_codes
+    res = (await db_session.execute(select(Reservation).where(
+        Reservation.location_id == seeded.location_id,
+        Reservation.confirmation_code == code))).scalar_one()
+    await booking.modify(db_session, seeded.company_id, res.id,
+                         start=_local(scenario, "2026-12-04", "20:00"), now=scenario.now)
+    conv.reservation_id = res.id
+    await recording.finish(db_session, conv, "abandoned")
+    await db_session.commit()
+    result = await check(db_session, seeded, conv, scenario)
+    assert result.passed is False
+    assert any(f.startswith(f"kept booking {code} changed") for f in result.failures)

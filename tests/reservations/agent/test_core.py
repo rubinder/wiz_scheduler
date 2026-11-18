@@ -703,3 +703,30 @@ async def test_other_actions_on_the_closing_turn_close_the_conversation(
     assert out.ended and out.reply_text.endswith(
         "Please start a new conversation if you still need help.")
     assert (web_conv.status, web_conv.outcome) == ("closed", "abandoned")
+
+
+async def test_close_conversation_releases_the_hold_and_abandons(db_session, web_conv):
+    now = _now()
+    core, _, out = await _held(db_session, web_conv, now)
+    hold_id = out.hold["hold_id"]
+    await core.close_conversation(db_session, web_conv, now=now)
+    assert (web_conv.status, web_conv.outcome) == ("closed", "abandoned")
+    res = await db_session.get(Reservation, hold_id)
+    await db_session.refresh(res)
+    assert res.status == CANCELLED
+    # Idempotent on a closed conversation.
+    await core.close_conversation(db_session, web_conv, now=now)
+    assert web_conv.outcome == "abandoned"
+
+
+async def test_close_conversation_after_a_pending_request_is_handed_off(
+        db_session, web_conv):
+    now = _now()
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID,
+                     rules.model_copy(update={"max_self_book_party": 4}))
+    core, _, _ = await _held(db_session, web_conv, now, party=5)
+    out = await core.handle_turn(db_session, web_conv, press("confirm_hold"), now=now)
+    assert not out.ended
+    await core.close_conversation(db_session, web_conv, now=now)
+    assert (web_conv.status, web_conv.outcome) == ("closed", "handed_off")
