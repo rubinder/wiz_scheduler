@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
@@ -70,6 +70,9 @@ export default function ReservationsRules() {
   const [asDiner, setAsDiner] = useState(true);
   const [slots, setSlots] = useState<SlotOut[] | null>(null);
   const [previewError, setPreviewError] = useState("");
+  const [locationsFailed, setLocationsFailed] = useState(false);
+  const currentLocation = useRef("");
+  const previewSeq = useRef(0);
 
   const errorText = (detail: unknown): string => {
     const key = errorKey(detail).split(".")[2];
@@ -97,6 +100,7 @@ export default function ReservationsRules() {
         if (locs.length > 0) setLocationId(locs[0].id);
       } catch (e) {
         setEnabled(true);
+        setLocationsFailed(true);
         setLoadError(errorText(e instanceof ApiError ? e.data : null));
       }
     })();
@@ -104,6 +108,8 @@ export default function ReservationsRules() {
   }, []);
 
   useEffect(() => {
+    currentLocation.current = locationId;
+    previewSeq.current += 1;
     if (!locationId) return;
     let cancelled = false;
     setForm(null);
@@ -139,8 +145,8 @@ export default function ReservationsRules() {
   const setList = <T,>(list: T[], i: number, v: T): T[] => list.map((x, j) => (j === i ? v : x));
   const dropAt = <T,>(list: T[], i: number): T[] => list.filter((_, j) => j !== i);
   const input = `glass-input-sm text-sm ${border.default} ${text.primary}`;
-  const removeBtn = (onClick: () => void) => (
-    <button type="button" onClick={onClick} className={`text-sm ${text.muted}`}>
+  const removeBtn = (onClick: () => void, label?: string) => (
+    <button type="button" onClick={onClick} aria-label={label} className={`text-sm ${text.muted}`}>
       {r.common.remove}
     </button>
   );
@@ -212,6 +218,7 @@ export default function ReservationsRules() {
     onChange: (items: string[]) => void,
     addLabel: string,
     type: "date" | "text",
+    itemLabel: string,
   ) => (
     <div className="space-y-2">
       {items.map((v, i) => (
@@ -219,10 +226,11 @@ export default function ReservationsRules() {
           <input
             type={type}
             className={`${input} flex-1`}
+            aria-label={`${itemLabel} ${i + 1}`}
             value={v}
             onChange={(e) => onChange(setList(items, i, e.target.value))}
           />
-          {removeBtn(() => onChange(dropAt(items, i)))}
+          {removeBtn(() => onChange(dropAt(items, i)), `${r.common.remove} ${itemLabel} ${i + 1}`)}
         </div>
       ))}
       {addBtn(addLabel, () => onChange([...items, ""]))}
@@ -235,11 +243,14 @@ export default function ReservationsRules() {
     setSaved(false);
     setSaveError("");
     setFieldErrors([]);
+    const forLocation = locationId;
     try {
-      const out = await saveRules(locationId, rulesFormToPayload(form));
+      const out = await saveRules(forLocation, rulesFormToPayload(form));
+      if (currentLocation.current !== forLocation) return;
       setForm(payloadToRulesForm(out.rules));
       setSaved(true);
     } catch (e) {
+      if (currentLocation.current !== forLocation) return;
       const fe = validationErrors(e);
       setFieldErrors(fe);
       setSaveError(fe.length > 0 ? r.rules.saveFailed : errorText(e instanceof ApiError ? e.data : null));
@@ -251,9 +262,14 @@ export default function ReservationsRules() {
   const onPreview = async () => {
     setPreviewError("");
     setSlots(null);
+    const seq = ++previewSeq.current;
+    const forLocation = locationId;
+    const latest = () => seq === previewSeq.current && currentLocation.current === forLocation;
     try {
-      setSlots(await getSlots(locationId, Number(partySize), date, asDiner));
+      const out = await getSlots(forLocation, Number(partySize), date, asDiner);
+      if (latest()) setSlots(out);
     } catch (e) {
+      if (!latest()) return;
       setPreviewError(errorText(e instanceof ApiError ? e.data : null));
     }
   };
@@ -263,11 +279,11 @@ export default function ReservationsRules() {
       <h1 className={`text-2xl font-bold ${text.heading}`}>{r.rules.title}</h1>
       <p className={`text-sm ${text.muted}`}>{r.rules.description}</p>
 
-      {locations.length === 0 ? (
+      {locations.length === 0 && locationsFailed ? null : locations.length === 0 ? (
         <div className="glass-card p-6 text-sm">{r.rules.noLocations}</div>
       ) : (
         <Field label={r.rules.location}>
-          <select className={`${input} block`} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+          <select className={`${input} block`} disabled={saving} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -317,7 +333,7 @@ export default function ReservationsRules() {
                     />
                   </Field>
                 ))}
-                {removeBtn(() => patch({ durations: dropAt(form.durations, i) }))}
+                {removeBtn(() => patch({ durations: dropAt(form.durations, i) }), `${r.common.remove} ${r.rules.durations} ${i + 1}`)}
               </div>
             ))}
             {addBtn(r.rules.addBand, () =>
@@ -339,7 +355,7 @@ export default function ReservationsRules() {
           </Section>
 
           <Section title={r.rules.closures}>
-            {stringList(form.closures, (closures) => patch({ closures }), r.rules.addClosure, "date")}
+            {stringList(form.closures, (closures) => patch({ closures }), r.rules.addClosure, "date", r.rules.closures)}
           </Section>
 
           <Section title={r.rules.overrides}>
@@ -355,7 +371,7 @@ export default function ReservationsRules() {
                     <Field label={r.rules.overrideNote}>
                       <input className={input} value={o.note} onChange={(e) => setO({ ...o, note: e.target.value })} />
                     </Field>
-                    {removeBtn(() => patch({ date_overrides: dropAt(form.date_overrides, i) }))}
+                    {removeBtn(() => patch({ date_overrides: dropAt(form.date_overrides, i) }), `${r.common.remove} ${r.rules.overrides} ${i + 1}`)}
                   </div>
                   {o.periods.map((p, j) => (
                     <div key={j}>
@@ -397,6 +413,7 @@ export default function ReservationsRules() {
               (facts) => patch({ persona: { ...form.persona, facts } }),
               r.rules.addFact,
               "text",
+              r.rules.facts,
             )}
             <Field label={r.rules.transferNumber}>
               <input
@@ -446,14 +463,17 @@ export default function ReservationsRules() {
               <Field label={r.rules.date}>
                 <input type="date" className={input} value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="radio" name="audience" checked={asDiner} onChange={() => setAsDiner(true)} />
-                {r.rules.viewDiner}
-              </label>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="radio" name="audience" checked={!asDiner} onChange={() => setAsDiner(false)} />
-                {r.rules.viewStaff}
-              </label>
+              <fieldset className="flex items-center gap-3">
+                <legend className="sr-only">{r.rules.preview}</legend>
+                <label className="flex items-center gap-1 text-sm">
+                  <input type="radio" name="audience" checked={asDiner} onChange={() => setAsDiner(true)} />
+                  {r.rules.viewDiner}
+                </label>
+                <label className="flex items-center gap-1 text-sm">
+                  <input type="radio" name="audience" checked={!asDiner} onChange={() => setAsDiner(false)} />
+                  {r.rules.viewStaff}
+                </label>
+              </fieldset>
               <button type="button" className="glass-btn-secondary" onClick={onPreview} disabled={!date || !location}>
                 {r.rules.showTimes}
               </button>

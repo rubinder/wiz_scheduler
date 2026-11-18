@@ -62,4 +62,15 @@ describe("rules form conversion", () => {
     expect(form.max_covers_per_slot).toBe("");
     expect(form.service_periods[0].first_seating).toBe("17:00");
   });
+
+  it("reads whitespace-padded numeric strings as numbers", () => {
+    const form = payloadToRulesForm(rules);
+    form.slot_interval_minutes = " 15 ";
+    form.durations[0].minutes = " 90";
+    form.max_concurrent_covers = " 40 ";
+    const out = rulesFormToPayload(form);
+    expect(out.slot_interval_minutes).toBe(15);
+    expect(out.durations[0].minutes).toBe(90);
+    expect(out.max_concurrent_covers).toBe(40);
+  });
 });
