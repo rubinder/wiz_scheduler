@@ -97,3 +97,11 @@ Decisions made while building without stopping to ask (owner instruction,
     ECS task. Until then the two-key limits apply.
 29. **No raw IP addresses are stored.** Rate-limit and lockout keys are
     stored as a keyed hash; conversations are deleted after a year.
+30. **Diners' data requests go through the restaurant.** Diners aren't
+    WizScheduler users, so the restaurant (the data controller) handles
+    their access and erasure requests with two manager tools: export and
+    erase a diner's data by phone number at a location. A manager's own
+    GDPR export stays about the manager. Retention removes diner contact
+    details and transcripts after a year automatically.
+31. **Managers see what the agent said and did, not its internal
+    reasoning blocks**; stored raw copies stay server-side.
