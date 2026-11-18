@@ -5,16 +5,23 @@ with the returned token. There is no login, so the tenant comes from the
 URL: `public_company_scope` resolves the company by slug and then binds the
 request to it (ORM tenant filter and Postgres RLS) before any tenant table
 is read. Every route 404s when reservations are off or the company or
-location is unknown or archived.
+location is unknown or archived, and, once PUBLIC_ORIGIN_SECRET is set
+(Ruling O), when the X-Origin-Verify header CloudFront adds is missing or
+wrong; that check runs first.
 
-Abuse limits, keyed by `trusted_client_keys` (Ruling N): every request must
-pass a per-viewer limit (the diner as CloudFront saw them) and a 10x looser
-per-hop limit (the peer the ALB saw), so a forged X-Forwarded-For sent
-straight to the ALB is still limited by its real address.
-- one window counts conversation starts and turns, checked before anything
-  is loaded or any model is called; a looser one covers the info read;
+Abuse limits, keyed by `trusted_client_keys` (Rulings N, O): every request
+passes a per-viewer limit (the diner as CloudFront saw them) and, while the
+origin secret is unset, a 50x looser per-hop limit (the peer the ALB saw),
+so a forged X-Forwarded-For sent straight to the ALB is still limited by
+its real address. With the secret set only CloudFront gets in, and the
+hop limit is skipped.
+- `consume_ip_limit` counts conversation starts and turns in one window
+  (both routes declare it ahead of the scope lookup, so it runs before
+  anything is loaded, any model is called or the body is validated);
+  `consume_info_limit` is the info read's looser window;
 - starts are also limited per (location, viewer); a location past
   RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR is logged, not blocked;
+- viewer keys are stored only as `source_key_for` HMACs;
 - each turn is claimed atomically (`recording.claim_turn`), which enforces
   the turn cap and refuses a second concurrent turn with 409.
 """
@@ -23,9 +30,11 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
+import hmac
+
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -49,6 +58,7 @@ from backend.services.rate_limit import (
     reservation_agent_ip_limiter,
     reservation_agent_location_starts_limiter,
     reservation_agent_viewer_starts_limiter,
+    source_key_for,
     trusted_client_keys,
 )
 from backend.tenant import tenant_context
@@ -60,6 +70,15 @@ NOT_FOUND = "Not found"
 
 def _not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+
+
+def require_origin(request: Request) -> None:
+    """Ruling O: once PUBLIC_ORIGIN_SECRET is set, only requests carrying it
+    (added by CloudFront) exist; anything else is a 404."""
+    secret = settings.PUBLIC_ORIGIN_SECRET
+    if secret and not hmac.compare_digest(
+            request.headers.get("x-origin-verify", "").encode(), secret.encode()):
+        raise _not_found()
 
 
 def require_reservations_enabled() -> None:
@@ -75,17 +94,20 @@ def _limit(limiter: SlidingWindowLimiter, key: str, what: str) -> None:
 
 
 def consume_ip_limit(request: Request) -> str:
-    """Runs before the scope lookup and before the body is validated, so a
-    malformed request still spends a token. Returns the viewer key."""
+    """The starts-and-turns window. Declared ahead of the scope dependency
+    on both routes, and FastAPI raises body errors only after dependencies,
+    so a malformed request still spends a token. Returns the viewer key."""
     viewer, hop = trusted_client_keys(request)
-    _limit(reservation_agent_hop_limiter, hop, "hop")
+    if hop != viewer:
+        _limit(reservation_agent_hop_limiter, hop, "hop")
     _limit(reservation_agent_ip_limiter, viewer, "ip")
     return viewer
 
 
 def consume_info_limit(request: Request) -> None:
     viewer, hop = trusted_client_keys(request)
-    _limit(reservation_agent_hop_info_limiter, hop, "hop")
+    if hop != viewer:
+        _limit(reservation_agent_hop_info_limiter, hop, "hop")
     _limit(reservation_agent_info_limiter, viewer, "ip")
 
 
@@ -124,6 +146,8 @@ async def public_company_scope(
             tenant_context.set(None)
 
 
+CLEAR_LOCK_TIMEOUT = "2s"
+
 _core: AgentCore | None = None
 
 
@@ -144,7 +168,7 @@ async def _greeting(db: AsyncSession, scope: PublicScope) -> str:
 router = APIRouter(
     prefix="/public/reservations",
     tags=["public-reservations"],
-    dependencies=[Depends(require_reservations_enabled)],
+    dependencies=[Depends(require_origin), Depends(require_reservations_enabled)],
 )
 
 
@@ -176,7 +200,7 @@ async def start_conversation(
         logger.warning("reservation_agent.location_starts_high location=%s", location_id)
     greeting = await _greeting(db, scope)
     conv = await recording.start_conversation(db, scope.company_id, location_id,
-                                              "web", source_key=viewer)
+                                              "web", source_key=source_key_for(viewer))
     token = conv.public_token
     await db.commit()
     return ConversationOut(conversation_token=token, reply_text=greeting, expect="text")
@@ -222,13 +246,25 @@ async def post_turn(
 
 async def _clear_mark_after_cancel(db: AsyncSession, conv_id: str,
                                    company_id: str) -> None:
-    """Best effort, on a fresh session (the request's own may be
-    mid-statement), shielded: the cancellation that brought us here would
-    otherwise cancel every await in it too."""
+    """Best effort, shielded: the cancellation that brought us here would
+    otherwise cancel every await in it too.
+
+    The request's session is rolled back first: its uncommitted round may
+    hold the conversation row (record_event locks it), and the clear would
+    wait on that lock forever. The clear then runs on a fresh session (the
+    request's may be mid-statement) with a short lock timeout, so it can
+    never hang; on a timeout the mark simply goes stale."""
     with anyio.CancelScope(shield=True):
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning("rollback after a cancelled turn failed (conversation %s)",
+                           conv_id, exc_info=True)
         try:
             async with AsyncSession(db.bind, expire_on_commit=False) as fresh:
                 fresh.info[RLS_COMPANY_IDS] = [company_id]
+                await fresh.execute(text(
+                    f"SET LOCAL lock_timeout = '{CLEAR_LOCK_TIMEOUT}'"))
                 await recording.clear_turn_mark(fresh, conv_id, company_id)
         except Exception:
             logger.exception("could not clear the turn mark (conversation %s)", conv_id)

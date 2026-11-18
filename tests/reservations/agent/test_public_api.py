@@ -22,6 +22,7 @@ from backend.services.rate_limit import (
     reservation_agent_hop_limiter,
     reservation_agent_info_limiter,
     reservation_agent_location_starts_limiter,
+    source_key_for,
     trusted_client_keys,
 )
 from tests.conftest import COMPANY2_ID, COMPANY_ID, LOCATION_ID
@@ -318,7 +319,9 @@ async def test_a_busy_location_is_logged_not_blocked(client, db_session, seeded_
                for r in caplog.records)
     conv = (await db_session.execute(select(AgentConversation).where(
         AgentConversation.public_token == token))).scalar_one()
-    assert conv.source_key == "198.51.100.22"
+    # Stored as an HMAC, never the address itself.
+    assert conv.source_key == source_key_for("198.51.100.22")
+    assert len(conv.source_key) == 64 and "198.51" not in conv.source_key
 
 
 async def test_direct_to_alb_forgery_is_limited_by_the_hop_key(client, seeded_floor, llm):
@@ -464,3 +467,89 @@ async def test_a_cancelled_turn_clears_its_mark(isolated_client, seeded_floor):
     llm.push(reply(text("Back.")))
     r = await _turn(isolated_client, token, {"text": "two"})
     assert r.status_code == 200 and r.json()["reply_text"] == "Back."
+
+
+async def test_cancel_while_a_tool_holds_the_conversation_lock(isolated_client,
+                                                              seeded_floor, monkeypatch):
+    """record_event locks the conversation row until the round commits; a
+    cancellation then must not leave the cleanup waiting on that lock."""
+    from backend.reservations.agent import tools as agent_tools
+
+    started = asyncio.Event()
+    real_execute_tool = agent_tools.execute_tool
+
+    async def hang(*a, **k):
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(agent_tools, "execute_tool", hang)
+    llm = ScriptedLlm(reply(tool_use("tu_r", "restaurant_info", {}), stop="tool_use"))
+    app.dependency_overrides[get_agent_core] = lambda: AgentCore(llm)
+    token = await _start(isolated_client)
+    task = asyncio.create_task(_turn(isolated_client, token, {"text": "hours?"}))
+    await asyncio.wait_for(started.wait(), 10)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 10)  # the cleanup finishes, no hang
+
+    from tests.conftest import get_test_session_factory
+    async with get_test_session_factory()() as other:
+        conv = (await other.execute(select(AgentConversation).where(
+            AgentConversation.public_token == token))).scalar_one()
+    assert conv.turn_started_at is None and conv.status == "open"
+    monkeypatch.setattr(agent_tools, "execute_tool", real_execute_tool)
+    llm.push(reply(text("Back.")))
+    r = await asyncio.wait_for(_turn(isolated_client, token, {"text": "two"}), 10)
+    assert r.status_code == 200 and r.json()["reply_text"] == "Back."
+
+
+SECRET = "origin-s3cret"
+
+
+async def test_origin_secret_404s_every_route_without_the_header(
+        client, seeded_floor, llm, monkeypatch):
+    token = await _start(client)
+    monkeypatch.setattr(settings, "PUBLIC_ORIGIN_SECRET", SECRET)
+    for headers in ({}, {"X-Origin-Verify": "wrong"}, {"X-Origin-Verify": SECRET + "x"}):
+        for method, path, body in (
+            ("get", BASE, None),
+            ("post", f"{BASE}/conversations", None),
+            ("post", f"{BASE}/conversations/{token}/turns", {"text": "hi"}),
+        ):
+            r = await client.request(method, path, json=body, headers=headers)
+            assert r.status_code == 404 and r.json()["detail"] == "Not found"
+    assert llm.requests == []
+    # Checked first: none of those spent a rate-limit token.
+    ok = {"X-Origin-Verify": SECRET}
+    for _ in range(settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR - 2):  # start was 1
+        assert (await _turn(client, token, {}, headers=ok)).status_code == 422
+    llm.push(reply(text("Hello.")))
+    r = await _turn(client, token, {"text": "hi"}, headers=ok)
+    assert r.status_code == 200 and r.json()["reply_text"] == "Hello."
+    assert (await client.get(BASE, headers=ok)).status_code == 200
+
+
+async def test_origin_secret_trusts_the_viewer_and_skips_the_hop_limit(
+        client, seeded_floor, llm, monkeypatch):
+    monkeypatch.setattr(settings, "PUBLIC_ORIGIN_SECRET", SECRET)
+    edge = PROXY
+    for _ in range(settings.RESERVATION_AGENT_HOP_TURNS_PER_HOUR):
+        assert reservation_agent_hop_limiter.check_and_record(edge)
+    # The edge's hop budget is spent, but behind the secret it is not used.
+    headers = {**_via("198.51.100.40"), "X-Origin-Verify": SECRET}
+    token = await _start(client, headers=headers)
+    llm.push(reply(text("Hello.")))
+    assert (await _turn(client, token, {"text": "hi"}, headers=headers)).status_code == 200
+    # The viewer limit still applies.
+    for _ in range(settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR - 2):
+        assert (await _turn(client, token, {}, headers=headers)).status_code == 422
+    assert (await _turn(client, token, {"text": "hi"}, headers=headers)).status_code == 429
+
+
+async def test_trusted_client_keys_with_the_origin_secret(monkeypatch):
+    from starlette.requests import Request
+
+    monkeypatch.setattr(settings, "PUBLIC_ORIGIN_SECRET", SECRET)
+    req = Request({"type": "http", "client": ("10.1.1.1", 5),
+                   "headers": [(b"x-forwarded-for", b"1.2.3.4, 198.51.100.7, 130.176.1.1")]})
+    assert trusted_client_keys(req) == ("198.51.100.7", "198.51.100.7")

@@ -491,6 +491,29 @@ async def test_retention_purges_day_old_lookup_failures(db_session, web_conv):
     assert len(left) == 1
 
 
+async def test_retention_purges_conversations_past_the_reservations_window(
+        db_session, web_conv):
+    from sqlalchemy import func
+
+    from backend.reservations.agent.models import AgentConversation
+    from backend.services.data_retention import run_data_retention
+
+    old = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
+    old.started_at = _now() - timedelta(days=366)
+    await recording.record_event(db_session, old, "error", {"error": "x"})
+    await recording.record_event(db_session, web_conv, "error", {"error": "y"})
+    await db_session.commit()
+    summary = await run_data_retention(db_session)
+    await db_session.commit()
+    assert summary["old_agent_conversations_deleted"] == 1
+    ids = set((await db_session.execute(select(AgentConversation.id))).scalars())
+    assert ids == {web_conv.id}
+    events = (await db_session.execute(
+        select(AgentEvent.conversation_id, func.count()).group_by(
+            AgentEvent.conversation_id))).all()
+    assert events == [(web_conv.id, 1)]
+
+
 async def test_offered_starts_keep_the_most_recent_30(db_session, web_conv):
     now = _now()
     base = now.astimezone(NY).date() + timedelta(days=7)

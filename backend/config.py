@@ -276,9 +276,15 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
     RESERVATION_AGENT_IP_INFO_PER_HOUR: int = 300
     # Per hop key (the address the ALB saw: a CloudFront edge, or the real
-    # peer of traffic sent straight to the ALB), 10x the per-viewer limits.
-    RESERVATION_AGENT_HOP_TURNS_PER_HOUR: int = 600
-    RESERVATION_AGENT_HOP_INFO_PER_HOUR: int = 3000
+    # peer of traffic sent straight to the ALB), 50x the per-viewer limits,
+    # since every diner behind one edge shares it. Unused once
+    # PUBLIC_ORIGIN_SECRET is set.
+    RESERVATION_AGENT_HOP_TURNS_PER_HOUR: int = 3000
+    RESERVATION_AGENT_HOP_INFO_PER_HOUR: int = 15000
+    # Ruling O: when set, CloudFront sends it as X-Origin-Verify and every
+    # public reservations route 404s without it, so only CloudFront reaches
+    # them and the viewer key alone can be trusted. Empty = not enforced.
+    PUBLIC_ORIGIN_SECRET: str = ""
     # Conversation starts per (location, viewer); past the location-wide
     # figure a warning is logged for the operator, nothing is blocked.
     RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR: int = 20
@@ -290,6 +296,9 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_LOOKUP_PHONE_HANDOFF_FAILURES: int = 20
     RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES: int = 15
     RETENTION_LOOKUP_FAILURES_DAYS: int = 1
+    # Agent conversations (and their events) by started_at (#259); Task 6
+    # extends it to reservations' diner fields.
+    RETENTION_RESERVATIONS_DAYS: int = 365
     # Proxies that append to X-Forwarded-For in front of the app
     # (CloudFront, then the ALB). The client is this many entries from the
     # right; anything further left is whatever the client sent.

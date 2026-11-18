@@ -12,6 +12,8 @@ the schedule-generate burst cap keys on company_id instead.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import threading
 import time
 from collections import defaultdict, deque
@@ -109,6 +111,10 @@ def trusted_client_keys(request) -> tuple[str, str]:
     header only moves the per-viewer count. Without the header (local dev,
     tests) both keys are request.client.host, then "unknown".
 
+    With PUBLIC_ORIGIN_SECRET set (Ruling O) only CloudFront can reach the
+    routes that use this, so the viewer entry is trustworthy and the result
+    is (viewer, viewer): callers skip the hop limit when the keys are equal.
+
     source_ip_from_request is kept as it is for the older limiters and logs.
     """
     hops = max(1, settings.TRUSTED_PROXY_HOPS)
@@ -117,7 +123,16 @@ def trusted_client_keys(request) -> tuple[str, str]:
     peer = request.client.host if request.client else "unknown"
     hop = parts[-1] if parts else peer
     viewer = parts[-hops] if len(parts) >= hops else hop
+    if settings.PUBLIC_ORIGIN_SECRET:
+        return viewer[:64], viewer[:64]
     return viewer[:64], hop[:64]
+
+
+def source_key_for(viewer_key: str) -> str:
+    """What is stored for a viewer key: HMAC-SHA256 under SECRET_KEY, hex
+    (64 chars). Equal keys still compare equal; no raw IP is kept."""
+    return hmac.new(settings.SECRET_KEY.encode(), viewer_key.encode(),
+                    hashlib.sha256).hexdigest()[:64]
 
 
 def trusted_client_ip(request) -> str:
