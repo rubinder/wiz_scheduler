@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TurnOutput } from "../api/publicReservations";
-import { actionsFor, inputHint, reduceTurn } from "./chat";
+import { actionsFor, inputHint, noticeForError, reduceTurn, sanitizeTel, startErrorFor } from "./chat";
 
 const out = (reply_text: string): TurnOutput => ({ reply_text, expect: "text", hold: null, ended: false, handoff: null });
 
@@ -23,7 +23,7 @@ describe("actionsFor", () => {
     expect(actionsFor("confirm_hold")).toEqual(["confirm_hold", "decline_hold"]);
     expect(actionsFor("confirm_cancel")).toEqual(["confirm_cancel"]);
     expect(actionsFor("confirm_modify")).toEqual(["confirm_modify", "decline_hold"]);
-    for (const e of ["text", "handoff", "phone_number", "party_size", "confirmation_code"]) expect(actionsFor(e)).toEqual([]);
+    for (const e of ["text", "handoff", "phone_number", "party_size", "confirmation_code"] as const) expect(actionsFor(e)).toEqual([]);
   });
 });
 
@@ -32,5 +32,30 @@ describe("inputHint", () => {
     expect(inputHint("phone_number").inputMode).toBe("tel");
     expect(inputHint("party_size").inputMode).toBe("numeric");
     expect(inputHint("text").placeholder).toBe("Type a message");
+  });
+});
+
+describe("noticeForError", () => {
+  it("maps statuses", () => {
+    expect(noticeForError(409, { code: "turn_in_progress" })).toEqual({ notice: "Still working on your last message…", ended: false });
+    expect(noticeForError(429).notice).toBe("Too many messages, try again later");
+    expect(noticeForError(404)).toEqual({ notice: "This chat has ended", ended: true });
+    expect(noticeForError(409, { code: "other" }).ended).toBe(false);
+    expect(noticeForError(0).ended).toBe(false);
+  });
+});
+
+describe("startErrorFor", () => {
+  it("distinguishes 404, 429 and others", () => {
+    expect(startErrorFor(404)).toEqual({ message: "This booking page is not available.", retry: false });
+    expect(startErrorFor(429)).toEqual({ message: "Too many requests, try again in a minute", retry: true });
+    expect(startErrorFor(500)).toEqual({ message: "Couldn't start the chat", retry: true });
+  });
+});
+
+describe("sanitizeTel", () => {
+  it("keeps only + and digits", () => {
+    expect(sanitizeTel("+1 (212) 555-0100")).toBe("+12125550100");
+    expect(sanitizeTel('x"><script>')).toBe("");
   });
 });

@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import {
   getLocationInfo, sendTurn, startConversation,
-  type Hold, type LocationInfo, type TurnInput,
+  type Expect, type Hold, type LocationInfo, type TurnInput,
 } from "../api/publicReservations";
-import { ACTION_LABELS, actionsFor, inputHint, reduceTurn, type ChatMessage } from "../utils/chat";
+import { ACTION_LABELS, actionsFor, inputHint, noticeForError, reduceTurn, sanitizeTel, startErrorFor, type ChatMessage } from "../utils/chat";
 
 // Diner-facing copy is English only and deliberately not in i18n (the AI host
 // agent is English-only by design). Nothing is persisted: no token storage.
@@ -17,20 +17,35 @@ export default function ReserveChat() {
   const [info, setInfo] = useState<LocationInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [expect, setExpect] = useState("text");
+  const [expect, setExpect] = useState<Expect>("text");
   const [hold, setHold] = useState<Hold | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [startError, setStartError] = useState<{ message: string; retry: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const tokenRef = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
+
+  // A different page means a different chat: drop everything from the last one.
+  useEffect(() => {
+    tokenRef.current = null;
+    inFlight.current = false;
+    setInfo(null); setToken(null); setMessages([]); setExpect("text"); setHold(null);
+    setCode(null); setPhone(null); setEnded(false); setSending(false); setNotice(null);
+    setDraft(""); setStartError(null); setAttempt(0);
+    return () => { tokenRef.current = null; };
+  }, [slug, locationId]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setStartError(null);
       try {
         const i = await getLocationInfo(slug, locationId);
         if (cancelled) return;
@@ -38,26 +53,30 @@ export default function ReserveChat() {
         setMessages([{ from: "host", text: i.greeting }]);
         const c = await startConversation(slug, locationId);
         if (cancelled) return;
+        tokenRef.current = c.conversation_token;
         setToken(c.conversation_token);
         setMessages((m) => [...m, { from: "host", text: c.reply_text }]);
         setExpect(c.expect);
-      } catch {
-        if (!cancelled) setLoadError(true);
+      } catch (e) {
+        if (!cancelled) setStartError(startErrorFor(e instanceof ApiError ? e.status : 0));
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, locationId]);
+  }, [slug, locationId, attempt]);
 
   useEffect(() => {
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
   }, [messages]);
 
   async function send(input: TurnInput, shown: string | null) {
-    if (!token || sending || ended) return;
+    const mine = tokenRef.current;
+    if (!mine || inFlight.current || ended) return;
+    inFlight.current = true;
     setSending(true);
     setNotice(null);
     try {
-      const out = await sendTurn(slug, locationId, token, input);
+      const out = await sendTurn(slug, locationId, mine, input);
+      if (tokenRef.current !== mine) return;
       setMessages((m) => reduceTurn(m, shown, out));
       setExpect(out.expect);
       setHold(out.hold);
@@ -66,14 +85,18 @@ export default function ReserveChat() {
       if (out.ended || out.handoff || out.expect === "handoff") setEnded(true);
       if (shown !== null) setDraft("");
     } catch (e) {
+      if (tokenRef.current !== mine) return;
       const status = e instanceof ApiError ? e.status : 0;
       const detail = e instanceof ApiError ? (e.data as { code?: string } | undefined) : undefined;
-      if (status === 409 && detail?.code === "turn_in_progress") setNotice("Still working on your last message…");
-      else if (status === 429) setNotice("Too many messages, try again later");
-      else if (status === 404) { setNotice("This chat has ended"); setEnded(true); }
-      else setNotice("Something went wrong. Please try again.");
+      const r = noticeForError(status, detail);
+      setNotice(r.notice);
+      if (r.ended) setEnded(true);
     } finally {
-      setSending(false);
+      if (tokenRef.current === mine) {
+        inFlight.current = false;
+        setSending(false);
+        setTimeout(() => inputRef.current?.focus(), 0);
+      }
     }
   }
 
@@ -83,8 +106,13 @@ export default function ReserveChat() {
     if (text) void send({ text }, text);
   }
 
-  if (loadError) {
-    return <main className="min-h-screen flex items-center justify-center p-4"><p>This booking page is not available.</p></main>;
+  if (startError && !info) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center gap-3 p-4">
+        <p role="alert">{startError.message}</p>
+        {startError.retry && <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded bg-blue-600 px-4 py-2 text-white">Retry</button>}
+      </main>
+    );
   }
 
   const actions = ended ? [] : actionsFor(expect);
@@ -105,7 +133,9 @@ export default function ReserveChat() {
         <p className="my-3 text-center text-lg">Confirmation code: <strong className="text-2xl">{code}</strong></p>
       )}
       {phone && (
-        <p className="my-3 text-center">Call us: <a className="underline" href={`tel:${phone}`}>{phone}</a></p>
+        <p className="my-3 text-center">
+          Call us: {sanitizeTel(phone) ? <a className="underline" href={`tel:${sanitizeTel(phone)}`}>{phone}</a> : phone}
+        </p>
       )}
       {hold && actions.length > 0 && (
         <p className="mt-3 text-center font-medium">{hold.local_date} at {hold.local_time}, party of {hold.party_size}</p>
@@ -120,10 +150,16 @@ export default function ReserveChat() {
           ))}
         </div>
       )}
+      {startError && (
+        <p role="alert" className="my-2 text-center text-sm text-red-700">
+          {startError.message}{" "}
+          {startError.retry && <button type="button" className="underline" onClick={() => setAttempt((n) => n + 1)}>Retry</button>}
+        </p>
+      )}
       {notice && <p role="status" className="my-2 text-center text-sm text-red-700">{notice}</p>}
       <form onSubmit={submit} className="mt-2 flex gap-2">
         <label htmlFor="chat-input" className="sr-only">Your message</label>
-        <input id="chat-input" className="flex-1 rounded border px-3 py-2" value={draft} maxLength={MAX_CHARS}
+        <input id="chat-input" ref={inputRef} className="flex-1 rounded border px-3 py-2" value={draft} maxLength={MAX_CHARS}
           disabled={disabled} placeholder={hint.placeholder} inputMode={hint.inputMode}
           onChange={(e) => setDraft(e.target.value)} autoComplete="off" />
         <button type="submit" disabled={disabled || !draft.trim()} className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">Send</button>

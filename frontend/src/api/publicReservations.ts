@@ -4,7 +4,9 @@ import { ApiError } from "./client";
 // session handling, unlike apiFetch.
 const BASE = "/api/v1/public/reservations";
 
-export type Expect = string;
+export type Expect =
+  | "text" | "confirm_hold" | "confirm_cancel" | "confirm_modify"
+  | "phone_number" | "party_size" | "confirmation_code" | "handoff";
 export interface LocationInfo { location_name: string; timezone: string; greeting: string }
 export interface Hold {
   party_size: number;
