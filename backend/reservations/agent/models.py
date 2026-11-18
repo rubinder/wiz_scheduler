@@ -11,6 +11,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -77,6 +78,11 @@ class AgentConversation(Base):
     pending_cancel_id: Mapped[str | None] = _reservation_fk()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
+    # Set when a turn is claimed (recording.claim_turn), cleared when it
+    # ends, so a concurrent turn on the same conversation is refused. A turn
+    # that died without clearing it is treated as over after 60 seconds.
+    turn_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     # Wrong code/phone lookups; tools.py refuses lookups past the cap.
     failed_lookups: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
@@ -130,5 +136,26 @@ class AgentEvent(Base):
     cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0"),
         server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ReservationLookupFailure(Base):
+    """One wrong booking lookup (code + phone) by the agent, kept a day.
+    Counted per (location, phone) across conversations, so opening new
+    conversations cannot reset the lookup lockout (tools._lookup_booking)."""
+
+    __tablename__ = "reservation_lookup_failures"
+    __table_args__ = (
+        Index("ix_reservation_lookup_failures_loc_phone_created",
+              "location_id", "phone", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
+    company_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("companies.id"), nullable=False, index=True)
+    location_id: Mapped[str] = mapped_column(
+        String(8), ForeignKey("locations.id"), nullable=False)
+    phone: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())

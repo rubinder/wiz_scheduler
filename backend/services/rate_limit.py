@@ -94,6 +94,28 @@ def source_ip_from_request(request) -> str:
     return "unknown"
 
 
+def trusted_client_ip(request) -> str:
+    """The client IP as the trusted proxies saw it, not as the client claims.
+
+    Each of the TRUSTED_PROXY_HOPS proxies (CloudFront, then the ALB) appends
+    the address it received from, so the entry that many places from the
+    right is the one a client cannot forge; entries left of it are whatever
+    the client sent. Falls back to request.client.host when the header is
+    absent or shorter than that (local dev, tests), then "unknown".
+
+    Used by the AI host agent's limiters (#259). source_ip_from_request is
+    kept as it is for the older limiters and logs.
+    """
+    hops = max(1, settings.TRUSTED_PROXY_HOPS)
+    parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",")]
+    parts = [p for p in parts if p]
+    if len(parts) >= hops:
+        return parts[-hops]
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
 # Module-level singletons. Configured at import time from settings; tests
 # reset via .reset() (see tests/conftest.py).
 from backend.config import settings  # noqa: E402
@@ -151,8 +173,21 @@ payroll_archive_retrieve_limiter = SlidingWindowLimiter(
 
 # Per-IP cap on the unauthenticated AI host agent (#259): conversation
 # starts and turns share it. Each turn may cost model calls, so it is
-# checked before any lookup or model call.
+# checked before any lookup or model call. Keyed by trusted_client_ip.
 reservation_agent_ip_limiter = SlidingWindowLimiter(
     max_requests=settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Looser per-IP cap on the agent's location info read (no model call).
+reservation_agent_info_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_IP_INFO_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Per-location cap on conversation starts, so rotating IPs cannot flood one
+# restaurant with conversations. Keyed by location id.
+reservation_agent_location_starts_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR,
     window_seconds=3600,
 )

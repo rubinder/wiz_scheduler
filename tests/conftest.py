@@ -217,7 +217,9 @@ def reset_in_process_rate_limiters():
         login_limiter,
         payroll_archive_retrieve_limiter,
         register_limiter,
+        reservation_agent_info_limiter,
         reservation_agent_ip_limiter,
+        reservation_agent_location_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
     )
@@ -227,7 +229,9 @@ def reset_in_process_rate_limiters():
         login_limiter,
         payroll_archive_retrieve_limiter,
         register_limiter,
+        reservation_agent_info_limiter,
         reservation_agent_ip_limiter,
+        reservation_agent_location_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
     ):
@@ -239,7 +243,9 @@ def reset_in_process_rate_limiters():
         login_limiter,
         payroll_archive_retrieve_limiter,
         register_limiter,
+        reservation_agent_info_limiter,
         reservation_agent_ip_limiter,
+        reservation_agent_location_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
     ):

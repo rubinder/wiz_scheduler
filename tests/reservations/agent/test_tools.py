@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy import select
 
 from backend.reservations import booking
-from backend.reservations.agent import tools
-from backend.reservations.agent.models import AgentEvent
+from backend.reservations.agent import recording, tools
+from backend.reservations.agent.models import AgentEvent, ReservationLookupFailure
 from backend.reservations.agent.tools import TOOLS, execute_tool
 from backend.reservations.booking import DinerContact
 from backend.reservations.models import BOOKED, HELD, PENDING, Reservation
@@ -394,6 +394,73 @@ async def test_lookups_stop_after_three_failures(db_session, web_conv, monkeypat
     assert calls == [] and web_conv.verified_reservation_id is None
     await db_session.refresh(web_conv)
     assert web_conv.failed_lookups == 3
+
+
+async def _wrong_lookups(db, n: int, now, phone=PHONE) -> None:
+    """n wrong lookups for phone, each from a fresh conversation."""
+    for _ in range(n):
+        conv = await recording.start_conversation(db, COMPANY_ID, LOCATION_ID, "web")
+        out = await execute_tool(db, conv, "lookup_booking", {
+            "confirmation_code": "ZZZZZZ", "phone": phone}, now=now)
+        assert out.result == {"found": False}
+    await db.commit()
+
+
+async def test_lookup_lockout_spans_conversations(db_session, web_conv, monkeypatch):
+    now = _now()
+    res = await _booked(db_session, now)
+    await _wrong_lookups(db_session, 5, now)
+    rows = (await db_session.execute(select(ReservationLookupFailure))).scalars().all()
+    assert len(rows) == 5 and {r.phone for r in rows} == {PHONE}
+    assert {(r.company_id, r.location_id) for r in rows} == {(COMPANY_ID, LOCATION_ID)}
+    calls = []
+
+    async def counting(*a, **k):
+        calls.append(a)
+        return None
+
+    monkeypatch.setattr(booking, "lookup", counting)
+    # A new conversation, a right code: refused without querying.
+    out = await execute_tool(db_session, web_conv, "lookup_booking", {
+        "confirmation_code": res.confirmation_code, "phone": f" {PHONE} "}, now=now)
+    assert out.is_error and out.result == {"error": "too_many_attempts"}
+    assert calls == [] and web_conv.verified_reservation_id is None
+
+
+async def test_lookup_lockout_is_per_phone_and_expires(db_session, web_conv):
+    now = _now()
+    res = await _booked(db_session, now)
+    await _wrong_lookups(db_session, 4, now)
+    await _wrong_lookups(db_session, 3, now, phone="+12125550199")
+    # Four failures for this phone: still allowed.
+    out = await execute_tool(db_session, web_conv, "lookup_booking", {
+        "confirmation_code": res.confirmation_code, "phone": PHONE}, now=now)
+    assert out.result["found"] is True
+
+    await _wrong_lookups(db_session, 1, now)
+    conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
+    args = {"confirmation_code": res.confirmation_code, "phone": PHONE}
+    out = await execute_tool(db_session, conv, "lookup_booking", args, now=now)
+    assert out.result == {"error": "too_many_attempts"}
+    later = now + timedelta(minutes=16)
+    out = await execute_tool(db_session, conv, "lookup_booking", args, now=later)
+    assert out.result["found"] is True
+
+
+async def test_retention_purges_day_old_lookup_failures(db_session, web_conv):
+    from backend.services.data_retention import run_data_retention
+
+    now = _now()
+    for age in (timedelta(days=2), timedelta(hours=1)):
+        db_session.add(ReservationLookupFailure(
+            company_id=COMPANY_ID, location_id=LOCATION_ID, phone=PHONE,
+            created_at=now - age))
+    await db_session.commit()
+    summary = await run_data_retention(db_session)
+    await db_session.commit()
+    assert summary["old_lookup_failures_deleted"] == 1
+    left = (await db_session.execute(select(ReservationLookupFailure))).scalars().all()
+    assert len(left) == 1
 
 
 async def test_offered_starts_keep_the_most_recent_30(db_session, web_conv):

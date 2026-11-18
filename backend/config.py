@@ -274,6 +274,17 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_MAX_TOOL_ROUNDS: int = 6
     RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
     RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
+    RESERVATION_AGENT_IP_INFO_PER_HOUR: int = 300
+    RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR: int = 120
+    # Wrong booking lookups per (location, phone) across conversations
+    # before lookups for that phone are refused (#259).
+    RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES: int = 5
+    RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES: int = 15
+    RETENTION_LOOKUP_FAILURES_DAYS: int = 1
+    # Proxies that append to X-Forwarded-For in front of the app
+    # (CloudFront, then the ALB). The client is this many entries from the
+    # right; anything further left is whatever the client sent.
+    TRUSTED_PROXY_HOPS: int = 2
     RESERVATION_AGENT_MAX_TOKENS: int = 1024
 
     # Data retention periods (days)

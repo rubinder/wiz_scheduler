@@ -1,4 +1,4 @@
-"""AI host agent conversations and events (#259).
+"""AI host agent conversations, events and lookup failures (#259).
 
 Revision ID: 0058
 Revises: 0057
@@ -12,7 +12,7 @@ down_revision = "0057"
 branch_labels = None
 depends_on = None
 
-TABLES = ["agent_conversations", "agent_events"]
+TABLES = ["agent_conversations", "agent_events", "reservation_lookup_failures"]
 
 CHANNELS = ("web", "voice")
 EVENT_TYPES = ("user_turn", "assistant_turn", "tool_call", "tool_result",
@@ -49,6 +49,7 @@ def upgrade() -> None:
         _resv("reservation_id"), _resv("held_reservation_id"),
         _resv("verified_reservation_id"), _resv("pending_cancel_id"),
         _int0("turn_count"),
+        sa.Column("turn_started_at", sa.DateTime(timezone=True), nullable=True),
         _int0("failed_lookups"),
         sa.Column("offered_starts", JSONB(), nullable=False,
                   server_default=sa.text("'[]'::jsonb")),
@@ -92,6 +93,20 @@ def upgrade() -> None:
     )
     op.create_index("ix_agent_events_company_id", "agent_events", ["company_id"])
     op.create_index("ix_agent_events_conversation_id", "agent_events", ["conversation_id"])
+
+    op.create_table(
+        "reservation_lookup_failures",
+        sa.Column("id", sa.String(8), primary_key=True),
+        sa.Column("company_id", sa.String(8), sa.ForeignKey("companies.id"), nullable=False),
+        sa.Column("location_id", sa.String(8), sa.ForeignKey("locations.id"), nullable=False),
+        sa.Column("phone", sa.String(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("CURRENT_TIMESTAMP")),
+    )
+    op.create_index("ix_reservation_lookup_failures_company_id",
+                    "reservation_lookup_failures", ["company_id"])
+    op.create_index("ix_reservation_lookup_failures_loc_phone_created",
+                    "reservation_lookup_failures", ["location_id", "phone", "created_at"])
 
     for t in TABLES:
         _rls(t)

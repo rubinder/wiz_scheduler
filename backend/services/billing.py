@@ -1400,7 +1400,11 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.models.payroll_export import PayrollExport
     from backend.models.time_entry import TimeEntry
     from backend.models.preference_submission import EmployeePreferenceSubmission
-    from backend.reservations.agent.models import AgentConversation, AgentEvent
+    from backend.reservations.agent.models import (
+        AgentConversation,
+        AgentEvent,
+        ReservationLookupFailure,
+    )
     from backend.reservations.models import (
         DiningTable,
         FloorSection,
@@ -1439,7 +1443,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     dining_tables; dining_tables refs floor_sections.
         #     agent_events/agent_conversations (#259) ref reservations, so
         #     they go first (events, then conversations).
-        for model in (AgentEvent, AgentConversation,
+        #     reservation_lookup_failures ref companies and locations.
+        for model in (AgentEvent, AgentConversation, ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):
             await db.execute(delete(model).where(model.company_id.in_(company_ids)))

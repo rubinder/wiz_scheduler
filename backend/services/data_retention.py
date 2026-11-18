@@ -18,6 +18,7 @@ from backend.models import (
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
+from backend.reservations.agent.models import ReservationLookupFailure
 from backend.services.archive import DISCARDED, delete_past_check_ins
 from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
@@ -222,6 +223,15 @@ async def run_data_retention(db: AsyncSession) -> dict:
             ),
             now=now,
         )
+
+        # 7c. Agent booking-lookup failures (#259) only feed a 15-minute
+        #     lockout window; a day is ample.
+        cutoff_lookups = now - timedelta(days=settings.RETENTION_LOOKUP_FAILURES_DAYS)
+        result = await db.execute(
+            delete(ReservationLookupFailure).where(
+                ReservationLookupFailure.created_at < cutoff_lookups)
+        )
+        summary["old_lookup_failures_deleted"] = result.rowcount
 
         # 8. Signup signals past their window. These are observe-only
         #    anti-abuse breadcrumbs (services/signup_signals.py), not account

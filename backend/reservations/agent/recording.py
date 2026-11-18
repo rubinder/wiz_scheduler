@@ -2,9 +2,9 @@
 
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -100,3 +100,45 @@ async def finish(db: AsyncSession, conv: AgentConversation, outcome: str) -> Non
     conv.status = "closed"
     conv.ended_at = datetime.now(timezone.utc)
     await db.flush()
+
+
+TURN_STALE_SECONDS = 60
+Claim = Literal["claimed", "closed", "busy"]
+
+
+async def claim_turn(db: AsyncSession, conv: AgentConversation) -> Claim:
+    """Atomically count one turn and mark it in flight. Does not commit:
+    the caller commits so concurrent requests see the claim.
+
+    One UPDATE checks and claims together, so two concurrent turns cannot
+    both pass the turn cap or both run: the second waits on the row lock,
+    re-reads it and finds the turn in flight (`busy`). The claim is allowed
+    up to MAX_TURNS + 1: that last claim is the core's closing turn (its cap
+    path runs on `turn_count > MAX_TURNS` and closes the conversation).
+    A turn still marked in flight after TURN_STALE_SECONDS is taken to have
+    died. `conv` is refreshed from the row either way."""
+    claimed = (await db.execute(
+        update(AgentConversation)
+        .where(AgentConversation.id == conv.id,
+               AgentConversation.company_id == conv.company_id,
+               AgentConversation.status == "open",
+               AgentConversation.turn_count <= settings.RESERVATION_AGENT_MAX_TURNS,
+               (AgentConversation.turn_started_at.is_(None))
+               | (AgentConversation.turn_started_at
+                  < func.now() - text(f"interval '{TURN_STALE_SECONDS} seconds'")))
+        .values(turn_count=AgentConversation.turn_count + 1,
+                turn_started_at=func.now())
+        .returning(AgentConversation.id)
+        .execution_options(synchronize_session=False)
+    )).scalar_one_or_none()
+    await db.refresh(conv)
+    if claimed is not None:
+        return "claimed"
+    if conv.status == "open" and conv.turn_started_at is not None:
+        return "busy"
+    return "closed"
+
+
+def end_turn(conv: AgentConversation) -> None:
+    """Clear the in-flight mark; flushed with the turn's last commit."""
+    conv.turn_started_at = None

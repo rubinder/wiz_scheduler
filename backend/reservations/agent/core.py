@@ -14,6 +14,10 @@ thinking blocks included), so the system prompt and history prefix stay
 byte-stable for the prompt cache. JSONB reorders keys, so message events also
 keep the exact JSON text (`raw`) they replay from.
 
+Turns are claimed by the caller first (`recording.claim_turn`: one atomic
+UPDATE that counts the turn and marks it in flight); `handle_turn` clears
+the in-flight mark with its last commit.
+
 Transactions: `handle_turn` owns them and commits at every round boundary:
 after the diner's message is recorded and after each tool batch, before the
 next model call, so no row lock (a hold locks its location) is held across
@@ -115,6 +119,7 @@ class AgentCore:
         conv_id, company_id = conv.id, conv.company_id
         try:
             out = await self._turn(db, conv, turn, now)
+            recording.end_turn(conv)
             await db.commit()
             return out
         except Exception:
@@ -138,6 +143,7 @@ class AgentCore:
                 rules, _ = await get_rules(db, conv.company_id, conv.location_id)
                 phone = rules.staff_transfer_number
                 await recording.record_event(db, conv, "error", {"error": "internal"})
+                recording.end_turn(conv)
                 if conv.status == "open":
                     await recording.finish(db, conv, "failed")
                 await db.commit()
@@ -157,12 +163,12 @@ class AgentCore:
                     turn: TurnInput, now: datetime) -> TurnOutput:
         if conv.status != "open":
             return TurnOutput(ENDED_TEXT, "text", None, True, None)
-        if (conv.turn_count or 0) >= settings.RESERVATION_AGENT_MAX_TURNS:
+        # The caller claimed this turn (recording.claim_turn), which counted
+        # it atomically; the claim past the cap is the closing turn.
+        if (conv.turn_count or 0) > settings.RESERVATION_AGENT_MAX_TURNS:
             await self._release_hold(db, conv, now)
             await recording.finish(db, conv, await self._outcome(db, conv, "abandoned"))
             return TurnOutput(CLOSING_TEXT, "text", None, True, None)
-        conv.turn_count = (conv.turn_count or 0) + 1
-        await db.flush()
 
         loc = (await db.execute(
             select(Location).where(Location.id == conv.location_id,
@@ -326,9 +332,16 @@ class AgentCore:
         when = _when(res, zone)
         if res.status == BOOKED:
             await recording.finish(db, conv, "booked")
+            local = res.start_at.astimezone(zone)
+            booked = {"party_size": res.party_size,
+                      "local_date": local.date().isoformat(),
+                      "local_time": local.strftime("%H:%M"),
+                      "start_iso": local.isoformat(), "status": "booked",
+                      "held_until": None,
+                      "confirmation_code": res.confirmation_code}
             return (TurnOutput(
                 f"You're booked for {res.party_size} on {when}. Your confirmation "
-                f"code is {res.confirmation_code}.", "text", None, True, None),
+                f"code is {res.confirmation_code}.", "text", booked, True, None),
                 f"booked {res.confirmation_code}")
         return (TurnOutput(
             f"Thanks, your request for {res.party_size} on {when} is in, and the "

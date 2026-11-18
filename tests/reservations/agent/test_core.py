@@ -113,7 +113,9 @@ async def test_full_booking_path(db_session, web_conv):
     assert res.status == BOOKED and res.confirmation_code
     assert res.confirmation_code in out.reply_text
     assert out.reply_text.startswith("You're booked")
-    assert out.ended and out.expect == "text" and out.hold is None
+    assert out.ended and out.expect == "text"
+    assert out.hold["status"] == "booked"
+    assert out.hold["confirmation_code"] == res.confirmation_code
     assert (web_conv.outcome, web_conv.status) == ("booked", "closed")
     assert web_conv.held_reservation_id is None and web_conv.reservation_id == hold_id
 
@@ -243,6 +245,8 @@ async def test_sdk_error_hands_off_without_raising(db_session, web_conv):
 
 
 async def test_unexpected_error_fails_without_raising(db_session, web_conv):
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    await db_session.commit()
     out = await AgentCore(ScriptedLlm(RuntimeError("boom"))).handle_turn(
         db_session, web_conv, say("hi"))
     assert out.reply_text == HANDOFF_TEXT and out.ended
@@ -250,7 +254,7 @@ async def test_unexpected_error_fails_without_raising(db_session, web_conv):
     events = await _events(db_session, web_conv)
     # The diner's message was committed before the model call.
     assert [e.type for e in events] == ["user_turn", "error"]
-    assert web_conv.turn_count == 1
+    assert web_conv.turn_count == 1 and web_conv.turn_started_at is None
 
 
 async def test_round_cap_hands_off(db_session, web_conv, monkeypatch):
@@ -271,10 +275,15 @@ async def test_turn_cap_abandons(db_session, web_conv, monkeypatch):
     monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
     llm = ScriptedLlm(reply(text("Hello!")))
     core = AgentCore(llm)
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
     await core.handle_turn(db_session, web_conv, say("hi"))
+    assert web_conv.turn_started_at is None
+    # The claim past the cap is the closing turn; the core does not count.
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
     out = await core.handle_turn(db_session, web_conv, say("again"))
     assert len(llm.requests) == 1 and out.ended
-    assert web_conv.outcome == "abandoned"
+    assert web_conv.outcome == "abandoned" and web_conv.turn_count == 2
+    assert await recording.claim_turn(db_session, web_conv) == "closed"
 
 
 async def test_all_tool_results_in_one_user_message(db_session, web_conv):
@@ -519,6 +528,7 @@ async def test_turn_cap_after_a_pending_request_is_handed_off(db_session, web_co
     now = _now()
     core, _, _ = await _held(db_session, web_conv, now, party=5)
     await core.handle_turn(db_session, web_conv, press("confirm_hold"), now=now)
-    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", web_conv.turn_count)
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 0)
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
     out = await core.handle_turn(db_session, web_conv, say("thanks"), now=now)
     assert out.ended and web_conv.outcome == "handed_off"

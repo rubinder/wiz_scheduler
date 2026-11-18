@@ -26,13 +26,14 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.models import Location
 from backend.reservations import booking
 from backend.reservations.agent import recording
-from backend.reservations.agent.models import AgentConversation
+from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
 from backend.reservations.availability import find_slots
 from backend.reservations.booking import DinerContact, ReservationError
 from backend.reservations.models import (
@@ -327,17 +328,39 @@ async def _hold_slot(db: AsyncSession, conv: AgentConversation,
     }, expect=EXPECT_CONFIRM_HOLD)
 
 
+async def _recent_lookup_failures(db: AsyncSession, conv: AgentConversation,
+                                  phone: str, now: datetime) -> int:
+    since = now - timedelta(minutes=settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES)
+    return (await db.execute(
+        select(func.count()).select_from(ReservationLookupFailure).where(
+            ReservationLookupFailure.company_id == conv.company_id,
+            ReservationLookupFailure.location_id == conv.location_id,
+            ReservationLookupFailure.phone == phone,
+            ReservationLookupFailure.created_at > since)
+    )).scalar_one()
+
+
 async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
                           inp: dict[str, Any], now: datetime) -> ToolOutcome:
     if (conv.failed_lookups or 0) >= MAX_FAILED_LOOKUPS:
         raise _ToolError("too_many_attempts")
     code, phone = inp.get("confirmation_code"), inp.get("phone")
+    phone = phone.strip() if isinstance(phone, str) else None
+    # The per-phone lockout spans conversations, so a new conversation per
+    # guess does not reset it. Keyed on the exact phone lookup() matches:
+    # a reformatted number can never find the booking anyway.
+    if phone and await _recent_lookup_failures(db, conv, phone, now) \
+            >= settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES:
+        raise _ToolError("too_many_attempts")
     res = None
-    if isinstance(code, str) and isinstance(phone, str):
-        res = await booking.lookup(db, conv.company_id, conv.location_id, code,
-                                   phone.strip())
+    if isinstance(code, str) and phone:
+        res = await booking.lookup(db, conv.company_id, conv.location_id, code, phone)
     # A new lookup drops anything staged against the previous verification.
     if res is None:
+        if phone:
+            db.add(ReservationLookupFailure(
+                company_id=conv.company_id, location_id=conv.location_id,
+                phone=phone, created_at=now))
         conv.failed_lookups = (conv.failed_lookups or 0) + 1
         conv.verified_reservation_id = None
         conv.pending_cancel_id = None

@@ -4,9 +4,13 @@ Responses carry no internal ids: the conversation token is the diner's only
 handle, and a hold is described by its local date, time, party size and
 status (never its reservation id)."""
 
-from typing import Any, Literal
+import unicodedata
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (
+    BaseModel, SerializerFunctionWrapHandler, StringConstraints, field_validator,
+    model_serializer, model_validator,
+)
 
 from backend.config import settings
 from backend.reservations.agent.core import Action, Expect, TurnOutput
@@ -27,10 +31,21 @@ class ConversationOut(BaseModel):
 class TurnIn(BaseModel):
     """Exactly one of free text or a button action."""
 
-    text: str | None = Field(
-        default=None, min_length=1,
-        max_length=settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS)
+    # Stripped before the length check, so whitespace-only text is a 422.
+    text: Annotated[str, StringConstraints(
+        strip_whitespace=True, min_length=1,
+        max_length=settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS)] | None = None
     action: Action | None = None
+
+    @field_validator("text")
+    @classmethod
+    def _no_control_chars(cls, v: str | None) -> str | None:
+        """Line breaks and tabs are text; any other control character
+        (NUL included) is refused."""
+        if v is not None and any(
+                unicodedata.category(c) == "Cc" and c not in "\n\r\t" for c in v):
+            raise ValueError("text contains control characters")
+        return v
 
     @model_validator(mode="after")
     def _exactly_one(self) -> "TurnIn":
@@ -46,7 +61,14 @@ class HoldOut(BaseModel):
     start_iso: str
     status: str
     held_until: str | None = None
-    confirmation_code: str | None = None
+    confirmation_code: str | None = None  # only once booked
+
+    @model_serializer(mode="wrap")
+    def _drop_empty_code(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("confirmation_code") is None:
+            data.pop("confirmation_code", None)
+        return data
 
 
 class HandoffOut(BaseModel):

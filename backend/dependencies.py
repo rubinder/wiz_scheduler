@@ -46,7 +46,7 @@ async def get_current_user(
     # Set Postgres RLS context (Part 2: database-level)
     # This tells Postgres which company_ids this session can access via RLS policies
     # Only works if RLS policies have been applied by migration 0044
-    await _set_rls_context(db, company_ids)
+    await bind_rls_context(db, company_ids)
 
     return user
 
@@ -91,7 +91,7 @@ async def _get_company_ids_for_user(user: User, db: AsyncSession) -> list[str]:
     return list(result.scalars().all())
 
 
-async def _set_rls_context(db: AsyncSession, company_ids: list[str]) -> None:
+async def bind_rls_context(db: AsyncSession, company_ids: list[str]) -> None:
     """Bind this request's session to its companies for Postgres RLS (#183).
 
     Every transaction the session begins from here on runs as app_role with

@@ -1,6 +1,7 @@
 """Public AI host chat endpoints (#259): tenant binding, validation, limits."""
 
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -17,6 +18,10 @@ from backend.reservations.models import BOOKED, Reservation
 from backend.reservations.rules import get_rules, save_rules
 from backend.routers.public_reservations import get_agent_core
 from backend.tenant import get_tenant_context
+from backend.services.rate_limit import (
+    reservation_agent_info_limiter,
+    reservation_agent_location_starts_limiter,
+)
 from tests.conftest import COMPANY2_ID, COMPANY_ID, LOCATION_ID
 from tests.reservations.agent.fakes import ScriptedLlm, last_tool_result, reply, text, tool_use
 from tests.reservations.agent.test_core import _booked_res, _day, _hold_script, _lookup
@@ -26,6 +31,13 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 NY = ZoneInfo("America/New_York")
 ROOT = "/api/v1/public/reservations"
 BASE = f"{ROOT}/test123/{LOCATION_ID}"
+PROXY = "130.176.1.1"  # the CloudFront edge the ALB saw
+
+
+def _via(client_ip: str, spoof: str | None = None) -> dict[str, str]:
+    """X-Forwarded-For as the ALB passes it: [client-sent...], client, edge."""
+    parts = ([spoof] if spoof else []) + [client_ip, PROXY]
+    return {"X-Forwarded-For": ", ".join(parts)}
 
 
 @pytest.fixture(autouse=True)
@@ -148,9 +160,9 @@ async def test_hold_and_confirm_round_trip_exposes_no_ids(client, db_session,
     assert out["expect"] == "confirm_hold" and not out["ended"]
     hold = out["hold"]
     assert set(hold) == {"party_size", "local_date", "local_time", "start_iso",
-                         "status", "held_until", "confirmation_code"}
+                         "status", "held_until"}
     assert hold["party_size"] == 2 and hold["status"] == "held"
-    assert hold["local_date"] == _day(now) and hold["confirmation_code"] is None
+    assert hold["local_date"] == _day(now)
     conv = (await db_session.execute(select(AgentConversation).where(
         AgentConversation.public_token == token))).scalar_one()
     assert conv.held_reservation_id not in r.text
@@ -164,6 +176,9 @@ async def test_hold_and_confirm_round_trip_exposes_no_ids(client, db_session,
     res = (await db_session.execute(select(Reservation).where(
         Reservation.company_id == COMPANY_ID))).scalar_one()
     assert res.status == BOOKED and res.confirmation_code in out["reply_text"]
+    assert out["hold"]["status"] == "booked"
+    assert out["hold"]["confirmation_code"] == res.confirmation_code
+    assert res.id not in r.text
 
     # The conversation is closed: further turns 404.
     assert (await _turn(client, token, {"text": "thanks"})).status_code == 404
@@ -202,6 +217,9 @@ async def test_confirm_modify_round_trip(client, db_session, seeded_floor, llm):
     {},
     {"text": ""},
     {"text": "x" * 1001},
+    {"text": "   \n\t "},
+    {"text": "hi\u0000there"},
+    {"text": "hi\u001bthere"},
     {"action": "book_it"},
 ])
 async def test_invalid_turn_bodies_422(client, seeded_floor, llm, body):
@@ -217,7 +235,7 @@ async def test_max_length_text_is_accepted(client, seeded_floor, llm):
 
 
 async def test_61st_request_from_one_ip_is_429_before_the_model(client, seeded_floor, llm):
-    ip = {"X-Forwarded-For": "198.51.100.7, 10.0.0.1"}
+    ip = _via("198.51.100.7")
     token = await _start(client, headers=ip)  # starts count too
     for _ in range(settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR - 1):
         # A rejected body still spends a token.
@@ -228,7 +246,7 @@ async def test_61st_request_from_one_ip_is_429_before_the_model(client, seeded_f
     assert llm.requests == []
     assert (await client.post(f"{BASE}/conversations", headers=ip)).status_code == 429
 
-    other = {"X-Forwarded-For": "198.51.100.8"}
+    other = _via("198.51.100.8")
     assert (await _turn(client, token, {"text": "hi"}, headers=other)).status_code == 200
     assert len(llm.requests) == 1
 
@@ -264,3 +282,91 @@ async def test_unknown_and_closed_tokens_404(client, db_session, seeded_floor, l
     assert (await _turn(client, conv.public_token, {"action": "confirm_hold"})
             ).status_code == 404
     assert llm.requests == []
+
+
+async def test_forged_leftmost_xff_does_not_escape_the_limit(client, seeded_floor, llm):
+    token = await _start(client, headers=_via("198.51.100.7", spoof="1.1.1.1"))
+    for i in range(settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR - 1):
+        r = await _turn(client, token, {}, headers=_via("198.51.100.7", spoof=f"10.0.0.{i}"))
+        assert r.status_code == 422
+    r = await _turn(client, token, {"text": "hi"},
+                    headers=_via("198.51.100.7", spoof="203.0.113.250"))
+    assert r.status_code == 429 and llm.requests == []
+
+
+async def test_starts_are_capped_per_location(client, db_session, seeded_floor, llm):
+    for _ in range(settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR):
+        assert reservation_agent_location_starts_limiter.check_and_record(LOCATION_ID)
+    r = await client.post(f"{BASE}/conversations", headers=_via("198.51.100.20"))
+    assert r.status_code == 429
+    loc2 = await _other_company(db_session)
+    await _start(client, base=f"{ROOT}/other-co/{loc2}", headers=_via("198.51.100.20"))
+
+
+async def test_info_read_has_its_own_looser_ip_limit(client, seeded_floor, llm):
+    ip = _via("198.51.100.30")
+    for _ in range(settings.RESERVATION_AGENT_IP_INFO_PER_HOUR - 1):
+        assert reservation_agent_info_limiter.check_and_record("198.51.100.30")
+    assert (await client.get(BASE, headers=ip)).status_code == 200
+    assert (await client.get(BASE, headers=ip)).status_code == 429
+    # Starting a conversation is a different budget.
+    await _start(client, headers=ip)
+
+
+async def test_token_must_be_43_chars(client, seeded_floor, llm):
+    assert (await _turn(client, "short", {"text": "hi"})).status_code == 422
+    assert (await _turn(client, "x" * 44, {"text": "hi"})).status_code == 422
+
+
+async def test_turn_cap_through_the_api(client, db_session, seeded_floor, llm, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
+    token = await _start(client)
+    llm.push(reply(text("Hello.")))
+    assert (await _turn(client, token, {"text": "hi"})).json()["ended"] is False
+    r = await _turn(client, token, {"text": "again"})
+    assert r.status_code == 200 and r.json()["ended"]
+    assert "start a new conversation" in r.json()["reply_text"]
+    assert len(llm.requests) == 1
+    assert (await _turn(client, token, {"text": "more"})).status_code == 404
+    conv = (await db_session.execute(select(AgentConversation).where(
+        AgentConversation.public_token == token)
+        .execution_options(populate_existing=True))).scalar_one()
+    assert (conv.turn_count, conv.outcome, conv.turn_started_at) == (2, "abandoned", None)
+
+
+async def test_concurrent_turn_on_one_token_is_409(isolated_client, seeded_floor):
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def slow(request):
+        started.set()
+        await release.wait()
+        return reply(text("Done."))
+
+    llm = ScriptedLlm(slow)
+    app.dependency_overrides[get_agent_core] = lambda: AgentCore(llm)
+    token = await _start(isolated_client)
+    first = asyncio.create_task(_turn(isolated_client, token, {"text": "one"}))
+    await asyncio.wait_for(started.wait(), 10)
+    second = await _turn(isolated_client, token, {"text": "two"})
+    assert second.status_code == 409
+    assert second.json()["detail"] == {"code": "turn_in_progress"}
+    release.set()
+    r = await asyncio.wait_for(first, 10)
+    assert r.status_code == 200 and r.json()["reply_text"] == "Done."
+    assert len(llm.requests) == 1
+    # The turn ended, so the next one may run.
+    llm.push(reply(text("Again.")))
+    assert (await _turn(isolated_client, token, {"text": "three"})).status_code == 200
+
+
+async def test_a_stale_in_flight_mark_does_not_block(client, db_session, seeded_floor, llm):
+    token = await _start(client)
+    conv = (await db_session.execute(select(AgentConversation).where(
+        AgentConversation.public_token == token))).scalar_one()
+    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+    await db_session.commit()
+    assert (await _turn(client, token, {"text": "hi"})).status_code == 409
+    conv.turn_started_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+    await db_session.commit()
+    llm.push(reply(text("Hello.")))
+    assert (await _turn(client, token, {"text": "hi"})).status_code == 200
