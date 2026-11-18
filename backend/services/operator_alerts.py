@@ -324,3 +324,21 @@ def send_agent_invoice_unpaid_alert(og_id: str, invoice_id: str, outcome: str,
         f"invoice it again.</p>",
         "agent_invoice_unpaid",
     )
+
+
+def send_voice_numbers_unreleased_alert(og_id: str, phone_number_ids: list[str],
+                                        reason: str) -> bool:
+    """A deleted group's Amazon Connect numbers could not be released (#259
+    step 6): Connect failed, or provisioning is off. Their rows are deleted
+    with the group, so nothing will release them: release them in the
+    Connect console. Never raises."""
+    logger.warning("[OPERATOR] voice_numbers_unreleased og=%s ids=%s reason=%s",
+                   og_id, phone_number_ids, reason)
+    items = "".join(f"<li><code>{html.escape(i)}</code></li>" for i in phone_number_ids)
+    return _send_operator_email(
+        f"[WizScheduler] voice numbers not released for deleted og={og_id}",
+        f"<p>Group og={html.escape(og_id)} was deleted but these Amazon Connect "
+        f"phone numbers were not released ({html.escape(reason)}). They are still "
+        f"billed: release them in the Connect console.</p><ul>{items}</ul>",
+        "voice_numbers_unreleased",
+    )

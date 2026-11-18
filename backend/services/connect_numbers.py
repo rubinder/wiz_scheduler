@@ -51,8 +51,7 @@ def _instance_id() -> str:
     return settings.CONNECT_INSTANCE_ARN.rsplit("/", 1)[-1]
 
 
-def _claim(country: str, prefix: str | None, client_token: str) -> tuple[str, str]:
-    c = _client()
+def _search(country: str, prefix: str | None) -> str:
     search: dict[str, Any] = {
         "TargetArn": settings.CONNECT_INSTANCE_ARN,
         "PhoneNumberCountryCode": country,
@@ -61,24 +60,44 @@ def _claim(country: str, prefix: str | None, client_token: str) -> tuple[str, st
     }
     if prefix:
         search["PhoneNumberPrefix"] = prefix
-    found = c.search_available_phone_numbers(**search).get("AvailableNumbersList") or []
+    found = _client().search_available_phone_numbers(**search).get("AvailableNumbersList") or []
     if not found:
         raise NoNumberAvailable(f"no {country} DID available")
-    e164 = found[0]["PhoneNumber"]
-    claimed = c.claim_phone_number(
+    return found[0]["PhoneNumber"]
+
+
+def _claim_number(e164: str, client_token: str) -> str:
+    claimed = _client().claim_phone_number(
         TargetArn=settings.CONNECT_INSTANCE_ARN, PhoneNumber=e164,
         ClientToken=client_token)
-    return e164, claimed["PhoneNumberId"]
+    return claimed["PhoneNumberId"]
+
+
+async def search(country: str = "US", prefix: str | None = None) -> str | Literal["disabled"]:
+    """One available DID (E.164), not yet claimed."""
+    if not enabled():
+        return DISABLED
+    return await asyncio.to_thread(_search, country, prefix)
+
+
+async def claim_number(e164: str, *, client_token: str) -> str | Literal["disabled"]:
+    """Claim a searched number: its phone_number_id. The same e164 and token
+    on a retry is idempotent, so a caller that persists both before calling
+    never loses a claimed number."""
+    if not enabled():
+        return DISABLED
+    return await asyncio.to_thread(_claim_number, e164, client_token)
 
 
 async def claim(country: str = "US", prefix: str | None = None, *,
                 client_token: str) -> tuple[str, str] | Literal["disabled"]:
-    """Search one available DID and claim it: (e164, phone_number_id).
-    `client_token` makes a retried claim idempotent; callers derive it from
-    the location's voice number row."""
-    if not enabled():
+    """search + claim_number in one: (e164, phone_number_id). The voice
+    number service persists the searched number in between instead."""
+    e164 = await search(country, prefix)
+    if e164 == DISABLED:
         return DISABLED
-    return await asyncio.to_thread(_claim, country, prefix, client_token)
+    phone_number_id = await claim_number(e164, client_token=client_token)
+    return e164, phone_number_id
 
 
 async def associate(phone_number_id: str,

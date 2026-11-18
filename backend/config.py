@@ -268,6 +268,9 @@ class Settings(BaseSettings):
     # and released only while VOICE_PROVISIONING_ENABLED is true (a claimed
     # number is billed daily). A number whose subscription ended is held for
     # VOICE_RELEASE_HOLD_DAYS so a resubscribe keeps it.
+    # Turning the flag off stops all claims AND releases: numbers already
+    # claimed stay claimed (and billed) until it is on again or they are
+    # released in the Connect console.
     VOICE_PROVISIONING_ENABLED: bool = False
     CONNECT_INSTANCE_ARN: str = ""
     CONNECT_CONTACT_FLOW_ID: str = ""

@@ -428,8 +428,9 @@ async def read_voice_number(
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> VoiceNumberOut:
-    """The location's AI host phone number and where it stands."""
-    await _location(db, scope, user, location_id)
+    """The location's AI host phone number and where it stands (archived
+    locations too: their number is on hold or released)."""
+    await _location(db, scope, user, location_id, include_archived=True)
     row = await voice_numbers.for_location(db, str(user.company_id), location_id)
     if row is None:
         return VoiceNumberOut(e164=None, status="none")
