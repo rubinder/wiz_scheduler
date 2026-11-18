@@ -103,6 +103,11 @@ class AgentConversation(Base):
     # {"start_iso": str | None, "party_size": int | None} staged by the
     # modify_booking tool; the confirm_modify action applies and clears it.
     pending_modify: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Voice bridge dedupe: the Lambda's sequence number of the last answered
+    # turn and the reply it got (recording.remember_reply). A retry of that
+    # turn (or an older one) is answered from here without a second run.
+    last_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_reply: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0"),
         server_default=text("0"))

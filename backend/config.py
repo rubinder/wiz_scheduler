@@ -275,6 +275,13 @@ class Settings(BaseSettings):
     CONNECT_INSTANCE_ARN: str = ""
     CONNECT_CONTACT_FLOW_ID: str = ""
     VOICE_RELEASE_HOLD_DAYS: int = 7
+    # The Lambda behind Connect sends it as X-Voice-Bridge-Secret; the bridge
+    # endpoint 404s without it, and always while it is empty.
+    VOICE_BRIDGE_SECRET: str = ""
+    # Bridge turns per minute per caller number (anonymous calls: per
+    # contact) and per contact. Only the Lambda calls the bridge, so there is
+    # no per-address limit; this bounds one caller's abuse.
+    VOICE_CALLER_TURNS_PER_MINUTE: int = 30
 
     # AI host agent (#259). Prices are USD per million tokens.
     RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"

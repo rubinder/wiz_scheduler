@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal, Mapping
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, literal, select, text, update
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -50,6 +52,77 @@ async def start_conversation(
     db.add(conv)
     await db.flush()
     return conv
+
+
+async def voice_conversation(
+    db: AsyncSession, company_id: str, location_id: str, contact_id: str,
+    caller_number: str | None, source_key: str,
+) -> tuple[AgentConversation, bool]:
+    """The call's conversation, by (location, contact id), any status; on
+    the call's first turn it is created (`voice`, the caller's number as
+    given). Two first turns racing are settled by the unique index: the
+    loser loads the winner's row. Returns (conversation, created). Does not
+    commit."""
+    def _find():
+        return (select(AgentConversation)
+                .where(AgentConversation.company_id == company_id,
+                       AgentConversation.location_id == location_id,
+                       AgentConversation.external_ref == contact_id)
+                .execution_options(populate_existing=True))
+
+    conv = (await db.execute(_find())).scalar_one_or_none()
+    if conv is not None:
+        return conv, False
+    try:
+        async with db.begin_nested():
+            conv = await start_conversation(db, company_id, location_id, "voice",
+                                            caller_number=caller_number,
+                                            source_key=source_key)
+            conv.external_ref = contact_id
+            await db.flush()
+        return conv, True
+    except IntegrityError:
+        return (await db.execute(_find())).scalar_one(), False
+
+
+def remember_reply(conv: AgentConversation, seq: int, reply: dict[str, Any]) -> None:
+    """Keep the voice bridge's answer to turn `seq`, so a retry of it is
+    answered again without a second run. Flushed with the caller's commit."""
+    conv.last_seq = seq
+    conv.last_reply = reply
+
+
+async def add_latency(db: AsyncSession, conv: AgentConversation, after_seq: int,
+                      stages: Mapping[str, int]) -> None:
+    """Merge channel-measured latency stages (voice: `asr`, `tts`) into the
+    first event a turn recorded, the one after `after_seq`. Nothing when the
+    turn recorded no event. Does not commit."""
+    if not stages:
+        return
+    first = (await db.execute(
+        select(func.min(AgentEvent.seq))
+        .where(AgentEvent.conversation_id == conv.id,
+               AgentEvent.company_id == conv.company_id,
+               AgentEvent.seq > after_seq)
+    )).scalar_one_or_none()
+    if first is None:
+        return
+    await db.execute(
+        update(AgentEvent)
+        .where(AgentEvent.conversation_id == conv.id,
+               AgentEvent.company_id == conv.company_id,
+               AgentEvent.seq == first)
+        .values(latency_ms=AgentEvent.latency_ms.op("||")(
+            literal(dict(stages), type_=JSONB)))
+        .execution_options(synchronize_session=False))
+
+
+async def last_event_seq(db: AsyncSession, conv: AgentConversation) -> int:
+    return int((await db.execute(
+        select(func.coalesce(func.max(AgentEvent.seq), 0))
+        .where(AgentEvent.conversation_id == conv.id,
+               AgentEvent.company_id == conv.company_id)
+    )).scalar_one())
 
 
 async def record_event(

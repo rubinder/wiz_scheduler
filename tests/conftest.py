@@ -228,6 +228,7 @@ def reset_in_process_rate_limiters():
         reservation_agent_viewer_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
+        voice_caller_limiter,
     )
     for lim in (
         compliance_check_limiter,
@@ -243,6 +244,7 @@ def reset_in_process_rate_limiters():
         reservation_agent_viewer_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
+        voice_caller_limiter,
     ):
         lim.reset()
     yield
@@ -260,6 +262,7 @@ def reset_in_process_rate_limiters():
         reservation_agent_viewer_starts_limiter,
         resend_verification_limiter,
         schedule_generate_ai_limiter,
+        voice_caller_limiter,
     ):
         lim.reset()
 

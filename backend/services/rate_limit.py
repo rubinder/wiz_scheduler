@@ -231,3 +231,9 @@ reservation_agent_location_starts_limiter = SlidingWindowLimiter(
     max_requests=settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR,
     window_seconds=3600,
 )
+
+# Voice bridge turns (#259 step 6), per caller number and per contact id.
+voice_caller_limiter = SlidingWindowLimiter(
+    max_requests=settings.VOICE_CALLER_TURNS_PER_MINUTE,
+    window_seconds=60,
+)
