@@ -171,3 +171,8 @@ Decisions made while building without stopping to ask (owner instruction,
   one subscription onto the other's price).
 - The frontend billing page at `/manager/billing` (the agent Checkout's
   return URL) must exist before `RESERVATIONS_ENABLED` goes on.
+- Before charging real customers for the AI host, run one Stripe test-mode
+  pass of the final-invoice path (cancel a subscription with overage):
+  confirm Stripe refuses deleting an invoice item that is on a finalized
+  invoice, `invoices.list` returns draft and void invoices, deleted objects
+  answer `resource_missing`, and the code takes the expected branch.
