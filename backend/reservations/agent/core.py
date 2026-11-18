@@ -3,19 +3,24 @@
 One `handle_turn` call takes one diner input (free text or a structured
 button action) and returns one reply. Free text runs a Claude tool-use loop
 over `tools.TOOLS`; the structured actions (`confirm_hold`, `decline_hold`,
-`confirm_cancel`) never reach the model, so a typed "yes" cannot book or
-cancel anything: only the button does.
+`confirm_cancel`, `confirm_modify`) never reach the model, so typed text
+cannot book, change or cancel anything: only the button does. The tools
+only hold or stage (`held_reservation_id`, `pending_cancel_id`,
+`pending_modify`); the actions apply what is staged.
 
 Everything is recorded as `agent_events`, and the model's message history is
 rebuilt from them each turn (assistant blocks replayed exactly as returned,
 thinking blocks included), so the system prompt and history prefix stay
-byte-stable for the prompt cache. JSONB reorders keys, so assistant and
-tool_result events also keep the exact JSON text (`raw`) they replay from.
+byte-stable for the prompt cache. JSONB reorders keys, so message events also
+keep the exact JSON text (`raw`) they replay from.
 
-Transactions: `handle_turn` owns the turn's transaction. The turn runs in a
-savepoint and `handle_turn` commits at the end; on any unexpected error the
-savepoint is rolled back, an `error` event is recorded, the conversation is
-finished as `failed` and that is committed. It never raises.
+Transactions: `handle_turn` owns them and commits at every round boundary:
+after the diner's message is recorded and after each tool batch, before the
+next model call, so no row lock (a hold locks its location) is held across
+model latency. A round's tool_use and tool_result events commit together.
+On any unexpected error only the current round is rolled back; an `error`
+event is recorded, the conversation is finished as `failed` and that is
+committed. It never raises.
 """
 
 import json
@@ -43,9 +48,9 @@ from backend.reservations.rules import RulesSchema, get_rules
 
 logger = logging.getLogger(__name__)
 
-Action = Literal["confirm_hold", "decline_hold", "confirm_cancel"]
-Expect = Literal["text", "confirm_hold", "confirm_cancel", "phone_number",
-                 "party_size", "confirmation_code"]
+Action = Literal["confirm_hold", "decline_hold", "confirm_cancel", "confirm_modify"]
+Expect = Literal["text", "confirm_hold", "confirm_cancel", "confirm_modify",
+                 "phone_number", "party_size", "confirmation_code"]
 
 HANDOFF_TEXT = "Sorry, let me get someone to help."
 CLOSING_TEXT = ("We've been chatting for a while, so I'll end here. "
@@ -54,14 +59,16 @@ ENDED_TEXT = "This conversation has ended. Please start a new one if you need an
 FALLBACK_TEXT = "Sorry, could you say that again?"
 
 _HISTORY_TYPES = ("user_turn", "assistant_turn", "tool_result", "action")
-_TOOL_EXPECTS = {tools.EXPECT_CONFIRM_HOLD, tools.EXPECT_CONFIRM_CANCEL}
+_TOOL_EXPECTS = {tools.EXPECT_CONFIRM_HOLD, tools.EXPECT_CONFIRM_CANCEL,
+                 tools.EXPECT_CONFIRM_MODIFY}
 
 
 @dataclass(frozen=True)
 class TurnInput:
+    """The channel is the conversation's (`conv.channel`), not the input's."""
+
     text: str | None
     action: Action | None
-    channel: str
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,13 @@ def _when(res: Reservation, zone: ZoneInfo) -> str:
     return f"{local:%A, %B} {local.day} at {hour}:{local:%M %p}"
 
 
+def _diner_text(raw: str | None) -> str:
+    """The diner's text, capped, with leading brackets stripped so it cannot
+    pose as a system context block."""
+    text = (raw or "").strip()[:settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS]
+    return text.lstrip("[ \t\r\n").strip()
+
+
 class AgentCore:
     def __init__(self, llm: LlmClient) -> None:
         self.llm = llm
@@ -100,27 +114,20 @@ class AgentCore:
         now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
         conv_id, company_id = conv.id, conv.company_id
         try:
-            async with db.begin_nested():
-                out = await self._turn(db, conv, turn, now)
+            out = await self._turn(db, conv, turn, now)
+            await db.commit()
+            return out
         except Exception:
             logger.exception("agent turn failed (conversation %s)", conv_id)
-            return await self._fail(db, conv_id, company_id, rollback=False)
-        try:
-            await db.commit()
-        except Exception:
-            logger.exception("agent turn commit failed (conversation %s)", conv_id)
-            return await self._fail(db, conv_id, company_id, rollback=True)
-        return out
+            return await self._fail(db, conv_id, company_id)
 
     # -- failure -----------------------------------------------------------
 
-    async def _fail(self, db: AsyncSession, conv_id: str, company_id: str,
-                    *, rollback: bool) -> TurnOutput:
+    async def _fail(self, db: AsyncSession, conv_id: str,
+                    company_id: str) -> TurnOutput:
         phone: str | None = None
         try:
-            if rollback:
-                await db.rollback()
-            # The rolled-back savepoint expired the conversation: reload it.
+            await db.rollback()  # only the current round is uncommitted
             conv = (await db.execute(
                 select(AgentConversation)
                 .where(AgentConversation.id == conv_id,
@@ -152,7 +159,7 @@ class AgentCore:
             return TurnOutput(ENDED_TEXT, "text", None, True, None)
         if (conv.turn_count or 0) >= settings.RESERVATION_AGENT_MAX_TURNS:
             await self._release_hold(db, conv, now)
-            await recording.finish(db, conv, "booked" if conv.reservation_id else "abandoned")
+            await recording.finish(db, conv, await self._outcome(db, conv, "abandoned"))
             return TurnOutput(CLOSING_TEXT, "text", None, True, None)
         conv.turn_count = (conv.turn_count or 0) + 1
         await db.flush()
@@ -165,9 +172,9 @@ class AgentCore:
         rules, _ = await get_rules(db, conv.company_id, conv.location_id)
 
         if turn.action is not None:
-            return await self._action(db, conv, turn.action, now, zone, rules)
+            return await self._action(db, conv, turn.action, now, zone)
 
-        text = (turn.text or "").strip()[:settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS]
+        text = _diner_text(turn.text)
         if not text:
             return await self._output(db, conv, FALLBACK_TEXT, None, zone)
         try:
@@ -178,17 +185,25 @@ class AgentCore:
     async def _model_turn(self, db: AsyncSession, conv: AgentConversation, text: str,
                           now: datetime, zone: ZoneInfo, location_name: str,
                           rules: RulesSchema) -> TurnOutput:
-        system = build_system_prompt(location_name, zone.key, rules)
+        system = build_system_prompt(location_name, zone.key, rules, conv.channel)
         messages = await self._history(db, conv)
         local = now.astimezone(zone)
-        content = f"[Now: {local.date().isoformat()} {local:%H:%M}, {local:%A}] {text}"
-        await recording.record_event(db, conv, "user_turn", {"content": content})
+        # The context line is its own block, so diner text cannot extend it.
+        content = [
+            {"type": "text",
+             "text": f"[Now: {local.date().isoformat()} {local:%H:%M}, {local:%A}]"},
+            {"type": "text", "text": text},
+        ]
+        await recording.record_event(db, conv, "user_turn",
+                                     {"content": content, "raw": json.dumps(content)})
         _append(messages, "user", content)
+        await db.commit()
 
+        rounds = settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS
         last_expect: str | None = None
         handoff: dict[str, Any] | None = None
         response: LlmResponse | None = None
-        for _ in range(settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS):
+        for round_no in range(rounds):
             started = time.perf_counter()
             try:
                 response = await self.llm.create(system=system, messages=messages,
@@ -212,6 +227,9 @@ class AgentCore:
             uses = [b for b in response.content if b.get("type") == "tool_use"]
             if response.stop_reason != "tool_use" or not uses:
                 raise _Handoff(response.stop_reason)
+            if round_no == rounds - 1:
+                # No model call is left to read the results: don't act on them.
+                raise _Handoff("round_cap")
 
             started = time.perf_counter()
             results: list[dict[str, Any]] = []
@@ -222,10 +240,13 @@ class AgentCore:
                 outcome = await tools.execute_tool(
                     db, conv, str(name), tool_input if isinstance(tool_input, dict) else {},
                     now=now)
-                last_expect = outcome.expect
-                if outcome.expect == tools.EXPECT_HANDOFF:
-                    handoff = {"reason": (tool_input or {}).get("reason", ""),
-                               "phone": rules.staff_transfer_number}
+                # Only a successful tool may raise a confirm button.
+                if not outcome.is_error:
+                    last_expect = outcome.expect
+                    if outcome.expect == tools.EXPECT_HANDOFF:
+                        reason = (tool_input or {}).get("reason", "")
+                        handoff = {"reason": reason if isinstance(reason, str) else "",
+                                   "phone": rules.staff_transfer_number}
                 result = {"type": "tool_result", "tool_use_id": block.get("id"),
                           "content": json.dumps(outcome.result)}
                 if outcome.is_error:
@@ -235,8 +256,9 @@ class AgentCore:
                                          {"content": results, "raw": json.dumps(results)},
                                          latency_ms={"tools": _ms(started)})
             messages.append({"role": "user", "content": results})
-        else:
-            raise _Handoff("round_cap")
+            # Release the round's locks (a hold locks its location) before
+            # the next model call.
+            await db.commit()
 
         assert response is not None
         texts = [b.get("text", "") for b in response.content
@@ -260,17 +282,18 @@ class AgentCore:
 
     # -- structured actions ------------------------------------------------
 
-    async def _action(self, db: AsyncSession, conv: AgentConversation, action: Action,
-                      now: datetime, zone: ZoneInfo, rules: RulesSchema) -> TurnOutput:
-        if action == "confirm_hold":
-            out, result = await self._confirm_hold(db, conv, now, zone)
-        elif action == "decline_hold":
-            out, result = await self._decline_hold(db, conv, now, zone)
-        elif action == "confirm_cancel":
-            out, result = await self._confirm_cancel(db, conv, now, zone)
+    async def _action(self, db: AsyncSession, conv: AgentConversation, action: str,
+                      now: datetime, zone: ZoneInfo) -> TurnOutput:
+        handlers = {"confirm_hold": self._confirm_hold,
+                    "decline_hold": self._decline_hold,
+                    "confirm_cancel": self._confirm_cancel,
+                    "confirm_modify": self._confirm_modify}
+        handler = handlers.get(action)
+        if handler is None:
+            out, result = await self._output(db, conv, FALLBACK_TEXT, None, zone), \
+                "unknown_action"
         else:
-            out = await self._output(db, conv, FALLBACK_TEXT, None, zone)
-            result = "unknown_action"
+            out, result = await handler(db, conv, now, zone)
         await recording.record_event(db, conv, "action", {
             "action": action, "result": result, "reply": out.reply_text})
         return out
@@ -315,39 +338,114 @@ class AgentCore:
 
     async def _decline_hold(self, db: AsyncSession, conv: AgentConversation,
                             now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
+        """The diner's "No": releases a hold and drops a staged change or cancel."""
         released = await self._release_hold(db, conv, now)
+        staged = conv.pending_modify is not None or conv.pending_cancel_id is not None
         conv.held_reservation_id = None
+        conv.pending_modify = None
+        conv.pending_cancel_id = None
         await db.flush()
-        if not released:
+        if released:
             return (await self._output(
-                db, conv, "There's no time on hold. What would you like to book?",
-                None, zone), "nothing_held")
+                db, conv, "No problem, I've let that time go. What other time would "
+                "work?", None, zone), "released")
+        if staged:
+            return (await self._output(
+                db, conv, "OK, I've left your booking as it was. Anything else?",
+                None, zone), "kept")
         return (await self._output(
-            db, conv, "No problem, I've let that time go. What other time would work?",
-            None, zone), "released")
+            db, conv, "There's nothing waiting for confirmation. What would you like "
+            "to do?", None, zone), "nothing_held")
+
+    async def _staged(self, db: AsyncSession, conv: AgentConversation,
+                      res_id: str | None) -> Reservation | None:
+        """A staged target, re-validated: still the verified booking, this
+        company and location, and still booked or pending."""
+        if res_id is None or res_id != conv.verified_reservation_id:
+            return None
+        return (await db.execute(
+            select(Reservation).where(Reservation.id == res_id,
+                                      Reservation.company_id == conv.company_id,
+                                      Reservation.location_id == conv.location_id,
+                                      Reservation.status.in_((BOOKED, PENDING)))
+            .execution_options(populate_existing=True)
+        )).scalar_one_or_none()
 
     async def _confirm_cancel(self, db: AsyncSession, conv: AgentConversation,
                               now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
-        if conv.verified_reservation_id is None:
-            return (TurnOutput(
-                "I need to find your booking first. What's your confirmation code?",
-                "confirmation_code", None, False, None), "not_verified")
+        res = await self._staged(db, conv, conv.pending_cancel_id)
+        conv.pending_cancel_id = None
+        await db.flush()
+        if res is None:
+            return (await self._output(
+                db, conv, "There's no cancellation waiting to be confirmed. Which "
+                "booking would you like to cancel?", None, zone), "nothing_pending")
         try:
             async with db.begin_nested():
-                res = await booking.cancel(db, conv.company_id,
-                                           conv.verified_reservation_id, now=now)
+                res = await booking.cancel(db, conv.company_id, res.id, now=now)
         except ReservationError as exc:
             return (await self._output(
                 db, conv, "Sorry, that booking can't be cancelled here. Please contact "
                 "the restaurant.", None, zone), exc.code)
         conv.reservation_id = res.id
+        conv.verified_reservation_id = None
+        conv.pending_modify = None
         await db.flush()
         await recording.finish(db, conv, "cancelled")
         return (TurnOutput(
             f"Your booking {res.confirmation_code} for {_when(res, zone)} is cancelled.",
             "text", None, True, None), "cancelled")
 
+    async def _confirm_modify(self, db: AsyncSession, conv: AgentConversation,
+                              now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
+        staged = conv.pending_modify
+        res = await self._staged(db, conv, conv.verified_reservation_id) \
+            if isinstance(staged, dict) else None
+        conv.pending_modify = None
+        await db.flush()
+        if res is None or not isinstance(staged, dict):
+            return (await self._output(
+                db, conv, "There's no change waiting to be confirmed. What would you "
+                "like to change?", None, zone), "nothing_pending")
+        try:
+            start_iso, party = staged.get("start_iso"), staged.get("party_size")
+            start = datetime.fromisoformat(start_iso) if isinstance(start_iso, str) else None
+            async with db.begin_nested():
+                res = await booking.modify(
+                    db, conv.company_id, res.id,
+                    party_size=party if isinstance(party, int) else None,
+                    start=start, now=now, by_staff=False)
+        except (ReservationError, ValueError) as exc:
+            code = getattr(exc, "code", "invalid_input")
+            return (await self._output(
+                db, conv, "Sorry, I couldn't make that change, so your booking is "
+                "unchanged. Shall I look for another option?", None, zone), code)
+        conv.reservation_id = res.id
+        conv.verified_reservation_id = None
+        conv.pending_cancel_id = None
+        await db.flush()
+        await recording.finish(db, conv, "modified")
+        return (TurnOutput(
+            f"Done: booking {res.confirmation_code} is now for {res.party_size} on "
+            f"{_when(res, zone)}.", "text", None, True, None), "modified")
+
     # -- helpers -----------------------------------------------------------
+
+    async def _outcome(self, db: AsyncSession, conv: AgentConversation,
+                       default: str) -> str:
+        """`booked` only for a booked reservation; a submitted pending request
+        is with staff, so `handed_off`."""
+        if conv.reservation_id is None:
+            return default
+        status = (await db.execute(
+            select(Reservation.status).where(Reservation.id == conv.reservation_id,
+                                             Reservation.company_id == conv.company_id)
+        )).scalar_one_or_none()
+        if status == BOOKED:
+            return "booked"
+        if status == PENDING:
+            return "handed_off"
+        return default
 
     async def _active_hold(self, db: AsyncSession,
                            conv: AgentConversation) -> Reservation | None:
@@ -379,7 +477,8 @@ class AgentCore:
 
     async def _output(self, db: AsyncSession, conv: AgentConversation, reply: str,
                       expect: str | None, zone: ZoneInfo) -> TurnOutput:
-        """An open-conversation reply. A live hold keeps the Confirm button up."""
+        """An open-conversation reply. Whatever is still waiting for the diner's
+        button (a live hold, a staged change or cancel) keeps that button up."""
         res = await self._active_hold(db, conv)
         hold = None
         if res is not None:
@@ -391,7 +490,14 @@ class AgentCore:
                     "status": "pending_approval" if res.status == PENDING else "held",
                     "held_until": res.held_until.isoformat() if res.held_until else None}
         if expect is None:
-            expect = tools.EXPECT_CONFIRM_HOLD if hold is not None else "text"
+            if hold is not None:
+                expect = tools.EXPECT_CONFIRM_HOLD
+            elif conv.pending_modify is not None:
+                expect = tools.EXPECT_CONFIRM_MODIFY
+            elif conv.pending_cancel_id is not None:
+                expect = tools.EXPECT_CONFIRM_CANCEL
+            else:
+                expect = "text"
         return TurnOutput(reply, expect, hold, False, None)  # type: ignore[arg-type]
 
     async def _history(self, db: AsyncSession,
@@ -407,14 +513,15 @@ class AgentCore:
         messages: list[dict[str, Any]] = []
         for type_, payload in events:
             if type_ == "user_turn":
-                _append(messages, "user", payload["content"])
+                _append(messages, "user", _raw(payload))
             elif type_ == "assistant_turn":
                 messages.append({"role": "assistant", "content": _raw(payload)})
             elif type_ == "tool_result":
                 _append(messages, "user", _raw(payload))
             elif type_ == "action":
-                _append(messages, "user",
-                        f"[The diner pressed {payload['action']}: {payload['result']}]")
+                # A system note in its own block, then the core's reply.
+                _append(messages, "user", [{"type": "text", "text":
+                        f"[The diner pressed {payload['action']}: {payload['result']}]"}])
                 _append(messages, "assistant",
                         [{"type": "text", "text": payload["reply"]}])
         return messages
@@ -427,17 +534,12 @@ def _raw(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return json.loads(raw) if isinstance(raw, str) else payload["content"]
 
 
-def _blocks(content: str | list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
-
-
 def _append(messages: list[dict[str, Any]], role: str,
-            content: str | list[dict[str, Any]]) -> None:
+            content: list[dict[str, Any]]) -> None:
     """Append a message, merging into the previous one if it has the same role
     (e.g. a typed turn right after an action note)."""
     if messages and messages[-1]["role"] == role:
         prev = messages[-1]
-        messages[-1] = {"role": role,
-                        "content": _blocks(prev["content"]) + _blocks(content)}
+        messages[-1] = {"role": role, "content": list(prev["content"]) + list(content)}
     else:
         messages.append({"role": role, "content": content})

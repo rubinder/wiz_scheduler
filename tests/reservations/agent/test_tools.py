@@ -220,9 +220,41 @@ async def test_modify_time_must_be_offered(db_session, web_conv):
     out = await execute_tool(db_session, web_conv, "modify_booking",
                              {"party_size": None, "start_iso": target}, now=now)
     assert not out.is_error, out.result
-    assert out.result["local_time"] == "20:00"
+    assert out.expect == "confirm_modify"
+    assert out.result["proposed"]["local_time"] == "20:00"
+    assert out.result["current"]["local_time"] == "19:00"
+    # Staged, not written: the confirm_modify action applies it.
+    assert web_conv.pending_modify == {"start_iso": target, "party_size": None}
     await db_session.refresh(res)
-    assert res.start_at == _local(_day(now), 20)
+    assert res.start_at == _local(_day(now), 19)
+
+
+async def test_modify_rejects_unavailable_or_too_large(db_session, web_conv):
+    now = _now()
+    res = await _booked(db_session, now)
+    await _verify(db_session, web_conv, now, res)
+    out = await execute_tool(db_session, web_conv, "modify_booking",
+                             {"party_size": 9, "start_iso": None}, now=now)
+    assert out.is_error and out.result == {"error": "party_too_large"}
+    # res holds T1, so a party of 6 takes T3; a party of 2 then takes T2.
+    # Growing res to 6 would need T3 or T1+T2: neither is free.
+    for party in (6, 2):
+        await _booked(db_session, now, party=party, hh=19)
+    out = await execute_tool(db_session, web_conv, "modify_booking",
+                             {"party_size": 6, "start_iso": None}, now=now)
+    assert out.is_error and out.result == {"error": "slot_unavailable"}
+    assert web_conv.pending_modify is None
+
+
+async def test_a_new_lookup_clears_staged_changes(db_session, web_conv):
+    now = _now()
+    res = await _booked(db_session, now)
+    await _verify(db_session, web_conv, now, res)
+    await execute_tool(db_session, web_conv, "cancel_booking", {}, now=now)
+    assert web_conv.pending_cancel_id == res.id
+    await execute_tool(db_session, web_conv, "lookup_booking", {
+        "confirmation_code": "NOPE00", "phone": PHONE}, now=now)
+    assert web_conv.pending_cancel_id is None and web_conv.pending_modify is None
 
 
 async def test_cancel_asks_for_confirmation_and_does_not_cancel(db_session, web_conv):
@@ -231,6 +263,7 @@ async def test_cancel_asks_for_confirmation_and_does_not_cancel(db_session, web_
     await _verify(db_session, web_conv, now, res)
     out = await execute_tool(db_session, web_conv, "cancel_booking", {}, now=now)
     assert not out.is_error and out.expect == "confirm_cancel"
+    assert web_conv.pending_cancel_id == res.id
     await db_session.refresh(res)
     assert res.status == BOOKED
 

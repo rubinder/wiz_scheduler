@@ -72,6 +72,9 @@ class AgentConversation(Base):
     reservation_id: Mapped[str | None] = _reservation_fk()
     held_reservation_id: Mapped[str | None] = _reservation_fk()
     verified_reservation_id: Mapped[str | None] = _reservation_fk()
+    # Set only by the cancel_booking tool (to the verified id); the
+    # confirm_cancel action requires it and clears it.
+    pending_cancel_id: Mapped[str | None] = _reservation_fk()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
     # Wrong code/phone lookups; tools.py refuses lookups past the cap.
@@ -80,6 +83,9 @@ class AgentConversation(Base):
     # [{"start_iso": ..., "party_size": ...}] offered by find_slots (tools.py).
     offered_starts: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
+    # {"start_iso": str | None, "party_size": int | None} staged by the
+    # modify_booking tool; the confirm_modify action applies and clears it.
+    pending_modify: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0"),
         server_default=text("0"))

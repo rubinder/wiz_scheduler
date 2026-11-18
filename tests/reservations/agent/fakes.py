@@ -1,6 +1,7 @@
 """Test doubles for the agent's model client. No network."""
 
 import copy
+import inspect
 import json
 from typing import Any, Callable, Union
 
@@ -13,8 +14,8 @@ class ScriptedLlm:
     """Returns queued responses in order and records every request.
 
     A queued item may be an `LlmResponse`, an exception to raise, or a
-    callable that receives the request (system/messages/tools) and returns
-    the response, for scripts that depend on tool results."""
+    callable (sync or async) that receives the request (system/messages/tools)
+    and returns the response, for scripts that depend on tool results."""
 
     def __init__(self, *script: Script) -> None:
         self.script: list[Script] = list(script)
@@ -34,7 +35,8 @@ class ScriptedLlm:
         if isinstance(item, Exception):
             raise item
         if callable(item):
-            return item(request)
+            result = item(request)
+            return await result if inspect.isawaitable(result) else result
         return item
 
 

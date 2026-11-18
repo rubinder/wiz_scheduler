@@ -7,6 +7,10 @@ from typing import Any, Protocol
 
 from backend.config import settings
 
+# A diner is waiting on every call: bound it, and retry at most once.
+LLM_TIMEOUT_S = 20.0
+LLM_MAX_RETRIES = 1
+
 
 @dataclass(frozen=True)
 class LlmResponse:
@@ -49,7 +53,8 @@ class AnthropicLlm:
         if self._client is None:
             import anthropic
 
-            self._client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            self._client = anthropic.AsyncAnthropic(
+                api_key=settings.ANTHROPIC_API_KEY, max_retries=LLM_MAX_RETRIES)
         return self._client
 
     async def create(
@@ -66,6 +71,7 @@ class AnthropicLlm:
             tool_choice={"type": "auto"},
             output_config={"effort": "low"},
             cache_control={"type": "ephemeral"},
+            timeout=LLM_TIMEOUT_S,
         )
         return LlmResponse(
             content=[b.model_dump(mode="json", exclude_none=True) for b in response.content],

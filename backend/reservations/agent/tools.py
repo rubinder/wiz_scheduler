@@ -7,8 +7,11 @@ Guards, so the model cannot state or book what the evaluator never produced:
   an earlier `find_slots` call in this conversation offered, for that party
   size (`conv.offered_starts`, compared as instants).
 - `modify_booking` and `cancel_booking` act only on the reservation that
-  `lookup_booking` verified by code and phone. `cancel_booking` does not
-  cancel: it asks for the structured confirmation (`expect`).
+  `lookup_booking` verified by code and phone. Neither writes the booking:
+  `modify_booking` validates the change and stages it on
+  `conv.pending_modify`, `cancel_booking` stages `conv.pending_cancel_id`,
+  and each asks for the structured confirmation (`expect`) that the core's
+  `confirm_modify` / `confirm_cancel` action applies.
 
 Each tool runs in a savepoint, so a failed write leaves the session usable
 and the conversation unchanged. `execute_tool` never raises. Flush only;
@@ -52,6 +55,7 @@ _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 EXPECT_CONFIRM_HOLD = "confirm_hold"
 EXPECT_CONFIRM_CANCEL = "confirm_cancel"
+EXPECT_CONFIRM_MODIFY = "confirm_modify"
 EXPECT_HANDOFF = "handoff"
 
 
@@ -108,9 +112,10 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _tool(
         "modify_booking",
-        "Change the party size and/or time of the booking found by lookup_booking. "
-        "A new start_iso must be an option find_slots returned for the new party "
-        "size. Null leaves a field unchanged.",
+        "Propose a change to the party size and/or time of the booking found by "
+        "lookup_booking. A new start_iso must be an option find_slots returned for "
+        "the new party size. Null leaves a field unchanged. Nothing changes until "
+        "the diner presses Confirm.",
         {
             "party_size": {"type": ["integer", "null"]},
             "start_iso": {"type": ["string", "null"]},
@@ -331,29 +336,61 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
     if isinstance(code, str) and isinstance(phone, str):
         res = await booking.lookup(db, conv.company_id, conv.location_id, code,
                                    phone.strip())
+    # A new lookup drops anything staged against the previous verification.
     if res is None:
         conv.failed_lookups = (conv.failed_lookups or 0) + 1
         conv.verified_reservation_id = None
+        conv.pending_cancel_id = None
+        conv.pending_modify = None
         return ToolOutcome({"found": False})
     loc = await _location(db, conv)
     conv.verified_reservation_id = res.id
+    conv.pending_cancel_id = None
+    conv.pending_modify = None
     return ToolOutcome({"found": True, **_summary(res, ZoneInfo(loc.timezone))})
 
 
 async def _modify_booking(db: AsyncSession, conv: AgentConversation,
                           inp: dict[str, Any], now: datetime) -> ToolOutcome:
+    """Validate a change and stage it; the confirm_modify action applies it."""
     res = await _verified(db, conv)
+    if res.status not in (BOOKED, PENDING):
+        raise booking.InvalidTransition()
     raw_party, raw_start = inp.get("party_size"), inp.get("start_iso")
     if raw_party is None and raw_start is None:
         raise _ToolError("invalid_input")
     party_size = _party(raw_party) if raw_party is not None else None
     start = _instant(raw_start) if raw_start is not None else None
-    if start is not None and not _was_offered(conv, start, party_size or res.party_size):
+    new_party = party_size or res.party_size
+    if start is not None and not _was_offered(conv, start, new_party):
         raise _ToolError("not_offered")
     loc = await _location(db, conv)
-    res = await booking.modify(db, conv.company_id, res.id, party_size=party_size,
-                               start=start, now=now, by_staff=False)
-    return ToolOutcome({"modified": True, **_summary(res, ZoneInfo(loc.timezone))})
+    rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+    if new_party > rules.max_party_size:
+        raise booking.PartyTooLarge()
+    # Same rule booking.modify(by_staff=False) applies: a diner cannot grow a
+    # booked party past the self-book limit, which would skip approval.
+    if res.status == BOOKED and new_party != res.party_size \
+            and new_party > rules.max_self_book_party:
+        raise booking.PartyTooLarge()
+    new_start = start or res.start_at.astimezone(timezone.utc)
+    slots = await find_slots(
+        db, conv.company_id, conv.location_id, new_party, new_start,
+        new_start + timedelta(minutes=1), now=now,
+        exclude_reservation_id=res.id, apply_cutoff=True,
+    )
+    if not any(s.start.astimezone(timezone.utc) == new_start for s in slots):
+        raise booking.SlotUnavailable()
+    zone = ZoneInfo(loc.timezone)
+    conv.pending_modify = {"start_iso": start.astimezone(zone).isoformat()
+                           if start is not None else None,
+                           "party_size": party_size}
+    when = _local(new_start, zone)
+    return ToolOutcome({
+        "awaiting_confirmation": True, "current": _summary(res, zone),
+        "proposed": {"party_size": new_party, "local_time": when["local_time"],
+                     "local_date": when["local_date"]},
+    }, expect=EXPECT_CONFIRM_MODIFY)
 
 
 async def _cancel_booking(db: AsyncSession, conv: AgentConversation,
@@ -362,6 +399,7 @@ async def _cancel_booking(db: AsyncSession, conv: AgentConversation,
     if res.status not in (HELD, PENDING, BOOKED):
         raise booking.InvalidTransition()
     loc = await _location(db, conv)
+    conv.pending_cancel_id = res.id
     return ToolOutcome({"awaiting_confirmation": True,
                         **_summary(res, ZoneInfo(loc.timezone))},
                        expect=EXPECT_CONFIRM_CANCEL)
