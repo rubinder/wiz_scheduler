@@ -302,12 +302,12 @@ async def test_closed_call_answers_goodbye(client, db_session, line, llm):
 
 @pytest.fixture
 def no_wait(monkeypatch):
-    from backend.routers import voice_bridge
+    from backend.reservations.agent import voice_turn
 
     async def _noop(_s):
         return None
-    monkeypatch.setattr(voice_bridge, "_sleep", _noop)
-    return voice_bridge
+    monkeypatch.setattr(voice_turn, "_sleep", _noop)
+    return voice_turn
 
 
 async def test_claim_takes_the_seq_once(db_session, line):

@@ -2,6 +2,12 @@
 
     python -m backend.reservations.evals.run                 # replay (CI, offline)
     python -m backend.reservations.evals.run --live          # real models
+    python -m backend.reservations.evals.run --recognizer noisy --seed 259
+
+Voice scenarios run through the voice bridge in process with a speech
+recognizer: `exact` (default) hears every word, `noisy` makes deterministic
+phone-line confusions (seeded by --seed, default 259). `lex` (real Polly to
+Lex audio) is not available yet.
 
 Replay runs every recording in `recordings/` against the real core, tools and
 database with the recorded model responses. Live needs ANTHROPIC_API_KEY,
@@ -41,6 +47,7 @@ from sqlalchemy.pool import NullPool
 
 from backend.config import settings
 from backend.reservations.evals.diner import DINER_MAX_TOKENS, DINER_MODEL
+from backend.reservations.evals.voice import DEFAULT_SEED, make_recognizer
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +106,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="drop every evals_* schema older than 1 hour, then exit")
     p.add_argument("--allow-remote-db", action="store_true",
                    help="allow a DATABASE_URL whose host is not local")
+    p.add_argument("--recognizer", choices=("exact", "noisy", "lex"), default="exact",
+                   help="speech recognition for voice scenarios (default exact)")
+    p.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                   help=f"the noisy recognizer's seed (default {DEFAULT_SEED})")
     return p
 
 
@@ -213,6 +224,10 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     if args.record and not (args.live and args.repeat == 1):
         print("--record needs --live and --repeat 1", file=sys.stderr)
         return 2
+    if args.recognizer == "lex":
+        print("--recognizer lex is not available yet", file=sys.stderr)
+        return 2
+    recognizer = make_recognizer(args.recognizer, args.seed)
     if not host_is_local(url) and not args.allow_remote_db:
         print(f"refusing to run: database host {make_url(url).host!r} is not local "
               "(pass --allow-remote-db to override)", file=sys.stderr)
@@ -267,7 +282,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         # run_suite turns a run that raises into a failed outcome.
                         res = await run_suite(
                             factory, [scenario], core=AgentCore(client),
-                            diner_factory=lambda s: sim)
+                            diner_factory=lambda s: sim, recognizer=recognizer)
                         outcomes += res.outcomes
                         if args.record:
                             recorded += [(o, client.responses) for o in res.outcomes]
@@ -287,7 +302,8 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         continue
                     diner = replay.replay_diner(rec)
                     res = await run_suite(factory, [scenario], core=core,
-                                          diner_factory=lambda s, d=diner: d)
+                                          diner_factory=lambda s, d=diner: d,
+                                          recognizer=recognizer)
                     for o in res.outcomes:
                         left = replay.unused(name, core, diner)
                         if left:

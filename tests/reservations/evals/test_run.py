@@ -179,3 +179,27 @@ async def test_replay_with_leftover_responses_fails(monkeypatch, capsys,
     [result] = json.loads(saved.read_text())["results"]
     assert f"recording {name} has 1 unused responses" in result["failures"]
     assert f"recording {name} has 1 unused diner lines" in result["failures"]
+
+
+@pytest.mark.asyncio
+async def test_lex_recognizer_is_not_available_yet() -> None:
+    assert await run.amain(["--recognizer", "lex"], database_url=_url()) == 2
+
+
+def test_recognizer_flags() -> None:
+    args = run._parser().parse_args([])
+    assert args.recognizer == "exact" and args.seed == 259
+    args = run._parser().parse_args(["--recognizer", "noisy", "--seed", "7"])
+    assert args.recognizer == "noisy" and args.seed == 7
+    with pytest.raises(SystemExit):
+        run._parser().parse_args(["--recognizer", "whisper"])
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_noisy_replay_runs_offline(capsys, tmp_path: Path) -> None:
+    """A noisy replay makes no calls; the recordings are web scenarios, so
+    it grades the same as exact."""
+    code = await run.amain(["--recognizer", "noisy"], database_url=_url(),
+                           diner_client=_NoCalls(), llm=_NoCalls(), runs_dir=tmp_path)
+    assert code == 0, capsys.readouterr()
