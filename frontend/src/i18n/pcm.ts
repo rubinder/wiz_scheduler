@@ -1662,6 +1662,18 @@ const pcm = {
         failed: "E fail",
         blocked: "Dem block am",
       },
+      dinerData: {
+        title: "Customer data request",
+        description: "Find one customer by im phone number, then export or clear im bookings and im talk with the AI host for this place.",
+        phone: "Customer phone number",
+        phoneHint: "International way to write am (E.164), like +12125550100.",
+        export: "Export",
+        erase: "Clear am",
+        confirmErase: "You wan clear this customer data for this place? Im contact details go comot from im bookings and im talk go delete. You no fit undo am.",
+        exported: "We don download {reservations} bookings and {conversations} talk.",
+        erased: "E don clear: {scrubbed} bookings don clean, {deleted} talk don delete, {closed} close for middle of reply, {busy} still dey go on, {lookups} search record don delete.",
+        eraseAgain: "Some talk still dey go on: clear am again after small minutes.",
+      },
       channels: {
         web: "Web chat",
         voice: "Phone",

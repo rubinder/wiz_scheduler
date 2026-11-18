@@ -196,3 +196,20 @@ export interface ConversationDetailOut extends ConversationOut {
   status: string;
   events: AgentEventOut[];
 }
+
+/** One diner's data at one location (POST .../diner-data). */
+export interface DinerDataOut {
+  reservations: ReservationOut[];
+  conversations: ConversationDetailOut[];
+}
+
+/** What erasing one diner's data did (POST .../diner-data/erase). */
+export interface DinerEraseOut {
+  reservations_scrubbed: number;
+  conversations_deleted: number;
+  /** Mid-turn conversations closed rather than deleted. */
+  conversations_closed_in_flight: number;
+  /** Held by a running turn: neither deleted nor closed; erase again later. */
+  conversations_still_in_flight: number;
+  lookup_failures_deleted: number;
+}

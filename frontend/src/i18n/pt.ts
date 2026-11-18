@@ -1662,6 +1662,18 @@ const pt = {
         failed: "Falhou",
         blocked: "Bloqueada",
       },
+      dinerData: {
+        title: "Pedido de dados de um cliente",
+        description: "Exporte ou apague as reservas e as conversas com o anfitrião de IA de um cliente neste local, encontradas pelo número de telefone.",
+        phone: "Telefone do cliente",
+        phoneHint: "Formato internacional (E.164), ex.: +12125550100.",
+        export: "Exportar",
+        erase: "Apagar",
+        confirmErase: "Apagar os dados deste cliente neste local? Os dados de contato são removidos das reservas e as conversas são excluídas. Isso não pode ser desfeito.",
+        exported: "Baixadas {reservations} reservas e {conversations} conversas.",
+        erased: "Apagado: {scrubbed} reservas limpas, {deleted} conversas excluídas, {closed} encerradas no meio de uma resposta, {busy} ainda em andamento, {lookups} registros de consulta excluídos.",
+        eraseAgain: "Algumas conversas ainda estavam em andamento: apague novamente em alguns minutos.",
+      },
       channels: {
         web: "Chat web",
         voice: "Telefone",

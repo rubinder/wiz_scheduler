@@ -1662,6 +1662,18 @@ const fr = {
         failed: "Échoué",
         blocked: "Bloqué",
       },
+      dinerData: {
+        title: "Demande de données d'un client",
+        description: "Exportez ou effacez les réservations et les conversations avec l'hôte IA d'un client dans cet établissement, retrouvées par son numéro de téléphone.",
+        phone: "Téléphone du client",
+        phoneHint: "Format international (E.164), par ex. +12125550100.",
+        export: "Exporter",
+        erase: "Effacer",
+        confirmErase: "Effacer les données de ce client dans cet établissement ? Ses coordonnées sont retirées de ses réservations et ses conversations sont supprimées. Cette action est irréversible.",
+        exported: "{reservations} réservations et {conversations} conversations téléchargées.",
+        erased: "Effacé : {scrubbed} réservations nettoyées, {deleted} conversations supprimées, {closed} fermées en cours de réponse, {busy} encore en cours, {lookups} enregistrements de recherche supprimés.",
+        eraseAgain: "Certaines conversations étaient encore en cours : effacez à nouveau dans quelques minutes.",
+      },
       channels: {
         web: "Chat web",
         voice: "Téléphone",

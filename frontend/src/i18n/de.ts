@@ -1662,6 +1662,18 @@ const de = {
         failed: "Fehlgeschlagen",
         blocked: "Blockiert",
       },
+      dinerData: {
+        title: "Anfrage zu Gästedaten",
+        description: "Reservierungen und KI-Gastgeber-Gespräche eines Gastes an diesem Standort exportieren oder löschen, gefunden über die Telefonnummer.",
+        phone: "Telefonnummer des Gastes",
+        phoneHint: "Internationales Format (E.164), z. B. +12125550100.",
+        export: "Exportieren",
+        erase: "Löschen",
+        confirmErase: "Die Daten dieses Gastes an diesem Standort löschen? Seine Kontaktdaten werden aus den Reservierungen entfernt und seine Gespräche gelöscht. Dies kann nicht rückgängig gemacht werden.",
+        exported: "{reservations} Reservierungen und {conversations} Gespräche heruntergeladen.",
+        erased: "Gelöscht: {scrubbed} Reservierungen bereinigt, {deleted} Gespräche gelöscht, {closed} mitten in einer Antwort geschlossen, {busy} noch aktiv, {lookups} Suchprotokolle gelöscht.",
+        eraseAgain: "Einige Gespräche liefen noch: Löschen Sie in einigen Minuten erneut.",
+      },
       channels: {
         web: "Webchat",
         voice: "Telefon",

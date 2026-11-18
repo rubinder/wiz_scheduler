@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
-import { getConfig, getConversation, listConversations } from "../../api/reservations";
+import { eraseDinerData, exportDinerData, getConfig, getConversation, listConversations } from "../../api/reservations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { ConversationDetailOut, ConversationOut } from "../../types/reservations";
@@ -22,6 +22,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 const fill = (template: string, values: Record<string, string | number>): string =>
   template.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+
+/** Hand a downloaded file to the browser (revoked after a delay so Safari/Firefox finish reading it). */
+function saveJson(data: unknown, filename: string): void {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 /**
  * The AI host's conversations for one location and local day. Diner and
@@ -46,6 +56,10 @@ export default function ReservationsConversations() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetailOut | null>(null);
   const [detailError, setDetailError] = useState("");
+  const [dinerPhone, setDinerPhone] = useState("");
+  const [dinerBusy, setDinerBusy] = useState(false);
+  const [dinerResult, setDinerResult] = useState("");
+  const [dinerError, setDinerError] = useState("");
 
   /** "location|date|outcome" being shown; responses for any other view are dropped. */
   const currentView = useRef("");
@@ -124,6 +138,38 @@ export default function ReservationsConversations() {
   };
 
   const items = useMemo(() => transcriptItems(detail?.events ?? []), [detail]);
+
+  const dinerAction = async (kind: "export" | "erase") => {
+    const phone = dinerPhone.trim();
+    const d = c.dinerData;
+    if (!locationId || !phone || dinerBusy) return;
+    if (kind === "erase" && !window.confirm(d.confirmErase)) return;
+    setDinerBusy(true);
+    setDinerResult("");
+    setDinerError("");
+    try {
+      if (kind === "export") {
+        const out = await exportDinerData(locationId, phone);
+        saveJson(out, `diner-data-${locationId}-${phone.replace(/[^0-9]/g, "")}.json`);
+        setDinerResult(fill(d.exported, { reservations: out.reservations.length, conversations: out.conversations.length }));
+      } else {
+        const out = await eraseDinerData(locationId, phone);
+        const summary = fill(d.erased, {
+          scrubbed: out.reservations_scrubbed,
+          deleted: out.conversations_deleted,
+          closed: out.conversations_closed_in_flight,
+          busy: out.conversations_still_in_flight,
+          lookups: out.lookup_failures_deleted,
+        });
+        const again = out.conversations_closed_in_flight + out.conversations_still_in_flight > 0;
+        setDinerResult(again ? `${summary} ${d.eraseAgain}` : summary);
+      }
+    } catch (e) {
+      setDinerError(errorText(e));
+    } finally {
+      setDinerBusy(false);
+    }
+  };
 
   if (enabled === null) return <p className={text.muted}>{r.common.loading}</p>;
   if (!enabled) return <div className="glass-card p-6">{r.common.notEnabled}</div>;
@@ -226,6 +272,57 @@ export default function ReservationsConversations() {
             </select>
           </Field>
         </div>
+      )}
+
+      {locationId && (
+        <section className="glass-card space-y-2 p-4" aria-labelledby="diner-data-title">
+          <h2 id="diner-data-title" className={`text-lg font-semibold ${text.heading}`}>
+            {c.dinerData.title}
+          </h2>
+          <p className={`text-sm ${text.muted}`}>{c.dinerData.description}</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label={c.dinerData.phone}>
+              <input
+                type="tel"
+                className={input}
+                value={dinerPhone}
+                placeholder="+12125550100"
+                aria-describedby="diner-phone-hint"
+                onChange={(e) => setDinerPhone(e.target.value)}
+                autoComplete="off"
+              />
+            </Field>
+            <button
+              type="button"
+              className="glass-btn-secondary text-sm"
+              disabled={dinerBusy || !dinerPhone.trim()}
+              onClick={() => void dinerAction("export")}
+            >
+              {c.dinerData.export}
+            </button>
+            <button
+              type="button"
+              className="glass-btn-danger text-sm"
+              disabled={dinerBusy || !dinerPhone.trim()}
+              onClick={() => void dinerAction("erase")}
+            >
+              {c.dinerData.erase}
+            </button>
+          </div>
+          <p id="diner-phone-hint" className={`text-xs ${text.placeholder}`}>
+            {c.dinerData.phoneHint}
+          </p>
+          {dinerResult && (
+            <p role="status" className={`text-sm ${text.primary}`}>
+              {dinerResult}
+            </p>
+          )}
+          {dinerError && (
+            <p role="alert" className="text-sm text-red-700">
+              {dinerError}
+            </p>
+          )}
+        </section>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">

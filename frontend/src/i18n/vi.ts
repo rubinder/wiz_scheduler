@@ -1662,6 +1662,18 @@ const vi = {
         failed: "Thất bại",
         blocked: "Bị chặn",
       },
+      dinerData: {
+        title: "Yêu cầu dữ liệu thực khách",
+        description: "Xuất hoặc xóa các đặt bàn và cuộc trò chuyện với trợ lý AI của một thực khách tại địa điểm này, tìm theo số điện thoại.",
+        phone: "Số điện thoại của thực khách",
+        phoneHint: "Định dạng quốc tế (E.164), ví dụ +12125550100.",
+        export: "Xuất",
+        erase: "Xóa",
+        confirmErase: "Xóa dữ liệu của thực khách này tại địa điểm này? Thông tin liên hệ sẽ bị gỡ khỏi các đặt bàn và các cuộc trò chuyện sẽ bị xóa. Không thể hoàn tác.",
+        exported: "Đã tải xuống {reservations} đặt bàn và {conversations} cuộc trò chuyện.",
+        erased: "Đã xóa: {scrubbed} đặt bàn được làm sạch, {deleted} cuộc trò chuyện bị xóa, {closed} bị đóng giữa chừng, {busy} vẫn đang diễn ra, {lookups} bản ghi tra cứu bị xóa.",
+        eraseAgain: "Một số cuộc trò chuyện vẫn đang diễn ra: hãy xóa lại sau vài phút.",
+      },
       channels: {
         web: "Trò chuyện web",
         voice: "Điện thoại",

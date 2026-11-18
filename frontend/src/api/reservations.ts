@@ -3,6 +3,8 @@ import type {
   BookingIn,
   ConversationDetailOut,
   ConversationOut,
+  DinerDataOut,
+  DinerEraseOut,
   FloorIn,
   FloorOut,
   ReservationOut,
@@ -95,4 +97,14 @@ export function listConversations(
 
 export function getConversation(id: string): Promise<ConversationDetailOut> {
   return apiFetch(`/reservations/conversations/${id}`);
+}
+
+/** One diner's reservations and conversations at a location, by E.164 phone (an access request). */
+export function exportDinerData(locationId: string, phone: string): Promise<DinerDataOut> {
+  return apiFetch(`${base(locationId)}/diner-data`, { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+/** Erase one diner's data at a location: contact details scrubbed, conversations deleted. */
+export function eraseDinerData(locationId: string, phone: string): Promise<DinerEraseOut> {
+  return apiFetch(`${base(locationId)}/diner-data/erase`, { method: "POST", body: JSON.stringify({ phone }) });
 }

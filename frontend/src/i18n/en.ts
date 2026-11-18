@@ -1670,6 +1670,18 @@ const en = {
         failed: "Failed",
         blocked: "Blocked",
       },
+      dinerData: {
+        title: "Diner data request",
+        description: "Export or erase one diner's reservations and AI host conversations at this location, found by their phone number.",
+        phone: "Diner's phone number",
+        phoneHint: "International format (E.164), e.g. +12125550100.",
+        export: "Export",
+        erase: "Erase",
+        confirmErase: "Erase this diner's data at this location? Their contact details are removed from their reservations and their conversations are deleted. This cannot be undone.",
+        exported: "Downloaded {reservations} reservations and {conversations} conversations.",
+        erased: "Erased: {scrubbed} reservations scrubbed, {deleted} conversations deleted, {closed} closed mid-reply, {busy} still in progress, {lookups} lookup records deleted.",
+        eraseAgain: "Some conversations were still in progress: erase again in a few minutes.",
+      },
       channels: {
         web: "Web chat",
         voice: "Phone",

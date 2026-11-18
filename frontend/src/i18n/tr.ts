@@ -1662,6 +1662,18 @@ const trLang = {
         failed: "Başarısız",
         blocked: "Engellendi",
       },
+      dinerData: {
+        title: "Misafir veri talebi",
+        description: "Bir misafirin bu konumdaki rezervasyonlarını ve yapay zekâ karşılama görevlisiyle konuşmalarını telefon numarasıyla bulup dışa aktarın veya silin.",
+        phone: "Misafirin telefon numarası",
+        phoneHint: "Uluslararası biçim (E.164), ör. +12125550100.",
+        export: "Dışa aktar",
+        erase: "Sil",
+        confirmErase: "Bu misafirin bu konumdaki verileri silinsin mi? İletişim bilgileri rezervasyonlarından kaldırılır ve konuşmaları silinir. Bu işlem geri alınamaz.",
+        exported: "{reservations} rezervasyon ve {conversations} konuşma indirildi.",
+        erased: "Silindi: {scrubbed} rezervasyon temizlendi, {deleted} konuşma silindi, {closed} yanıt ortasında kapatıldı, {busy} hâlâ sürüyor, {lookups} arama kaydı silindi.",
+        eraseAgain: "Bazı konuşmalar hâlâ sürüyordu: birkaç dakika sonra yeniden silin.",
+      },
       channels: {
         web: "Web sohbeti",
         voice: "Telefon",

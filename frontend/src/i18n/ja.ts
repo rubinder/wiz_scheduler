@@ -1662,6 +1662,18 @@ const ja = {
         failed: "失敗",
         blocked: "ブロック",
       },
+      dinerData: {
+        title: "お客様データのリクエスト",
+        description: "電話番号で検索し、この店舗でのお客様の予約とAIホストとの会話をエクスポートまたは消去します。",
+        phone: "お客様の電話番号",
+        phoneHint: "国際形式（E.164）、例: +12125550100。",
+        export: "エクスポート",
+        erase: "消去",
+        confirmErase: "この店舗でのこのお客様のデータを消去しますか？予約から連絡先情報が削除され、会話も削除されます。この操作は元に戻せません。",
+        exported: "予約{reservations}件と会話{conversations}件をダウンロードしました。",
+        erased: "消去しました: 予約{scrubbed}件をクリア、会話{deleted}件を削除、応答中に終了{closed}件、進行中{busy}件、検索記録{lookups}件を削除。",
+        eraseAgain: "進行中の会話がありました。数分後にもう一度消去してください。",
+      },
       channels: {
         web: "ウェブチャット",
         voice: "電話",

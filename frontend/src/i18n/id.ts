@@ -1662,6 +1662,18 @@ const ind = {
         failed: "Gagal",
         blocked: "Diblokir",
       },
+      dinerData: {
+        title: "Permintaan data tamu",
+        description: "Ekspor atau hapus reservasi dan percakapan tamu dengan host AI di lokasi ini, dicari berdasarkan nomor teleponnya.",
+        phone: "Nomor telepon tamu",
+        phoneHint: "Format internasional (E.164), mis. +12125550100.",
+        export: "Ekspor",
+        erase: "Hapus",
+        confirmErase: "Hapus data tamu ini di lokasi ini? Detail kontaknya dihapus dari reservasinya dan percakapannya dihapus. Tindakan ini tidak dapat dibatalkan.",
+        exported: "{reservations} reservasi dan {conversations} percakapan telah diunduh.",
+        erased: "Dihapus: {scrubbed} reservasi dibersihkan, {deleted} percakapan dihapus, {closed} ditutup saat membalas, {busy} masih berlangsung, {lookups} catatan pencarian dihapus.",
+        eraseAgain: "Beberapa percakapan masih berlangsung: hapus lagi dalam beberapa menit.",
+      },
       channels: {
         web: "Obrolan web",
         voice: "Telepon",

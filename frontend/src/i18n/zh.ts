@@ -1662,6 +1662,18 @@ const zh = {
         failed: "失败",
         blocked: "已阻止",
       },
+      dinerData: {
+        title: "顾客数据请求",
+        description: "按电话号码查找，导出或清除某位顾客在此门店的预订以及与 AI 接待的对话。",
+        phone: "顾客电话号码",
+        phoneHint: "国际格式（E.164），例如 +12125550100。",
+        export: "导出",
+        erase: "清除",
+        confirmErase: "要清除此顾客在此门店的数据吗？其联系方式将从预订中移除，对话将被删除。此操作无法撤销。",
+        exported: "已下载 {reservations} 条预订和 {conversations} 条对话。",
+        erased: "已清除：{scrubbed} 条预订已清理，{deleted} 条对话已删除，{closed} 条在回复中途关闭，{busy} 条仍在进行，{lookups} 条查询记录已删除。",
+        eraseAgain: "部分对话仍在进行：请几分钟后再次清除。",
+      },
       channels: {
         web: "网页聊天",
         voice: "电话",
