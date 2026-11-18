@@ -55,7 +55,7 @@ from backend.utils.id_gen import generate_short_id
 __all__ = ["PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
 
 # Ruling T (decision 38): past_due keeps service while Stripe retries the
-# card; unpaid, canceled, incomplete and incomplete_expired stop it.
+# card; unpaid, paused, canceled, incomplete and incomplete_expired stop it.
 logger = logging.getLogger(__name__)
 
 ANSWERING_STATUSES = ("active", "trialing", "past_due")

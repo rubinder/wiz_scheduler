@@ -1513,6 +1513,11 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
 
     # 25. reservation_subscriptions (#259 step 5): OG-level. Its FK cascades,
     #     and agent_usage's too, but say so explicitly like the rows above.
+    #     Its Stripe subscription is cancelled first (best effort, never
+    #     blocks the deletion), or Stripe would keep billing a deleted group.
+    from backend.services.billing_reservations import cancel_for_deleted_group
+
+    await cancel_for_deleted_group(db, og.id)
     await db.execute(delete(AgentUsage).where(AgentUsage.ownership_group_id == og.id))
     await db.execute(delete(ReservationSubscription).where(
         ReservationSubscription.ownership_group_id == og.id))

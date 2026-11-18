@@ -5,7 +5,9 @@ ownership group, kept current by the Stripe webhook. agent_usage: one row per
 billable finished conversation (cost, billed amount, period); it carries no
 diner data and outlives the conversation, whose retention deletion sets
 conversation_id NULL. billing_charges.kind gains
-'invoice_item_reservation_agent' for the reconciled overage InvoiceItem.
+'invoice_item_reservation_agent' for the reconciled overage InvoiceItem and
+'agent_duplicate_refund' for a duplicate agent subscription cancelled and
+refunded by the webhook backstop.
 
 RLS: agent_usage has a company_id and gets 0058's policies;
 reservation_subscriptions is keyed by ownership group and follows 0052/0056
@@ -26,10 +28,11 @@ depends_on = None
 KINDS_OLD = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
              "'invoice_item_employees')")
 KINDS_NEW = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
-             "'invoice_item_employees', 'invoice_item_reservation_agent')")
+             "'invoice_item_employees', 'invoice_item_reservation_agent', "
+             "'agent_duplicate_refund')")
 
 STATUSES = ("incomplete", "incomplete_expired", "active", "trialing", "past_due",
-            "canceled", "unpaid")
+            "canceled", "unpaid", "paused")
 
 POLICIES: dict[str, str] = {
     "reservation_subscriptions": "ownership_group_id = ANY(app_ownership_group_ids())",
@@ -146,10 +149,11 @@ def downgrade() -> None:
     conn = op.get_bind()
     n = conn.execute(sa.text(
         "SELECT count(*) FROM billing_charges "
-        "WHERE kind = 'invoice_item_reservation_agent'")).scalar()
+        "WHERE kind IN ('invoice_item_reservation_agent', "
+        "'agent_duplicate_refund')")).scalar()
     if n:
         raise RuntimeError(
-            f"{n} billing_charges rows of kind invoice_item_reservation_agent "
+            f"{n} billing_charges rows of the reservation agent kinds "
             "exist; downgrading 0059 would violate billing_charges_kind_check")
     op.drop_constraint("billing_charges_kind_check", "billing_charges", type_="check")
     op.create_check_constraint("billing_charges_kind_check", "billing_charges", KINDS_OLD)

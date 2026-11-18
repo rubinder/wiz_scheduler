@@ -147,3 +147,11 @@ Decisions made while building without stopping to ask (owner instruction,
   `checkout.session.completed`, `customer.subscription.updated/deleted`,
   `invoice.payment_failed/succeeded` and `invoice.upcoming`, are already
   subscribed for scheduling).
+- Once the endpoint is subscribed to `customer.subscription.created`, add it
+  to `stripe_reconcile.REQUIRED_WEBHOOK_EVENTS` (adding it before would raise
+  a reconcile alert every run).
+- Customer Portal: do not allow switching prices across products (the AI
+  host and scheduling subscriptions share the customer; a switch would move
+  one subscription onto the other's price).
+- The frontend billing page at `/manager/billing` (the agent Checkout's
+  return URL) must exist before `RESERVATIONS_ENABLED` goes on.

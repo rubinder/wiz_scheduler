@@ -121,15 +121,50 @@ async def _post(client, monkeypatch, event_type: str, obj: dict):
         "stripe-signature": "t=1,v1=x", "content-type": "application/json"})
 
 
-@pytest.fixture
-def retrieve_sub(monkeypatch):
-    """stripe.Subscription.retrieve returns whatever `state["sub"]` holds."""
-    state = {"sub": _subscription(), "calls": []}
+class _Page(list):
+    def auto_paging_iter(self):
+        return iter(list(self))
 
-    def fake(sub_id):
+
+@pytest.fixture(autouse=True)
+def fake(monkeypatch):
+    """A small in-memory Stripe: subscriptions by id (retrieve, list,
+    cancel), open Checkout sessions (list, expire), invoices and refunds."""
+    state: dict = {"subs": {AGENT_SUB: _subscription()}, "calls": [], "sessions": [],
+                   "cancelled": [], "expired": [], "invoices": {}, "refunds": [],
+                   "listed_subs": None}
+
+    def retrieve(sub_id):
         state["calls"].append(sub_id)
-        return state["sub"]
-    monkeypatch.setattr(stripe.Subscription, "retrieve", fake)
+        if sub_id not in state["subs"]:
+            raise stripe.InvalidRequestError(f"No such subscription: {sub_id}", "id")
+        return state["subs"][sub_id]
+
+    def sub_list(**kw):
+        assert kw["customer"] == CUSTOMER and kw["status"] == "all"
+        subs = state["listed_subs"] if state["listed_subs"] is not None else []
+        return _Page(subs)
+
+    def cancel(sub_id, **kw):
+        state["cancelled"].append(sub_id)
+        if sub_id in state["subs"]:
+            state["subs"][sub_id]["status"] = "canceled"
+        return {"id": sub_id, "status": "canceled"}
+
+    def refund(**kw):
+        state["refunds"].append(kw)
+        return {"id": "re_1"}
+
+    monkeypatch.setattr(stripe.Subscription, "retrieve", retrieve)
+    monkeypatch.setattr(stripe.Subscription, "list", sub_list)
+    monkeypatch.setattr(stripe.Subscription, "cancel", cancel)
+    monkeypatch.setattr(stripe.checkout.Session, "list",
+                        lambda **kw: _Page(state["sessions"]))
+    monkeypatch.setattr(stripe.checkout.Session, "expire",
+                        lambda sid, **kw: state["expired"].append(sid))
+    monkeypatch.setattr(stripe.Invoice, "retrieve",
+                        lambda iid, **kw: state["invoices"][iid])
+    monkeypatch.setattr(stripe.Refund, "create", refund)
     return state
 
 
@@ -216,14 +251,14 @@ async def test_second_subscribe_while_live_is_409(
 
 
 async def test_resubscribe_after_canceled_replaces_the_row(
-    client, manager_token, og, db_session, monkeypatch, retrieve_sub,
+    client, manager_token, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "canceled", sub_id="sub_old")
     monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
     assert (await client.post(f"{BASE}/checkout", headers=_auth(manager_token))).status_code == 200
 
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session("sub_new"))
-    retrieve_sub["sub"] = _subscription("sub_new")
+    fake["subs"]["sub_new"] = _subscription("sub_new")
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
                           headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -239,7 +274,7 @@ async def test_resubscribe_after_canceled_replaces_the_row(
 
 
 async def test_confirm_records_the_subscription_then_the_webhook_changes_nothing(
-    client, manager_token, og, db_session, monkeypatch, retrieve_sub,
+    client, manager_token, og, db_session, monkeypatch,
 ):
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session())
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
@@ -261,7 +296,7 @@ async def test_confirm_records_the_subscription_then_the_webhook_changes_nothing
 
 
 async def test_webhook_first_then_confirm_is_one_row(
-    client, manager_token, og, db_session, monkeypatch, retrieve_sub,
+    client, manager_token, og, db_session, monkeypatch,
 ):
     assert (await _post(client, monkeypatch, "checkout.session.completed", _session())).status_code == 200
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session())
@@ -280,7 +315,7 @@ async def test_webhook_first_then_confirm_is_one_row(
     _session(sub_id=None),
 ])
 async def test_confirm_rejects_a_session_that_is_not_ours(
-    client, manager_token, og, db_session, monkeypatch, retrieve_sub, session,
+    client, manager_token, og, db_session, monkeypatch, session,
 ):
     monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: session)
     r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
@@ -295,8 +330,9 @@ async def test_confirm_rejects_a_session_that_is_not_ours(
 
 
 async def test_subscription_created_inserts_the_row_from_metadata(
-    client, og, db_session, monkeypatch,
+    client, og, db_session, monkeypatch, fake,
 ):
+    fake["subs"][AGENT_SUB] = _subscription(status="incomplete")
     r = await _post(client, monkeypatch, "customer.subscription.created",
                     _subscription(status="incomplete"))
     assert r.json()["reservation_agent"]["handled"] is True
@@ -317,11 +353,12 @@ async def test_subscription_created_for_another_customer_is_ignored(
 
 
 async def test_subscription_updated_syncs_status_period_and_cancel_flag(
-    client, og, db_session, monkeypatch,
+    client, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "incomplete")
     # Older API version: period at the top level; no metadata, matched by id.
     sub = _subscription(items_period=False, cancel=True, metadata={})
+    fake["subs"][AGENT_SUB] = sub
     r = await _post(client, monkeypatch, "customer.subscription.updated", sub)
     assert r.json()["reservation_agent"]["handled"] is True
     row = await _row(db_session)
@@ -331,8 +368,9 @@ async def test_subscription_updated_syncs_status_period_and_cancel_flag(
     await _assert_scheduling_untouched(db_session)
 
 
-async def test_subscription_deleted_cancels_only_the_agent(client, og, db_session, monkeypatch):
+async def test_subscription_deleted_cancels_only_the_agent(client, og, db_session, monkeypatch, fake):
     await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
     r = await _post(client, monkeypatch, "customer.subscription.deleted",
                     _subscription(status="canceled"))
     assert r.json()["reservation_agent"]["handled"] is True
@@ -341,9 +379,10 @@ async def test_subscription_deleted_cancels_only_the_agent(client, og, db_sessio
 
 
 async def test_deleting_an_older_agent_subscription_keeps_the_current_one(
-    client, og, db_session, monkeypatch,
+    client, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "active", sub_id="sub_current")
+    fake["subs"]["sub_older"] = _subscription("sub_older", status="canceled")
     await _post(client, monkeypatch, "customer.subscription.deleted",
                 _subscription("sub_older", status="canceled"))
     row = await _row(db_session)
@@ -352,13 +391,14 @@ async def test_deleting_an_older_agent_subscription_keeps_the_current_one(
 
 
 async def test_agent_deletion_on_a_free_group_never_cancels_scheduling(
-    client, og, db_session, monkeypatch,
+    client, og, db_session, monkeypatch, fake,
 ):
     """The scheduling branch cancels a group with no stripe_subscription_id
     on any deletion of its customer; the agent's deletion must not reach it."""
     og.stripe_subscription_id = None
     await db_session.commit()
     await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
     await _post(client, monkeypatch, "customer.subscription.deleted",
                 _subscription(status="canceled"))
     db_session.expire_all()
@@ -369,9 +409,10 @@ async def test_agent_deletion_on_a_free_group_never_cancels_scheduling(
 
 @pytest.mark.parametrize("new_api", [True, False])
 async def test_invoice_payment_failed_sets_past_due_only(
-    client, og, db_session, monkeypatch, new_api,
+    client, og, db_session, monkeypatch, new_api, fake,
 ):
     await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "past_due"
     r = await _post(client, monkeypatch, "invoice.payment_failed", _invoice(new_api=new_api))
     assert r.json()["reservation_agent"]["handled"] is True
     assert (await _row(db_session)).status == "past_due"
@@ -379,26 +420,27 @@ async def test_invoice_payment_failed_sets_past_due_only(
 
 
 async def test_invoice_payment_failed_leaves_an_incomplete_subscription_incomplete(
-    client, og, db_session, monkeypatch,
+    client, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "incomplete")
+    fake["subs"][AGENT_SUB]["status"] = "incomplete"
     await _post(client, monkeypatch, "invoice.payment_failed", _invoice())
     assert (await _row(db_session)).status == "incomplete"
     await _assert_scheduling_untouched(db_session)
 
 
 async def test_invoice_payment_succeeded_syncs_the_period(
-    client, og, db_session, monkeypatch, retrieve_sub,
+    client, og, db_session, monkeypatch, fake,
 ):
     await _add_row(db_session, "past_due")
     nxt_start, nxt_end = P_END, P_END + timedelta(days=31)
     sub = _subscription()
     sub["items"]["data"][0].update(current_period_start=_ts(nxt_start),
                                    current_period_end=_ts(nxt_end))
-    retrieve_sub["sub"] = sub
+    fake["subs"][AGENT_SUB] = sub
     r = await _post(client, monkeypatch, "invoice.payment_succeeded", _invoice())
     assert r.json()["reservation_agent"]["handled"] is True
-    assert retrieve_sub["calls"] == [AGENT_SUB]
+    assert fake["calls"] == [AGENT_SUB]
     row = await _row(db_session)
     assert row.status == "active"
     assert (row.current_period_start, row.current_period_end) == (nxt_start, nxt_end)
@@ -421,7 +463,7 @@ async def test_invoice_upcoming_reconciles_the_agent_not_the_scheduling_overage(
 
 
 async def test_checkout_completed_webhook_records_the_agent_only(
-    client, og, db_session, monkeypatch, retrieve_sub,
+    client, og, db_session, monkeypatch,
 ):
     r = await _post(client, monkeypatch, "checkout.session.completed", _session())
     assert r.json()["reservation_agent"]["handled"] is True
@@ -525,3 +567,240 @@ async def test_status_without_a_subscription(client, manager_token, og):
     body = r.json()
     assert body["status"] is None and body["answering"] is False
     assert body["usage"]["overage_usd"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Review fixes: stale events, duplicates, paused, deletion
+# ---------------------------------------------------------------------------
+
+
+async def test_replayed_updated_after_deleted_stays_canceled(client, og, db_session, monkeypatch, fake):
+    await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    await _post(client, monkeypatch, "customer.subscription.deleted",
+                _subscription(status="canceled"))
+    # A late, stale update from before the cancellation.
+    await _post(client, monkeypatch, "customer.subscription.updated", _subscription(status="active"))
+    assert (await _row(db_session)).status == "canceled"
+    await _assert_scheduling_untouched(db_session)
+
+
+async def test_a_terminal_status_is_one_way_for_its_subscription(client, og, db_session, monkeypatch, fake):
+    await _add_row(db_session, "canceled")
+    # Even if Stripe were to answer active for it, a canceled id stays canceled.
+    await _post(client, monkeypatch, "customer.subscription.updated", _subscription(status="active"))
+    assert (await _row(db_session)).status == "canceled"
+
+
+async def test_replayed_payment_failed_after_recovery_stays_active(client, og, db_session, monkeypatch, fake):
+    await _add_row(db_session, "active")
+    await _post(client, monkeypatch, "invoice.payment_failed", _invoice())
+    assert (await _row(db_session)).status == "active"
+    await _assert_scheduling_untouched(db_session)
+
+
+async def test_a_terminal_status_for_another_subscription_never_replaces_the_row(
+    client, og, db_session, monkeypatch, fake,
+):
+    await _add_row(db_session, "incomplete", sub_id="sub_new")
+    fake["subs"]["sub_old"] = _subscription("sub_old", status="canceled")
+    await _post(client, monkeypatch, "customer.subscription.deleted",
+                _subscription("sub_old", status="canceled"))
+    row = await _row(db_session)
+    assert (row.stripe_subscription_id, row.status) == ("sub_new", "incomplete")
+
+
+async def test_paused_is_stored_and_does_not_answer(client, manager_token, og, db_session, monkeypatch, fake):
+    await _add_row(db_session, "active")
+    fake["subs"][AGENT_SUB]["status"] = "paused"
+    await _post(client, monkeypatch, "customer.subscription.updated", _subscription(status="paused"))
+    assert (await _row(db_session)).status == "paused"
+    body = (await client.get(BASE, headers=_auth(manager_token))).json()
+    assert body["status"] == "paused" and body["answering"] is False
+
+
+# Prevention (checkout, under the group lock) -------------------------------
+
+
+async def test_checkout_adopts_a_live_agent_subscription_stripe_has(
+    client, manager_token, og, db_session, monkeypatch, fake,
+):
+    fake["listed_subs"] = [_subscription(SCHED_SUB, metadata={}), fake["subs"][AGENT_SUB]]
+    monkeypatch.setattr(stripe.checkout.Session, "create",
+                        lambda **kw: pytest.fail("no session while one is live"))
+    r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
+    assert r.status_code == 409
+    row = await _row(db_session)
+    assert (row.stripe_subscription_id, row.status) == (AGENT_SUB, "active")
+    assert fake["cancelled"] == []
+    await _assert_scheduling_untouched(db_session)
+
+
+async def test_checkout_cancels_incomplete_and_expires_open_agent_sessions(
+    client, manager_token, og, db_session, monkeypatch, fake,
+):
+    incomplete = _subscription("sub_inc", status="incomplete")
+    fake["subs"]["sub_inc"] = incomplete
+    fake["listed_subs"] = [incomplete, _subscription("sub_gone", status="canceled")]
+    fake["sessions"] = [
+        {"id": "cs_agent", "metadata": {"product": "reservation_agent", "og_id": OG_ID}},
+        {"id": "cs_upgrade", "metadata": {}},
+    ]
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
+    r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert fake["cancelled"] == ["sub_inc"]
+    assert fake["expired"] == ["cs_agent"]
+
+
+# Backstop (webhook / confirm) ----------------------------------------------
+
+
+def _paid_duplicate(fake, sub_id="sub_dup", *, new_api=True) -> dict:
+    sub = _subscription(sub_id)
+    sub["latest_invoice"] = "in_dup"
+    inv = {"id": "in_dup", "amount_paid": 1000}
+    if new_api:
+        inv["payments"] = {"data": [{"payment": {"payment_intent": "pi_dup"}}]}
+    else:
+        inv["payment_intent"] = "pi_dup"
+    fake["subs"][sub_id] = sub
+    fake["invoices"]["in_dup"] = inv
+    return sub
+
+
+@pytest.fixture
+def alerts(monkeypatch):
+    sent = []
+    monkeypatch.setattr("backend.services.operator_alerts.send_agent_duplicate_subscription_alert",
+                        lambda *a: sent.append(a) or True)
+    return sent
+
+
+@pytest.mark.parametrize("event_type", ["customer.subscription.created",
+                                        "customer.subscription.updated"])
+@pytest.mark.parametrize("new_api", [True, False])
+async def test_a_second_live_subscription_is_cancelled_refunded_and_alerted(
+    client, og, db_session, monkeypatch, fake, alerts, event_type, new_api,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake, new_api=new_api)
+    r = await _post(client, monkeypatch, event_type, dict(sub))
+    assert r.json()["reservation_agent"]["duplicate"]["outcome"] == "refunded"
+    assert fake["cancelled"] == ["sub_dup"]
+    assert fake["refunds"] == [{"payment_intent": "pi_dup",
+                                "idempotency_key": "agent-dup-refund-sub_dup"}]
+    row = await _row(db_session)
+    assert (row.stripe_subscription_id, row.status) == (AGENT_SUB, "active")
+    [charge] = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalars().all()
+    assert (charge.stripe_object_id, charge.status, float(charge.amount_usd)) == ("sub_dup", "succeeded", 10.0)
+    assert len(alerts) == 1 and alerts[0][:3] == (OG_ID, "sub_dup", AGENT_SUB)
+    await _assert_scheduling_untouched(db_session)
+
+    # Replays: Stripe now says canceled, so nothing happens again.
+    for replay in ("customer.subscription.created", "customer.subscription.updated",
+                   "customer.subscription.deleted", "invoice.payment_succeeded"):
+        obj = _invoice("sub_dup") if replay.startswith("invoice.") else dict(sub)
+        assert (await _post(client, monkeypatch, replay, obj)).status_code == 200
+    assert len(fake["refunds"]) == 1 and len(alerts) == 1
+    assert (await _row(db_session)).stripe_subscription_id == AGENT_SUB
+
+
+async def test_a_duplicate_whose_cancel_did_not_stick_is_not_refunded_twice(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    monkeypatch.setattr(stripe.Subscription, "cancel",
+                        lambda sid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
+    assert len(fake["refunds"]) == 1 and len(alerts) == 1
+    from backend.models.billing_charge import BillingCharge
+    [charge] = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalars().all()
+    assert charge.status == "failed" and "cancel" in charge.error_message
+
+
+async def test_a_duplicate_paid_through_checkout_is_backstopped_and_confirm_is_409(
+    client, manager_token, og, db_session, monkeypatch, fake, alerts,
+):
+    await _add_row(db_session, "active")
+    _paid_duplicate(fake)
+    monkeypatch.setattr(stripe.checkout.Session, "retrieve", lambda sid: _session("sub_dup"))
+    r = await client.post(f"{BASE}/confirm", json={"session_id": "cs_1"},
+                          headers=_auth(manager_token))
+    assert r.status_code == 409
+    r = await _post(client, monkeypatch, "checkout.session.completed", _session("sub_dup"))
+    assert r.status_code == 200
+    assert fake["cancelled"] == ["sub_dup"] and len(fake["refunds"]) == 1
+    assert (await _row(db_session)).stripe_subscription_id == AGENT_SUB
+
+
+# Deletion -------------------------------------------------------------------
+
+
+async def test_group_deletion_cancels_the_live_agent_subscription(og, db_session, fake):
+    from backend.services.billing import delete_og_and_dependents
+
+    await _add_row(db_session, "active")
+    await delete_og_and_dependents(db_session, og)
+    await db_session.commit()
+    assert fake["cancelled"] == [AGENT_SUB]
+    assert await _row(db_session) is None
+
+
+async def test_group_deletion_goes_ahead_when_stripe_cancel_fails(og, db_session, monkeypatch, fake):
+    from backend.services.billing import delete_og_and_dependents
+
+    await _add_row(db_session, "active")
+    monkeypatch.setattr(stripe.Subscription, "cancel",
+                        lambda sid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    await delete_og_and_dependents(db_session, og)
+    await db_session.commit()
+    db_session.expire_all()
+    assert await db_session.get(OwnershipGroup, OG_ID) is None
+
+
+async def test_group_deletion_skips_a_canceled_agent_subscription(og, db_session, fake):
+    from backend.services.billing import delete_og_and_dependents
+
+    await _add_row(db_session, "canceled")
+    await delete_og_and_dependents(db_session, og)
+    await db_session.commit()
+    assert fake["cancelled"] == []
+
+
+# Scheduling events with an agent row present --------------------------------
+
+
+async def test_scheduling_invoice_payment_succeeded_still_flips_its_charges(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    db_session.add(BillingCharge(ownership_group_id=OG_ID, kind="invoice_item_storage",
+                                 amount_usd=3, stripe_object_id="ii_1", period="2026-11",
+                                 status="pending"))
+    await db_session.commit()
+    inv = _invoice(SCHED_SUB)
+    inv["lines"] = {"data": [{"invoice_item": "ii_1",
+                              "metadata": {"kind": "invoice_item_storage"}}]}
+    r = await _post(client, monkeypatch, "invoice.payment_succeeded", inv)
+    assert "reservation_agent" not in r.json()
+    assert r.json()["updated"] == 1
+    assert fake["calls"] == []
+    assert (await _row(db_session)).status == "active"
+
+
+async def test_scheduling_subscription_updated_is_not_routed(client, og, db_session, monkeypatch, fake):
+    await _add_row(db_session, "active")
+    r = await _post(client, monkeypatch, "customer.subscription.updated",
+                    _subscription(SCHED_SUB, metadata={}))
+    assert "reservation_agent" not in r.json()
+    assert fake["calls"] == []
+    await _assert_scheduling_untouched(db_session)

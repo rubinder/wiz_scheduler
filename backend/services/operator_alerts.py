@@ -193,3 +193,38 @@ def send_payroll_archive_review_alert(
         f"whether to record it or refund it.</p>",
         "payroll_archive_needs_review",
     )
+
+def send_agent_duplicate_subscription_alert(
+    og_id: str,
+    duplicate_subscription_id: str,
+    kept_subscription_id: str | None,
+    payment_intent_id: str | None,
+    amount_usd: float,
+    refunded: bool,
+) -> bool:
+    """A second live AI host subscription (#259 step 5) arrived for a group
+    that already has one. It was cancelled in Stripe and its latest paid
+    invoice refunded (or the refund failed and needs doing by hand). Never
+    raises."""
+    logger.warning(
+        "[OPERATOR] agent_duplicate_subscription og=%s duplicate=%s kept=%s pi=%s "
+        "amount=%.2f refunded=%s",
+        og_id, duplicate_subscription_id, kept_subscription_id, payment_intent_id,
+        amount_usd, refunded,
+    )
+    if amount_usd <= 0:
+        outcome = "had no paid invoice to refund"
+    elif refunded:
+        outcome = f"was refunded automatically (${amount_usd:.2f})"
+    else:
+        outcome = (f"<strong>could NOT be refunded automatically (${amount_usd:.2f}): "
+                   f"refund it in Stripe</strong>")
+    return _send_operator_email(
+        f"[WizScheduler] Duplicate AI host subscription for og={og_id}",
+        f"<p>og={html.escape(og_id)} already has the AI host subscription "
+        f"<code>{html.escape(kept_subscription_id or '?')}</code>, so the second "
+        f"one, <code>{html.escape(duplicate_subscription_id)}</code>, was "
+        f"cancelled. Its latest invoice (payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>) {outcome}.</p>",
+        "agent_duplicate_subscription",
+    )

@@ -68,7 +68,7 @@ async def test_active_for_location_needs_an_answering_status(db_session, seed_lo
     # Ruling T: past_due keeps service while Stripe retries the card.
     for status, answers in (("trialing", True), ("past_due", True), ("canceled", False),
                             ("unpaid", False), ("incomplete", False),
-                            ("incomplete_expired", False)):
+                            ("incomplete_expired", False), ("paused", False)):
         sub.status = status
         await db_session.commit()
         got = await active_for_location(db_session, COMPANY_ID, LOCATION_ID, NOW)

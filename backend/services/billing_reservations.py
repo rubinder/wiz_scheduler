@@ -63,6 +63,10 @@ AGENT_EVENT_TYPES = frozenset({
 })
 
 
+TERMINAL_STATUSES = ("canceled", "incomplete_expired")
+DUPLICATE_REFUND_KIND = "agent_duplicate_refund"
+
+
 class AgentBillingError(Exception):
     """Base of the domain errors the billing router maps to HTTP."""
 
@@ -177,44 +181,52 @@ async def is_agent_event(db: AsyncSession, event_type: str, obj: Any) -> bool:
     """True when the event's object belongs to the agent subscription."""
     if event_type not in AGENT_EVENT_TYPES:
         return False
-    if event_type == "checkout.session.completed":
-        if _field(obj, "mode") != "subscription":
-            return False
-        if _is_agent_metadata(_metadata(obj)):
-            return True
-    elif event_type.startswith("customer.subscription."):
-        if _is_agent_metadata(_metadata(obj)):
-            return True
-    elif _is_agent_metadata(_invoice_subscription_metadata(obj)):
+    if event_type == "checkout.session.completed" and _field(obj, "mode") != "subscription":
+        return False
+    if _is_agent_metadata(_object_metadata(event_type, obj)):
         return True
     return await _row_by_subscription(db, _subscription_id_of(event_type, obj)) is not None
 
 
+def _object_metadata(event_type: str, obj: Any) -> Any:
+    """Our metadata on the object: the session's or subscription's own, an
+    invoice's subscription's."""
+    if event_type.startswith("invoice."):
+        return _invoice_subscription_metadata(obj)
+    return _metadata(obj)
+
+
 async def _lock_group(db: AsyncSession, og_id: str) -> OwnershipGroup | None:
-    """The group, row-locked: serializes the confirm route and the webhook
-    writing the same group's subscription row."""
+    """The group, row-locked: serializes checkout, confirm and the webhook
+    for one group's agent subscription."""
     return (await db.execute(
         select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
     )).scalar_one_or_none()
 
 
-async def _apply(
-    db: AsyncSession, og_id: str, sub_id: str, *,
-    status: str | None,
-    period: tuple[datetime | None, datetime | None] | None = None,
-    cancel_at_period_end: bool | None = None,
-) -> ReservationSubscription | None:
-    """Upsert the group's row for subscription `sub_id` (not committed).
+def _status(raw: Any, sub_id: str) -> str | None:
+    if raw is None:
+        return None
+    if raw not in STATUSES:
+        logger.warning("agent subscription %s: unknown status %r left unchanged", sub_id, raw)
+        return None
+    return raw
 
-    A row for another subscription is replaced only once that one is no
-    longer live (answering); a live one is kept and the event ignored, so a
-    late event for an old or duplicate subscription cannot clobber the
-    current one. `status=None` leaves the status (a new row starts
-    `incomplete`); a status outside STATUSES (say `paused`) is logged and
-    left."""
-    if status is not None and status not in STATUSES:
-        logger.warning("agent subscription %s: unknown status %r left unchanged", sub_id, status)
-        status = None
+
+async def _apply(db: AsyncSession, og_id: str, sub: Any) -> tuple[ReservationSubscription | None, bool]:
+    """Upsert the group's row from `sub`, the subscription as Stripe has it
+    now (not committed). Returns (row, duplicate).
+
+    - The row's own subscription: status, period and cancel flag follow
+      Stripe, except that a terminal status (canceled, incomplete_expired)
+      is one-way for that subscription id.
+    - Another subscription: replaces the row only when the row's is not
+      live (active, trialing, past_due) and the incoming one is not
+      terminal. An incoming live one while the row's is live is a
+      duplicate: (None, True), for the backstop. Anything else is ignored.
+    """
+    sub_id = _as_id(_field(sub, "id"))
+    status = _status(_field(sub, "status"), sub_id)
     row = await for_group(db, og_id)
     if row is None:
         row = ReservationSubscription(
@@ -222,27 +234,33 @@ async def _apply(
             status=status or "incomplete", cancel_at_period_end=False)
         db.add(row)
     elif row.stripe_subscription_id != sub_id:
-        if row.stripe_subscription_id and row.status in ANSWERING_STATUSES:
-            logger.warning(
-                "agent subscription %s for og %s ignored: %s is still %s",
-                sub_id, og_id, row.stripe_subscription_id, row.status)
-            return None
+        live = row.stripe_subscription_id and row.status in ANSWERING_STATUSES
+        if live and status in ANSWERING_STATUSES:
+            return None, True
+        if live or status is None or status in TERMINAL_STATUSES:
+            logger.info("agent subscription %s (%s) for og %s ignored; the row holds %s (%s)",
+                        sub_id, status, og_id, row.stripe_subscription_id, row.status)
+            return None, False
         row.stripe_subscription_id = sub_id
-        row.status = status or "incomplete"
+        row.status = status
         row.current_period_start = row.current_period_end = None
-        row.cancel_at_period_end = False
+    elif row.status in TERMINAL_STATUSES:
+        if status != row.status:
+            logger.info("agent subscription %s is %s; a stale %s is ignored",
+                        sub_id, row.status, status)
+        return row, False
     elif status is not None:
         row.status = status
-    if period is not None:
-        start, end = period
-        if start is not None:
-            row.current_period_start = start
-        if end is not None:
-            row.current_period_end = end
-    if cancel_at_period_end is not None:
-        row.cancel_at_period_end = bool(cancel_at_period_end)
+    start, end = _period(sub)
+    if start is not None:
+        row.current_period_start = start
+    if end is not None:
+        row.current_period_end = end
+    cape = _field(sub, "cancel_at_period_end")
+    if cape is not None:
+        row.cancel_at_period_end = bool(cape)
     await db.flush()
-    return row
+    return row, False
 
 
 async def _group_for(
@@ -269,17 +287,85 @@ def _retrieve_subscription(sub_id: str) -> Any:
     return stripe.Subscription.retrieve(sub_id)
 
 
-async def _sync_from_stripe(db: AsyncSession, og_id: str, sub_id: str) -> ReservationSubscription | None:
-    """Upsert the row from the subscription as Stripe has it now. If Stripe
-    cannot be reached, the row is recorded with its id only and the
-    subscription events bring the rest."""
-    try:
-        sub = _retrieve_subscription(sub_id)
-    except stripe.StripeError as e:
-        logger.warning("agent subscription %s not retrieved: %s", sub_id, e)
-        return await _apply(db, og_id, sub_id, status=None)
-    return await _apply(db, og_id, sub_id, status=_field(sub, "status"), period=_period(sub),
-                        cancel_at_period_end=_field(sub, "cancel_at_period_end"))
+async def _sync_from_stripe(db: AsyncSession, og_id: str, sub_id: str) -> tuple[ReservationSubscription | None, dict | None]:
+    """Re-read the subscription from Stripe (never trust an event payload:
+    events arrive late and out of order) and upsert the row. A duplicate
+    live subscription goes to the backstop. Caller holds the group lock and
+    commits. Raises stripe.StripeError when Stripe cannot be read, so the
+    webhook answers 5xx and Stripe redelivers."""
+    sub = _retrieve_subscription(sub_id)
+    row, duplicate = await _apply(db, og_id, sub)
+    if duplicate:
+        return None, await _resolve_duplicate(db, og_id, sub)
+    return row, None
+
+
+def _invoice_payment_intent(invoice: Any) -> str | None:
+    """The invoice's PaymentIntent: top level before API 2025-03-31, under
+    payments.data[].payment.payment_intent since."""
+    pi = _as_id(_field(invoice, "payment_intent"))
+    if pi:
+        return pi
+    for p in _field(_field(invoice, "payments"), "data") or []:
+        pi = _as_id(_field(_field(p, "payment"), "payment_intent"))
+        if pi:
+            return pi
+    return None
+
+
+async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
+    """Backstop for a second live agent subscription on one group: cancel it
+    in Stripe, refund its latest paid invoice, record an
+    agent_duplicate_refund BillingCharge (a replay finds it and does
+    nothing) and alert the operator. Never raises."""
+    from backend.models.billing_charge import BillingCharge
+    from backend.services.billing import refund_payment_intent
+    from backend.services.operator_alerts import send_agent_duplicate_subscription_alert
+
+    sub_id = _as_id(_field(sub, "id"))
+    done = (await db.execute(
+        select(BillingCharge.id).where(
+            BillingCharge.ownership_group_id == og_id,
+            BillingCharge.kind == DUPLICATE_REFUND_KIND,
+            BillingCharge.stripe_object_id == sub_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if done is not None:
+        return {"duplicate": sub_id, "outcome": "already_handled"}
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    errors: list[str] = []
+    if _field(sub, "status") not in TERMINAL_STATUSES:
+        try:
+            stripe.Subscription.cancel(sub_id)
+        except stripe.StripeError as e:
+            errors.append(f"cancel: {e}")
+            logger.warning("agent duplicate %s not cancelled: %s", sub_id, e)
+
+    amount, pi = Decimal(0), None
+    invoice_id = _as_id(_field(sub, "latest_invoice"))
+    if invoice_id:
+        try:
+            invoice = stripe.Invoice.retrieve(invoice_id, expand=["payments"])
+            amount = Decimal(int(_field(invoice, "amount_paid") or 0)) / 100
+            pi = _invoice_payment_intent(invoice)
+        except stripe.StripeError as e:
+            errors.append(f"invoice: {e}")
+            logger.warning("agent duplicate %s: invoice %s not read: %s", sub_id, invoice_id, e)
+    refunded = amount <= 0 or refund_payment_intent(pi, f"agent-dup-refund-{sub_id}")
+    if not refunded:
+        errors.append("refund failed")
+
+    row = (await for_group(db, og_id))
+    db.add(BillingCharge(
+        ownership_group_id=og_id, kind=DUPLICATE_REFUND_KIND, amount_usd=amount,
+        stripe_object_id=sub_id, status="failed" if errors else "succeeded",
+        error_message="; ".join(errors)[:1000] or None))
+    await db.flush()
+    send_agent_duplicate_subscription_alert(
+        og_id, sub_id, row.stripe_subscription_id if row else None, pi,
+        float(amount), bool(refunded) and amount > 0)
+    return {"duplicate": sub_id, "outcome": "refunded" if refunded else "refund_failed"}
 
 
 def _verify_session(session: Any, og: OwnershipGroup) -> str:
@@ -310,66 +396,37 @@ async def reconcile_agent_overage(db: AsyncSession, row: ReservationSubscription
 
 async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dict:
     """Apply one agent-subscription webhook event. Touches only the
-    reservation_subscriptions row, never the scheduling fields."""
+    reservation_subscriptions row (and, for a duplicate, its refund record),
+    never the scheduling fields. Every state change re-reads the
+    subscription from Stripe; a Stripe read error propagates (5xx, Stripe
+    redelivers)."""
     sub_id = _subscription_id_of(event_type, obj)
     customer = _as_id(_field(obj, "customer"))
+    og_id = await _group_for(db, sub_id, _object_metadata(event_type, obj), customer)
+    if not og_id or not sub_id:
+        return {"handled": False}
 
+    if event_type == "invoice.upcoming":
+        row = await _row_by_subscription(db, sub_id)
+        if row is None:
+            return {"handled": False, "og_id": og_id}
+        return {"handled": True, "og_id": og_id,
+                "overage": await reconcile_agent_overage(db, row)}
+
+    og = await _lock_group(db, og_id)
     if event_type == "checkout.session.completed":
-        og_id = await _group_for(db, sub_id, _metadata(obj), customer)
-        if not og_id or not sub_id:
-            return {"handled": False}
-        og = await _lock_group(db, og_id)
         try:
             _verify_session(obj, og)
         except SessionInvalid as e:
             logger.warning("agent checkout %s ignored: %s", _field(obj, "id"), e)
             await db.rollback()
             return {"handled": False}
-        row = await _sync_from_stripe(db, og_id, sub_id)
-        await db.commit()
-        return {"handled": True, "og_id": og_id, "status": row.status if row else None}
-
-    if event_type.startswith("customer.subscription."):
-        og_id = await _group_for(db, sub_id, _metadata(obj), customer)
-        if not og_id or not sub_id:
-            return {"handled": False}
-        await _lock_group(db, og_id)
-        if event_type == "customer.subscription.deleted":
-            row = await for_group(db, og_id)
-            # A deletion for an older subscription (the group has since
-            # resubscribed) must not cancel the current one.
-            if row is None or row.stripe_subscription_id not in (None, sub_id):
-                await db.rollback()
-                return {"handled": False, "og_id": og_id}
-            row = await _apply(db, og_id, sub_id, status="canceled", period=_period(obj),
-                               cancel_at_period_end=False)
-        else:
-            row = await _apply(db, og_id, sub_id, status=_field(obj, "status"),
-                               period=_period(obj),
-                               cancel_at_period_end=_field(obj, "cancel_at_period_end"))
-        await db.commit()
-        return {"handled": True, "og_id": og_id, "status": row.status if row else None}
-
-    # invoice.*: only for a subscription we already hold a row for.
-    row = await _row_by_subscription(db, sub_id)
-    if row is None:
-        return {"handled": False}
-    og_id = row.ownership_group_id
-    if event_type == "invoice.upcoming":
-        return {"handled": True, "og_id": og_id,
-                "overage": await reconcile_agent_overage(db, row)}
-    await _lock_group(db, og_id)
-    await db.refresh(row)
-    if event_type == "invoice.payment_failed":
-        # Stripe retries the card; the agent keeps answering while past_due
-        # (Ruling T). An incomplete first payment stays incomplete: it never
-        # answered, and past_due would let it.
-        if row.status in ("active", "trialing"):
-            row.status = "past_due"
-    else:  # invoice.payment_succeeded
-        await _sync_from_stripe(db, og_id, sub_id)
+    row, duplicate = await _sync_from_stripe(db, og_id, sub_id)
     await db.commit()
-    return {"handled": True, "og_id": og_id, "status": row.status}
+    out: dict = {"handled": True, "og_id": og_id, "status": row.status if row else None}
+    if duplicate:
+        out["duplicate"] = duplicate
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -388,15 +445,43 @@ def _return_urls() -> tuple[str, str]:
             f"{base}?agent_checkout=cancel")
 
 
+async def _clear_the_way(db: AsyncSession, og: OwnershipGroup) -> None:
+    """Before a new agent Checkout (group locked): adopt a live agent
+    subscription Stripe has but the row lacks (AlreadySubscribed), cancel
+    incomplete ones, and expire open agent sessions, so at most one session
+    can be paid."""
+    customer = og.stripe_customer_id
+    subs = stripe.Subscription.list(customer=customer, status="all", limit=100)
+    adopted = False
+    for sub in subs.auto_paging_iter():
+        if not _is_agent_metadata(_metadata(sub)):
+            continue
+        status = _field(sub, "status")
+        if status in ANSWERING_STATUSES:
+            row, _ = await _sync_from_stripe(db, og.id, _as_id(_field(sub, "id")))
+            adopted = adopted or row is not None
+        elif status == "incomplete":
+            stripe.Subscription.cancel(_as_id(_field(sub, "id")))
+    if adopted:
+        await db.commit()
+        raise AlreadySubscribed("already_subscribed")
+    sessions = stripe.checkout.Session.list(customer=customer, status="open", limit=100)
+    for s in sessions.auto_paging_iter():
+        if _is_agent_metadata(_metadata(s)):
+            stripe.checkout.Session.expire(_as_id(_field(s, "id")))
+
+
 async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> str:
     """A Checkout session (mode=subscription) for the agent; returns its URL.
 
     Uses the group's Stripe customer, creating one first if the group has
     none, so the agent invoices sit beside the scheduling ones and confirm
-    can bind the session to the group."""
+    can bind the session to the group. Runs under the group lock."""
     _require_configured()
+    og = await _lock_group(db, og.id)
     row = await for_group(db, og.id)
     if row is not None and row.status in ANSWERING_STATUSES:
+        await db.rollback()
         raise AlreadySubscribed("already_subscribed")
     stripe.api_key = settings.STRIPE_SECRET_KEY
     try:
@@ -405,7 +490,9 @@ async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> s
                 email=email, name=og.name, metadata={"og_id": og.id},
                 idempotency_key=f"og-customer-{og.id}")
             og.stripe_customer_id = _as_id(customer)
-            await db.commit()
+            await db.flush()
+        else:
+            await _clear_the_way(db, og)
         md = {"product": PRODUCT, "og_id": og.id}
         success_url, cancel_url = _return_urls()
         session = stripe.checkout.Session.create(
@@ -419,7 +506,9 @@ async def create_checkout(db: AsyncSession, og: OwnershipGroup, email: str) -> s
             cancel_url=cancel_url,
         )
     except stripe.StripeError as e:
+        await db.commit()  # keep a customer created above; release the lock
         raise StripeFailure(str(e)) from e
+    await db.commit()
     return _field(session, "url")
 
 
@@ -436,12 +525,31 @@ async def confirm_checkout(db: AsyncSession, og: OwnershipGroup, session_id: str
     sub_id = _verify_session(session, og)
     og_id = og.id
     await _lock_group(db, og_id)
-    row = await _sync_from_stripe(db, og_id, sub_id)
-    if row is None:
+    try:
+        row, duplicate = await _sync_from_stripe(db, og_id, sub_id)
+    except stripe.StripeError as e:
         await db.rollback()
-        raise AlreadySubscribed("already_subscribed")
+        raise StripeFailure(str(e)) from e
     await db.commit()
+    if row is None:
+        raise AlreadySubscribed("already_subscribed")
     return row
+
+
+async def cancel_for_deleted_group(db: AsyncSession, og_id: str) -> bool:
+    """Cancel the group's agent subscription in Stripe before its data is
+    deleted (day 90). Best effort: logs and returns False on any failure,
+    never raises, so it never blocks the deletion."""
+    try:
+        row = await for_group(db, og_id)
+        if row is None or not row.stripe_subscription_id or row.status in TERMINAL_STATUSES:
+            return False
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        stripe.Subscription.cancel(row.stripe_subscription_id)
+        return True
+    except Exception:
+        logger.exception("agent subscription not cancelled for deleted og %s", og_id)
+        return False
 
 
 def _money(value: Decimal) -> float:

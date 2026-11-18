@@ -22,7 +22,7 @@ from backend.utils.id_gen import generate_short_id
 
 PRODUCT = "reservation_agent"
 STATUSES = ("incomplete", "incomplete_expired", "active", "trialing", "past_due",
-            "canceled", "unpaid")
+            "canceled", "unpaid", "paused")
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
