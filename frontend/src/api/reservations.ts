@@ -50,6 +50,11 @@ export function listReservations(locationId: string, date: string): Promise<Rese
   return apiFetch(`${base(locationId)}/reservations?${new URLSearchParams({ date }).toString()}`);
 }
 
+/** Every live approval request at the location, on any day, soonest first. */
+export function listApprovals(locationId: string): Promise<ReservationOut[]> {
+  return apiFetch(`${base(locationId)}/approvals`);
+}
+
 export function createReservation(locationId: string, body: BookingIn): Promise<ReservationOut> {
   return apiFetch(`${base(locationId)}/reservations`, { method: "POST", body: JSON.stringify(body) });
 }

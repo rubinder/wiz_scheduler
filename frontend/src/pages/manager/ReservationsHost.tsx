@@ -9,6 +9,7 @@ import {
   getConfig,
   getFloor,
   getSlots,
+  listApprovals,
   listReservations,
   seatWalkIn,
   setReservationStatus,
@@ -16,7 +17,16 @@ import {
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { FloorOut, ReservationOut, SettableStatus, SlotOut } from "../../types/reservations";
-import { CANVAS, errorCode, formatLocalTime, groupBySeating, localDateString, tableStates } from "../../utils/reservations";
+import {
+  CANVAS,
+  errorCode,
+  formatLocalDateTime,
+  formatLocalTime,
+  groupBySeating,
+  localDateString,
+  tableStates,
+  validParty,
+} from "../../utils/reservations";
 import type { TableState } from "../../utils/reservations";
 import { border, text } from "../../theme";
 
@@ -75,7 +85,8 @@ export default function ReservationsHost() {
 
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [locationsFailed, setLocationsFailed] = useState(false);
+  /** The initial config/locations load failed; shown with a Retry button. */
+  const [initError, setInitError] = useState("");
   const [locationId, setLocationId] = useState("");
   const [date, setDate] = useState("");
   /** The location `date` was defaulted for; the list waits until it matches, so a switch fetches once. */
@@ -84,6 +95,9 @@ export default function ReservationsHost() {
   const [floorError, setFloorError] = useState("");
   const [list, setList] = useState<ReservationOut[] | null>(null);
   const [listError, setListError] = useState("");
+  /** Live approval requests for the location on every day; independent of `date`. */
+  const [approvals, setApprovals] = useState<ReservationOut[] | null>(null);
+  const [approvalsError, setApprovalsError] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
@@ -114,6 +128,9 @@ export default function ReservationsHost() {
   /** "location|date" the page is showing; a response for any other view is dropped. */
   const currentView = useRef("");
   const listSeq = useRef(0);
+  /** Location the approvals panel is showing; a response for another is dropped. */
+  const currentLocation = useRef("");
+  const approvalsSeq = useRef(0);
   const slotSeq = useRef(0);
 
   const location = locations.find((l) => l.id === locationId) ?? null;
@@ -130,21 +147,23 @@ export default function ReservationsHost() {
     return message && message !== base ? `${base} (${message})` : base;
   };
 
+  const loadInitial = async () => {
+    setInitError("");
+    try {
+      const cfg = await getConfig();
+      setEnabled(cfg.enabled);
+      if (!cfg.enabled) return;
+      const locs = await listLocations();
+      setLocations(locs);
+      if (locs.length > 0) setLocationId(locs[0].id);
+    } catch (e) {
+      setEnabled(true);
+      setInitError(errorText(e instanceof ApiError ? e.data : null));
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const cfg = await getConfig();
-        setEnabled(cfg.enabled);
-        if (!cfg.enabled) return;
-        const locs = await listLocations();
-        setLocations(locs);
-        if (locs.length > 0) setLocationId(locs[0].id);
-      } catch (e) {
-        setEnabled(true);
-        setLocationsFailed(true);
-        setListError(errorText(e instanceof ApiError ? e.data : null));
-      }
-    })();
+    void loadInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -193,6 +212,34 @@ export default function ReservationsHost() {
     }
   };
 
+  /** Reload the approval queue; a response for an older request or another location is ignored. */
+  const loadApprovals = async () => {
+    const forLocation = locationId;
+    if (!forLocation) return;
+    const seq = ++approvalsSeq.current;
+    const latest = () => seq === approvalsSeq.current && currentLocation.current === forLocation;
+    try {
+      const out = await listApprovals(forLocation);
+      if (!latest()) return;
+      setApprovals(out);
+      setApprovalsError("");
+    } catch (e) {
+      if (latest()) setApprovalsError(errorText(e instanceof ApiError ? e.data : null));
+    }
+  };
+
+  useEffect(() => {
+    currentLocation.current = locationId;
+    approvalsSeq.current += 1;
+    setApprovals(null);
+    setApprovalsError("");
+    if (!locationId) return;
+    void loadApprovals();
+    const timer = window.setInterval(() => void loadApprovals(), REFRESH_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationId]);
+
   useEffect(() => {
     currentView.current = `${locationId}|${date}`;
     listSeq.current += 1;
@@ -206,13 +253,6 @@ export default function ReservationsHost() {
   }, [locationId, date, dateFor]);
 
   const groups = useMemo(() => groupBySeating(list ?? [], tz), [list, tz]);
-  const pending = useMemo(
-    () =>
-      (list ?? [])
-        .filter((x) => x.status === "pending_approval")
-        .sort((a, b) => Date.parse(a.start) - Date.parse(b.start)),
-    [list],
-  );
   // Live state is only meaningful for today in the restaurant's zone.
   const isToday = location !== null && date === localDateString(now, location.timezone);
   // Display only: the server decides what is bookable.
@@ -230,6 +270,7 @@ export default function ReservationsHost() {
   const act = async (res: ReservationOut, run: () => Promise<unknown>, confirmText?: string) => {
     if (confirmText && !window.confirm(confirmText)) return;
     const view = currentView.current;
+    const forLocation = currentLocation.current;
     setBusyId(res.id);
     setActionError("");
     try {
@@ -239,6 +280,7 @@ export default function ReservationsHost() {
     } finally {
       setBusyId(null);
       if (currentView.current === view) void loadList();
+      if (currentLocation.current === forLocation) void loadApprovals();
     }
   };
   const setStatus = (res: ReservationOut, s: SettableStatus, confirmText?: string) =>
@@ -338,7 +380,6 @@ export default function ReservationsHost() {
   };
 
   const input = `glass-input-sm text-sm ${border.default} ${text.primary}`;
-  const validParty = (s: string) => Number.isInteger(Number(s)) && Number(s) >= 1;
 
   const actionButton = (label: string, res: ReservationOut, onClick: () => void, primary = false) => (
     <button
@@ -358,7 +399,7 @@ export default function ReservationsHost() {
         return (
           <>
             {actionButton(h.seat, res, () => void setStatus(res, "seated"), true)}
-            {actionButton(h.noShow, res, () => void setStatus(res, "no_show"))}
+            {actionButton(h.noShow, res, () => void setStatus(res, "no_show", h.noShowConfirm))}
             {actionButton(h.cancel, res, () => void setStatus(res, "cancelled", h.cancelConfirm))}
           </>
         );
@@ -376,11 +417,12 @@ export default function ReservationsHost() {
     }
   };
 
-  const row = (res: ReservationOut, showTime = false) => (
+  /** `withDate`: the approvals panel spans days, so its rows show date and time. */
+  const row = (res: ReservationOut, withDate = false) => (
     <li key={res.id} className="rounded border p-3 space-y-1">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className={`font-semibold ${text.primary}`}>
-          {showTime && `${time(res.start)} · `}
+          {withDate && `${formatLocalDateTime(res.start, tz, lang)} · `}
           {res.diner_name || h.noName}
         </span>
         <span className={`text-xs ${text.muted}`}>{statusName(res.status)}</span>
@@ -405,7 +447,16 @@ export default function ReservationsHost() {
       <h1 className={`text-2xl font-bold ${text.heading}`}>{h.title}</h1>
       <p className={`text-sm ${text.muted}`}>{h.description}</p>
 
-      {locations.length === 0 && locationsFailed ? null : locations.length === 0 ? (
+      {initError && (
+        <div className="glass-alert-error flex flex-wrap items-center gap-3" role="alert">
+          <span>{initError}</span>
+          <button type="button" className="glass-btn-secondary text-sm" onClick={() => void loadInitial()}>
+            {h.retry}
+          </button>
+        </div>
+      )}
+
+      {locations.length === 0 && initError ? null : locations.length === 0 ? (
         <div className="glass-card p-6 text-sm">{h.noLocations}</div>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
@@ -429,9 +480,20 @@ export default function ReservationsHost() {
           <button type="button" className="glass-btn-primary text-sm" onClick={() => openDrawer("booking")}>
             + {h.newBooking}
           </button>
-          <button type="button" className="glass-btn-secondary text-sm" onClick={() => openDrawer("walkIn")}>
+          <button
+            type="button"
+            className="glass-btn-secondary text-sm"
+            disabled={!isToday}
+            aria-describedby={isToday ? undefined : "walk-in-today-only"}
+            onClick={() => openDrawer("walkIn")}
+          >
             {h.walkIn}
           </button>
+          {!isToday && (
+            <span id="walk-in-today-only" className={`text-xs ${text.muted}`}>
+              {h.walkInTodayOnly}
+            </span>
+          )}
         </div>
       )}
 
@@ -546,7 +608,7 @@ export default function ReservationsHost() {
         </Panel>
       )}
 
-      {drawer === "walkIn" && location && (
+      {drawer === "walkIn" && location && isToday && (
         <Panel title={h.walkIn}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={h.partySize}>
@@ -618,7 +680,7 @@ export default function ReservationsHost() {
               <>
                 <svg
                   viewBox={`0 0 ${CANVAS.width} ${CANVAS.height}`}
-                  role="img"
+                  role="group"
                   aria-label={h.canvasLabel}
                   className="block w-full select-none rounded border bg-white/60"
                 >
@@ -626,9 +688,16 @@ export default function ReservationsHost() {
                     const cx = tbl.x + tbl.w / 2;
                     const cy = tbl.y + tbl.h / 2;
                     const state = states[tbl.label] ?? "free";
+                    // Status only means something today; other days just name the table.
+                    const label = isToday
+                      ? h.tableAria.replace("{label}", tbl.label).replace("{state}", h.state[state])
+                      : r.floor.tableAria
+                          .replace("{label}", tbl.label)
+                          .replace("{min}", String(tbl.min_seats))
+                          .replace("{max}", String(tbl.max_seats));
                     return (
-                      <g key={tbl.id ?? tbl.label}>
-                        <title>{h.tableAria.replace("{label}", tbl.label).replace("{state}", h.state[state])}</title>
+                      <g key={tbl.id ?? tbl.label} role="img" aria-label={label}>
+                        <title>{label}</title>
                         <rect
                           x={tbl.x}
                           y={tbl.y}
@@ -684,9 +753,14 @@ export default function ReservationsHost() {
             )}
             {!list && !listError && <p className={text.muted}>{r.common.loading}</p>}
 
-            {pending.length > 0 && (
+            {approvalsError && (
+              <div className="glass-alert-error" role="alert">
+                {approvalsError}
+              </div>
+            )}
+            {approvals && approvals.length > 0 && (
               <Panel title={h.needsApproval}>
-                <ul className="space-y-2">{pending.map((res) => row(res, true))}</ul>
+                <ul className="space-y-2">{approvals.map((res) => row(res, true))}</ul>
               </Panel>
             )}
 
