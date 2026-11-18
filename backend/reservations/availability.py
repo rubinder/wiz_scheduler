@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Location
@@ -129,6 +129,10 @@ def _seatings(
     return out
 
 
+def _utc(dt: datetime) -> datetime:
+    return dt.astimezone(timezone.utc)
+
+
 def _peak_covers(dining: dict[str, tuple[datetime, datetime, int]],
                  start: datetime, end: datetime) -> int:
     """Peak seated covers of the given reservations at any instant in [start, end)."""
@@ -163,21 +167,26 @@ def compute_slots(
     band = rules.band_for(party_size)
     dining_len = timedelta(minutes=band.minutes)
     occupied_len = timedelta(minutes=band.minutes + band.churn_minutes)
-    earliest = now + timedelta(minutes=rules.cutoff_minutes) if apply_cutoff else now
-    last_date = now.astimezone(zone).date() + timedelta(days=rules.booking_horizon_days)
+    # All arithmetic and comparison happens in UTC: aware + timedelta is
+    # wall-clock arithmetic in Python, and two datetimes sharing a tzinfo
+    # compare by wall time, both wrong across a DST change.
+    now_utc = _utc(now)
+    w_start, w_end = _utc(window_start), _utc(window_end)
+    earliest = now_utc + timedelta(minutes=rules.cutoff_minutes) if apply_cutoff else now_utc
+    last_date = now_utc.astimezone(zone).date() + timedelta(days=rules.booking_horizon_days)
 
-    by_table: dict[str, list[Busy]] = {}
+    by_table: dict[str, list[tuple[datetime, datetime]]] = {}
     dining: dict[str, tuple[datetime, datetime, int]] = {}
     by_section: dict[str | None, dict[str, tuple[datetime, datetime, int]]] = {}
     for b in busy:
-        by_table.setdefault(b.table_id, []).append(b)
-        entry = (b.start, b.dining_end, b.party_size)
+        by_table.setdefault(b.table_id, []).append((_utc(b.start), _utc(b.end)))
+        entry = (_utc(b.start), _utc(b.dining_end), b.party_size)
         dining[b.reservation_id] = entry
         by_section.setdefault(b.section_id, {})[b.reservation_id] = entry
     seatings = _seatings(tables, combos, party_size)
 
     def table_free(table_id: str, start: datetime, until: datetime) -> bool:
-        return all(not (b.start < until and b.end > start) for b in by_table.get(table_id, ()))
+        return all(not (s < until and e > start) for s, e in by_table.get(table_id, ()))
 
     def section_ok(seating: _Seating, start: datetime, end: datetime) -> bool:
         for section in seating.sections:
@@ -191,10 +200,11 @@ def compute_slots(
         return True
 
     slots: list[Slot] = []
-    for start in _candidates(rules, zone, window_start, window_end):
-        if not (window_start <= start < window_end) or start < earliest:
+    for local_start in _candidates(rules, zone, window_start, window_end):
+        start = _utc(local_start)
+        if not (w_start <= start < w_end) or start < earliest:
             continue
-        if start.date() > last_date:
+        if local_start.date() > last_date:
             continue
         end = start + dining_len
         if rules.max_concurrent_covers is not None:
@@ -209,7 +219,8 @@ def compute_slots(
             if all(table_free(t, start, until) for t in seating.table_ids) and section_ok(
                 seating, start, end
             ):
-                slots.append(Slot(start, end, seating.table_ids, seating.section_id))
+                slots.append(Slot(local_start, end.astimezone(zone),
+                                  seating.table_ids, seating.section_id))
                 break
     return slots
 
@@ -229,7 +240,9 @@ async def find_slots(
     """Load one location's floor, rules and busy tables, then `compute_slots`."""
     now = now or datetime.now(timezone.utc)
     location = (await db.execute(
-        select(Location).where(Location.id == location_id, Location.company_id == company_id)
+        select(Location).where(
+            Location.id == location_id, Location.company_id == company_id, active(Location),
+        )
     )).scalar_one_or_none()
     if location is None:
         return []
@@ -253,8 +266,7 @@ async def find_slots(
     combos = [ComboSpec(c.id, c.name, tuple(c.table_ids), c.min_seats, c.max_seats)
               for c in combo_rows]
 
-    # Anything that could touch the window: the longest band plus churn is
-    # well under a day, so a day of slack either side is enough.
+    # A day of slack is safe: the longest band (360 min) + churn (120 min) is under a day.
     slack = timedelta(days=1)
     query = (
         select(Reservation, ReservationTable, DiningTable.section_id)
@@ -268,9 +280,11 @@ async def find_slots(
             DiningTable.location_id == location_id,
             ReservationTable.active.is_(True),
             Reservation.status.in_(ACTIVE_STATUSES),
+            # Fail closed: a hold with no expiry keeps its table.
             or_(
                 Reservation.status.not_in((HELD, PENDING)),
-                and_(Reservation.held_until.is_not(None), Reservation.held_until > now),
+                Reservation.held_until.is_(None),
+                Reservation.held_until > now,
             ),
             Reservation.start_at < window_end + slack,
             Reservation.end_at > window_start - slack,

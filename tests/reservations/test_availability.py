@@ -232,6 +232,43 @@ def test_overlapping_periods_dedupe_by_instant():
         (17, 0), (17, 30), (18, 0), (18, 30)]
 
 
+UTC = timezone.utc
+
+
+def test_spring_forward_slot_lasts_real_minutes():
+    d = date(2027, 3, 14)
+    rules = _rules(first=time(1, 30), last=time(1, 30))
+    now = datetime(2027, 3, 10, tzinfo=NY)
+    slot = _slots(rules, [_t("T1", 1, 4)], 2, d=d, now=now)[0]
+    assert slot.end.astimezone(UTC) - slot.start.astimezone(UTC) == timedelta(minutes=90)
+    assert (slot.end.hour, slot.end.minute) == (4, 0)  # 01:30 EST + 90 min = 04:00 EDT
+
+
+def test_spring_forward_busy_after_the_gap_blocks_the_table():
+    d = date(2027, 3, 14)
+    rules = _rules(first=time(1, 30), last=time(1, 30))
+    now = datetime(2027, 3, 10, tzinfo=NY)
+    # A party 2 at 01:30 EST holds the table 100 real minutes, to 04:10 EDT.
+    # 03:00 EDT and 03:30 EDT (03:30 is past 03:10, the wall-clock answer) both overlap.
+    for hh, mm in ((3, 0), (3, 30)):
+        busy = [_busy("r1", "T1", datetime(2027, 3, 14, hh, mm, tzinfo=NY), 90, 10, 2)]
+        assert _slots(rules, [_t("T1", 1, 4)], 2, d=d, now=now, busy=busy) == []
+    # The same busy row expressed in UTC must block too.
+    utc_busy = [_busy("r1", "T1", datetime(2027, 3, 14, 7, 30, tzinfo=UTC), 90, 10, 2)]
+    assert _slots(rules, [_t("T1", 1, 4)], 2, d=d, now=now, busy=utc_busy) == []
+
+
+def test_fall_back_slot_ends_in_standard_time():
+    d = date(2026, 11, 1)
+    rules = _rules(first=time(1, 0), last=time(1, 0),
+                   durations=[DurationBand(max_party=99, minutes=90, churn_minutes=0)])
+    now = datetime(2026, 10, 30, tzinfo=NY)
+    slot = _slots(rules, [_t("T1", 1, 4)], 2, d=d, now=now)[0]
+    assert slot.start.utcoffset() == timedelta(hours=-4)
+    assert (slot.end.hour, slot.end.minute) == (1, 30)
+    assert slot.end.utcoffset() == timedelta(hours=-5)
+
+
 def test_section_cover_limit_caps_concurrent_covers():
     rules = _rules(section_cover_limits={"patio": 6},
                    first=time(19, 0), last=time(19, 0))
@@ -311,6 +348,59 @@ async def test_find_slots_honours_a_live_pending_hold(db_session, seed_location)
     ws, we = _day_window(d)
     starts = _starts(await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now))
     assert (19, 0) not in starts and (20, 30) not in starts and (21, 0) in starts
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_find_slots_treats_a_hold_without_expiry_as_live(db_session, seed_location):
+    now, d, table = await _db_setup(db_session)
+    await _book(db_session, table, datetime.combine(d, time(19, 0), tzinfo=NY), HELD,
+                held_until=None)
+    ws, we = _day_window(d)
+    starts = _starts(await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now))
+    assert (19, 0) not in starts and (21, 0) in starts
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_find_slots_ignores_an_archived_location(db_session, seed_location):
+    now, d, _ = await _db_setup(db_session)
+    seed_location.archived_at = now
+    await db_session.flush()
+    ws, we = _day_window(d)
+    assert await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now) == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_find_slots_ignores_busy_rows_at_another_location(
+    db_session, seed_location, other_location
+):
+    now, d, table = await _db_setup(db_session)
+    other_table = DiningTable(company_id=COMPANY_ID, location_id=other_location.id,
+                              label="T1", min_seats=1, max_seats=4)
+    db_session.add(other_table)
+    await db_session.flush()
+    start = datetime.combine(d, time(19, 0), tzinfo=NY)
+    res = Reservation(
+        company_id=COMPANY_ID, location_id=other_location.id, party_size=2,
+        start_at=start, end_at=start + timedelta(minutes=90), status=BOOKED,
+        source=SOURCE_STAFF)
+    db_session.add(res)
+    await db_session.flush()
+    db_session.add(ReservationTable(
+        company_id=COMPANY_ID, reservation_id=res.id, table_id=other_table.id,
+        during=Range(start, start + timedelta(minutes=100), bounds="[)")))
+    await db_session.flush()
+    ws, we = _day_window(d)
+    starts = _starts(await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now))
+    assert (19, 0) in starts
+    # Also guard the join: a reservation of this location on a table elsewhere.
+    early = datetime.combine(d, time(17, 0), tzinfo=NY)
+    stray = await _book(db_session, other_table, early, BOOKED)
+    assert stray.location_id == LOCATION_ID
+    starts = _starts(await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now))
+    assert (17, 0) in starts and (19, 0) in starts
 
 
 @pytest.mark.integration
