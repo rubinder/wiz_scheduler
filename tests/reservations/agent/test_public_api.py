@@ -147,7 +147,7 @@ async def test_text_turn_round_trip(client, seeded_floor, llm):
     assert r.status_code == 200, r.text
     assert r.json() == {"reply_text": "Hello! What date would you like?",
                         "expect": "text", "hold": None, "ended": False,
-                        "handoff": None}
+                        "handoff": None, "proposal": None}
     assert llm.requests[0]["messages"][-1]["content"][-1]["text"] == "Hi there"
     assert get_tenant_context() is None  # the request's tenant did not leak
 
@@ -204,6 +204,11 @@ async def test_confirm_modify_round_trip(client, db_session, seeded_floor, llm):
     r = await _turn(client, token, {"text": "move my booking to 8pm"})
     assert r.status_code == 200, r.text
     assert r.json()["expect"] == "confirm_modify"
+    assert r.json()["proposal"] == {
+        "kind": "modify",
+        "current": {"local_date": _day(now), "local_time": "19:00", "party_size": 2},
+        "proposed": {"local_date": _day(now), "local_time": "20:00", "party_size": 2},
+    }
 
     r = await _turn(client, token, {"action": "confirm_modify"})
     assert r.status_code == 200, r.text
@@ -237,15 +242,21 @@ async def test_max_length_text_is_accepted(client, seeded_floor, llm):
     assert (await _turn(client, token, {"text": "x" * 1000})).status_code == 200
 
 
-async def test_61st_request_from_one_ip_is_429_before_the_model(client, seeded_floor, llm):
+async def test_61st_request_from_one_ip_is_429_before_the_model(client, seeded_floor, llm,
+                                                                caplog):
     ip = _via("198.51.100.7")
     token = await _start(client, headers=ip)  # starts count too
     for _ in range(settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR - 1):
         # A rejected body still spends a token.
         assert (await _turn(client, token, {}, headers=ip)).status_code == 422
     llm.push(reply(text("Hello.")))
-    r = await _turn(client, token, {"text": "hi"}, headers=ip)
+    with caplog.at_level("INFO"):
+        r = await _turn(client, token, {"text": "hi"}, headers=ip)
     assert r.status_code == 429
+    # The log names the keyed hash, never the address (decision 29).
+    limited = [rec.getMessage() for rec in caplog.records
+               if "reservation_agent.rate_limited" in rec.getMessage()]
+    assert limited and not any("198.51.100.7" in m for m in limited)
     assert llm.requests == []
     assert (await client.post(f"{BASE}/conversations", headers=ip)).status_code == 429
 
@@ -553,3 +564,27 @@ async def test_trusted_client_keys_with_the_origin_secret(monkeypatch):
     req = Request({"type": "http", "client": ("10.1.1.1", 5),
                    "headers": [(b"x-forwarded-for", b"1.2.3.4, 198.51.100.7, 130.176.1.1")]})
     assert trusted_client_keys(req) == ("198.51.100.7", "198.51.100.7")
+
+
+async def test_confirm_on_the_closing_turn_books_through_the_api(
+        client, db_session, seeded_floor, llm, monkeypatch):
+    """The four button actions pass the turn cap: a Confirm on the closing
+    turn still books."""
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
+    now = datetime.now(timezone.utc)
+    token = await _start(client)
+    find = {"party_size": 2, "date": _day(now), "earliest": None, "latest": None}
+
+    def hold(request):
+        opt = last_tool_result(request)["options"][0]
+        return reply(tool_use("tu_h", "hold_slot", {
+            "start_iso": opt["start_iso"], "party_size": 2, "name": "Ada",
+            "phone": "+12125550100"}), stop="tool_use")
+
+    llm.push(reply(tool_use("tu_f", "find_slots", find), stop="tool_use"), hold,
+             reply(text("Press Confirm.")))
+    r = await _turn(client, token, {"text": "table for 2"})
+    assert r.json()["expect"] == "confirm_hold"
+    r = await _turn(client, token, {"action": "confirm_hold"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ended"] and r.json()["reply_text"].startswith("You're booked")

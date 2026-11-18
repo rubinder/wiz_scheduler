@@ -5,7 +5,7 @@ handle, and a hold is described by its local date, time, party size and
 status (never its reservation id)."""
 
 import unicodedata
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel, SerializerFunctionWrapHandler, StringConstraints, field_validator,
@@ -76,12 +76,28 @@ class HandoffOut(BaseModel):
     phone: str | None = None
 
 
+class SlotSummaryOut(BaseModel):
+    """A booking's date, time (location-local) and party size."""
+    local_date: str
+    local_time: str
+    party_size: int
+
+
+class ProposalOut(BaseModel):
+    """What the confirm_modify / confirm_cancel button applies, built from the
+    verified booking and the staged request (never from the model's text)."""
+    kind: Literal["modify", "cancel"]
+    current: SlotSummaryOut
+    proposed: SlotSummaryOut | None  # None for a cancel
+
+
 class TurnOut(BaseModel):
     reply_text: str
     expect: Expect
     hold: HoldOut | None
     ended: bool
     handoff: HandoffOut | None
+    proposal: ProposalOut | None = None
 
     @classmethod
     def from_turn(cls, out: TurnOutput) -> "TurnOut":
@@ -94,4 +110,5 @@ class TurnOut(BaseModel):
                 {k: hold.get(k) for k in HoldOut.model_fields}) if hold else None,
             handoff=HandoffOut(reason=str(handoff.get("reason", "")),
                                phone=handoff.get("phone")) if handoff else None,
+            proposal=ProposalOut.model_validate(out.proposal) if out.proposal else None,
         )

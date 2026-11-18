@@ -272,6 +272,9 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_CACHE_WRITE_USD_PER_MTOK: float = 0.125
     RESERVATION_AGENT_MAX_TURNS: int = 30
     RESERVATION_AGENT_MAX_TOOL_ROUNDS: int = 6
+    # A diner waits on the whole turn: past this no further model call starts
+    # and the diner is asked to send the message again.
+    RESERVATION_AGENT_TURN_DEADLINE_SECONDS: float = 25
     RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
     RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
     RESERVATION_AGENT_IP_INFO_PER_HOUR: int = 300

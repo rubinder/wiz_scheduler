@@ -12,7 +12,9 @@ from sqlalchemy import text as text_sql
 from backend.config import settings
 from backend.reservations import booking
 from backend.reservations.agent import recording
-from backend.reservations.agent.core import HANDOFF_TEXT, AgentCore, TurnInput
+from backend.reservations.agent.core import (
+    DEADLINE_TEXT, HANDOFF_TEXT, AgentCore, TurnInput,
+)
 from backend.reservations.agent.llm import LlmResponse
 from backend.reservations.agent.prompt import build_system_prompt
 from backend.reservations.agent.models import AgentEvent
@@ -21,6 +23,7 @@ from backend.reservations.models import BOOKED, CANCELLED, HELD, PENDING, Reserv
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from tests.conftest import COMPANY_ID, LOCATION_ID, get_test_session_factory
 from tests.reservations.agent.fakes import (
+    FakeClock,
     ScriptedLlm,
     last_tool_result,
     reply,
@@ -217,6 +220,11 @@ async def test_confirm_cancel(db_session, web_conv):
     )
     out = await core.handle_turn(db_session, web_conv, say("cancel my booking"), now=now)
     assert out.expect == "confirm_cancel"
+    assert out.proposal == {
+        "kind": "cancel",
+        "current": {"local_date": _day(now), "local_time": "19:00", "party_size": 2},
+        "proposed": None,
+    }
     assert (await _res(db_session, res.id)).status == BOOKED
     out = await core.handle_turn(db_session, web_conv, press("confirm_cancel"), now=now)
     assert (await _res(db_session, res.id)).status == CANCELLED
@@ -228,7 +236,7 @@ async def test_confirm_cancel(db_session, web_conv):
 async def test_refusal_or_max_tokens_hands_off(db_session, web_conv, stop):
     llm = ScriptedLlm(reply(text("partial"), stop=stop))
     out = await AgentCore(llm).handle_turn(db_session, web_conv, say("hi"))
-    assert out.reply_text == HANDOFF_TEXT and out.ended
+    assert out.reply_text == "Please contact the restaurant directly." and out.ended
     assert out.handoff == {"reason": stop, "phone": None}
     assert web_conv.outcome == "handed_off"
     events = await _events(db_session, web_conv)
@@ -238,7 +246,7 @@ async def test_refusal_or_max_tokens_hands_off(db_session, web_conv, stop):
 async def test_sdk_error_hands_off_without_raising(db_session, web_conv):
     err = anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.test"))
     out = await AgentCore(ScriptedLlm(err)).handle_turn(db_session, web_conv, say("hi"))
-    assert out.reply_text == HANDOFF_TEXT and out.ended
+    assert out.reply_text == "Please contact the restaurant directly." and out.ended
     assert web_conv.outcome == "handed_off"
     types = [e.type for e in await _events(db_session, web_conv)]
     assert types == ["user_turn", "error", "handoff"]
@@ -249,7 +257,7 @@ async def test_unexpected_error_fails_without_raising(db_session, web_conv):
     await db_session.commit()
     out = await AgentCore(ScriptedLlm(RuntimeError("boom"))).handle_turn(
         db_session, web_conv, say("hi"))
-    assert out.reply_text == HANDOFF_TEXT and out.ended
+    assert out.reply_text == "Please contact the restaurant directly." and out.ended
     assert (web_conv.outcome, web_conv.status) == ("failed", "closed")
     events = await _events(db_session, web_conv)
     # The diner's message was committed before the model call.
@@ -264,7 +272,8 @@ async def test_round_cap_hands_off(db_session, web_conv, monkeypatch):
     llm = ScriptedLlm(*[reply(tool_use(f"tu_{i}", "find_slots", find), stop="tool_use")
                         for i in range(2)])
     out = await AgentCore(llm).handle_turn(db_session, web_conv, say("hi"), now=now)
-    assert len(llm.requests) == 2 and out.reply_text == HANDOFF_TEXT
+    assert len(llm.requests) == 2
+    assert out.reply_text == "Please contact the restaurant directly."
     assert out.handoff["reason"] == "round_cap" and web_conv.outcome == "handed_off"
     # The last round's tools are not run: no model call is left to read them.
     types = [e.type for e in await _events(db_session, web_conv)]
@@ -479,6 +488,12 @@ async def test_confirm_modify_applies_the_staged_change(db_session, web_conv):
     out = await core.handle_turn(db_session, web_conv, say("move to 8pm"), now=now)
     assert out.expect == "confirm_modify"
     assert web_conv.pending_modify is not None
+    # The button's proposal comes from the booking and the staged change.
+    assert out.proposal == {
+        "kind": "modify",
+        "current": {"local_date": _day(now), "local_time": "19:00", "party_size": 2},
+        "proposed": {"local_date": _day(now), "local_time": "20:00", "party_size": 2},
+    }
     assert (await _res(db_session, res.id)).start_at.astimezone(NY).hour == 19
 
     out = await core.handle_turn(db_session, web_conv, press("confirm_modify"), now=now)
@@ -537,7 +552,8 @@ async def test_phone_wide_lookup_lockout_hands_off_to_staff(db_session, web_conv
     out = await AgentCore(llm).handle_turn(db_session, web_conv, say("my booking"),
                                            now=now)
     assert len(llm.requests) == 1  # no model call after the lockout
-    assert out.ended and out.reply_text == HANDOFF_TEXT
+    assert out.ended
+    assert out.reply_text == "Please call the restaurant at +12125550111."
     assert out.handoff == {"reason": "lookup_lockout", "phone": "+12125550111"}
     assert (web_conv.outcome, web_conv.status) == ("handed_off", "closed")
 
@@ -554,3 +570,111 @@ async def test_turn_cap_after_a_pending_request_is_handed_off(db_session, web_co
     assert await recording.claim_turn(db_session, web_conv) == "claimed"
     out = await core.handle_turn(db_session, web_conv, say("thanks"), now=now)
     assert out.ended and web_conv.outcome == "handed_off"
+
+
+# -- final review fixes ---------------------------------------------------------
+
+async def test_voice_handoff_keeps_the_transfer_wording(db_session, seeded_floor):
+    conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID,
+                                              "voice", caller_number=PHONE)
+    out = await AgentCore(ScriptedLlm(reply(text("x"), stop="refusal"))).handle_turn(
+        db_session, conv, say("hi"))
+    assert out.reply_text == HANDOFF_TEXT and out.ended
+
+
+async def test_failure_tells_a_web_diner_the_number_and_releases_the_hold(
+        db_session, web_conv):
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules.model_copy(
+        update={"staff_transfer_number": "+12125550111"}))
+    now = _now()
+    script = _hold_script(now)
+    # The hold round commits, then the next model call blows up.
+    llm = ScriptedLlm(script[0], script[1], RuntimeError("boom"))
+    out = await AgentCore(llm).handle_turn(db_session, web_conv, say("table for 2"),
+                                           now=now)
+    assert out.ended and out.reply_text == "Please call the restaurant at +12125550111."
+    assert out.handoff == {"reason": "error", "phone": "+12125550111"}
+    held = (await db_session.execute(select(Reservation).where(
+        Reservation.conversation_id == web_conv.id))).scalar_one()
+    assert (await _res(db_session, held.id)).status == CANCELLED
+    assert (web_conv.outcome, web_conv.status) == ("failed", "closed")
+
+
+async def test_turn_deadline_stops_before_the_next_model_call(db_session, web_conv,
+                                                              monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_TURN_DEADLINE_SECONDS", 25)
+    now = _now()
+    clock = FakeClock()
+    script = _hold_script(now)
+
+    def slow_find(request):
+        clock.advance(10)
+        return script[0]
+
+    def slow_hold(request):
+        clock.advance(20)  # 30 s in: past the deadline
+        return script[1](request)
+
+    llm = ScriptedLlm(slow_find, slow_hold)
+    core = AgentCore(llm, clock=clock)
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    await db_session.commit()
+    out = await core.handle_turn(db_session, web_conv, say("table for 2"), now=now)
+    assert len(llm.requests) == 2  # no third call
+    # Each call's timeout is what is left of the turn, at most 20 s.
+    assert [r["timeout"] for r in llm.requests] == [20.0, 15.0]
+    assert out.reply_text == DEADLINE_TEXT and not out.ended and out.handoff is None
+    # Nothing released: the hold keeps its Confirm button.
+    assert out.expect == "confirm_hold" and out.hold is not None
+    assert (await _res(db_session, web_conv.held_reservation_id)).status == HELD
+    assert web_conv.status == "open" and web_conv.turn_started_at is None
+    events = await _events(db_session, web_conv)
+    assert events[-1].type == "error" and events[-1].payload == {"error": "turn_deadline"}
+
+    # The diner sends again: the history is valid and the turn carries on.
+    llm.push(reply(text("Still holding 6pm for you.")))
+    out = await core.handle_turn(db_session, web_conv, say("hello?"), now=now)
+    assert out.reply_text == "Still holding 6pm for you."
+    last = llm.requests[-1]["messages"][-1]
+    assert last["role"] == "user"
+    assert [b["type"] for b in last["content"]] == ["tool_result", "text", "text"]
+
+
+async def test_model_timeout_asks_to_send_again(db_session, web_conv):
+    err = anthropic.APITimeoutError(request=httpx.Request("POST", "https://api.test"))
+    out = await AgentCore(ScriptedLlm(err)).handle_turn(db_session, web_conv, say("hi"))
+    assert out.reply_text == DEADLINE_TEXT and not out.ended
+    assert web_conv.status == "open" and web_conv.outcome is None
+    events = await _events(db_session, web_conv)
+    assert [e.type for e in events] == ["user_turn", "error"]
+    assert events[-1].payload == {"error": "llm_timeout"}
+
+
+async def test_confirm_on_the_closing_turn_still_books(db_session, web_conv, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
+    now = _now()
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    core, llm, out = await _held(db_session, web_conv, now)
+    hold_id = web_conv.held_reservation_id
+    # The claim past the cap is the closing turn; a button press still runs.
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    out = await core.handle_turn(db_session, web_conv, press("confirm_hold"), now=now)
+    assert (await _res(db_session, hold_id)).status == BOOKED
+    assert out.ended and web_conv.outcome == "booked"
+    assert await recording.claim_turn(db_session, web_conv) == "closed"
+
+
+async def test_other_actions_on_the_closing_turn_close_the_conversation(
+        db_session, web_conv, monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
+    now = _now()
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    core, llm, out = await _held(db_session, web_conv, now)
+    hold_id = web_conv.held_reservation_id
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    out = await core.handle_turn(db_session, web_conv, press("decline_hold"), now=now)
+    assert (await _res(db_session, hold_id)).status == CANCELLED
+    assert out.ended and out.reply_text.endswith(
+        "Please start a new conversation if you still need help.")
+    assert (web_conv.status, web_conv.outcome) == ("closed", "abandoned")

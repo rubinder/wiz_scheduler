@@ -88,7 +88,8 @@ def require_reservations_enabled() -> None:
 
 def _limit(limiter: SlidingWindowLimiter, key: str, what: str) -> None:
     if not limiter.check_and_record(key):
-        logger.info("reservation_agent.rate_limited %s=%s", what, key)
+        # Never log a raw address (decision 29): the keyed hash only.
+        logger.info("reservation_agent.rate_limited %s=%s", what, source_key_for(key))
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                             detail="Too many requests. Try again later.")
 

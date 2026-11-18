@@ -535,3 +535,21 @@ async def test_offered_starts_keep_the_most_recent_30(db_session, web_conv):
 async def test_find_slots_accepts_only_hh_mm(db_session, web_conv, bad):
     out = await _find(db_session, web_conv, _now(), earliest=bad)
     assert out.is_error and out.result == {"error": "invalid_time"}
+
+
+async def test_staging_a_cancel_drops_a_staged_modify_and_vice_versa(db_session, web_conv):
+    """Only the request the diner was last shown can be confirmed."""
+    now = _now()
+    res = await _booked(db_session, now)
+    await _verify(db_session, web_conv, now, res)
+    out = await execute_tool(db_session, web_conv, "modify_booking",
+                             {"party_size": 3, "start_iso": None}, now=now)
+    assert not out.is_error, out.result
+    assert web_conv.pending_modify is not None
+    await execute_tool(db_session, web_conv, "cancel_booking", {}, now=now)
+    assert web_conv.pending_cancel_id == res.id and web_conv.pending_modify is None
+    out = await execute_tool(db_session, web_conv, "modify_booking",
+                             {"party_size": 3, "start_iso": None}, now=now)
+    assert not out.is_error, out.result
+    assert web_conv.pending_modify == {"start_iso": None, "party_size": 3}
+    assert web_conv.pending_cancel_id is None

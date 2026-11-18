@@ -25,9 +25,9 @@ class ScriptedLlm:
         self.script.extend(script)
 
     async def create(self, *, system: str, messages: list[dict[str, Any]],
-                     tools: list[dict[str, Any]]) -> LlmResponse:
+                     tools: list[dict[str, Any]], timeout: float = 20.0) -> LlmResponse:
         request = {"system": system, "messages": copy.deepcopy(messages),
-                   "tools": tools}
+                   "tools": tools, "timeout": timeout}
         self.requests.append(request)
         if not self.script:
             raise AssertionError("ScriptedLlm: no response queued")
@@ -67,3 +67,16 @@ def last_tool_result(request: dict[str, Any]) -> dict[str, Any]:
     content = request["messages"][-1]["content"]
     block = next(b for b in content if b.get("type") == "tool_result")
     return json.loads(block["content"])
+
+
+class FakeClock:
+    """A monotonic clock the test advances by hand (AgentCore(clock=...))."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.t = start
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, seconds: float) -> None:
+        self.t += seconds

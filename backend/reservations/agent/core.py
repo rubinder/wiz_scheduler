@@ -14,6 +14,11 @@ thinking blocks included), so the system prompt and history prefix stay
 byte-stable for the prompt cache. JSONB reorders keys, so message events also
 keep the exact JSON text (`raw`) they replay from.
 
+A turn has a deadline (RESERVATION_AGENT_TURN_DEADLINE_SECONDS, on
+`self.clock`): no model call starts past it and each call's timeout is what
+is left (at most LLM_TIMEOUT_S). Past it the conversation stays open and the
+diner is asked to send the message again.
+
 Turns are claimed by the caller first (`recording.claim_turn`: one atomic
 UPDATE that counts the turn and marks it in flight); `handle_turn` clears
 the in-flight mark with its last commit.
@@ -32,7 +37,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -43,7 +48,7 @@ from backend.config import settings
 from backend.models import Location
 from backend.reservations import booking
 from backend.reservations.agent import recording, tools
-from backend.reservations.agent.llm import LlmClient, LlmResponse
+from backend.reservations.agent.llm import LLM_TIMEOUT_S, LlmClient, LlmResponse
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.agent.prompt import build_system_prompt
 from backend.reservations.booking import HoldExpired, ReservationError
@@ -56,7 +61,8 @@ Action = Literal["confirm_hold", "decline_hold", "confirm_cancel", "confirm_modi
 Expect = Literal["text", "confirm_hold", "confirm_cancel", "confirm_modify",
                  "phone_number", "party_size", "confirmation_code"]
 
-HANDOFF_TEXT = "Sorry, let me get someone to help."
+HANDOFF_TEXT = "Sorry, let me get someone to help."  # voice: staff take the call
+DEADLINE_TEXT = "Sorry, that took longer than expected — please send that again."
 CLOSING_TEXT = ("We've been chatting for a while, so I'll end here. "
                 "Please start a new conversation if you still need help.")
 ENDED_TEXT = "This conversation has ended. Please start a new one if you need anything else."
@@ -82,6 +88,24 @@ class TurnOutput:
     hold: dict[str, Any] | None
     ended: bool
     handoff: dict[str, Any] | None
+    # What a confirm_modify / confirm_cancel button applies, from the
+    # verified booking and what is staged (never from the model's text).
+    proposal: dict[str, Any] | None = None
+
+
+def handoff_text(channel: str, phone: str | None) -> str:
+    """On the phone the call is transferred; a web diner is told who to call."""
+    if channel == "voice":
+        return HANDOFF_TEXT
+    if phone:
+        return f"Please call the restaurant at {phone}."
+    return "Please contact the restaurant directly."
+
+
+def _slot(start: datetime, party_size: int, zone: ZoneInfo) -> dict[str, Any]:
+    local = start.astimezone(zone)
+    return {"local_date": local.date().isoformat(),
+            "local_time": local.strftime("%H:%M"), "party_size": party_size}
 
 
 class _Handoff(Exception):
@@ -108,29 +132,33 @@ def _diner_text(raw: str | None) -> str:
 
 
 class AgentCore:
-    def __init__(self, llm: LlmClient) -> None:
+    def __init__(self, llm: LlmClient,
+                 clock: Callable[[], float] = time.monotonic) -> None:
         self.llm = llm
+        self.clock = clock  # seconds, for the whole-turn deadline
 
     async def handle_turn(
         self, db: AsyncSession, conv: AgentConversation, turn: TurnInput,
         *, now: datetime | None = None,
     ) -> TurnOutput:
         now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        conv_id, company_id = conv.id, conv.company_id
+        started = self.clock()
+        conv_id, company_id, channel = conv.id, conv.company_id, conv.channel
         try:
-            out = await self._turn(db, conv, turn, now)
+            out = await self._turn(db, conv, turn, now, started)
             recording.end_turn(conv)
             await db.commit()
             return out
         except Exception:
             logger.exception("agent turn failed (conversation %s)", conv_id)
-            return await self._fail(db, conv_id, company_id)
+            return await self._fail(db, conv_id, company_id, channel, now)
 
     # -- failure -----------------------------------------------------------
 
-    async def _fail(self, db: AsyncSession, conv_id: str,
-                    company_id: str) -> TurnOutput:
+    async def _fail(self, db: AsyncSession, conv_id: str, company_id: str,
+                    channel: str, now: datetime) -> TurnOutput:
         phone: str | None = None
+        conv: AgentConversation | None = None
         try:
             await db.rollback()  # only the current round is uncommitted
             conv = (await db.execute(
@@ -150,25 +178,40 @@ class AgentCore:
         except Exception:
             logger.exception("agent failure could not be recorded (conversation %s)",
                              conv_id)
+            conv = None
             try:
                 await db.rollback()
             except Exception:
                 logger.exception("rollback failed (conversation %s)", conv_id)
-        return TurnOutput(HANDOFF_TEXT, "text", None, True,
+        if conv is not None and conv.held_reservation_id is not None:
+            # Best effort: the conversation is over, so a hold it made earlier
+            # (a round that committed before the failure) must not block the
+            # tables until it lapses.
+            try:
+                if await self._release_hold(db, conv, now):
+                    await db.commit()
+            except Exception:
+                logger.exception("could not release the hold (conversation %s)", conv_id)
+                try:
+                    await db.rollback()
+                except Exception:
+                    logger.exception("rollback failed (conversation %s)", conv_id)
+        return TurnOutput(handoff_text(channel, phone), "text", None, True,
                           {"reason": "error", "phone": phone})
 
     # -- the turn ----------------------------------------------------------
 
     async def _turn(self, db: AsyncSession, conv: AgentConversation,
-                    turn: TurnInput, now: datetime) -> TurnOutput:
+                    turn: TurnInput, now: datetime, started: float) -> TurnOutput:
         if conv.status != "open":
             return TurnOutput(ENDED_TEXT, "text", None, True, None)
         # The caller claimed this turn (recording.claim_turn), which counted
-        # it atomically; the claim past the cap is the closing turn.
-        if (conv.turn_count or 0) > settings.RESERVATION_AGENT_MAX_TURNS:
-            await self._release_hold(db, conv, now)
-            await recording.finish(db, conv, await self._outcome(db, conv, "abandoned"))
-            return TurnOutput(CLOSING_TEXT, "text", None, True, None)
+        # it atomically; the claim past the cap is the closing turn. A button
+        # press still runs on it (a Confirm pressed on the closing turn
+        # books), and the conversation closes after it.
+        closing = (conv.turn_count or 0) > settings.RESERVATION_AGENT_MAX_TURNS
+        if closing and turn.action is None:
+            return await self._close_at_cap(db, conv, now, None)
 
         loc = (await db.execute(
             select(Location).where(Location.id == conv.location_id,
@@ -178,19 +221,30 @@ class AgentCore:
         rules, _ = await get_rules(db, conv.company_id, conv.location_id)
 
         if turn.action is not None:
-            return await self._action(db, conv, turn.action, now, zone)
+            out = await self._action(db, conv, turn.action, now, zone)
+            if closing and conv.status == "open":
+                return await self._close_at_cap(db, conv, now, out.reply_text)
+            return out
 
         text = _diner_text(turn.text)
         if not text:
             return await self._output(db, conv, FALLBACK_TEXT, None, zone)
         try:
-            return await self._model_turn(db, conv, text, now, zone, loc.name, rules)
+            return await self._model_turn(db, conv, text, now, zone, loc.name, rules,
+                                          started)
         except _Handoff as h:
             return await self._handoff(db, conv, h.reason, now, rules)
 
+    async def _close_at_cap(self, db: AsyncSession, conv: AgentConversation,
+                            now: datetime, reply: str | None) -> TurnOutput:
+        await self._release_hold(db, conv, now)
+        await recording.finish(db, conv, await self._outcome(db, conv, "abandoned"))
+        text = f"{reply} {CLOSING_TEXT}" if reply else CLOSING_TEXT
+        return TurnOutput(text, "text", None, True, None)
+
     async def _model_turn(self, db: AsyncSession, conv: AgentConversation, text: str,
                           now: datetime, zone: ZoneInfo, location_name: str,
-                          rules: RulesSchema) -> TurnOutput:
+                          rules: RulesSchema, started_at: float) -> TurnOutput:
         system = build_system_prompt(location_name, zone.key, rules, conv.channel)
         messages = await self._history(db, conv)
         local = now.astimezone(zone)
@@ -211,10 +265,23 @@ class AgentCore:
         handoff: dict[str, Any] | None = None
         response: LlmResponse | None = None
         for round_no in range(rounds):
+            # The whole turn has a deadline: no model call starts past it,
+            # and none may run beyond it.
+            remaining = (settings.RESERVATION_AGENT_TURN_DEADLINE_SECONDS
+                         - (self.clock() - started_at))
+            if remaining <= 0:
+                return await self._past_deadline(db, conv, "turn_deadline", now, zone,
+                                                 rules, handoff)
             started = time.perf_counter()
             try:
                 response = await self.llm.create(system=system, messages=messages,
-                                                 tools=tools.TOOLS)
+                                                 tools=tools.TOOLS,
+                                                 timeout=min(LLM_TIMEOUT_S, remaining))
+            except anthropic.APITimeoutError:
+                logger.warning("agent model call timed out (conversation %s)", conv.id)
+                return await self._past_deadline(db, conv, "llm_timeout", now, zone,
+                                                 rules, handoff,
+                                                 latency_ms={"llm": _ms(started)})
             except (anthropic.APIStatusError, anthropic.APIConnectionError) as exc:
                 logger.warning("agent model call failed (conversation %s): %s",
                                conv.id, exc)
@@ -285,13 +352,33 @@ class AgentCore:
         expect = last_expect if last_expect in _TOOL_EXPECTS else None
         return await self._output(db, conv, reply, expect, zone)
 
+    async def _past_deadline(self, db: AsyncSession, conv: AgentConversation,
+                             error: str, now: datetime, zone: ZoneInfo,
+                             rules: RulesSchema, handoff: dict[str, Any] | None,
+                             latency_ms: dict[str, Any] | None = None) -> TurnOutput:
+        """The turn ran out of time. The conversation stays open and nothing
+        is released (a hold keeps its Confirm button); the diner sends again.
+        Everything up to the last round boundary is already committed, and the
+        history stays valid (it ends with the diner's message or a tool
+        result, which the next turn's message joins)."""
+        await recording.record_event(db, conv, "error", {"error": error},
+                                     latency_ms=latency_ms)
+        if handoff is not None:
+            # handoff_to_staff already ran in an earlier round: honour it.
+            await self._release_hold(db, conv, now)
+            await recording.finish(db, conv, "handed_off")
+            return TurnOutput(handoff_text(conv.channel, rules.staff_transfer_number),
+                              "text", None, True, handoff)
+        return await self._output(db, conv, DEADLINE_TEXT, None, zone)
+
     async def _handoff(self, db: AsyncSession, conv: AgentConversation, reason: str,
                        now: datetime, rules: RulesSchema) -> TurnOutput:
         await recording.record_event(db, conv, "handoff", {"reason": reason})
         await self._release_hold(db, conv, now)
         await recording.finish(db, conv, "handed_off")
-        return TurnOutput(HANDOFF_TEXT, "text", None, True,
-                          {"reason": reason, "phone": rules.staff_transfer_number})
+        phone = rules.staff_transfer_number
+        return TurnOutput(handoff_text(conv.channel, phone), "text", None, True,
+                          {"reason": reason, "phone": phone})
 
     # -- structured actions ------------------------------------------------
 
@@ -518,7 +605,36 @@ class AgentCore:
                 expect = tools.EXPECT_CONFIRM_CANCEL
             else:
                 expect = "text"
-        return TurnOutput(reply, expect, hold, False, None)  # type: ignore[arg-type]
+        proposal = await self._proposal(db, conv, expect, zone)
+        return TurnOutput(reply, expect, hold, False, None,  # type: ignore[arg-type]
+                          proposal)
+
+    async def _proposal(self, db: AsyncSession, conv: AgentConversation,
+                        expect: str, zone: ZoneInfo) -> dict[str, Any] | None:
+        """What the confirm button would apply, built from the verified
+        booking and the staged change, in the location's local time."""
+        if expect == tools.EXPECT_CONFIRM_CANCEL:
+            res = await self._staged(db, conv, conv.pending_cancel_id)
+            if res is None:
+                return None
+            return {"kind": "cancel", "current": _slot(res.start_at, res.party_size, zone),
+                    "proposed": None}
+        if expect != tools.EXPECT_CONFIRM_MODIFY or not isinstance(conv.pending_modify,
+                                                                   dict):
+            return None
+        res = await self._staged(db, conv, conv.verified_reservation_id)
+        if res is None:
+            return None
+        start_iso = conv.pending_modify.get("start_iso")
+        party = conv.pending_modify.get("party_size")
+        try:
+            start = (datetime.fromisoformat(start_iso) if isinstance(start_iso, str)
+                     else res.start_at)
+        except ValueError:
+            return None
+        return {"kind": "modify", "current": _slot(res.start_at, res.party_size, zone),
+                "proposed": _slot(start, party if isinstance(party, int) else
+                                  res.party_size, zone)}
 
     async def _history(self, db: AsyncSession,
                        conv: AgentConversation) -> list[dict[str, Any]]:

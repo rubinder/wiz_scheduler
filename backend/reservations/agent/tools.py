@@ -11,7 +11,8 @@ Guards, so the model cannot state or book what the evaluator never produced:
   `modify_booking` validates the change and stages it on
   `conv.pending_modify`, `cancel_booking` stages `conv.pending_cancel_id`,
   and each asks for the structured confirmation (`expect`) that the core's
-  `confirm_modify` / `confirm_cancel` action applies.
+  `confirm_modify` / `confirm_cancel` action applies. Staging one clears the
+  other, so only the request the diner was last shown can be confirmed.
 
 Each tool runs in a savepoint, so a failed write leaves the session usable
 and the conversation unchanged. `execute_tool` never raises. Flush only;
@@ -421,6 +422,7 @@ async def _modify_booking(db: AsyncSession, conv: AgentConversation,
     conv.pending_modify = {"start_iso": start.astimezone(zone).isoformat()
                            if start is not None else None,
                            "party_size": party_size}
+    conv.pending_cancel_id = None  # one staged request at a time
     when = _local(new_start, zone)
     return ToolOutcome({
         "awaiting_confirmation": True, "current": _summary(res, zone),
@@ -436,6 +438,7 @@ async def _cancel_booking(db: AsyncSession, conv: AgentConversation,
         raise booking.InvalidTransition()
     loc = await _location(db, conv)
     conv.pending_cancel_id = res.id
+    conv.pending_modify = None  # one staged request at a time
     return ToolOutcome({"awaiting_confirmation": True,
                         **_summary(res, ZoneInfo(loc.timezone))},
                        expect=EXPECT_CONFIRM_CANCEL)

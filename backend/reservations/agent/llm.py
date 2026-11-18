@@ -25,7 +25,7 @@ class LlmResponse:
 class LlmClient(Protocol):
     async def create(
         self, *, system: str, messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
+        tools: list[dict[str, Any]], timeout: float = LLM_TIMEOUT_S,
     ) -> LlmResponse: ...
 
 
@@ -59,8 +59,10 @@ class AnthropicLlm:
 
     async def create(
         self, *, system: str, messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
+        tools: list[dict[str, Any]], timeout: float = LLM_TIMEOUT_S,
     ) -> LlmResponse:
+        """`timeout` bounds this call (the core passes what is left of the
+        turn's deadline, at most LLM_TIMEOUT_S)."""
         # Thinking is left at the model default (adaptive); effort keeps it short.
         response = await self._sdk().messages.create(
             model=settings.RESERVATION_AGENT_MODEL,
@@ -71,7 +73,7 @@ class AnthropicLlm:
             tool_choice={"type": "auto"},
             output_config={"effort": "low"},
             cache_control={"type": "ephemeral"},
-            timeout=LLM_TIMEOUT_S,
+            timeout=timeout,
         )
         return LlmResponse(
             content=[b.model_dump(mode="json", exclude_none=True) for b in response.content],
