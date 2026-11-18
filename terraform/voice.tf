@@ -6,8 +6,9 @@
 # plan shows nothing from this file and merging creates nothing billable.
 #
 # Call path: caller -> Amazon Connect number -> contact flow
-# (voice/contact_flow.json.tftpl) -> Lex V2 bot (HostTurn) -> bridge Lambda
-# (infra/voice/bridge) -> POST https://<app host>/api/v1/voice/turn.
+# (voice/contact_flow.json.tftpl) -> screening Lambda (screen.py, POST
+# /api/v1/voice/screen; block -> disconnect) -> Lex V2 bot (HostTurn) ->
+# bridge Lambda (infra/voice/bridge) -> POST https://<app host>/api/v1/voice/turn.
 #
 # The aws provider (5.x) has no Lex V2 bot alias resource and its
 # aws_connect_bot_association only takes Lex V1 bots, and Lex cannot publish
@@ -108,9 +109,12 @@ data "aws_iam_policy_document" "voice_lambda" {
   count = var.voice_enabled ? 1 : 0
 
   statement {
-    sid       = "Logs"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["${aws_cloudwatch_log_group.voice_lambda[0].arn}:*"]
+    sid     = "Logs"
+    actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = [
+      "${aws_cloudwatch_log_group.voice_lambda[0].arn}:*",
+      "${aws_cloudwatch_log_group.voice_screen[0].arn}:*",
+    ]
   }
 
   statement {
@@ -163,6 +167,63 @@ resource "aws_lambda_permission" "voice_lex" {
   function_name = aws_lambda_function.voice_bridge[0].function_name
   principal     = "lexv2.amazonaws.com"
   source_arn    = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/${aws_lexv2models_bot.voice[0].id}/*"
+}
+
+# --- Screening Lambda (#259 step 7) -----------------------------------------
+# Same zip, role, secret and environment as the bridge. The contact flow
+# invokes it before the Lex bot and disconnects only on {"action": "block"};
+# any error or timeout answers the call (screen.py fails open).
+
+resource "aws_cloudwatch_log_group" "voice_screen" {
+  count = var.voice_enabled ? 1 : 0
+
+  name              = "/aws/lambda/${var.app_name}-voice-screen"
+  retention_in_days = 14
+
+  tags = { Name = "${var.app_name}-voice-screen-logs" }
+}
+
+resource "aws_lambda_function" "voice_screen" {
+  count = var.voice_enabled ? 1 : 0
+
+  function_name    = "${var.app_name}-voice-screen"
+  description      = "Connect call screening: POST /api/v1/voice/screen -> answer or block"
+  role             = aws_iam_role.voice_lambda[0].arn
+  runtime          = "python3.11"
+  handler          = "screen.handler"
+  memory_size      = 128
+  timeout          = 3
+  filename         = var.voice_bridge_zip
+  source_code_hash = filebase64sha256(var.voice_bridge_zip)
+
+  environment {
+    variables = {
+      BACKEND_URL = local.voice_backend_url
+      SECRET_ARN  = aws_secretsmanager_secret.voice_bridge[0].arn
+    }
+  }
+
+  depends_on = [aws_cloudwatch_log_group.voice_screen, aws_iam_role_policy.voice_lambda]
+
+  tags = { Name = "${var.app_name}-voice-screen" }
+}
+
+resource "aws_lambda_permission" "voice_screen_connect" {
+  count = var.voice_enabled ? 1 : 0
+
+  statement_id  = "AllowConnectInstance"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.voice_screen[0].function_name
+  principal     = "connect.amazonaws.com"
+  source_arn    = aws_connect_instance.voice[0].arn
+}
+
+# Connect may only invoke Lambdas associated with the instance.
+resource "aws_connect_lambda_function_association" "voice_screen" {
+  count = var.voice_enabled ? 1 : 0
+
+  instance_id  = aws_connect_instance.voice[0].id
+  function_arn = aws_lambda_function.voice_screen[0].arn
 }
 
 # --- Lex V2 bot -------------------------------------------------------------
@@ -351,12 +412,15 @@ resource "aws_connect_contact_flow" "voice" {
 
   instance_id = aws_connect_instance.voice[0].id
   name        = "${var.app_name}-host"
-  description = "Inbound: Lex V2 AI host, then transfer to staff when the backend hands off"
+  description = "Inbound: screen the caller, then Lex V2 AI host, then transfer to staff when the backend hands off"
   type        = "CONTACT_FLOW"
   content = templatefile("${path.module}/voice/contact_flow.json.tftpl", {
     lex_bot_alias_arn = var.voice_lex_bot_alias_arn
     polly_voice       = var.voice_polly_voice
+    screen_lambda_arn = aws_lambda_function.voice_screen[0].arn
   })
+
+  depends_on = [aws_connect_lambda_function_association.voice_screen]
 
   tags = { Name = "${var.app_name}-host" }
 }
