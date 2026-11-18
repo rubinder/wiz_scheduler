@@ -16,7 +16,8 @@ same diner waits for it and cannot slip a row in between the snapshot and
 the scrub. A conversation with a turn in flight (turn_started_at within
 recording.TURN_STALE_SECONDS) is not deleted under that turn, which would
 then fail writing its events: it is closed instead, so it takes no further
-turns, and counted in `conversations_closed_in_flight`. Running the erase
+turns, its stored voice reply (`last_reply`, which can repeat the diner's
+details) is cleared, and it is counted in `conversations_closed_in_flight`. Running the erase
 again once the turn has ended deletes it.
 
 Lock order: a running turn locks its conversation row (record_event) and
@@ -172,7 +173,7 @@ async def erase_diner_data(
             update(AgentConversation)
             .where(AgentConversation.company_id == company_id,
                    AgentConversation.id.in_(busy))
-            .values(status="closed",
+            .values(status="closed", last_reply=None,
                     ended_at=func.coalesce(AgentConversation.ended_at, func.now()))
             .execution_options(synchronize_session=False)
         )).rowcount
