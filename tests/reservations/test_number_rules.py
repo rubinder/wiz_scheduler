@@ -370,6 +370,36 @@ async def test_location_block_under_an_allow_is_409_number_allowed(
     assert (await _post(client, manager_token, action="allow")).status_code == 201
 
 
+async def test_patch_location_rule_to_block_under_an_allow_is_409_number_allowed(
+    client, manager_token, seed_location, db_session
+):
+    # A location allow turned into a block, while a company-wide allow exists.
+    rid = await _add(db_session, action="allow")
+    await _add(db_session, action="allow", location_id=None)
+    r = await client.patch(f"{BASE}/number-rules/{rid}", json={"action": "block"},
+                           headers=_auth(manager_token))
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "number_allowed"
+    assert r.json()["detail"]["scope"] == "all_locations"
+    db_session.expire_all()
+    assert (await db_session.get(NumberRule, rid)).action == "allow"
+
+
+async def test_patch_lone_location_allow_to_block_is_ok(
+    client, manager_token, seed_location, db_session
+):
+    # The rule's own allow does not count against it; company rules never 409.
+    rid = await _add(db_session, action="allow")
+    cid = await _add(db_session, action="allow", location_id=None, e164=OTHER)
+    h = _auth(manager_token)
+    r = await client.patch(f"{BASE}/number-rules/{rid}", json={"action": "block"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["action"] == "block"
+    await _add(db_session, action="allow", location_id=LOCATION_ID, e164=OTHER)
+    r = await client.patch(f"{BASE}/number-rules/{cid}", json={"action": "block"}, headers=h)
+    assert r.status_code == 200, r.text
+
+
 async def test_mark_spam_out_of_scope_is_404(
     client, regular_token, other_location, db_session
 ):

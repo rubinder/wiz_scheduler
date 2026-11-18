@@ -23,8 +23,8 @@ as the backstop.
 
 A location block under an active allow (that location's or company-wide)
 would never apply, since an allow wins (screening.decide): creating one, by
-POST or Mark as spam, is NumberAllowed (409 number_allowed, with the scope
-of the allow).
+POST, Mark as spam or a PATCH to block, is NumberAllowed (409
+number_allowed, with the scope of the allow).
 
 Number rules are diner data: diner_data exports and erases them. Deleting
 one is a hard delete (a rule is not history; screened_calls keep only the
@@ -180,15 +180,18 @@ async def _active_at_scope(db: AsyncSession, company_id: str, location_id: str |
 
 
 async def _allowed_over(db: AsyncSession, company_id: str, location_id: str,
-                        e164: str, now: datetime) -> str | None:
+                        e164: str, now: datetime,
+                        exclude_id: str | None = None) -> str | None:
     """"here" or "all_locations" when an active allow for the number covers
-    the location (a location allow first), else None."""
-    scopes = set((await db.execute(
-        select(NumberRule.location_id).where(
-            NumberRule.company_id == company_id, NumberRule.e164 == e164,
-            NumberRule.action == "allow", active_rule_clause(now),
-            or_(NumberRule.location_id == location_id, NumberRule.location_id.is_(None)))
-    )).scalars().all())
+    the location (a location allow first), else None. `exclude_id` skips the
+    rule being edited, so its own allow does not count."""
+    q = select(NumberRule.location_id).where(
+        NumberRule.company_id == company_id, NumberRule.e164 == e164,
+        NumberRule.action == "allow", active_rule_clause(now),
+        or_(NumberRule.location_id == location_id, NumberRule.location_id.is_(None)))
+    if exclude_id is not None:
+        q = q.where(NumberRule.id != exclude_id)
+    scopes = set((await db.execute(q)).scalars().all())
     if location_id in scopes:
         return "here"
     if None in scopes:
@@ -250,7 +253,15 @@ async def update_rule(db: AsyncSession, rule: NumberRule, *, action: str | None,
     """Action, expiry and note only; scope and number never change (delete
     and recreate). `_UNSET` leaves a field as it is, and so does an
     `expires_on` equal to the current one (an expired entry stays editable:
-    its past date is not re-checked). Flushes."""
+    its past date is not re-checked). Turning a location entry into a block
+    where an allow covers the number is NumberAllowed, as on create. Flushes."""
+    if action == BLOCK and rule.action != BLOCK and rule.location_id is not None:
+        await _lock_number(db, rule.company_id, rule.e164)
+        with db.no_autoflush:
+            allowed = await _allowed_over(db, rule.company_id, rule.location_id,
+                                          rule.e164, now, exclude_id=rule.id)
+        if allowed:
+            raise NumberAllowed(allowed)
     if action is not None:
         rule.action = action
     if note is not _UNSET:
