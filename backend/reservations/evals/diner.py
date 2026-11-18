@@ -28,10 +28,16 @@ class Diner(Protocol):
 def diner_system_prompt(scenario: Scenario) -> str:
     d = scenario.diner
     facts = "\n".join(f"- {k}: {v}" for k, v in d.facts.items())
+    if scenario.channel == "voice":
+        setting = ("You are role-playing a diner on the phone with a restaurant's "
+                   "booking host. Write only what the diner says: short, natural "
+                   "spoken sentences, with no narration or stage directions.")
+    else:
+        setting = ("You are role-playing a diner chatting with a restaurant's online "
+                   "booking host. Write only what the diner types: short, natural "
+                   "messages, with no narration or stage directions.")
     return (
-        "You are role-playing a diner chatting with a restaurant's online booking "
-        "host. Write only what the diner types: short, natural messages, with no "
-        "narration or stage directions.\n\n"
+        f"{setting}\n\n"
         f"Who you are: {d.persona}\n\n"
         f"Your goal: {d.goal}\n\n"
         "Facts you know. Answer only from these facts; if asked something not in "

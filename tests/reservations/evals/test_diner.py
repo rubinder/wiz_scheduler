@@ -79,6 +79,13 @@ def test_system_prompt_carries_persona_goal_facts_and_done_rule() -> None:
     assert "say you don't know" in prompt
 
 
+def test_voice_diner_is_on_the_phone() -> None:
+    voice = diner_system_prompt(_scenario("party_of_14_voice"))
+    web = diner_system_prompt(_scenario("party_of_14_web"))
+    assert "on the phone with" in voice and "chatting" not in voice
+    assert "chatting with" in web and "on the phone" not in web
+
+
 def test_messages_map_host_to_user_and_diner_to_assistant() -> None:
     transcript = [("diner", "hi"), ("host", "Hello"), ("diner", "[pressed No]"),
                   ("host", "OK"), ("host", "Anything else?")]

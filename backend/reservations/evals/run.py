@@ -5,7 +5,7 @@
 
 Replay runs every recording in `recordings/` against the real core, tools and
 database with the recorded model responses. Live needs ANTHROPIC_API_KEY,
-prints a cost upper bound first and refuses above $1.00 without --yes.
+prints a cost estimate first and refuses above $1.00 without --yes.
 
 Every run happens in a scratch Postgres schema `evals_<utc timestamp>` of
 DATABASE_URL, created and dropped here; the public schema is never touched.
@@ -26,6 +26,7 @@ Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key,
 
 import argparse
 import asyncio
+import dataclasses
 import logging
 import re
 import sys
@@ -46,23 +47,29 @@ logger = logging.getLogger(__name__)
 MAX_DINER_TURNS = 20
 STALE_AFTER = timedelta(hours=1)
 INPUT_TOKEN_ESTIMATE = 6000
+INPUT_TOKEN_GROWTH = 800  # per diner turn: the history the next call resends
 COST_LIMIT_USD = 1.00
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "host.docker.internal", "postgres", "db"}
 _SCHEMA_RE = re.compile(r"^evals_[0-9]{8}t[0-9]{6}z$")
 
 
-def cost_upper_bound(scenario_count: int, repeat: int) -> float:
+def cost_estimate(scenario_count: int, repeat: int) -> float:
     """scenarios x repeat x 20 diner turns x (MAX_TOOL_ROUNDS agent calls +
-    1 diner call), each at its per-call bound: max output tokens plus a
-    6000-token input estimate at the configured agent prices. The diner is
-    priced at the agent's prices too (both are Haiku), with 300 max output."""
+    1 diner call). Each call is priced at max output tokens plus an input
+    estimate that grows with the conversation: 6000 + 800 x the turn index
+    (0-based), at the configured agent prices. The diner is priced at the
+    agent's prices too (both are Haiku), with 300 max output. An estimate,
+    not a bound: input can run past it, though real runs end well before 20
+    turns and rarely use every tool round."""
     inp = settings.RESERVATION_AGENT_INPUT_USD_PER_MTOK
     out = settings.RESERVATION_AGENT_OUTPUT_USD_PER_MTOK
-    agent_call = (settings.RESERVATION_AGENT_MAX_TOKENS * out
-                  + INPUT_TOKEN_ESTIMATE * inp) / 1e6
-    diner_call = (DINER_MAX_TOKENS * out + INPUT_TOKEN_ESTIMATE * inp) / 1e6
-    per_turn = settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS * agent_call + diner_call
-    return scenario_count * repeat * MAX_DINER_TURNS * per_turn
+    per_scenario = 0.0
+    for turn in range(MAX_DINER_TURNS):
+        tokens_in = INPUT_TOKEN_ESTIMATE + INPUT_TOKEN_GROWTH * turn
+        agent_call = (settings.RESERVATION_AGENT_MAX_TOKENS * out + tokens_in * inp) / 1e6
+        diner_call = (DINER_MAX_TOKENS * out + tokens_in * inp) / 1e6
+        per_scenario += settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS * agent_call + diner_call
+    return scenario_count * repeat * per_scenario
 
 
 def host_is_local(database_url: str) -> bool:
@@ -84,7 +91,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--live", action="store_true", help="call the real models")
     p.add_argument("--scenarios", default="", help="comma-separated scenario ids")
     p.add_argument("--repeat", type=int, default=1, help="runs per scenario (live)")
-    p.add_argument("--yes", action="store_true", help="accept a cost bound above $1.00")
+    p.add_argument("--yes", action="store_true", help="accept a cost estimate above $1.00")
     p.add_argument("--record", action="store_true",
                    help="live: write recordings for passing scenarios")
     p.add_argument("--notes", default=None, help="free text stored with the run")
@@ -212,9 +219,6 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         return 4
 
     if args.cleanup:
-        if not host_is_local(url) and not args.allow_remote_db:
-            print("refusing: database host is not local", file=sys.stderr)
-            return 4
         dropped = await cleanup_stale(url)
         print(f"dropped {len(dropped)} stale schema(s)" + "".join(f"\n  {n}" for n in dropped))
         return 0
@@ -229,11 +233,11 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         if not settings.ANTHROPIC_API_KEY:
             print("--live needs ANTHROPIC_API_KEY", file=sys.stderr)
             return 2
-        bound = cost_upper_bound(len(scenarios), args.repeat)
-        print(f"cost upper bound: ${bound:.2f} "
+        estimate = cost_estimate(len(scenarios), args.repeat)
+        print(f"cost estimate: ${estimate:.2f} "
               f"({len(scenarios)} scenarios x {args.repeat} x {MAX_DINER_TURNS} turns)")
-        if bound > COST_LIMIT_USD and not args.yes:
-            print(f"refusing: bound exceeds ${COST_LIMIT_USD:.2f}; pass --yes",
+        if estimate > COST_LIMIT_USD and not args.yes:
+            print(f"refusing: estimate exceeds ${COST_LIMIT_USD:.2f}; pass --yes",
                   file=sys.stderr)
             return 3
 
@@ -281,10 +285,16 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                             check=CheckResult(passed=False, failures=[str(exc)]),
                             transcript=[], stop="error"))
                         continue
-                    res = await run_suite(
-                        factory, [scenario], core=core,
-                        diner_factory=lambda s, r=rec: replay.replay_diner(r))
-                    outcomes += res.outcomes
+                    diner = replay.replay_diner(rec)
+                    res = await run_suite(factory, [scenario], core=core,
+                                          diner_factory=lambda s, d=diner: d)
+                    for o in res.outcomes:
+                        left = replay.unused(name, core, diner)
+                        if left:
+                            o = dataclasses.replace(o, check=CheckResult(
+                                passed=False, failures=[*o.check.failures, *left],
+                                metrics=o.check.metrics))
+                        outcomes.append(o)
         except (KeyboardInterrupt, asyncio.CancelledError):
             interrupted = True
             print("interrupted: reporting the runs finished so far", file=sys.stderr)

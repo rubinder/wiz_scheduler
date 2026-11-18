@@ -24,9 +24,20 @@ def _url() -> str:
     return _get_test_engine().url.render_as_string(hide_password=False)
 
 
-def test_cost_bound_is_above_the_limit_for_the_full_suite() -> None:
-    assert run.cost_upper_bound(10, 1) > run.COST_LIMIT_USD
-    assert run.cost_upper_bound(1, 1) < run.COST_LIMIT_USD
+def test_cost_estimate_is_above_the_limit_for_the_full_suite() -> None:
+    assert run.cost_estimate(10, 1) > run.COST_LIMIT_USD
+    assert run.cost_estimate(1, 1) < run.COST_LIMIT_USD
+
+
+def test_cost_estimate_grows_input_per_turn(monkeypatch) -> None:
+    """6000 + 800 x turn index input tokens per call, max output tokens."""
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_INPUT_USD_PER_MTOK", 1.0)
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_OUTPUT_USD_PER_MTOK", 0.0)
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TOOL_ROUNDS", 1)
+    # 20 turns x 2 calls (agent + diner) x (6000 + 800 i) tokens at $1/Mtok.
+    want = 2 * sum(6000 + 800 * i for i in range(20)) / 1e6
+    assert run.cost_estimate(1, 1) == pytest.approx(want)
+    assert run.cost_estimate(3, 2) == pytest.approx(6 * want)
 
 
 @pytest.mark.asyncio
@@ -35,7 +46,7 @@ async def test_cost_guard_refuses_without_yes(monkeypatch, capsys) -> None:
     code = await run.amain(["--live", "--repeat", "3"], database_url=_url(),
                            diner_client=_NoCalls(), llm=_NoCalls())
     assert code == 3
-    assert "cost upper bound" in capsys.readouterr().out
+    assert "cost estimate" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -148,3 +159,23 @@ async def test_cleanup_drops_only_stale_schemas() -> None:
     finally:
         async with _get_test_engine().begin() as conn:
             await conn.execute(text(f'drop schema if exists "{new}" cascade'))
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replay_with_leftover_responses_fails(monkeypatch, capsys,
+                                                    tmp_path: Path) -> None:
+    from backend.reservations.evals import replay
+
+    [(name, rec)] = [(n, r) for n, r in replay.load_recordings()
+                     if r["scenario_id"] == "book_four_friday_7pm"]
+    padded = dict(rec, responses=[*rec["responses"], rec["responses"][-1]],
+                  diner_lines=[*rec["diner_lines"], "one more thing"])
+    monkeypatch.setattr(replay, "load_recordings", lambda: [(name, padded)])
+    code = await run.amain([], database_url=_url(), runs_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert code == 1, out
+    [saved] = list(tmp_path.glob("*.json"))
+    [result] = json.loads(saved.read_text())["results"]
+    assert f"recording {name} has 1 unused responses" in result["failures"]
+    assert f"recording {name} has 1 unused diner lines" in result["failures"]

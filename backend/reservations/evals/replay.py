@@ -162,3 +162,15 @@ def replay_core(recording: dict[str, Any], name: str | None = None) -> AgentCore
 
 def replay_diner(recording: dict[str, Any]) -> ScriptedDiner:
     return ScriptedDiner(list(recording["diner_lines"]))
+
+
+def unused(name: str, core: AgentCore, diner: ScriptedDiner) -> list[str]:
+    """Failures for a replay that ended with recorded responses or diner
+    lines left over: the run diverged from the recording."""
+    out = []
+    left = len(getattr(core.llm, "responses", []))
+    if left:
+        out.append(f"recording {name} has {left} unused responses")
+    if diner.lines:
+        out.append(f"recording {name} has {len(diner.lines)} unused diner lines")
+    return out

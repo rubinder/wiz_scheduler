@@ -1,0 +1,86 @@
+{
+  "diner_lines": [
+    "Hi, I'd like to move my booking EVCHG2 from 7pm to 8pm on Friday 4 December. My phone is +12125550142."
+  ],
+  "responses": [
+    {
+      "content": [
+        {
+          "id": "tu_l",
+          "input": {
+            "confirmation_code": "EVCHG2",
+            "phone": "+12125550142"
+          },
+          "name": "lookup_booking",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "id": "tu_f",
+          "input": {
+            "date": "2026-12-04",
+            "earliest": "20:00",
+            "latest": "20:00",
+            "party_size": 2
+          },
+          "name": "find_slots",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "id": "tu_m",
+          "input": {
+            "party_size": null,
+            "start_iso": "2026-12-04T20:00:00-05:00"
+          },
+          "name": "modify_booking",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "text": "I can move your booking to 20:00 on Friday 4 December. Press Confirm change to apply it.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    }
+  ],
+  "scenario_id": "change_booking_with_code",
+  "version": 1
+}
