@@ -308,10 +308,11 @@ def test_failure_closes_politely_without_transfer(failure: Any) -> None:
 @pytest.mark.parametrize("failure", FAILURES[:4])
 def test_failure_transfers_when_a_number_is_known(failure: Any) -> None:
     resp = make(FakeHttp(failure)).handle(
-        event(attrs={"transfer_to": "+12125550111"}))
+        event(attrs={"fallback_transfer_to": "+12125550111"}))
     state = resp["sessionState"]
     assert state["dialogAction"] == {"type": "Close"}
     assert state["sessionAttributes"]["transfer_to"] == "+12125550111"
+    assert state["sessionAttributes"]["fallback_transfer_to"] == "+12125550111"
     assert ssml_of(resp) == ("<speak>Sorry, I&apos;m having trouble right now. "
                              "Let me transfer you.</speak>")
 
@@ -450,3 +451,122 @@ def test_render_output_is_well_formed_xml() -> None:
     text = ("Booked for 2026-11-21 at 7:00 PM, code is ABC234. Questions? "
             "Call +12125550100 <b>& thanks</b>")
     ET.fromstring(ssml.render(text))
+
+
+# ---------------------------------------------------------------------------
+# fix round 1
+# ---------------------------------------------------------------------------
+
+def test_stale_transfer_to_alone_does_not_transfer_on_failure() -> None:
+    resp = make(FakeHttp((500, b""))).handle(event(attrs={"transfer_to": "+12125550111"}))
+    assert "transfer_to" not in resp["sessionState"]["sessionAttributes"]
+
+
+def test_invalid_fallback_number_does_not_transfer() -> None:
+    resp = make(FakeHttp((500, b""))).handle(
+        event(attrs={"fallback_transfer_to": "staff desk"}))
+    assert "transfer_to" not in resp["sessionState"]["sessionAttributes"]
+    assert "call back" in ssml_of(resp)
+
+
+def test_failure_after_several_turns_still_transfers_to_fallback() -> None:
+    http = FakeHttp(reply(), reply(expect="party_size",
+                                   hints={"elicit": "party_size", "dtmf": True}),
+                    reply(text="Found one.", expect="confirm_hold",
+                          confirm_prompt="Shall I book it?"),
+                    socket.timeout("timed out"))
+    b = make(http)
+    attrs = {"fallback_transfer_to": "+12125550111"}
+    for _ in range(3):
+        resp = b.handle(event(attrs=attrs))
+        attrs = resp["sessionState"]["sessionAttributes"]
+        assert attrs["fallback_transfer_to"] == "+12125550111"
+        assert "transfer_to" not in attrs
+    resp = b.handle(event(attrs=attrs))
+    assert resp["sessionState"]["sessionAttributes"]["transfer_to"] == "+12125550111"
+    assert "Let me transfer you." in ssml_of(resp)
+
+
+def test_fallback_intent_event_still_elicits_and_confirms_on_host_turn() -> None:
+    http = FakeHttp(reply(expect="party_size", hints={"elicit": "party_size", "dtmf": True}),
+                    reply(expect="confirm_hold", confirm_prompt="Shall I book it?"),
+                    reply(text="Bye.", end_call=True))
+    b = make(http)
+    elicit = b.handle(event(intent="FallbackIntent"))["sessionState"]
+    assert elicit["intent"]["name"] == "HostTurn"
+    assert "x-amz-lex:dtmf:end-character:HostTurn:party_size" in elicit["sessionAttributes"]
+    assert "HostTurn" in elicit["runtimeHints"]["slotHints"]
+    confirm = b.handle(event(intent="FallbackIntent"))["sessionState"]
+    assert confirm["dialogAction"] == {"type": "ConfirmIntent"}
+    assert confirm["intent"]["name"] == "HostTurn"
+    close = b.handle(event(intent="FallbackIntent"))["sessionState"]
+    assert close["intent"] == {"name": "FallbackIntent", "state": "Fulfilled"}
+
+
+def test_long_reply_is_cut_at_a_sentence_and_keeps_confirm_prompt() -> None:
+    body = " ".join(f"Sentence {i} mentions +12125550100 and 2026-11-21 at 7:00 PM."
+                    for i in range(40))
+    resp = make(FakeHttp(reply(text=body, expect="confirm_hold",
+                               confirm_prompt="Shall I book a table for 2?"))
+                ).handle(event())
+    content = ssml_of(resp)
+    assert len(content) <= 1000
+    assert content.endswith("Shall I book a table for 2?</speak>")
+    assert "Sentence 0 " in content
+    # whole sentences only: the last kept body sentence ends with its period
+    assert content.replace(" Shall I book a table for 2?</speak>", "").endswith(".")
+    import xml.etree.ElementTree as ET
+    ET.fromstring(content)
+
+
+def test_long_single_sentence_is_cut_by_words() -> None:
+    out = ssml.render_limited("word " * 400 + "end.")
+    assert len(out) <= 1000
+    assert out.endswith("...</speak>")
+
+
+def test_short_text_is_unchanged_by_limit() -> None:
+    assert ssml.render_limited("Hi.", "Shall I?") == "<speak>Hi. Shall I?</speak>"
+
+
+def test_render_strips_xml_illegal_control_characters() -> None:
+    import xml.etree.ElementTree as ET
+    out = ssml.render("a\x00b\x07c\x1fd\ttab")
+    assert out == "<speak>abcd\ttab</speak>"
+    ET.fromstring(out)
+
+
+def test_404_clears_cached_secret_so_rotation_recovers() -> None:
+    secrets = ["old", "new"]
+    loads: list[str] = []
+
+    def load() -> str:
+        loads.append(secrets[len(loads)])
+        return loads[-1]
+    http = FakeHttp((404, b""), reply())
+    b = bridge.Bridge(backend_url=URL, load_secret=load, http=http)
+    b.handle(event())
+    resp = b.handle(event())
+    assert [c["headers"]["X-Voice-Bridge-Secret"] for c in http.calls] == ["old", "new"]
+    assert resp["sessionState"]["dialogAction"] == {"type": "ElicitIntent"}
+
+
+def test_500_keeps_cached_secret() -> None:
+    loads: list[int] = []
+
+    def load() -> str:
+        loads.append(1)
+        return SECRET
+    b = bridge.Bridge(backend_url=URL, load_secret=load,
+                      http=FakeHttp((500, b""), reply()))
+    b.handle(event())
+    b.handle(event())
+    assert len(loads) == 1
+
+
+def test_confirm_prompt_with_non_confirm_expect_is_spoken_not_confirmed() -> None:
+    resp = make(FakeHttp(reply(text="Got it.", expect="text",
+                               confirm_prompt="Anything else?"))).handle(event())
+    assert resp["sessionState"]["dialogAction"] == {"type": "ElicitIntent"}
+    assert resp["sessionState"]["sessionAttributes"]["pending_expect"] == "text"
+    assert ssml_of(resp) == "<speak>Got it. Anything else?</speak>"

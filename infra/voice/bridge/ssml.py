@@ -30,6 +30,11 @@ _CODE = re.compile(
 _PHONE = re.compile(r"\+([1-9][0-9]{6,14})\b")
 _MARKDOWN = re.compile(r"\*\*|__")
 
+# XML 1.0 forbids these even escaped; Polly rejects the document.
+_ILLEGAL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+MAX_SSML_CHARS = 1000  # Lex V2's message limit
+
 _BREAK = '<break strength="weak"/>'
 
 
@@ -86,9 +91,44 @@ def _code(m: re.Match[str]) -> str:
 
 def render(text: str) -> str:
     """Plain reply text -> one `<speak>` document."""
-    out = escape(_MARKDOWN.sub("", text or ""))
+    out = escape(_MARKDOWN.sub("", _ILLEGAL.sub("", text or "")))
     out = _DATE.sub(_date, out)
     out = _TIME.sub(_time, out)
     out = _CODE.sub(_code, out)
     out = _PHONE.sub(_phone, out)
     return f"<speak>{out}</speak>"
+
+
+def _join(body: str, question: str) -> str:
+    return f"{body} {question}".strip()
+
+
+def render_limited(body: str, question: str = "", limit: int = MAX_SSML_CHARS) -> str:
+    """`render(body + " " + question)` within `limit` characters. The body
+    loses whole sentences from the end (then words, if its first sentence
+    alone is too long); the question is kept whole."""
+    full = render(_join(body, question))
+    if len(full) <= limit:
+        return full
+    sentences = [s for s in _SENTENCE_END.split((body or "").strip()) if s]
+    kept: list[str] = []
+    for sentence in sentences:
+        if len(render(_join(" ".join(kept + [sentence]), question))) > limit:
+            break
+        kept.append(sentence)
+    if not kept and sentences:
+        words: list[str] = []
+        for word in sentences[0].split():
+            if len(render(_join(" ".join(words + [word, "..."]), question))) > limit:
+                break
+            words.append(word)
+        kept = [" ".join(words) + "..."] if words else []
+    out = render(_join(" ".join(kept), question))
+    if len(out) > limit:  # the question alone is too long: cut it by words
+        words = []
+        for word in _join(" ".join(kept), question).split():
+            if len(render(" ".join(words + [word]))) > limit:
+                break
+            words.append(word)
+        out = render(" ".join(words))
+    return out

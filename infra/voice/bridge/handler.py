@@ -7,6 +7,9 @@ comes from the Lambda runtime and is imported only there).
 
 Session attributes (Lex V2 `sessionState.sessionAttributes`, strings):
 - set by the contact flow: `contact_id`, `dialed`, `caller`;
+- set by the contact flow, optional: `fallback_transfer_to` (the
+  location's staff number, E.164); never changed here, and copied into
+  `transfer_to` when a turn fails;
 - kept here: `seq` (the seq last sent), `pending_expect` (the confirm_*
   question a rendered `confirm_prompt` asked, else "text"), `transfer_to`
   (only on the Close that transfers; the contact flow transfers when it is
@@ -23,9 +26,16 @@ Confirmation: a `confirm_prompt` becomes ConfirmIntent; on the next turn
 Lex's Confirmed sends the pending confirm_* action and Denied sends
 `decline_hold`, both with no text. Any other turn sends the transcript.
 
+The bot has one intent, HostTurn: ElicitSlot, ConfirmIntent and the DTMF
+and runtime-hint keys always name it, since after an ElicitIntent Lex may
+route the caller's words to FallbackIntent. A Close keeps the event's
+intent. Messages are at most 1000 characters of SSML (Lex's limit): the
+reply is cut at a sentence boundary, never the confirmation question.
+
 Failures (timeout, non-200, malformed reply, no secret, bad event) never
-raise: the caller hears an apology and is transferred when a number is
-known, else told to call back. Logs carry the contact id and the error
+raise: the caller hears an apology and is transferred to
+`fallback_transfer_to` when the flow set one, else told to call back. A
+404 (wrong secret) drops the cached secret so a rotation recovers. Logs carry the contact id and the error
 class only, never a number or a transcript.
 """
 
@@ -164,6 +174,8 @@ class Bridge:
         status, raw = self._http(self.backend_url + "/api/v1/voice/turn", headers,
                                  json.dumps(body).encode(), BACKEND_TIMEOUT_SECONDS)
         elapsed = int((time.monotonic() - started) * 1000)
+        if status == 404:
+            self._secret = None  # maybe rotated: fetch again next turn
         if status != 200:
             raise BridgeError(f"status {status}")
         try:
@@ -177,16 +189,19 @@ class Bridge:
     @staticmethod
     def _response(dialog: dict[str, Any], attrs: dict[str, str], text: str,
                   intent: dict[str, Any] | None = None,
-                  extra: dict[str, Any] | None = None) -> dict[str, Any]:
+                  extra: dict[str, Any] | None = None,
+                  question: str = "") -> dict[str, Any]:
         state: dict[str, Any] = {"dialogAction": dialog, "sessionAttributes": attrs}
         if intent is not None:
             state["intent"] = intent
         state.update(extra or {})
         return {"sessionState": state,
-                "messages": [{"contentType": "SSML", "content": ssml.render(text)}]}
+                "messages": [{"contentType": "SSML",
+                              "content": ssml.render_limited(text, question)}]}
 
     def _render(self, reply: dict[str, Any], attrs: dict[str, str],
-                intent_name: str) -> dict[str, Any]:
+                event_intent: str) -> dict[str, Any]:
+        intent_name = DEFAULT_INTENT
         attrs = {k: v for k, v in attrs.items()
                  if k != "transfer_to" and not k.startswith(_DTMF_PREFIX)}
         attrs["pending_expect"] = "text"
@@ -194,17 +209,16 @@ class Bridge:
         if reply.get("transfer_to"):
             attrs["transfer_to"] = reply["transfer_to"]
             return self._response({"type": "Close"}, attrs, text,
-                                  {"name": intent_name, "state": "Fulfilled"})
+                                  {"name": event_intent, "state": "Fulfilled"})
         if reply["end_call"]:
             return self._response({"type": "Close"}, attrs, text,
-                                  {"name": intent_name, "state": "Fulfilled"})
-        prompt = reply.get("confirm_prompt")
+                                  {"name": event_intent, "state": "Fulfilled"})
+        prompt = (reply.get("confirm_prompt") or "").strip()
         if prompt and reply["expect"] in _CONFIRM_EXPECTS:
             attrs["pending_expect"] = reply["expect"]
-            return self._response({"type": "ConfirmIntent"}, attrs,
-                                  f"{text} {prompt}".strip(),
+            return self._response({"type": "ConfirmIntent"}, attrs, text,
                                   {"name": intent_name, "state": "InProgress",
-                                   "confirmationState": "None"})
+                                   "confirmationState": "None"}, question=prompt)
         hints = reply["hints"]
         slot = hints.get("elicit")
         if slot:
@@ -218,17 +232,19 @@ class Bridge:
                     "runtimeHintValues": [{"phrase": p} for p in _RUNTIME_HINTS[slot]]}}}}
             return self._response({"type": "ElicitSlot", "slotToElicit": slot}, attrs,
                                   text, {"name": intent_name, "state": "InProgress"},
-                                  extra)
-        return self._response({"type": "ElicitIntent"}, attrs, text)
+                                  extra, question=prompt)
+        # A prompt with no confirm_* expect is no Lex confirmation: say it.
+        return self._response({"type": "ElicitIntent"}, attrs, text, question=prompt)
 
     def _failure(self, attrs: dict[str, str], intent_name: str) -> dict[str, Any]:
-        keep = {k: v for k, v in attrs.items() if not k.startswith(_DTMF_PREFIX)}
+        keep = {k: v for k, v in attrs.items()
+                if k != "transfer_to" and not k.startswith(_DTMF_PREFIX)}
         keep["pending_expect"] = "text"
-        transfer_to = keep.get("transfer_to") or ""
-        if _E164.fullmatch(transfer_to):
+        fallback = keep.get("fallback_transfer_to") or ""
+        if _E164.fullmatch(fallback):
+            keep["transfer_to"] = fallback
             text = TROUBLE_TEXT + TRANSFER_SUFFIX
         else:
-            keep.pop("transfer_to", None)
             text = TROUBLE_TEXT + CALL_BACK_SUFFIX
         return self._response({"type": "Close"}, keep, text,
                               {"name": intent_name, "state": "Failed"})
