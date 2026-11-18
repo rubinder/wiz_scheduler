@@ -20,6 +20,7 @@ from backend.models import (
     TimeEntry,
 )
 from backend.models.preference_submission import EmployeePreferenceSubmission
+from backend.reservations.models import DiningTable
 from backend.services.check_in import local_date_for
 
 
@@ -242,3 +243,9 @@ async def restore_location(db: AsyncSession, company_id: str, location: Location
 
 async def restore_role(db: AsyncSession, company_id: str, role: Role) -> None:
     role.archived_at = None
+
+
+def archive_dining_table(table: DiningTable, *, now: datetime | None = None) -> None:
+    """Archive a floor-plan table; callers check for upcoming bookings first."""
+    if table.archived_at is None:
+        table.archived_at = _now(now)
