@@ -151,8 +151,10 @@ and `voice_bridge` (Lambda-only), reference file
 - `reservation_rules` (one per location, JSONB validated by a Pydantic
   schema, versioned): service periods per weekday, slot interval, dining
   duration by party size, max party size for self-booking, party size
-  needing staff approval, booking horizon and cut-off, buffer between
-  seatings, closures, per-section limits, hold timeout (default 5 min),
+  needing staff approval, booking horizon and cut-off, churn (table
+  reset) time per party-size band, restaurant capacity (max diners seated
+  at once) and pacing (max covers starting per slot), closures and
+  date-specific hour overrides, per-section limits, hold timeout (default 5 min),
   pending-approval hold (default 24 h), agent persona (Polly voice,
   greeting, restaurant facts the agent may state), staff transfer number.
 - `reservations`: location, party size, start/end (tz-aware), table or
@@ -166,7 +168,8 @@ and `voice_bridge` (Lambda-only), reference file
 
 **Single evaluator:** `reservations.availability.find_slots(location,
 party_size, window) -> list[Slot]` is the only code that decides what is
-bookable (rules, periods, durations, buffers, closures, existing
+bookable (rules, periods and date overrides, durations, churn, restaurant
+capacity and pacing, closures, existing
 reservations, holds, table fit and combinations). Agent, web UI, manager
 views and the WizScheduler provider all call it. Booking re-checks it
 under a row lock on the location's reservation day, and a Postgres
@@ -470,6 +473,9 @@ production until legal approval) and works on its own:
   there are more than two customers.
 - Managers can block or allow numbers permanently or until a date, with an
   optional note.
+- Availability checks restaurant capacity as well as table fit; seating is
+  configurable (table combinations seat large parties); hours include
+  date-specific overrides; churn time between seatings is configurable.
 - Any company may subscribe, free scheduling plans included, since it is a
   separate charge.
 
