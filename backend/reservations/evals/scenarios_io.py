@@ -27,6 +27,7 @@ from backend.reservations.rules import RulesSchema
 SCENARIO_DIR = Path(__file__).resolve().parent / "scenarios"
 
 POLICIES = ("confirm_when_offered", "decline_first_offer", "never_confirm")
+GOAL_KINDS = ("book", "change", "cancel")
 EXISTING_STATUSES = (BOOKED, PENDING, CANCELLED)
 BOOKING_STATUSES = (BOOKED, PENDING)
 _ID = re.compile(r"^[a-z0-9_]+$")
@@ -100,6 +101,9 @@ class Scenario:
     diner: DinerPersona
     policy: str
     expect: Expectation
+    # What the diner is after; the runner's button policy reads it. None:
+    # the runner infers it (a confirmation_code fact means change or cancel).
+    goal_kind: str | None = None
     source: Path | None = field(default=None, compare=False)
 
     def floor_in(self) -> FloorIn:
@@ -312,7 +316,7 @@ _TOP = {"id", "title", "channel", "now", "location", "floor", "rules", "existing
 
 
 def parse_scenario(data: Any, source: Path | None = None) -> Scenario:
-    v = _obj(data, "scenario", _TOP)
+    v = _obj(data, "scenario", _TOP, {"goal_kind"})
     sid = _str(v["id"], "id")
     if not _ID.match(sid):
         raise ScenarioInvalid(f"id: {sid!r} must be lowercase letters, digits, _")
@@ -326,7 +330,10 @@ def parse_scenario(data: Any, source: Path | None = None) -> Scenario:
         rules=_document(RulesSchema, v["rules"], "rules"),
         existing=_existing(v["existing"]), diner=_diner(v["diner"]),
         policy=_one_of(v["policy"], "policy", POLICIES),
-        expect=_expect(v["expect"]), source=source)
+        expect=_expect(v["expect"]),
+        goal_kind=_one_of(v["goal_kind"], "goal_kind", GOAL_KINDS)
+        if "goal_kind" in v else None,
+        source=source)
     seeded_codes = {e.confirmation_code for e in scenario.existing}
     for code in (scenario.expect.cancelled_code, *scenario.expect.kept_codes):
         if code is not None and code not in seeded_codes:

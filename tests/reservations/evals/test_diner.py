@@ -161,3 +161,14 @@ def test_cancel_pressed_for_a_cancel_goal() -> None:
     s = _scenario("cancel_with_wrong_phone")
     assert choose_action(s, _out("confirm_cancel"), PolicyState()) == "confirm_cancel"
     assert choose_action(s, _out("confirm_modify"), PolicyState()) is None
+
+
+def test_goal_kind_overrides_the_inference() -> None:
+    # A code fact and no expected booking would infer "cancel".
+    s = _scenario("cancel_with_wrong_phone", goal_kind="change")
+    assert choose_action(s, _out("confirm_cancel"), PolicyState()) is None
+    assert choose_action(s, _out("confirm_modify", proposal={
+        "kind": "modify", "current": None, "proposed": None}), PolicyState()) \
+        == "confirm_modify"  # no expected booking: any proposal
+    b = _scenario("book_four_friday_7pm", goal_kind="cancel")
+    assert choose_action(b, _out("confirm_cancel"), PolicyState()) == "confirm_cancel"

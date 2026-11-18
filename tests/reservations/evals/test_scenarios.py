@@ -173,3 +173,14 @@ async def test_no_confirmed_reservations_conflicts_with_a_booking(tmp_path: Path
     with pytest.raises(ScenarioInvalid, match="no_confirmed_reservations"):
         load_scenarios(_copy_with(tmp_path, lambda d: d["expect"].update(
             no_confirmed_reservations=True)))
+
+
+async def test_goal_kind_is_optional_and_strict(tmp_path: Path) -> None:
+    by_id = {s.id: s for s in load_scenarios()}
+    assert by_id["book_four_friday_7pm"].goal_kind is None
+    assert by_id["change_booking_with_code"].goal_kind == "change"
+    assert by_id["cancel_with_wrong_phone"].goal_kind == "cancel"
+    [s] = load_scenarios(_copy_with(tmp_path, lambda d: d.update(goal_kind="book")))
+    assert s.goal_kind == "book"
+    with pytest.raises(ScenarioInvalid, match="goal_kind"):
+        load_scenarios(_copy_with(tmp_path, lambda d: d.update(goal_kind="modify")))

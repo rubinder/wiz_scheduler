@@ -2,15 +2,18 @@
 and a scripted diner (ScriptedDiner). No network."""
 
 from dataclasses import replace
+from datetime import timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from backend.reservations.agent.core import AgentCore
 from backend.reservations.agent.models import AgentConversation
 from backend.reservations.evals.diner import DONE, ScriptedDiner
 from backend.reservations.evals.runner import (
+    ACTION_STEP,
+    EMPTY_STAND_IN,
     MAX_DINER_TURNS,
     run_scenario,
     run_suite,
@@ -37,8 +40,12 @@ def _scenario(sid: str, **changes: Any) -> Scenario:
     return replace(s, **changes) if changes else s
 
 
-def _hold_script(scenario: Scenario, party: int, date: str, at: str) -> list:
-    """find_slots at exactly `at` -> hold_slot on that option -> a text reply."""
+def _hold_script(scenario: Scenario, party: int, date: str, at: str,
+                 expire: bool = False) -> list:
+    """find_slots at exactly `at` -> hold_slot on that option -> a text reply.
+    With `expire`, the hold lapses (held_until moved into the past, on its own
+    session: the core committed it) before the reply, so the diner's press
+    comes too late."""
     facts = scenario.diner.facts
 
     def hold(request: dict[str, Any]):
@@ -47,12 +54,21 @@ def _hold_script(scenario: Scenario, party: int, date: str, at: str) -> list:
             "start_iso": opt["start_iso"], "party_size": party,
             "name": facts["name"], "phone": facts["phone"]}), stop="tool_use")
 
+    async def offer(request: dict[str, Any]):
+        if expire:
+            hold_id = last_tool_result(request)["hold_id"]
+            async with get_test_session_factory()() as db:
+                await db.execute(update(Reservation).where(Reservation.id == hold_id)
+                                 .values(held_until=scenario.now - timedelta(minutes=1)))
+                await db.commit()
+        return reply(text(f"I'm holding {at} for {party}. Press Confirm to book it."))
+
     return [
         reply(tool_use("tu_f", "find_slots", {"party_size": party, "date": date,
                                               "earliest": at, "latest": at}),
               stop="tool_use"),
         hold,
-        reply(text(f"I'm holding {at} for {party}. Press Confirm to book it.")),
+        offer,
     ]
 
 
@@ -85,6 +101,10 @@ async def test_scripted_booking_passes_the_checker() -> None:
     assert "[buttons shown:" in out.transcript[1][1]
     assert "find_slots" not in str(out.transcript)
     assert out.transcript[2] == ("diner", "[pressed Confirm]")
+    assert out.presses == [("confirm_hold", "action")]
+    # The press runs ACTION_STEP after the text turn that raised it.
+    [booked] = [r for r in await _rows(out.conversation_id) if r.status == BOOKED]
+    assert booked.updated_at == scenario.now + ACTION_STEP
     conv = await _conv(out.conversation_id)
     assert conv.outcome == "booked"
     assert conv.turn_count == 2  # the text turn and the button press, both claimed
@@ -153,14 +173,49 @@ async def test_done_ends_the_run() -> None:
     scenario = _scenario("book_four_friday_7pm")
     llm = ScriptedLlm(reply(text("Hello! How can I help?")))
     out = await run_scenario(get_test_session_factory(), scenario, core=AgentCore(llm),
-                             diner=ScriptedDiner(["hi", f"Never mind. {DONE}",
-                                                  "never sent"]))
+                             diner=ScriptedDiner(["hi", DONE, "never sent"]))
     assert out.stop == "done"
     assert out.diner_turns == 1
     assert len(llm.requests) == 1
     assert out.transcript == [("diner", "hi"), ("host", "Hello! How can I help?")]
     conv = await _conv(out.conversation_id)
     assert (conv.status, conv.outcome) == ("closed", "abandoned")
+
+
+async def test_text_before_done_is_sent_then_the_run_stops() -> None:
+    scenario = _scenario("book_four_friday_7pm")
+    llm = ScriptedLlm(reply(text("Hello!")), reply(text("Bye!")))
+    out = await run_scenario(get_test_session_factory(), scenario, core=AgentCore(llm),
+                             diner=ScriptedDiner(["hi", f"Never mind, bye. {DONE}",
+                                                  "never sent"]))
+    assert out.stop == "done"
+    assert out.diner_turns == 2
+    assert len(llm.requests) == 2
+    assert out.transcript[-2:] == [("diner", "Never mind, bye."), ("host", "Bye!")]
+
+
+async def test_one_empty_reply_is_a_repeat_request_and_two_stop_the_run() -> None:
+    scenario = _scenario("book_four_friday_7pm")
+    llm = ScriptedLlm(reply(text("Hello!")), reply(text("Tell me more.")))
+    out = await run_scenario(get_test_session_factory(), scenario, core=AgentCore(llm),
+                             diner=ScriptedDiner(["", "hi", "  ", "never sent"]))
+    assert out.stop == "diner_empty"
+    assert out.diner_turns == 2
+    assert [line for who, line in out.transcript if who == "diner"] == \
+        [EMPTY_STAND_IN, "hi"]
+
+
+async def test_a_failed_confirm_continues_and_the_diner_picks_again() -> None:
+    scenario = _scenario("book_four_friday_7pm")
+    llm = ScriptedLlm(*_hold_script(scenario, 4, "2026-12-04", "19:00", expire=True),
+                      *_hold_script(scenario, 4, "2026-12-04", "19:00"))
+    out = await run_scenario(get_test_session_factory(), scenario, core=AgentCore(llm),
+                             diner=ScriptedDiner([ASK, "Yes, 7pm again please."]))
+    assert out.presses == [("confirm_hold", "action_failed"), ("confirm_hold", "action")]
+    assert out.stop == "action"
+    assert out.diner_turns == 2
+    assert "expired" in out.transcript[3][1]
+    assert out.check.failures == []
 
 
 async def test_submitted_request_is_closed_as_handed_off() -> None:

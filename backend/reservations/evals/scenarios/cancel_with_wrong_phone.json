@@ -120,6 +120,7 @@
     }
   },
   "policy": "confirm_when_offered",
+  "goal_kind": "cancel",
   "expect": {
     "outcome": [
       "handed_off",

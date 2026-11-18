@@ -122,6 +122,7 @@
     }
   },
   "policy": "confirm_when_offered",
+  "goal_kind": "change",
   "expect": {
     "outcome": "modified",
     "booking": {
