@@ -260,6 +260,18 @@ class Settings(BaseSettings):
 
     # Reservations (#254): off until the feature is ready to ship.
     RESERVATIONS_ENABLED: bool = False
+
+    # AI host agent (#259). Prices are USD per million tokens.
+    RESERVATION_AGENT_MODEL: str = "claude-sonnet-5"
+    RESERVATION_AGENT_PRICE_INPUT_PER_MTOK: float = 3.00
+    RESERVATION_AGENT_PRICE_OUTPUT_PER_MTOK: float = 15.00
+    RESERVATION_AGENT_PRICE_CACHE_READ_PER_MTOK: float = 0.30
+    RESERVATION_AGENT_PRICE_CACHE_WRITE_PER_MTOK: float = 3.75
+    RESERVATION_AGENT_MAX_TURNS: int = 30
+    RESERVATION_AGENT_MAX_TOOL_ROUNDS: int = 6
+    RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
+    RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
+    RESERVATION_AGENT_MAX_TOKENS: int = 1024
     AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
     AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
 

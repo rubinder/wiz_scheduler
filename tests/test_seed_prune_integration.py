@@ -483,13 +483,25 @@ async def test_prune_delete_order_satisfies_foreign_keys():
                 id="rtab0001", company_id=COMPANY_ID, reservation_id="resv0001",
                 table_id="dtab0001",
                 during=Range(r_start, r_start + timedelta(minutes=100), bounds="[)")))
+            from backend.reservations.agent.models import (
+                AgentConversation, AgentEvent,
+            )
+            db.add(AgentConversation(
+                id="conv0001", company_id=COMPANY_ID, location_id=doomed,
+                channel="web", public_token="t" * 43, status="open",
+                reservation_id="resv0001", started_at=r_start))
+            await db.flush()
+            db.add(AgentEvent(id="evnt0001", company_id=COMPANY_ID,
+                              conversation_id="conv0001", seq=1,
+                              type="user_turn", payload={}))
             await db.commit()
 
             # The assertion is that this does not raise an IntegrityError.
             await _prune_over_limit_demo_data(db)
             await db.commit()
 
-            for model in (ReservationTable, Reservation, TableCombination,
+            for model in (AgentEvent, AgentConversation, ReservationTable,
+                          Reservation, TableCombination,
                           DiningTable, FloorSection, ReservationRules):
                 assert (await db.execute(select(model.id))).scalars().all() == [], \
                     model.__tablename__

@@ -431,6 +431,21 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
         DiningTable, FloorSection, Reservation, ReservationRules,
         ReservationTable, TableCombination,
     )
+    from backend.reservations.agent.models import AgentConversation, AgentEvent
+    doomed_conversations = (
+        select(AgentConversation.id)
+        .where(AgentConversation.location_id.in_(loc_ids)).scalar_subquery()
+    )
+    await _run(
+        delete(AgentEvent).where(
+            AgentEvent.conversation_id.in_(doomed_conversations)),
+        "agent_events",
+    )
+    await _run(
+        delete(AgentConversation).where(
+            AgentConversation.location_id.in_(loc_ids)),
+        "agent_conversations",
+    )
     doomed_reservations = (
         select(Reservation.id).where(Reservation.location_id.in_(loc_ids))
         .scalar_subquery()
