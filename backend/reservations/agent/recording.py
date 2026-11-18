@@ -17,10 +17,10 @@ def cost_of(usage: Mapping[str, int] | None) -> Decimal:
     """USD cost of one model call from the per-million-token price settings."""
     u = usage or {}
     prices = (
-        ("input_tokens", settings.RESERVATION_AGENT_PRICE_INPUT_PER_MTOK),
-        ("output_tokens", settings.RESERVATION_AGENT_PRICE_OUTPUT_PER_MTOK),
-        ("cache_read_tokens", settings.RESERVATION_AGENT_PRICE_CACHE_READ_PER_MTOK),
-        ("cache_write_tokens", settings.RESERVATION_AGENT_PRICE_CACHE_WRITE_PER_MTOK),
+        ("input_tokens", settings.RESERVATION_AGENT_INPUT_USD_PER_MTOK),
+        ("output_tokens", settings.RESERVATION_AGENT_OUTPUT_USD_PER_MTOK),
+        ("cache_read_tokens", settings.RESERVATION_AGENT_CACHE_READ_USD_PER_MTOK),
+        ("cache_write_tokens", settings.RESERVATION_AGENT_CACHE_WRITE_USD_PER_MTOK),
     )
     total = Decimal(0)
     for key, price in prices:

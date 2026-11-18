@@ -25,8 +25,8 @@ async def test_cost_accumulates_exactly(db_session, seed_location):
     conv = await _conv(db_session, seed_location)
     usage = {"input_tokens": 1000, "output_tokens": 500,
              "cache_read_tokens": 2000, "cache_write_tokens": 100}
-    # 1000*3 + 500*15 + 2000*0.30 + 100*3.75 = 3000+7500+600+375 per 1e6
-    expected = Decimal("11475") / Decimal(1_000_000)
+    # 1000*0.10 + 500*0.50 + 2000*0.01 + 100*0.125 = 382.5 per 1e6
+    expected = Decimal("382.5") / Decimal(1_000_000)
     assert recording.cost_of(usage) == expected
     assert recording.cost_of({}) == Decimal(0)
     e1 = await recording.record_event(db_session, conv, "assistant_turn", {}, usage=usage)
@@ -35,7 +35,7 @@ async def test_cost_accumulates_exactly(db_session, seed_location):
     assert e1.input_tokens == 1000
     assert conv.cost_usd == expected * 2
     await db_session.refresh(conv)
-    assert conv.cost_usd == Decimal("0.022950")
+    assert conv.cost_usd == Decimal("0.000765")
 
 
 async def test_public_token_unique_and_43_chars(db_session, seed_location):
