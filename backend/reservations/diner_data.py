@@ -7,11 +7,21 @@ them (booked, held or verified) or started from that caller number, plus
 the agent's booking-lookup failures for that phone. Erasing clears the
 reservations' contact fields (the rows stay for covers analytics), deletes
 the conversations (their events cascade) and the lookup failures.
+
+Erasing takes the location lock first, like every reservations write
+(locations before reservations), so a concurrent hold or booking for the
+same diner waits for it and cannot slip a row in between the snapshot and
+the scrub. A conversation with a turn in flight (turn_started_at within
+recording.TURN_STALE_SECONDS) is not deleted under that turn, which would
+then fail writing its events: it is closed instead, so it takes no further
+turns, and counted in `conversations_closed_in_flight`. Running the erase
+again once the turn has ended deletes it.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import and_, delete, func, not_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.agent.models import (
@@ -19,6 +29,8 @@ from backend.reservations.agent.models import (
     AgentEvent,
     ReservationLookupFailure,
 )
+from backend.reservations import booking
+from backend.reservations.agent.recording import TURN_STALE_SECONDS
 from backend.reservations.booking import E164, InvalidPhone
 from backend.reservations.models import Reservation
 from backend.reservations.queries import conversation_events
@@ -87,17 +99,46 @@ async def find_diner_data(
     return DinerData(reservations, conversations, events)
 
 
+def _in_flight():
+    """A turn is running: the same test recording.claim_turn uses, on the
+    database clock."""
+    return and_(
+        AgentConversation.turn_started_at.isnot(None),
+        AgentConversation.turn_started_at
+        >= func.now() - text(f"interval '{TURN_STALE_SECONDS} seconds'"),
+    )
+
+
 async def erase_diner_data(
     db: AsyncSession, company_id: str, location_id: str, phone: str
 ) -> dict[str, int]:
-    """Erase one diner's data at one location. Flushes; the caller commits.
-    Conversations are found before the reservations lose their phone."""
+    """Erase one diner's data at one location. Flushes; the caller commits
+    (which releases the location lock)."""
     _require_phone(phone)
+    now = datetime.now(timezone.utc)
+    # 1. Location lock first; an archived location still serializes.
+    if not await booking.begin_location_write(db, company_id, location_id, now):
+        if not await booking.lock_location_including_archived(
+                db, company_id, location_id):
+            raise booking.ReservationNotFound()
+    # 2. Snapshot under the lock, before the reservations lose their phone.
     reservation_ids = await _reservation_ids(db, company_id, location_id, phone)
-    conversations = await db.execute(
-        delete(AgentConversation).where(
-            *_conversation_filter(company_id, location_id, phone, reservation_ids))
-    )
+    matched = _conversation_filter(company_id, location_id, phone, reservation_ids)
+    # 3. Delete the idle conversations. The in-flight test is in the DELETE
+    #    itself, so a turn claimed while we wait on its row lock is re-checked
+    #    and skipped rather than deleted under it.
+    deleted = (await db.execute(
+        delete(AgentConversation).where(*matched, not_(_in_flight()))
+        .execution_options(synchronize_session=False)
+    )).rowcount
+    # 4. What is left of the match has a turn in flight: close it.
+    closed = (await db.execute(
+        update(AgentConversation).where(*matched)
+        .values(status="closed",
+                ended_at=func.coalesce(AgentConversation.ended_at, func.now()))
+        .execution_options(synchronize_session=False)
+    )).rowcount
+    # 5. Scrub the snapshot, all statuses.
     scrubbed = 0
     if reservation_ids:
         scrubbed = (await db.execute(
@@ -106,17 +147,19 @@ async def erase_diner_data(
                    Reservation.id.in_(reservation_ids))
             .values(diner_name=None, diner_phone=None, diner_email=None,
                     notes=None)
+            .execution_options(synchronize_session=False)
         )).rowcount
-    lookups = await db.execute(
+    lookups = (await db.execute(
         delete(ReservationLookupFailure).where(
             ReservationLookupFailure.company_id == company_id,
             ReservationLookupFailure.location_id == location_id,
             ReservationLookupFailure.phone == phone,
         )
-    )
+    )).rowcount
     await db.flush()
     return {
         "reservations_scrubbed": scrubbed,
-        "conversations_deleted": conversations.rowcount,
-        "lookup_failures_deleted": lookups.rowcount,
+        "conversations_deleted": deleted,
+        "conversations_closed_in_flight": closed,
+        "lookup_failures_deleted": lookups,
     }

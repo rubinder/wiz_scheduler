@@ -170,6 +170,8 @@ class DinerDataOut(BaseModel):
 class DinerEraseOut(BaseModel):
     reservations_scrubbed: int
     conversations_deleted: int
+    # Mid-turn conversations closed rather than deleted; erase again later.
+    conversations_closed_in_flight: int
     lookup_failures_deleted: int
 
 

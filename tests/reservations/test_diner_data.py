@@ -1,21 +1,28 @@
 """Diner data requests (#259, Ruling P): one diner's reservations and
 conversations at one location, found by phone, and erased on request."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import Company, Location, Region
+from backend.reservations import booking
 from backend.reservations.agent import recording
+from backend.reservations.diner_data import erase_diner_data
 from backend.reservations.agent.models import (
     AgentConversation, AgentEvent, ReservationLookupFailure,
 )
 from backend.reservations.models import BOOKED, CANCELLED, SOURCE_WEB_AGENT, Reservation
-from tests.conftest import COMPANY2_ID, COMPANY_ID, LOCATION_ID, OTHER_LOCATION_ID
+from tests.conftest import (
+    COMPANY2_ID, COMPANY_ID, LOCATION_ID, OTHER_LOCATION_ID,
+    get_test_session_factory,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -120,6 +127,7 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
                           json={"phone": ADA}, headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert r.json() == {"reservations_scrubbed": 2, "conversations_deleted": 3,
+                        "conversations_closed_in_flight": 0,
                         "lookup_failures_deleted": 1}
 
     db_session.expire_all()
@@ -197,3 +205,80 @@ async def test_routes_404_when_flag_off(client, manager_token, seeded_floor, mon
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
                           json={"phone": ADA}, headers=h)
     assert r.status_code == 404
+
+
+async def test_conversation_mid_turn_is_closed_not_deleted(
+    client, manager_token, diners, db_session: AsyncSession
+):
+    c = diners["convs"]
+    conv = await db_session.get(AgentConversation, c["caller"])
+    conv.turn_started_at = datetime.now(timezone.utc)
+    stale = await db_session.get(AgentConversation, c["held"])
+    stale.turn_started_at = datetime.now(timezone.utc) - timedelta(
+        seconds=recording.TURN_STALE_SECONDS + 60)
+    await db_session.commit()
+
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
+                          json={"phone": ADA}, headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["conversations_deleted"] == 2  # booked + the stale-marked held one
+    assert body["conversations_closed_in_flight"] == 1
+    db_session.expire_all()
+    kept = await db_session.get(AgentConversation, c["caller"])
+    assert kept.status == "closed" and kept.ended_at is not None
+    assert await db_session.get(AgentConversation, c["held"]) is None
+
+    # Once the turn has ended, erasing again removes it.
+    kept.turn_started_at = None
+    await db_session.commit()
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
+                          json={"phone": ADA}, headers=_auth(manager_token))
+    assert r.json()["conversations_deleted"] == 1
+    assert r.json()["conversations_closed_in_flight"] == 0
+
+
+async def test_concurrent_hold_waits_for_the_erase(diners):
+    """The erase holds the location lock until it commits, so a hold for the
+    same diner cannot land between its snapshot and its scrub."""
+    now = datetime.now(timezone.utc)
+    ny = ZoneInfo("America/New_York")
+    start = datetime.combine(now.astimezone(ny).date() + timedelta(days=9),
+                             time(19, 0), tzinfo=ny)
+    diner = booking.DinerContact(name="Ada", phone=ADA)
+    factory = get_test_session_factory()
+    async with factory() as eraser:
+        await erase_diner_data(eraser, COMPANY_ID, LOCATION_ID, ADA)
+        # Not committed: the location lock is still held.
+        async with factory() as other:
+            await other.execute(text("SET LOCAL lock_timeout = '1s'"))
+            with pytest.raises(DBAPIError, match="lock"):
+                await booking.hold(other, COMPANY_ID, LOCATION_ID, 2, start,
+                                   source=SOURCE_WEB_AGENT, now=now, diner=diner)
+            await other.rollback()
+        await eraser.commit()
+    async with factory() as other:
+        await other.execute(text("SET LOCAL lock_timeout = '1s'"))
+        held = await booking.hold(other, COMPANY_ID, LOCATION_ID, 2, start,
+                                  source=SOURCE_WEB_AGENT, now=now, diner=diner)
+        await other.commit()
+        assert held.diner_phone == ADA
+
+
+async def test_erase_at_archived_location_takes_the_lock(
+    diners, db_session: AsyncSession
+):
+    loc = await db_session.get(Location, LOCATION_ID)
+    loc.archived_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    factory = get_test_session_factory()
+    async with factory() as eraser:
+        counts = await erase_diner_data(eraser, COMPANY_ID, LOCATION_ID, ADA)
+        assert counts["reservations_scrubbed"] == 2
+        async with factory() as other:
+            await other.execute(text("SET LOCAL lock_timeout = '1s'"))
+            with pytest.raises(DBAPIError, match="lock"):
+                await booking.lock_location_including_archived(
+                    other, COMPANY_ID, LOCATION_ID)
+            await other.rollback()
+        await eraser.commit()

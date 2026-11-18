@@ -188,6 +188,23 @@ async def begin_location_write(
     return locked
 
 
+async def lock_location_including_archived(
+    db: AsyncSession, company_id: str, location_id: str
+) -> bool:
+    """Lock the location row whether or not it is archived; no sweep.
+
+    For history writes (diner data erasure) that must serialize with every
+    reservations write at the location even after it was archived. Active
+    locations should use `begin_location_write`. False when the location is
+    not this company's."""
+    found = (await db.execute(
+        select(Location.id)
+        .where(Location.id == location_id, Location.company_id == company_id)
+        .with_for_update()
+    )).scalar_one_or_none()
+    return found is not None
+
+
 async def _load(
     db: AsyncSession, company_id: str, reservation_id: str,
     location_id: str | None = None,
