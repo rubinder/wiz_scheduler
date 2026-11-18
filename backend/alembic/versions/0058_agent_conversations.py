@@ -49,6 +49,7 @@ def upgrade() -> None:
         _resv("reservation_id"), _resv("held_reservation_id"),
         _resv("verified_reservation_id"),
         _int0("turn_count"),
+        _int0("failed_lookups"),
         sa.Column("offered_starts", JSONB(), nullable=False,
                   server_default=sa.text("'[]'::jsonb")),
         sa.Column("cost_usd", sa.Numeric(12, 6), nullable=False, server_default=sa.text("0")),

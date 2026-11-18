@@ -17,6 +17,7 @@ callers commit.
 
 import logging
 import math
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Awaitable, Callable
@@ -45,6 +46,9 @@ from backend.services.archive import active
 logger = logging.getLogger(__name__)
 
 MAX_OPTIONS = 6
+MAX_OFFERED = 30  # most recent offers kept on the conversation
+MAX_FAILED_LOOKUPS = 3
+_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 EXPECT_CONFIRM_HOLD = "confirm_hold"
 EXPECT_CONFIRM_CANCEL = "confirm_cancel"
@@ -166,12 +170,12 @@ def _party(value: Any) -> int:
 
 
 def _hhmm(value: Any) -> time | None:
+    """Exactly "HH:MM" (24h) or None; seconds, offsets and junk are refused."""
     if value is None:
         return None
-    try:
-        return time.fromisoformat(value) if isinstance(value, str) else None
-    except ValueError:
-        return None
+    if not isinstance(value, str) or not _HHMM.match(value):
+        raise _ToolError("invalid_time")
+    return time(int(value[:2]), int(value[3:]))
 
 
 def _was_offered(conv: AgentConversation, start: datetime, party_size: int) -> bool:
@@ -238,9 +242,6 @@ async def _find_slots(db: AsyncSession, conv: AgentConversation,
     except (TypeError, ValueError) as exc:
         raise _ToolError("invalid_input") from exc
     earliest, latest = _hhmm(inp.get("earliest")), _hhmm(inp.get("latest"))
-    if (inp.get("earliest") is not None and earliest is None) or (
-            inp.get("latest") is not None and latest is None):
-        raise _ToolError("invalid_input")
     loc = await _location(db, conv)
     rules, _ = await get_rules(db, conv.company_id, conv.location_id)
     if party_size > rules.max_party_size:
@@ -258,11 +259,20 @@ async def _find_slots(db: AsyncSession, conv: AgentConversation,
         now=now, exclude_reservation_id=conv.verified_reservation_id, apply_cutoff=True,
     )
     options = [_local(s.start, zone) for s in _spread(slots, MAX_OPTIONS)]
-    offered = list(conv.offered_starts or [])
-    for opt in options:
-        if not _was_offered(conv, _instant(opt["start_iso"]), party_size):
-            offered.append({"start_iso": opt["start_iso"], "party_size": party_size})
-    conv.offered_starts = offered  # reassign so the JSONB change is tracked
+    fresh = [{"start_iso": o["start_iso"], "party_size": party_size} for o in options]
+    instants = {_instant(o["start_iso"]) for o in fresh}
+
+    def _repeated(entry: Any) -> bool:
+        try:
+            return (isinstance(entry, dict) and entry.get("party_size") == party_size
+                    and _instant(entry.get("start_iso")) in instants)
+        except _ToolError:
+            return False
+
+    # A re-offered start moves to the end, so the cap drops the oldest offers.
+    kept = [e for e in conv.offered_starts or [] if not _repeated(e)]
+    # Reassign (not mutate) so the JSONB change is tracked.
+    conv.offered_starts = (kept + fresh)[-MAX_OFFERED:]
     return ToolOutcome({"party_size": party_size, "options": options})
 
 
@@ -281,17 +291,26 @@ async def _hold_slot(db: AsyncSession, conv: AgentConversation,
     if diner.phone is None:
         raise booking.PhoneRequired()
     loc = await _location(db, conv)
+    # One unconfirmed hold per conversation: release the earlier one first,
+    # so a re-hold may reuse its tables. A failed new hold rolls the savepoint
+    # back, which restores it. A confirmed row (a submitted pending request
+    # has a code) is never released here.
+    if conv.held_reservation_id is not None:
+        old = (await db.execute(
+            select(Reservation).where(Reservation.id == conv.held_reservation_id,
+                                      Reservation.company_id == conv.company_id)
+            .execution_options(populate_existing=True)
+        )).scalar_one_or_none()
+        if old is not None and old.status in (HELD, PENDING) \
+                and old.confirmation_code is None:
+            try:
+                await booking.cancel(db, conv.company_id, old.id, now=now)
+            except booking.InvalidTransition:
+                pass  # it lapsed to expired under the lock: nothing to release
     source = SOURCE_VOICE_AGENT if conv.channel == "voice" else SOURCE_WEB_AGENT
     res = await booking.hold(db, conv.company_id, conv.location_id, party_size, start,
                              source=source, conversation_id=conv.id, now=now,
                              diner=diner)
-    previous = conv.held_reservation_id
-    if previous is not None and previous != res.id:
-        # Only one live hold per conversation: release the earlier one.
-        old = await db.get(Reservation, previous)
-        if old is not None and old.company_id == conv.company_id \
-                and old.status in (HELD, PENDING):
-            await booking.cancel(db, conv.company_id, previous, now=now)
     conv.held_reservation_id = res.id
     when = _local(res.start_at, ZoneInfo(loc.timezone))
     held_until = res.held_until or now
@@ -305,11 +324,16 @@ async def _hold_slot(db: AsyncSession, conv: AgentConversation,
 
 async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
                           inp: dict[str, Any], now: datetime) -> ToolOutcome:
+    if (conv.failed_lookups or 0) >= MAX_FAILED_LOOKUPS:
+        raise _ToolError("too_many_attempts")
     code, phone = inp.get("confirmation_code"), inp.get("phone")
-    if not isinstance(code, str) or not isinstance(phone, str):
-        return ToolOutcome({"found": False})
-    res = await booking.lookup(db, conv.company_id, conv.location_id, code, phone.strip())
+    res = None
+    if isinstance(code, str) and isinstance(phone, str):
+        res = await booking.lookup(db, conv.company_id, conv.location_id, code,
+                                   phone.strip())
     if res is None:
+        conv.failed_lookups = (conv.failed_lookups or 0) + 1
+        conv.verified_reservation_id = None
         return ToolOutcome({"found": False})
     loc = await _location(db, conv)
     conv.verified_reservation_id = res.id

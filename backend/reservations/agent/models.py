@@ -74,6 +74,9 @@ class AgentConversation(Base):
     verified_reservation_id: Mapped[str | None] = _reservation_fk()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
+    # Wrong code/phone lookups; tools.py refuses lookups past the cap.
+    failed_lookups: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"))
     # [{"start_iso": ..., "party_size": ...}] offered by find_slots (tools.py).
     offered_starts: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))

@@ -278,3 +278,109 @@ async def test_a_second_hold_releases_the_first(db_session, web_conv):
     assert web_conv.held_reservation_id == second
     assert (await db_session.get(Reservation, first)).status == "cancelled"
     assert (await db_session.get(Reservation, second)).status == HELD
+
+
+async def _self_book_limit(db, limit: int) -> None:
+    from backend.reservations.rules import get_rules, save_rules
+    rules, _ = await get_rules(db, COMPANY_ID, LOCATION_ID)
+    await save_rules(db, COMPANY_ID, LOCATION_ID,
+                     rules.model_copy(update={"max_self_book_party": limit}))
+
+
+async def test_a_submitted_pending_request_survives_a_new_hold(db_session, web_conv):
+    now = _now()
+    await _self_book_limit(db_session, 4)
+    opts = (await _find(db_session, web_conv, now, party=6)).result["options"]
+    pending_id = (await _hold(db_session, web_conv, now, opts[0]["start_iso"],
+                              party=6)).result["hold_id"]
+    await booking.confirm(db_session, COMPANY_ID, pending_id, now=now)
+    small = (await _find(db_session, web_conv, now)).result["options"]
+    out = await _hold(db_session, web_conv, now, small[-1]["start_iso"])
+    assert not out.is_error, out.result
+    pending = await db_session.get(Reservation, pending_id)
+    assert pending.status == PENDING and pending.confirmation_code
+
+
+async def test_re_hold_can_reuse_the_tables_of_the_released_hold(db_session, web_conv):
+    now = _now()
+    # Party 3 fits only T2, so the second hold needs the first one's table.
+    opts = (await _find(db_session, web_conv, now, party=3, earliest="19:00",
+                        latest="19:15")).result["options"]
+    first = (await _hold(db_session, web_conv, now, opts[0]["start_iso"], party=3)
+             ).result["hold_id"]
+    out = await _hold(db_session, web_conv, now, opts[1]["start_iso"], party=3)
+    assert not out.is_error, out.result
+    assert (await db_session.get(Reservation, first)).status == "cancelled"
+    assert web_conv.held_reservation_id == out.result["hold_id"]
+
+
+async def test_failed_re_hold_restores_the_previous_hold(db_session, web_conv):
+    now = _now()
+    late = (await _find(db_session, web_conv, now, party=3, earliest="19:00",
+                        latest="19:00")).result["options"]
+    first = (await _hold(db_session, web_conv, now, late[0]["start_iso"], party=3)
+             ).result["hold_id"]
+    early = (await _find(db_session, web_conv, now, party=3, earliest="17:00",
+                         latest="17:00")).result["options"]
+    await _booked(db_session, now, party=3, hh=17)  # T2 at 17:00 goes elsewhere
+    out = await _hold(db_session, web_conv, now, early[0]["start_iso"], party=3)
+    assert out.result == {"error": "slot_unavailable"}
+    assert web_conv.held_reservation_id == first
+    old = await db_session.get(Reservation, first)
+    await db_session.refresh(old)
+    assert old.status == HELD
+
+
+async def test_failed_lookup_clears_verification(db_session, web_conv):
+    now = _now()
+    res = await _booked(db_session, now)
+    await _verify(db_session, web_conv, now, res)
+    out = await execute_tool(db_session, web_conv, "lookup_booking", {
+        "confirmation_code": "ZZZZZZ", "phone": PHONE}, now=now)
+    assert out.result == {"found": False}
+    assert web_conv.verified_reservation_id is None
+
+
+async def test_lookups_stop_after_three_failures(db_session, web_conv, monkeypatch):
+    now = _now()
+    res = await _booked(db_session, now)
+    for _ in range(3):
+        out = await execute_tool(db_session, web_conv, "lookup_booking", {
+            "confirmation_code": "ZZZZZZ", "phone": PHONE}, now=now)
+        assert out.result == {"found": False}
+    calls = []
+
+    async def counting(*a, **k):
+        calls.append(a)
+        return None
+
+    monkeypatch.setattr(booking, "lookup", counting)
+    out = await execute_tool(db_session, web_conv, "lookup_booking", {
+        "confirmation_code": res.confirmation_code, "phone": PHONE}, now=now)
+    assert out.is_error and out.result == {"error": "too_many_attempts"}
+    assert calls == [] and web_conv.verified_reservation_id is None
+    await db_session.refresh(web_conv)
+    assert web_conv.failed_lookups == 3
+
+
+async def test_offered_starts_keep_the_most_recent_30(db_session, web_conv):
+    now = _now()
+    base = now.astimezone(NY).date() + timedelta(days=7)
+    batches = []
+    for i in range(6):
+        out = await execute_tool(db_session, web_conv, "find_slots", {
+            "party_size": 2, "date": (base + timedelta(days=i)).isoformat(),
+            "earliest": None, "latest": None}, now=now)
+        batches.append([o["start_iso"] for o in out.result["options"]])
+    offered = [o["start_iso"] for o in web_conv.offered_starts]
+    assert len(offered) == 30
+    assert offered == [s for b in batches[1:] for s in b]
+    # The dropped offer can no longer be held.
+    out = await _hold(db_session, web_conv, now, batches[0][0])
+    assert out.result == {"error": "not_offered"}
+
+
+@pytest.mark.parametrize("bad", ["19:00:00", "19:00+01:00", "7pm", "24:00", "9:00"])
+async def test_find_slots_accepts_only_hh_mm(db_session, web_conv, bad):
+    out = await _find(db_session, web_conv, _now(), earliest=bad)
+    assert out.is_error and out.result == {"error": "invalid_time"}
