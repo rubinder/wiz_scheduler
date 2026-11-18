@@ -15,7 +15,8 @@ following its AI host subscription (`ensure_for_group`):
   `release_due` does that, after Connect has released it.
 
 Who claims. The Stripe webhook only records `requested` rows and holds
-(`claim=False`); checkout confirm and the daily step (`run_daily`) claim.
+(`claim=False`); checkout confirm claims up to VOICE_CLAIMS_PER_REQUEST
+inside its request and the daily step (`run_daily`) claims the rest.
 `run_daily` is also the retry: a Connect failure is logged and the row
 stays `requested`; a row still `requested` after a day is reported as an
 error (the daily script mails the operator).
@@ -274,10 +275,12 @@ async def _request(db: AsyncSession, og_id: str, company_id: str, location_id: s
 
 
 async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = None,
-                           *, claim: bool = True) -> dict:
+                           *, claim: bool = True, max_claims: int | None = None) -> dict:
     """Bring the group's numbers in line with its AI host subscription (see
     the module docstring). `claim=False` (the webhook) records `requested`
-    rows and holds but calls Connect for nothing. Commits. Connect failures
+    rows and holds but calls Connect for nothing. `max_claims` (checkout
+    confirm: settings.VOICE_CLAIMS_PER_REQUEST) provisions at most that many
+    rows; the rest stay `requested` for the daily run. Commits. Connect failures
     are logged, never raised; a database error propagates (callers in
     webhooks and checkout run this in their own session and catch it)."""
     if not connect_numbers.enabled():
@@ -317,8 +320,9 @@ async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = 
                     continue
             to_provision.append((loc_id, row_id))
 
-        for loc_id, row_id in to_provision:
-            status = await _provision(db, row_id) if claim else "requested"
+        for i, (loc_id, row_id) in enumerate(to_provision):
+            within = max_claims is None or i < max_claims
+            status = await _provision(db, row_id) if claim and within else "requested"
             (out["claimed"] if status == "active" else out["pending"]).append(loc_id)
     return out
 

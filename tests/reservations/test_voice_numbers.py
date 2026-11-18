@@ -617,3 +617,28 @@ async def test_no_claim_without_a_flow_to_route_it(
     assert await connect_numbers.find_owned("+10005550000") == "pn-someone-else"
     assert await connect_numbers.associate("pn-x", "flow-2") is None
     assert ("release", {"PhoneNumberId": "pn-x"}) in fake.calls
+
+
+async def test_checkout_confirm_claims_at_most_the_per_request_cap(
+        db_session, seed_location, other_location, fake, monkeypatch):
+    """Claims run inside the checkout request: only VOICE_CLAIMS_PER_REQUEST
+    of them; the rest stay `requested` for the daily run."""
+    assert settings.VOICE_CLAIMS_PER_REQUEST == 3
+    monkeypatch.setattr(settings, "VOICE_CLAIMS_PER_REQUEST", 1)
+    await subscribe(db_session, "active")
+    await billing_reservations._ensure_voice(db_session, AGENT_OG_ID, claim=True)
+    rows = await _rows(db_session)
+    assert sorted(r.status for r in rows.values()) == ["active", "requested"]
+    assert fake.names().count("claim") == 1
+
+    daily = await voice_numbers.run_daily(db_session, NOW)
+    assert daily["errors"] == []
+    assert {r.status for r in (await _rows(db_session)).values()} == {"active"}
+
+
+async def test_max_claims_leaves_the_rest_requested(
+        db_session, seed_location, other_location, fake):
+    await subscribe(db_session, "active")
+    out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW, max_claims=1)
+    assert len(out["claimed"]) == 1 and len(out["pending"]) == 1
+    assert fake.names().count("search") == 1

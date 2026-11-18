@@ -275,6 +275,10 @@ class Settings(BaseSettings):
     CONNECT_INSTANCE_ARN: str = ""
     CONNECT_CONTACT_FLOW_ID: str = ""
     VOICE_RELEASE_HOLD_DAYS: int = 7
+    # Numbers checkout confirm claims inside its own request (each is a few
+    # Connect calls); a group with more locations gets the rest from the
+    # daily run.
+    VOICE_CLAIMS_PER_REQUEST: int = 3
     # The Lambda behind Connect sends it as X-Voice-Bridge-Secret; the bridge
     # endpoint 404s without it, and always while it is empty.
     VOICE_BRIDGE_SECRET: str = ""
