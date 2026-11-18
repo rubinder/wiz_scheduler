@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import {
   getLocationInfo, sendTurn, startConversation,
-  type Expect, type Hold, type LocationInfo, type TurnInput,
+  type Expect, type Hold, type LocationInfo, type Proposal, type TurnInput,
 } from "../api/publicReservations";
-import { ACTION_LABELS, actionsFor, inputHint, noticeForError, reduceTurn, sanitizeTel, startErrorFor, type ChatMessage } from "../utils/chat";
+import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startErrorFor, type ChatMessage } from "../utils/chat";
 
 // Diner-facing copy is English only and deliberately not in i18n (the AI host
 // agent is English-only by design). Nothing is persisted: no token storage.
@@ -19,6 +19,7 @@ export default function ReserveChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [expect, setExpect] = useState<Expect>("text");
   const [hold, setHold] = useState<Hold | null>(null);
+  const [proposal, setProposal] = useState<Proposal | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
@@ -36,7 +37,7 @@ export default function ReserveChat() {
   useEffect(() => {
     tokenRef.current = null;
     inFlight.current = false;
-    setInfo(null); setToken(null); setMessages([]); setExpect("text"); setHold(null);
+    setInfo(null); setToken(null); setMessages([]); setExpect("text"); setHold(null); setProposal(null);
     setCode(null); setPhone(null); setEnded(false); setSending(false); setNotice(null);
     setDraft(""); setStartError(null); setAttempt(0);
     return () => { tokenRef.current = null; };
@@ -50,12 +51,12 @@ export default function ReserveChat() {
         const i = await getLocationInfo(slug, locationId);
         if (cancelled) return;
         setInfo(i);
-        setMessages([{ from: "host", text: i.greeting }]);
         const c = await startConversation(slug, locationId);
         if (cancelled) return;
         tokenRef.current = c.conversation_token;
         setToken(c.conversation_token);
-        setMessages((m) => [...m, { from: "host", text: c.reply_text }]);
+        // The start's reply is the greeting: shown once (the header names the location).
+        setMessages([{ from: "host", text: c.reply_text }]);
         setExpect(c.expect);
       } catch (e) {
         if (!cancelled) setStartError(startErrorFor(e instanceof ApiError ? e.status : 0));
@@ -80,6 +81,7 @@ export default function ReserveChat() {
       setMessages((m) => reduceTurn(m, shown, out));
       setExpect(out.expect);
       setHold(out.hold);
+      setProposal(out.proposal ?? null);
       setCode(out.hold?.confirmation_code ?? null);
       setPhone(out.handoff?.phone ?? null);
       if (out.ended || out.handoff || out.expect === "handoff") setEnded(true);
@@ -140,12 +142,15 @@ export default function ReserveChat() {
       {hold && actions.length > 0 && (
         <p className="mt-3 text-center font-medium">{hold.local_date} at {hold.local_time}, party of {hold.party_size}</p>
       )}
+      {!hold && proposal && actions.length > 0 && (
+        <p className="mt-3 text-center font-medium">{proposalText(proposal)}</p>
+      )}
       {actions.length > 0 && (
         <div className="my-2 flex flex-wrap justify-center gap-2">
           {actions.map((a) => (
             <button key={a} type="button" disabled={sending} onClick={() => void send({ action: a }, null)}
               className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
-              {ACTION_LABELS[a]}
+              {actionLabel(a, expect)}
             </button>
           ))}
         </div>

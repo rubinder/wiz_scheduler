@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TurnOutput } from "../api/publicReservations";
-import { actionsFor, inputHint, noticeForError, reduceTurn, sanitizeTel, startErrorFor } from "./chat";
+import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startErrorFor } from "./chat";
 
 const out = (reply_text: string): TurnOutput => ({ reply_text, expect: "text", hold: null, ended: false, handoff: null });
 
@@ -21,9 +21,30 @@ describe("reduceTurn", () => {
 describe("actionsFor", () => {
   it("maps expect values", () => {
     expect(actionsFor("confirm_hold")).toEqual(["confirm_hold", "decline_hold"]);
-    expect(actionsFor("confirm_cancel")).toEqual(["confirm_cancel"]);
+    expect(actionsFor("confirm_cancel")).toEqual(["confirm_cancel", "decline_hold"]);
     expect(actionsFor("confirm_modify")).toEqual(["confirm_modify", "decline_hold"]);
     for (const e of ["text", "handoff", "phone_number", "party_size", "confirmation_code"] as const) expect(actionsFor(e)).toEqual([]);
+  });
+});
+
+describe("actionLabel", () => {
+  it("labels the way out by what is being confirmed", () => {
+    expect(actionLabel("decline_hold", "confirm_hold")).toBe("Pick another time");
+    expect(actionLabel("decline_hold", "confirm_cancel")).toBe("Keep my booking");
+    expect(actionLabel("decline_hold", "confirm_modify")).toBe("Keep my booking");
+    expect(actionLabel("confirm_cancel", "confirm_cancel")).toBe("Yes, cancel it");
+  });
+});
+
+describe("proposalText", () => {
+  const current = { local_date: "2026-11-20", local_time: "19:00", party_size: 2 };
+  it("shows a change as current → proposed", () => {
+    expect(proposalText({ kind: "modify", current, proposed: { local_date: "2026-11-20", local_time: "20:00", party_size: 3 } })).toBe(
+      "Change: 2026-11-20 at 19:00, party of 2 → 2026-11-20 at 20:00, party of 3",
+    );
+  });
+  it("shows a cancel as the booking being cancelled", () => {
+    expect(proposalText({ kind: "cancel", current, proposed: null })).toBe("Cancel: 2026-11-20 at 19:00, party of 2");
   });
 });
 

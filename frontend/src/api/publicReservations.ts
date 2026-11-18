@@ -17,12 +17,21 @@ export interface Hold {
   held_until?: string | null;
   confirmation_code?: string;
 }
+/** A booking's local date ("YYYY-MM-DD"), local time ("HH:MM") and party size. */
+export interface SlotSummary { local_date: string; local_time: string; party_size: number }
+/** What a confirm_modify / confirm_cancel button applies (built by the server, not the model). */
+export interface Proposal {
+  kind: "modify" | "cancel";
+  current: SlotSummary;
+  proposed: SlotSummary | null;
+}
 export interface TurnOutput {
   reply_text: string;
   expect: Expect;
   hold: Hold | null;
   ended: boolean;
   handoff: { reason: string; phone: string | null } | null;
+  proposal?: Proposal | null;
 }
 export interface Conversation { conversation_token: string; reply_text: string; expect: Expect }
 export type TurnInput = { text: string } | { action: "confirm_hold" | "decline_hold" | "confirm_cancel" | "confirm_modify" };

@@ -1,4 +1,4 @@
-import type { Expect, TurnOutput } from "../api/publicReservations";
+import type { Expect, Proposal, SlotSummary, TurnOutput } from "../api/publicReservations";
 
 export type ChatMessage = { from: "diner" | "host"; text: string };
 export type ChatAction = "confirm_hold" | "decline_hold" | "confirm_cancel" | "confirm_modify";
@@ -11,22 +11,34 @@ export function reduceTurn(messages: ChatMessage[], sent: string | null, out: Tu
   return next;
 }
 
-/** Buttons offered for what the host expects next. */
+/** Buttons offered for what the host expects next. Every confirm has a way out. */
 export function actionsFor(expect: Expect): ChatAction[] {
   switch (expect) {
     case "confirm_hold": return ["confirm_hold", "decline_hold"];
-    case "confirm_cancel": return ["confirm_cancel"];
+    case "confirm_cancel": return ["confirm_cancel", "decline_hold"];
     case "confirm_modify": return ["confirm_modify", "decline_hold"];
     default: return [];
   }
 }
 
-export const ACTION_LABELS: Record<ChatAction, string> = {
-  confirm_hold: "Confirm booking",
-  decline_hold: "Pick another time",
-  confirm_cancel: "Yes, cancel it",
-  confirm_modify: "Confirm change",
-};
+/** A button's label. "No" means letting a hold go, or keeping a booking unchanged. */
+export function actionLabel(action: ChatAction, expect: Expect): string {
+  switch (action) {
+    case "confirm_hold": return "Confirm booking";
+    case "confirm_cancel": return "Yes, cancel it";
+    case "confirm_modify": return "Confirm change";
+    case "decline_hold":
+      return expect === "confirm_cancel" || expect === "confirm_modify" ? "Keep my booking" : "Pick another time";
+  }
+}
+
+const slotText = (s: SlotSummary): string => `${s.local_date} at ${s.local_time}, party of ${s.party_size}`;
+
+/** The structured summary shown above a change or cancel button (date strings are shown as-is, never parsed). */
+export function proposalText(p: Proposal): string {
+  if (p.kind === "cancel" || !p.proposed) return `Cancel: ${slotText(p.current)}`;
+  return `Change: ${slotText(p.current)} → ${slotText(p.proposed)}`;
+}
 
 /** Placeholder and input mode for the field-hint expect values. */
 export function inputHint(expect: Expect): { placeholder: string; inputMode: "text" | "tel" | "numeric" } {
