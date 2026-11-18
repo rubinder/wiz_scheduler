@@ -156,7 +156,8 @@ async def active_for_location(
     db: AsyncSession, company_id: str, location_id: str, now: datetime,
 ) -> ReservationSubscription | None:
     """The subscription that lets the agent answer at this location: the
-    location's group's, while `active` or `trialing`. Anything else (no group,
+    location's group's, while `active`, `trialing` or `past_due`
+    (ANSWERING_STATUSES). Anything else (no group,
     no subscription, any other status, a location of another company) is None.
 
     `now` is the caller's clock; the status alone decides today (Stripe moves
@@ -184,7 +185,13 @@ async def spend_today(
     db: AsyncSession, location_id: str, now: datetime, tz: ZoneInfo | str,
 ) -> Decimal:
     """Model cost of the location's conversations started in its local day
-    (open ones included), from agent_conversations.cost_usd."""
+    (open ones included), from agent_conversations.cost_usd.
+
+    Conversations count by start day: a chat that crosses local midnight
+    counts all of its cost against the day it started, none against the
+    next. Bounded: a conversation runs at most RESERVATION_AGENT_MAX_TURNS
+    turns of RESERVATION_AGENT_MAX_TOKENS output, so what a chat carried
+    over midnight spends uncounted on the new day is that much at most."""
     zone = tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)
     start, end = _local_day_bounds(now, zone)
     total = (await db.execute(

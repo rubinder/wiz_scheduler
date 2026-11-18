@@ -145,7 +145,7 @@ A pre-built knowledge graph of this codebase lives in `graphify-out/`. Use it as
   pre-generation gate is the consent point. That is scheduling AI. The one
   exception is the reservation AI host: it bills through its own Stripe
   subscription in `services/billing_reservations.py` (decision 37, overage as
-  InvoiceItems), the only other money path; it never touches credits.
+  InvoiceItems), the only other AI-spend billing path; it never touches credits.
 - **Any new path that creates a `User` must set `email_verified_at`.** Set it
   when the flow already proves the address (an emailed invite link, a Google
   `email_verified` claim); leave it NULL and mail a token via
