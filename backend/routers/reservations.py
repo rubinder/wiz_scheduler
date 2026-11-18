@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
-from backend.reservations import booking
+from backend.reservations import booking, diner_data
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -26,8 +26,9 @@ from backend.reservations.queries import (
 )
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
-    BookingIn, ConversationDetailOut, ConversationOut, ReservationOut,
-    ReservationPatch, RulesOut, SlotOut, StatusIn, WalkInIn,
+    BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
+    DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
+    ReservationsConfigOut, RulesOut, SlotOut, StatusIn, WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
@@ -42,10 +43,12 @@ router = APIRouter(prefix="/reservations", tags=["reservations"])
 gated = APIRouter(dependencies=[Depends(require_reservations_enabled)])
 
 
-@router.get("/config")
-async def read_config(_: User = Depends(require_manager)) -> dict[str, bool]:
+@router.get("/config", response_model=ReservationsConfigOut)
+async def read_config(_: User = Depends(require_manager)) -> ReservationsConfigOut:
     """Whether reservations are on; the one route that answers when off."""
-    return {"enabled": settings.RESERVATIONS_ENABLED}
+    return ReservationsConfigOut(
+        enabled=settings.RESERVATIONS_ENABLED,
+        conversation_outcomes=list(OUTCOMES))
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     booking.SlotUnavailable: 409,
@@ -74,14 +77,16 @@ async def _domain_errors(db: AsyncSession) -> AsyncIterator[None]:
 
 
 async def _location(
-    db: AsyncSession, scope: LocationScope, user: User, location_id: str
+    db: AsyncSession, scope: LocationScope, user: User, location_id: str,
+    *, include_archived: bool = False,
 ) -> Location:
-    loc = (await db.execute(
-        select(Location).where(
-            Location.id == location_id, Location.company_id == user.company_id,
-            active(Location),
-        )
-    )).scalar_one_or_none()
+    """`include_archived` is for history (diner data requests): an archived
+    location's diners keep their rights."""
+    q = select(Location).where(
+        Location.id == location_id, Location.company_id == user.company_id)
+    if not include_archived:
+        q = q.where(active(Location))
+    loc = (await db.execute(q)).scalar_one_or_none()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
     scope.require(location_id)
@@ -371,6 +376,48 @@ async def read_conversation(
     scope.require(conv.location_id, "Conversation")
     events = await conversation_events(db, str(user.company_id), [conv.id])
     return ConversationDetailOut.with_events(conv, events[conv.id])
+
+
+
+@gated.get("/locations/{location_id}/diner-data", response_model=DinerDataOut)
+async def read_diner_data(
+    location_id: str,
+    phone: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerDataOut:
+    """One diner's reservations and conversations here, for an access request."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        found = await diner_data.find_diner_data(
+            db, str(user.company_id), location_id, phone)
+    labels = await table_labels(
+        db, str(user.company_id), [r.id for r in found.reservations])
+    return DinerDataOut(
+        reservations=[ReservationOut.of(r, labels.get(r.id, []))
+                      for r in found.reservations],
+        conversations=[ConversationDetailOut.with_events(c, found.events[c.id])
+                       for c in found.conversations],
+    )
+
+
+@gated.post("/locations/{location_id}/diner-data/erase",
+             response_model=DinerEraseOut)
+async def erase_diner_data(
+    location_id: str,
+    body: DinerPhoneIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerEraseOut:
+    """Erase one diner's data here: contact scrubbed, conversations deleted."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        counts = await diner_data.erase_diner_data(
+            db, str(user.company_id), location_id, body.phone)
+        await db.commit()
+    return DinerEraseOut(**counts)
 
 
 router.include_router(gated)

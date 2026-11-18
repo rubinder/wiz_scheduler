@@ -10,7 +10,6 @@ from backend.reservations.models import (
     BOOKED, EXPIRED, HELD, PENDING, SEATED, DiningTable, Reservation,
     ReservationTable,
 )
-from backend.services.location_scope import LocationScope
 
 
 async def count_upcoming(
@@ -148,23 +147,3 @@ async def conversation_events(
         out[e.conversation_id].append(e)
     return out
 
-
-async def export_rows(
-    db: AsyncSession, company_id: str, scope: LocationScope,
-) -> tuple[list[Reservation], list[AgentConversation], dict[str, list[AgentEvent]]]:
-    """Every reservation and agent conversation of the company within the
-    manager's location scope, oldest first, for the GDPR export."""
-    reservations = (await db.execute(
-        select(Reservation).where(
-            Reservation.company_id == company_id,
-            scope.clause(Reservation.location_id),
-        ).order_by(Reservation.start_at, Reservation.id)
-    )).scalars().all()
-    conversations = (await db.execute(
-        select(AgentConversation).where(
-            AgentConversation.company_id == company_id,
-            scope.clause(AgentConversation.location_id),
-        ).order_by(AgentConversation.started_at, AgentConversation.id)
-    )).scalars().all()
-    events = await conversation_events(db, company_id, [c.id for c in conversations])
-    return list(reservations), list(conversations), events

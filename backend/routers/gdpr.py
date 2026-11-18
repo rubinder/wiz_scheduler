@@ -18,75 +18,10 @@ from backend.models import (
     User,
     UserConsent,
 )
-from backend.reservations.queries import export_rows
 from backend.services.archive import erase_employee
-from backend.services.location_scope import location_scope_for
 from backend.services.manager_permissions import is_admin_manager, lock_company_admin_ids
 
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
-
-
-def _iso(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt else None
-
-
-async def _reservation_data(db: AsyncSession, user: User) -> tuple[list[dict], list[dict]]:
-    """The company's diner data (#259): reservations with diner contact, and
-    the AI host's conversations with their events, within the manager's
-    location scope. Employees get none. Never source_key or public_token."""
-    if user.user_role != "manager":
-        return [], []
-    scope = await location_scope_for(db, user)
-    reservations, conversations, events = await export_rows(
-        db, str(user.company_id), scope)
-    reservation_data = [
-        {
-            "id": r.id,
-            "location_id": r.location_id,
-            "party_size": r.party_size,
-            "start_at": _iso(r.start_at),
-            "end_at": _iso(r.end_at),
-            "status": r.status,
-            "source": r.source,
-            "confirmation_code": r.confirmation_code,
-            "diner_name": r.diner_name,
-            "diner_phone": r.diner_phone,
-            "diner_email": r.diner_email,
-            "notes": r.notes,
-            "created_at": _iso(r.created_at),
-        }
-        for r in reservations
-    ]
-    conversation_data = [
-        {
-            "id": c.id,
-            "location_id": c.location_id,
-            "channel": c.channel,
-            "caller_number": c.caller_number,
-            "status": c.status,
-            "outcome": c.outcome,
-            "reservation_id": c.reservation_id,
-            "turn_count": c.turn_count,
-            "cost_usd": str(c.cost_usd),
-            "started_at": _iso(c.started_at),
-            "ended_at": _iso(c.ended_at),
-            "events": [
-                {
-                    "seq": e.seq,
-                    "type": e.type,
-                    "payload": e.payload,
-                    "latency_ms": e.latency_ms,
-                    "input_tokens": e.input_tokens,
-                    "output_tokens": e.output_tokens,
-                    "cost_usd": str(e.cost_usd),
-                    "created_at": _iso(e.created_at),
-                }
-                for e in events[c.id]
-            ],
-        }
-        for c in conversations
-    ]
-    return reservation_data, conversation_data
 
 
 async def _linked_employees(db: AsyncSession, user: User) -> list[Employee]:
@@ -260,8 +195,6 @@ async def export_data(
         for c in consent_result.scalars().all()
     ]
 
-    reservation_data, conversation_data = await _reservation_data(db, current_user)
-
     return {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "user": user_data,
@@ -271,8 +204,6 @@ async def export_data(
         "affinities": affinity_data,
         "shifts": shift_data,
         "consents": consent_data,
-        "reservations": reservation_data,
-        "agent_conversations": conversation_data,
     }
 
 

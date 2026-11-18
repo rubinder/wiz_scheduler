@@ -160,3 +160,33 @@ async def test_regular_manager_out_of_scope_is_404(
     r = await client.get(f"{BASE}/locations/{LOCATION_ID}/conversations?date=2030-01-15", headers=h)
     assert [c["id"] for c in r.json()] == [mine.id]
     assert (await client.get(f"{BASE}/conversations/{mine.id}", headers=h)).status_code == 200
+
+
+async def test_detail_drops_raw_and_thinking(client, manager_token, seeded_floor, db_session):
+    conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
+    conv.started_at = _local(DAY, 19)
+    content = [
+        {"type": "thinking", "thinking": "secret plan", "signature": "sig"},
+        {"type": "redacted_thinking", "data": "opaque"},
+        {"type": "text", "text": "Sure, what time?"},
+    ]
+    await recording.record_event(
+        db_session, conv, "assistant_turn",
+        {"content": content, "raw": "RAWDUMP", "stop_reason": "end_turn"})
+    await db_session.commit()
+    r = await client.get(f"{BASE}/conversations/{conv.id}", headers=_auth(manager_token))
+    assert r.status_code == 200
+    [event] = r.json()["events"]
+    assert "raw" not in event["payload"]
+    assert event["payload"]["content"] == [{"type": "text", "text": "Sure, what time?"}]
+    assert event["payload"]["stop_reason"] == "end_turn"
+    assert "secret plan" not in r.text and "opaque" not in r.text and "RAWDUMP" not in r.text
+
+
+async def test_config_lists_conversation_outcomes(client, manager_token, seed_location):
+    """The conversations filter reads outcomes from here, so the frontend
+    cannot drift from agent/models.py."""
+    from backend.reservations.agent.models import OUTCOMES
+    r = await client.get(f"{BASE}/config", headers=_auth(manager_token))
+    assert r.status_code == 200
+    assert r.json() == {"enabled": True, "conversation_outcomes": list(OUTCOMES)}

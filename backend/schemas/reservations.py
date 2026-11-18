@@ -102,6 +102,23 @@ class ConversationOut(BaseModel):
         )
 
 
+# Model reasoning blocks never leave the server.
+_HIDDEN_BLOCKS = frozenset({"thinking", "redacted_thinking"})
+
+
+def public_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """An event payload as managers see it: without `raw` (the JSON dump of
+    `content`) and with thinking blocks dropped from `content`."""
+    out = {k: v for k, v in (payload or {}).items() if k != "raw"}
+    content = out.get("content")
+    if isinstance(content, list):
+        out["content"] = [
+            b for b in content
+            if not (isinstance(b, dict) and b.get("type") in _HIDDEN_BLOCKS)
+        ]
+    return out
+
+
 class AgentEventOut(BaseModel):
     seq: int
     type: str
@@ -117,7 +134,8 @@ class AgentEventOut(BaseModel):
     @classmethod
     def of(cls, e: AgentEvent) -> "AgentEventOut":
         return cls(
-            seq=e.seq, type=e.type, payload=e.payload, latency_ms=e.latency_ms,
+            seq=e.seq, type=e.type, payload=public_payload(e.payload),
+            latency_ms=e.latency_ms,
             input_tokens=e.input_tokens, output_tokens=e.output_tokens,
             cache_read_tokens=e.cache_read_tokens,
             cache_write_tokens=e.cache_write_tokens,
@@ -137,3 +155,25 @@ class ConversationDetailOut(ConversationOut):
             **ConversationOut.of(c).model_dump(), location_id=c.location_id,
             status=c.status, events=[AgentEventOut.of(e) for e in events],
         )
+
+
+class DinerPhoneIn(BaseModel):
+    phone: str
+
+
+class DinerDataOut(BaseModel):
+    """One diner's data at one location (reservations/diner_data.py)."""
+    reservations: list[ReservationOut]
+    conversations: list[ConversationDetailOut]
+
+
+class DinerEraseOut(BaseModel):
+    reservations_scrubbed: int
+    conversations_deleted: int
+    lookup_failures_deleted: int
+
+
+class ReservationsConfigOut(BaseModel):
+    enabled: bool
+    # Mirrors agent/models.py OUTCOMES; the conversations filter reads it.
+    conversation_outcomes: list[str]

@@ -1,6 +1,6 @@
-"""Reservations retention and GDPR export (#259): conversations and diner
-contact age out after RETENTION_RESERVATIONS_DAYS; the company's export
-carries both."""
+"""Reservations retention (#259): conversations and diner contact age out
+after RETENTION_RESERVATIONS_DAYS; diner data stays out of the per-user
+GDPR export (served by test_diner_data.py's routes)."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -11,11 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.reservations.agent import recording
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import (
-    BOOKED, CANCELLED, EXPIRED, HELD, NO_SHOW, SOURCE_STAFF, SOURCE_WEB_AGENT,
+    BOOKED, CANCELLED, EXPIRED, HELD, NO_SHOW, SOURCE_STAFF,
     Reservation,
 )
 from backend.services.data_retention import run_data_retention
-from tests.conftest import COMPANY_ID, LOCATION_ID, OTHER_LOCATION_ID
+from tests.conftest import COMPANY_ID, LOCATION_ID
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -84,40 +84,16 @@ async def test_retention_purges_old_conversations_and_scrubs_old_diners(
     assert again["old_reservation_diners_scrubbed"] == 0
 
 
-async def test_gdpr_export_has_reservations_and_conversations(
+
+async def test_gdpr_user_export_carries_no_diner_data(
     client, manager_token, seed_location, db_session: AsyncSession
 ):
-    res = _res(3, BOOKED)
-    res.source = SOURCE_WEB_AGENT
-    db_session.add(res)
+    """Ruling P: a manager's own export is about the manager; diner data is
+    served by the reservations diner-data tools instead."""
+    db_session.add(_res(3, BOOKED))
     await db_session.commit()
-    conv = await _conv(db_session, 3, text="Hi, it's Ada")
-
+    await _conv(db_session, 3)
     r = await client.get("/api/v1/gdpr/export", headers=_auth(manager_token))
-    assert r.status_code == 200, r.text
-    data = r.json()
-    [row] = data["reservations"]
-    assert row["id"] == res.id and row["diner_name"] == "Ada Lovelace"
-    assert row["diner_phone"] == "+12125550100" and row["diner_email"] == "ada@example.com"
-    assert row["notes"] == "window seat" and row["start_at"].endswith("+00:00")
-    [c] = data["agent_conversations"]
-    assert c["id"] == conv.id
-    assert c["events"][0]["payload"]["content"][0]["text"] == "Hi, it's Ada"
-    assert "source_key" not in r.text and conv.public_token not in r.text
-
-
-async def test_gdpr_export_respects_location_scope_and_role(
-    client, regular_token, employee_token, seed_employee_user, other_location,
-    db_session: AsyncSession,
-):
-    db_session.add_all([_res(3, BOOKED, name="In Scope"),
-                        _res(3, BOOKED, OTHER_LOCATION_ID, name="Out Of Scope")])
-    await db_session.commit()
-    await _conv(db_session, 3, OTHER_LOCATION_ID)
-
-    data = (await client.get("/api/v1/gdpr/export", headers=_auth(regular_token))).json()
-    assert [x["diner_name"] for x in data["reservations"]] == ["In Scope"]
-    assert data["agent_conversations"] == []
-
-    data = (await client.get("/api/v1/gdpr/export", headers=_auth(employee_token))).json()
-    assert data["reservations"] == [] and data["agent_conversations"] == []
+    assert r.status_code == 200
+    assert "reservations" not in r.json() and "agent_conversations" not in r.json()
+    assert "Ada Lovelace" not in r.text

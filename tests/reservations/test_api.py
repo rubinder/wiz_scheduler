@@ -439,10 +439,10 @@ async def test_config_reports_flag_without_gating(client, manager_token, monkeyp
     h = _auth(manager_token)
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
     r = await client.get(f"{BASE}/config", headers=h)
-    assert r.status_code == 200 and r.json() == {"enabled": False}
+    assert r.status_code == 200 and r.json()["enabled"] is False
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
     r = await client.get(f"{BASE}/config", headers=h)
-    assert r.status_code == 200 and r.json() == {"enabled": True}
+    assert r.status_code == 200 and r.json()["enabled"] is True
 
 
 async def test_every_reservations_route_but_config_is_gated():

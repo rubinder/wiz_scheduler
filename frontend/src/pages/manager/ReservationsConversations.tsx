@@ -5,7 +5,6 @@ import { listLocations } from "../../api/locations";
 import { getConfig, getConversation, listConversations } from "../../api/reservations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
-import { CONVERSATION_OUTCOMES } from "../../types/reservations";
 import type { ConversationDetailOut, ConversationOut } from "../../types/reservations";
 import { formatUsd, transcriptItems } from "../../utils/conversations";
 import type { TranscriptItem } from "../../utils/conversations";
@@ -41,6 +40,7 @@ export default function ReservationsConversations() {
   /** The location `date` was defaulted for; the list waits until it matches. */
   const [dateFor, setDateFor] = useState("");
   const [outcome, setOutcome] = useState("");
+  const [outcomes, setOutcomes] = useState<string[]>([]);
   const [list, setList] = useState<ConversationOut[] | null>(null);
   const [listError, setListError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export default function ReservationsConversations() {
       try {
         const cfg = await getConfig();
         setEnabled(cfg.enabled);
+        setOutcomes(cfg.conversation_outcomes ?? []);
         if (!cfg.enabled) return;
         const locs = await listLocations();
         setLocations(locs);
@@ -217,7 +218,7 @@ export default function ReservationsConversations() {
           <Field label={c.outcome}>
             <select className={input} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
               <option value="">{c.allOutcomes}</option>
-              {CONVERSATION_OUTCOMES.map((o) => (
+              {outcomes.map((o) => (
                 <option key={o} value={o}>
                   {outcomeName(o)}
                 </option>

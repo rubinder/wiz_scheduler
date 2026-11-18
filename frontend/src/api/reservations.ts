@@ -7,6 +7,7 @@ import type {
   FloorOut,
   ReservationOut,
   ReservationPatch,
+  ReservationsConfig,
   RulesOut,
   RulesSchema,
   SettableStatus,
@@ -16,7 +17,7 @@ import type {
 
 const base = (locationId: string) => `/reservations/locations/${locationId}`;
 
-export function getConfig(): Promise<{ enabled: boolean }> {
+export function getConfig(): Promise<ReservationsConfig> {
   return apiFetch("/reservations/config");
 }
 

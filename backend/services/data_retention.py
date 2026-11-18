@@ -246,6 +246,11 @@ async def run_data_retention(db: AsyncSession) -> dict:
         # 7e. Diner contact on reservations that ended before the same window
         #     is cleared; the row stays for covers analytics. Every status,
         #     since holds, cancellations and declines carry contact too.
+        #     Deliberately by end_at, not started_at as in 7d: a booking can
+        #     be made months ahead, so its contact is kept a year past the
+        #     meal, while a conversation is aged from when it happened. A
+        #     conversation about a far-future booking can therefore go before
+        #     the booking's contact does.
         result = await db.execute(
             update(Reservation)
             .where(
