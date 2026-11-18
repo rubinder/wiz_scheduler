@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FloorOut, RulesSchema, TableIO } from "../types/reservations";
+import type { FloorOut, ReservationOut, RulesSchema, TableIO } from "../types/reservations";
 import {
   CANVAS,
   clampTable,
@@ -8,6 +8,7 @@ import {
   firstFreeSpot,
   floorToEditor,
   formatLocalTime,
+  groupBySeating,
   labelsForIds,
   localDateString,
   moveTable,
@@ -16,6 +17,7 @@ import {
   payloadToRulesForm,
   rulesFormToPayload,
   snap,
+  tableStates,
 } from "./reservations";
 
 describe("reservations helpers", () => {
@@ -189,5 +191,91 @@ describe("floor editor conversion", () => {
     const ed = floorToEditor(out);
     ed.tables = ed.tables.filter((t) => t.uid !== "b");
     expect(editorToFloorIn(ed).combinations[0].table_labels).toEqual(["T1"]);
+  });
+});
+
+const NY = "America/New_York";
+
+function res(id: string, start: string, status: string, tables: string[] = []): ReservationOut {
+  return {
+    id,
+    location_id: "loc1",
+    party_size: 2,
+    start,
+    end: start,
+    status,
+    tables,
+    diner_name: id,
+    diner_phone: null,
+    diner_email: null,
+    notes: null,
+    source: "staff",
+    confirmation_code: null,
+    held_until: null,
+  };
+}
+
+describe("groupBySeating", () => {
+  it("is empty for no reservations", () => {
+    expect(groupBySeating([], NY)).toEqual([]);
+  });
+
+  it("groups by restaurant-time seating, ordered by start (TZ=Asia/Tokyo)", () => {
+    const groups = groupBySeating(
+      [
+        res("a", "2026-12-04T19:00:00-05:00", "booked"),
+        res("b", "2026-12-04T18:30:00-05:00", "booked"),
+        res("c", "2026-12-05T00:00:00Z", "seated"),
+      ],
+      NY,
+    );
+    expect(groups.map((g) => g.time)).toEqual(["18:30", "19:00"]);
+    expect(groups[1].items.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("drops cancelled, declined and expired rows, and leaves pending ones to approvals", () => {
+    const groups = groupBySeating(
+      [
+        res("a", "2026-12-04T19:00:00-05:00", "cancelled"),
+        res("b", "2026-12-04T19:00:00-05:00", "declined"),
+        res("c", "2026-12-04T19:00:00-05:00", "expired"),
+        res("d", "2026-12-04T19:00:00-05:00", "pending_approval"),
+        res("e", "2026-12-04T19:30:00-05:00", "completed"),
+      ],
+      NY,
+    );
+    expect(groups).toEqual([{ time: "19:30", items: [expect.objectContaining({ id: "e" })] }]);
+  });
+});
+
+describe("tableStates", () => {
+  const now = new Date("2026-12-04T18:00:00-05:00");
+  const tables = [{ label: "T1" }, { label: "T2" }, { label: "T3" }, { label: "T4" }];
+
+  it("marks seated, upcoming within 60 minutes, and free", () => {
+    const states = tableStates(
+      tables,
+      [
+        res("a", "2026-12-04T17:30:00-05:00", "seated", ["T1"]),
+        res("b", "2026-12-04T18:45:00-05:00", "booked", ["T2"]),
+        res("c", "2026-12-04T19:30:00-05:00", "booked", ["T3"]),
+      ],
+      now,
+    );
+    expect(states).toEqual({ T1: "seated", T2: "upcoming", T3: "free", T4: "free" });
+  });
+
+  it("prefers seated over upcoming and ignores other statuses", () => {
+    const states = tableStates(
+      tables,
+      [
+        res("a", "2026-12-04T18:15:00-05:00", "booked", ["T1"]),
+        res("b", "2026-12-04T17:00:00-05:00", "seated", ["T1"]),
+        res("c", "2026-12-04T18:10:00-05:00", "cancelled", ["T2"]),
+        res("d", "2026-12-04T18:10:00-05:00", "completed", ["T3"]),
+      ],
+      now,
+    );
+    expect(states).toEqual({ T1: "seated", T2: "free", T3: "free", T4: "free" });
   });
 });

@@ -129,10 +129,11 @@ export interface WalkInIn {
   notes?: string | null;
 }
 
+/** Mirrors backend/reservations/models.py ALL_STATUSES. */
 export type ReservationStatus =
   | "held"
-  | "pending"
-  | "confirmed"
+  | "pending_approval"
+  | "booked"
   | "seated"
   | "completed"
   | "no_show"

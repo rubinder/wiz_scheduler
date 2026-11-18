@@ -4,6 +4,7 @@ import type {
   FloorIn,
   FloorOut,
   Persona,
+  ReservationOut,
   RulesSchema,
   SectionIO,
   ServicePeriod,
@@ -34,6 +35,7 @@ export function localDateString(now: Date, timeZone: string): string {
 
 const KNOWN_ERRORS = new Set([
   "slot_unavailable",
+  "invalid_phone",
   "hold_expired",
   "party_too_large",
   "invalid_transition",
@@ -273,4 +275,70 @@ export function editorToFloorIn(ed: EditorFloor): FloorIn {
       table_labels: c.uids.flatMap((u) => labelByUid.get(u) ?? []),
     })),
   };
+}
+
+// ── Host view ──
+
+/** "HH:MM" (24-hour) of an instant in the restaurant's zone; a grouping key, not a display string. */
+function seatingKey(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("hour")}:${get("minute")}`;
+}
+
+/** Off the host's list: gone for good, or (pending_approval) shown in the approvals section instead. */
+const NOT_SEATING = new Set(["cancelled", "declined", "expired", "pending_approval"]);
+
+/** The day's bookings grouped by seating time (restaurant time), ordered by start. */
+export function groupBySeating(
+  reservations: ReservationOut[],
+  timeZone: string,
+): Array<{ time: string; items: ReservationOut[] }> {
+  const sorted = reservations
+    .filter((r) => !NOT_SEATING.has(r.status))
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const groups: Array<{ time: string; items: ReservationOut[] }> = [];
+  for (const r of sorted) {
+    const time = seatingKey(r.start, timeZone);
+    const last = groups[groups.length - 1];
+    if (last && last.time === time) last.items.push(r);
+    else groups.push({ time, items: [r] });
+  }
+  return groups;
+}
+
+export type TableState = "free" | "seated" | "upcoming";
+
+const UPCOMING_MS = 60 * 60 * 1000;
+
+/**
+ * How to colour each table on the host's floor. DISPLAY ONLY: this never
+ * decides whether a table can be booked; only the server's find_slots does.
+ * `seated` if a seated party is on it; `upcoming` if a booked party is due on
+ * it within 60 minutes of `now` (a late party not yet seated still counts
+ * until its booking ends); else `free`.
+ */
+export function tableStates(
+  tables: { label: string }[],
+  reservations: ReservationOut[],
+  now: Date,
+): Record<string, TableState> {
+  const out: Record<string, TableState> = {};
+  for (const t of tables) out[t.label] = "free";
+  const at = now.getTime();
+  for (const r of reservations) {
+    if (r.status === "booked") {
+      const start = Date.parse(r.start);
+      if (start - at > UPCOMING_MS || Date.parse(r.end) <= at) continue;
+      for (const l of r.tables) if (out[l] === "free") out[l] = "upcoming";
+    } else if (r.status === "seated") {
+      for (const l of r.tables) if (l in out) out[l] = "seated";
+    }
+  }
+  return out;
 }
