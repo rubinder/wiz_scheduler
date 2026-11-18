@@ -17,16 +17,26 @@ call or a full location answers "say that again" with the call kept up.
 
 One conversation per call: the first turn for a Connect contact id creates
 it (`recording.voice_conversation`, channel `voice`, the caller's number as
-given, source key the HMAC of the number). Lex may retry a turn: every reply
-is stored with its sequence number (`recording.remember_reply`), and a turn
-whose seq is not past the last answered one gets that reply again without
-running the agent. The Lambda's ASR and TTS timings are recorded as latency
-stages on the turn's first event.
+given, source key the HMAC of the number).
+
+Lex may retry a turn. The atomic claim also takes the turn's seq
+(`last_seq`, compare-and-set against the seq this request read) and clears
+`last_reply` until `remember_reply` stores the answer, so a seq runs the
+core at most once. A turn whose seq is not past `last_seq` is a replay: its
+stored reply, or, while that turn still runs, the reply once stored
+(polled for up to REPLY_WAIT_SECONDS), else "say that again". Replays are
+answered before the rate limit.
+
+A confirmation action is checked against the question last asked (the
+stored reply's `expect`); one that answers no open question is not run.
+The Lambda's ASR, TTS and transport timings are recorded as latency stages
+on the turn's first event.
 
 No per-address limit (only the Lambda calls this); turns are limited per
 caller number (per contact for a withheld number) and per contact.
 """
 
+import asyncio
 import hmac
 import logging
 import secrets
@@ -44,6 +54,7 @@ from backend.reservations import voice_numbers
 from backend.reservations.agent import gate, recording, voice
 from backend.reservations.agent.core import AgentCore, TurnInput
 from backend.reservations.agent.gate import get_agent_core
+from backend.reservations.agent.models import AgentConversation
 from backend.reservations.rules import get_rules
 from backend.schemas.voice import VoiceTurnIn, VoiceTurnOut
 from backend.services.archive import active
@@ -83,6 +94,12 @@ router = APIRouter(
 )
 
 
+# A retry of a turn still running waits this long for its stored reply.
+REPLY_POLL_SECONDS = 0.25
+REPLY_WAIT_SECONDS = 3.0
+_sleep = asyncio.sleep  # replaced in tests
+
+
 def _limited(body: VoiceTurnIn) -> bool:
     keys = [f"contact:{body.contact_id}",
             f"caller:{body.caller}" if body.caller else None]
@@ -100,10 +117,10 @@ async def voice_turn(
     db: AsyncSession = Depends(get_db),
     core: AgentCore = Depends(get_agent_core),
 ) -> dict[str, Any]:
-    if _limited(body):
-        return voice.close(voice.UNAVAILABLE_TEXT, "rate_limited")
     found = await voice_numbers.location_for_number(db, body.dialed)
     if found is None:
+        if _limited(body):
+            return voice.close(voice.RATE_LIMITED_TEXT, "rate_limited")
         return voice.close(voice.UNAVAILABLE_TEXT, "unknown_number")
     company_id, location_id = found
     token = tenant_context.set([company_id])
@@ -117,43 +134,76 @@ async def voice_turn(
             tenant_context.set(None)
 
 
+async def _replay(db: AsyncSession, conv: AgentConversation,
+                  seq: int) -> dict[str, Any]:
+    """A turn whose seq the call has already taken. Its stored reply, or,
+    while that turn still runs, the reply once it is stored (polled with
+    fresh reads); past the wait, or when the turn died, the caller repeats
+    and the next seq runs."""
+    waited = 0.0
+    while True:
+        reply = await recording.stored_reply(db, conv, seq)
+        await db.commit()  # no transaction held across the wait
+        if reply is not None:
+            return reply
+        if waited >= REPLY_WAIT_SECONDS:
+            return voice.inflight()
+        await _sleep(REPLY_POLL_SECONDS)
+        waited += REPLY_POLL_SECONDS
+
+
 async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
                 company_id: str, location_id: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
+    # Replays first: a retried turn is answered before any limit.
+    conv = await recording.find_voice_conversation(db, company_id, location_id,
+                                                   body.contact_id)
+    if conv is not None and conv.last_seq is not None and body.seq <= conv.last_seq:
+        return await _replay(db, conv, body.seq)
+    if _limited(body):
+        await db.commit()
+        return voice.close(voice.RATE_LIMITED_TEXT, "rate_limited")
+
     location = (await db.execute(
         select(Location).where(Location.id == location_id,
                                Location.company_id == company_id,
                                active(Location))
     )).scalar_one_or_none()
     if location is None or not await gate.subscribed(db, company_id, location_id, now):
+        await db.commit()
         return voice.close(voice.UNAVAILABLE_TEXT, "unavailable")
 
-    conv, created = await recording.voice_conversation(
-        db, company_id, location_id, body.contact_id, body.caller,
-        source_key_for(body.caller or "anonymous"))
-    if not created and conv.last_seq is not None and body.seq <= conv.last_seq \
-            and conv.last_reply is not None:
-        await db.commit()
-        return conv.last_reply  # a retried (or stale) turn: answered already
+    created = False
+    if conv is None:
+        conv, created = await recording.voice_conversation(
+            db, company_id, location_id, body.contact_id, body.caller,
+            source_key_for(body.caller or "anonymous"))
     if created:
         if await gate.cap_reached(db, company_id, location, now):
             await recording.finish(db, conv, "blocked")
             reply = await _busy(db, company_id, location_id)
-            recording.remember_reply(conv, body.seq, reply)
+            await recording.remember_reply(db, conv, body.seq, reply)
             await db.commit()
             return reply
         if body.text is None and body.action is None:
             reply = voice.greeting(await gate.greeting(db, company_id, location))
-            recording.remember_reply(conv, body.seq, reply)
+            await recording.remember_reply(db, conv, body.seq, reply)
             await db.commit()
             return reply
     await db.commit()  # the new conversation is visible to a racing turn
     if conv.status != "open":
         return voice.close(voice.ENDED_TEXT, "ended")
+    seen_seq, last_reply = conv.last_seq, conv.last_reply
+    if body.action is not None and not voice.action_matches(body.action, last_reply):
+        # A confirmation only answers the question the caller was asked.
+        return voice.not_caught(last_reply)
 
-    claim = await recording.claim_turn_at_location(db, conv)
+    claim = await recording.claim_turn_at_location(db, conv, seq=body.seq,
+                                                   seen_seq=seen_seq)
     await db.commit()  # so a concurrent request sees the claim; frees the lock
-    if claim in ("busy", "location_busy"):
+    if claim == "seen":
+        return await _replay(db, conv, body.seq)
+    if claim in ("busy", "location_busy", "moved"):
         logger.info("voice_bridge.%s location=%s", claim, location_id)
         return voice.inflight()
     if claim == "closed":
@@ -169,8 +219,10 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
             before = await recording.last_event_seq(db, conv)
             out = await core.handle_turn(
                 db, conv, TurnInput(text=body.text, action=body.action))
-            stages = {name: ms for name, ms in (("asr", body.timings.asr_ms),
-                                                 ("tts", body.timings.tts_ms))
+            timings = body.timings
+            stages = {name: ms for name, ms in (("asr", timings.asr_ms),
+                                                 ("tts", timings.tts_ms),
+                                                 ("transport", timings.transport_ms))
                       if ms is not None}
             await recording.add_latency(db, conv, before, stages)
             reply = voice.spoken_reply(out)
@@ -178,7 +230,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
         # handle_turn never raises an Exception: the call went away mid-turn.
         await gate.clear_mark_after_cancel(db, conv_id, company_id)
         raise
-    recording.remember_reply(conv, body.seq, reply)
+    await recording.remember_reply(db, conv, body.seq, reply)
     await db.commit()
     return reply
 

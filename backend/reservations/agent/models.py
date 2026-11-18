@@ -103,9 +103,15 @@ class AgentConversation(Base):
     # {"start_iso": str | None, "party_size": int | None} staged by the
     # modify_booking tool; the confirm_modify action applies and clears it.
     pending_modify: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    # Voice bridge dedupe: the Lambda's sequence number of the last answered
-    # turn and the reply it got (recording.remember_reply). A retry of that
-    # turn (or an older one) is answered from here without a second run.
+    # Voice bridge dedupe: the Lambda's sequence number of the last claimed
+    # turn (recording.claim_turn) and the reply it got (remember_reply; NULL
+    # while that turn runs). A retry of that turn (or an older one) is
+    # answered from here without a second run, and the next action is
+    # checked against its `expect`.
+    # last_reply is a stored schemas.voice.VoiceTurnOut and is served back
+    # through that model, possibly after a deploy changed it: a field added
+    # to VoiceTurnOut needs a default, and a removed or renamed one needs the
+    # old rows (at most one per open call) to still validate.
     last_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_reply: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(

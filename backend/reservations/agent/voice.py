@@ -14,6 +14,17 @@ from backend.reservations.agent.core import TurnOutput
 
 UNAVAILABLE_TEXT = "Sorry, this line isn't taking bookings right now. Goodbye."
 INFLIGHT_TEXT = "One moment — could you say that again?"
+RATE_LIMITED_TEXT = ("Sorry, we're having trouble with this call. Please call back in "
+                     "a minute. Goodbye.")
+NOT_CAUGHT_TEXT = "Sorry, I didn't catch that — could you say it again?"
+# Which question each confirmation action answers. decline_hold is the "no"
+# to any of them (the core's decline drops a hold, a staged change or a
+# staged cancel alike), so it is valid under every confirm_* expectation.
+_ACTION_EXPECTS = {"confirm_hold": ("confirm_hold",),
+                   "confirm_cancel": ("confirm_cancel",),
+                   "confirm_modify": ("confirm_modify",),
+                   "decline_hold": ("confirm_hold", "confirm_cancel",
+                                    "confirm_modify")}
 ENDED_TEXT = "Thanks for calling. Goodbye."
 NO_TRANSFER_TEXT = ("Sorry, there's no one available to take your call right now. "
                     "Please call back a little later. Goodbye.")
@@ -76,6 +87,23 @@ def confirm_prompt(out: TurnOutput) -> str | None:
     except (KeyError, TypeError, ValueError):
         return None
     return None
+
+
+def action_matches(action: str, last_reply: dict[str, Any] | None) -> bool:
+    """A confirmation action answers the question the caller was last asked
+    (the stored reply's `expect`), or it is refused."""
+    expect = (last_reply or {}).get("expect")
+    return expect in _ACTION_EXPECTS.get(action, ())
+
+
+def not_caught(last_reply: dict[str, Any] | None) -> dict[str, Any]:
+    """An action that answers no open question: ask again, with the last
+    question (expect, hints, confirm prompt) still up."""
+    last = last_reply or {}
+    return {"text": NOT_CAUGHT_TEXT, "expect": last.get("expect", "text"),
+            "hints": last.get("hints") or {"elicit": None, "dtmf": False},
+            "confirm_prompt": last.get("confirm_prompt"),
+            "end_call": False, "transfer_to": None, "reason": "action_mismatch"}
 
 
 def close(text: str, reason: str) -> dict[str, Any]:

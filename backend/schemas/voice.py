@@ -18,10 +18,12 @@ Elicit = Literal["party_size", "phone_number", "confirmation_code", "date", "tim
 
 class VoiceTimings(BaseModel):
     """What the Lambda measured for this turn: speech recognition of the
-    caller's words and speech synthesis of the previous reply."""
+    caller's words, speech synthesis of the previous reply, and transport."""
 
     asr_ms: int | None = Field(default=None, ge=0, le=600_000)
     tts_ms: int | None = Field(default=None, ge=0, le=600_000)
+    # Network time between the Lambda and this endpoint.
+    transport_ms: int | None = Field(default=None, ge=0, le=600_000)
 
 
 class VoiceTurnIn(BaseModel):

@@ -297,6 +297,126 @@ async def test_closed_call_answers_goodbye(client, db_session, line, llm):
     assert llm.requests == []
 
 
+# -- fix round 1: seq in the claim, replays, actions --------------------------------
+
+@pytest.fixture
+def no_wait(monkeypatch):
+    from backend.routers import voice_bridge
+
+    async def _noop(_s):
+        return None
+    monkeypatch.setattr(voice_bridge, "_sleep", _noop)
+    return voice_bridge
+
+
+async def test_claim_takes_the_seq_once(db_session, line):
+    from backend.reservations.agent import recording
+
+    conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID,
+                                              "voice")
+    await db_session.commit()
+    assert await recording.claim_turn(db_session, conv, seq=3, seen_seq=None) == \
+        "claimed"
+    assert conv.last_seq == 3 and conv.last_reply is None
+    conv.turn_started_at = None  # the turn ended without storing its reply
+    await db_session.commit()
+    assert await recording.claim_turn(db_session, conv, seq=3, seen_seq=3) == "seen"
+    assert await recording.claim_turn(db_session, conv, seq=2, seen_seq=3) == "seen"
+    # Judged against an older read: another turn ran meanwhile.
+    assert await recording.claim_turn(db_session, conv, seq=4, seen_seq=1) == "moved"
+    assert await recording.claim_turn(db_session, conv, seq=4, seen_seq=3) == \
+        "claimed"
+
+
+async def test_retry_after_the_mark_clears_does_not_run_the_core_again(
+        client, db_session, line, llm, no_wait):
+    await _post(client, _body(0))
+    # Ordering: turn 1 was claimed and its in-flight mark cleared, but its
+    # reply was never stored (the process died between the two commits).
+    conv = await _conv(db_session)
+    conv.last_seq, conv.last_reply, conv.turn_started_at = 1, None, None
+    await db_session.commit()
+    out = (await _post(client, _body(1, text_="table for two"))).json()
+    assert out["text"] == voice.INFLIGHT_TEXT and out["end_call"] is False
+    assert llm.requests == []
+    assert (await _conv(db_session)).turn_count == 0
+
+
+async def test_retry_while_running_gets_the_reply_once_stored(
+        client, db_session, line, llm, no_wait, monkeypatch):
+    await _post(client, _body(0))
+    conv = await _conv(db_session)
+    conv.last_seq, conv.last_reply = 1, None
+    conv.turn_started_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    stored = voice.greeting("What date would you like?")
+    polls = []
+
+    async def _store_on_second_poll(_s):
+        polls.append(1)
+        if len(polls) == 2:
+            c = await _conv(db_session)
+            c.last_reply, c.turn_started_at = stored, None
+            await db_session.commit()
+    monkeypatch.setattr(no_wait, "_sleep", _store_on_second_poll)
+    out = (await _post(client, _body(1, text_="hi"))).json()
+    assert out == stored and llm.requests == []
+    assert len(polls) == 2
+
+
+async def test_confirm_needs_the_matching_question(client, db_session, line, llm):
+    now = datetime.now(timezone.utc)
+    await _post(client, _body(0))
+    llm.push(*_hold_script(now))
+    held = (await _post(client, _body(1, text_="table for two next week"))).json()
+    assert held["expect"] == "confirm_hold"
+    # A cancel confirmation does not answer a booking question.
+    out = (await _post(client, _body(2, action="confirm_cancel"))).json()
+    assert out["text"] == voice.NOT_CAUGHT_TEXT and out["expect"] == "confirm_hold"
+    assert out["confirm_prompt"] == held["confirm_prompt"]
+    # The hold is staged, but the last question was not "shall I book?".
+    conv = await _conv(db_session)
+    conv.last_reply = {**held, "expect": "text", "confirm_prompt": None}
+    await db_session.commit()
+    calls = len(llm.requests)
+    out = (await _post(client, _body(3, action="confirm_hold"))).json()
+    assert out["text"] == voice.NOT_CAUGHT_TEXT and out["expect"] == "text"
+    assert out["end_call"] is False and len(llm.requests) == calls
+    res = (await db_session.execute(select(Reservation).execution_options(
+        populate_existing=True))).scalar_one()
+    assert res.status == HELD
+    assert (await _conv(db_session)).turn_count == 1  # nothing was claimed
+
+
+async def test_action_on_the_first_turn_is_not_run(client, db_session, line, llm):
+    out = (await _post(client, _body(0, action="confirm_hold"))).json()
+    assert out["text"] == voice.NOT_CAUGHT_TEXT and out["end_call"] is False
+
+
+async def test_replays_are_served_before_the_limit(client, line, llm, monkeypatch):
+    from backend.services.rate_limit import voice_caller_limiter
+
+    monkeypatch.setattr(voice_caller_limiter, "max_requests", 2)
+    first = (await _post(client, _body(0))).json()
+    llm.push(reply(text("For how many?")))
+    second = (await _post(client, _body(1, text_="hi"))).json()
+    assert (await _post(client, _body(1, text_="hi"))).json() == second
+    assert (await _post(client, _body(0))).json() == second  # stale: the latest
+    out = (await _post(client, _body(2, text_="four"))).json()
+    assert out["reason"] == "rate_limited" and out["text"] == voice.RATE_LIMITED_TEXT
+    assert first["reason"] is None
+
+
+async def test_transport_timing_is_a_stage(client, db_session, line, llm):
+    await _post(client, _body(0))
+    llm.push(reply(text("Sure.")))
+    await _post(client, _body(1, text_="hi", timings={"transport_ms": 35}))
+    event = (await db_session.execute(
+        select(AgentEvent).order_by(AgentEvent.seq).limit(1)
+        .execution_options(populate_existing=True))).scalar_one()
+    assert event.latency_ms == {"transport": 35}
+
+
 # -- spoken prompts -------------------------------------------------------------
 
 async def test_spoken_date_and_time():
