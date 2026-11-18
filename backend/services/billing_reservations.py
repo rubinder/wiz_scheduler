@@ -21,11 +21,12 @@ sees a Stripe shape.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import stripe
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,8 +38,10 @@ from backend.reservations.subscription import (
     ANSWERING_STATUSES,
     PRODUCT,
     STATUSES,
+    AgentUsage,
     ReservationSubscription,
     for_group,
+    period_start_for,
     period_usage,
     spend_today,
     usage_period_start,
@@ -348,9 +351,16 @@ async def _sync_from_stripe(db: AsyncSession, og_id: str, sub_id: str) -> tuple[
     Stripe says it is canceled, until the refund is done too."""
     sub = _retrieve_subscription(sub_id)
     row, duplicate = await _apply(db, og_id, sub)
-    if duplicate or await _duplicate_record(db, og_id, sub_id) is not None:
-        return row, await _resolve_duplicate(db, og_id, sub)
-    return row, None
+    if not duplicate:
+        record = await _duplicate_record(db, og_id, sub_id)
+        if record is None or record.status == "succeeded":
+            return row, None
+        current = await _locked_row(db, og_id)
+        if current is not None and current.stripe_subscription_id == sub_id:
+            # The account's own subscription now: never cancel or refund
+            # it, whatever its status; only close the old record.
+            return row, await _supersede_duplicate(db, og_id, sub_id, record)
+    return row, await _resolve_duplicate(db, og_id, sub)
 
 
 def _invoice_payment_intent(invoice: Any) -> str | None:
@@ -436,18 +446,10 @@ async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
     previous = _record_outcome(record) if record is not None else None
     row = await _locked_row(db, og_id)
     kept = row.stripe_subscription_id if row else None
-
-    if (record is not None and row is not None and kept == sub_id
-            and row.status in ANSWERING_STATUSES):
-        cancelled, refund = previous or (False, "none")
-        record.status = "succeeded"
-        record.error_message = (f"cancelled={'yes' if cancelled else 'no'} refund={refund}; "
-                                "superseded: became the account's subscription, no action taken")
-        await db.flush()
-        send_agent_duplicate_subscription_alert(
-            og_id, sub_id, kept, None, float(record.amount_usd), cancelled=cancelled,
-            refund=refund, errors=[], superseded=True)
-        return {"duplicate": sub_id, "outcome": "superseded"}
+    if kept == sub_id:
+        if record is None:
+            return {"duplicate": sub_id, "outcome": "not_a_duplicate"}
+        return await _supersede_duplicate(db, og_id, sub_id, record)
 
     errors: list[str] = []
     cancelled = _field(sub, "status") in TERMINAL_STATUSES
@@ -463,7 +465,9 @@ async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
     # refused) or "unknown" (the invoice could not be read).
     amount = Decimal(record.amount_usd) if record is not None else Decimal(0)
     pi = None
-    if previous is not None and previous[1] in ("refunded", "none"):
+    # Only a done refund is kept: "none" (nothing was paid then) is re-read,
+    # the invoice may have been paid since.
+    if previous is not None and previous[1] == "refunded":
         refund = previous[1]
     else:
         refund = "none"
@@ -504,6 +508,23 @@ async def _resolve_duplicate(db: AsyncSession, og_id: str, sub: Any) -> dict:
             "outcome": "handled" if done else "needs_attention"}
 
 
+async def _supersede_duplicate(db: AsyncSession, og_id: str, sub_id: str, record: Any) -> dict:
+    """Close an unfinished duplicate record whose subscription the group's
+    row now holds (the one it duplicated ended): nothing is cancelled or
+    refunded, the operator is told once."""
+    from backend.services.operator_alerts import send_agent_duplicate_subscription_alert
+
+    cancelled, refund = _record_outcome(record) or (False, "none")
+    record.status = "succeeded"
+    record.error_message = (f"cancelled={'yes' if cancelled else 'no'} refund={refund}; "
+                            "superseded: became the account's subscription, no action taken")
+    await db.flush()
+    send_agent_duplicate_subscription_alert(
+        og_id, sub_id, sub_id, None, float(record.amount_usd), cancelled=cancelled,
+        refund=refund, errors=[], superseded=True)
+    return {"duplicate": sub_id, "outcome": "superseded"}
+
+
 def _verify_session(session: Any, og: OwnershipGroup) -> str:
     """The session's subscription id, if it is this group's agent
     subscription Checkout; SessionInvalid otherwise."""
@@ -523,11 +544,293 @@ def _verify_session(session: Any, og: OwnershipGroup) -> str:
     return sub_id
 
 
-async def reconcile_agent_overage(db: AsyncSession, row: ReservationSubscription) -> dict:
-    """Bill the period's usage over the included amount as an InvoiceItem on
-    the agent subscription's upcoming invoice. Task 3 implements it."""
-    del db, row
-    return {"skipped": "not_implemented"}
+# ---------------------------------------------------------------------------
+# Overage (Task 3): InvoiceItems on the agent subscription's next invoice
+# ---------------------------------------------------------------------------
+
+OVERAGE_KIND = "invoice_item_reservation_agent"
+
+
+def _period_label(start: datetime) -> str:
+    return start.astimezone(timezone.utc).date().isoformat()
+
+
+def _cents(amount: Decimal) -> int:
+    return int((Decimal(amount) * 100).to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def _overage_description(period: str) -> str:
+    included = Decimal(str(settings.RESERVATIONS_INCLUDED_USAGE_USD)).quantize(_CENT)
+    return f"AI host usage over ${included} — {period}"
+
+
+async def _sweep_usage_periods(
+    db: AsyncSession, og_id: str, start: datetime, end: datetime | None, since: datetime,
+) -> int:
+    """Re-stamp the group's usage rows created since `since` (the
+    subscription's start) whose period_start is not the start of any period
+    of the subscription as Stripe has it now (start..end): a row metered
+    against a stale or misaligned stored period. Each moves to the period
+    containing its created_at. Rows from before `since` belong to an earlier
+    subscription and are left as they were billed. Returns the count."""
+    stamps = (await db.execute(
+        select(AgentUsage.period_start).distinct()
+        .where(AgentUsage.ownership_group_id == og_id, AgentUsage.created_at >= since)
+    )).scalars().all()
+    bad = [p for p in stamps if period_start_for(start, end, p) != p]
+    if not bad:
+        return 0
+    rows = (await db.execute(
+        select(AgentUsage).where(AgentUsage.ownership_group_id == og_id,
+                                 AgentUsage.created_at >= since,
+                                 AgentUsage.period_start.in_(bad))
+    )).scalars().all()
+    for usage in rows:
+        moved = period_start_for(start, end, usage.created_at)
+        logger.warning("agent usage %s (og %s) re-stamped from period %s to %s",
+                       usage.id, og_id, usage.period_start.isoformat(), moved.isoformat())
+        usage.period_start = moved
+    await db.flush()
+    return len(rows)
+
+
+def _delete_invoice_item(item_id: str | None) -> None:
+    """Delete one pending InvoiceItem; one Stripe already lacks is gone
+    already. Any other error (it is on a finalized invoice, Stripe is down)
+    propagates: the caller must not bill a replacement next to it."""
+    if not item_id:
+        return
+    try:
+        _client().v1.invoice_items.delete(item_id)
+    except stripe.InvalidRequestError as e:
+        if getattr(e, "code", None) != "resource_missing":
+            raise
+
+
+def _create_invoice_item(
+    og_id: str, customer: str, sub_id: str, period: str, cents: int, key: str,
+) -> str:
+    item = _client().v1.invoice_items.create({
+        "customer": customer,
+        "subscription": sub_id,
+        "amount": cents,
+        "currency": "usd",
+        "description": _overage_description(period),
+        "metadata": {"og_id": og_id, "period": period, "kind": OVERAGE_KIND},
+    }, {"idempotency_key": key})
+    return _as_id(item)
+
+
+async def _overage_charges(db: AsyncSession, og_id: str, period: str, statuses: tuple[str, ...]) -> list:
+    from backend.models.billing_charge import BillingCharge
+
+    return list((await db.execute(
+        select(BillingCharge).where(
+            BillingCharge.ownership_group_id == og_id,
+            BillingCharge.kind == OVERAGE_KIND,
+            BillingCharge.period == period,
+            BillingCharge.status.in_(statuses),
+        ).order_by(BillingCharge.created_at)
+        .execution_options(populate_existing=True)
+    )).scalars().all())
+
+
+async def _overage_for(db: AsyncSession, og_id: str, period_start: datetime) -> tuple[Decimal, Decimal]:
+    """(billed usage, overage) of one period: overage = usage over the
+    included amount, never negative."""
+    used = await period_usage(db, og_id, period_start)
+    included = Decimal(str(settings.RESERVATIONS_INCLUDED_USAGE_USD))
+    return used, max(Decimal(0), used - included).quantize(_CENT)
+
+
+async def _reconcile_current(
+    db: AsyncSession, og_id: str, customer: str, sub_id: str, period: str, overage: Decimal,
+) -> dict:
+    """Make the current period's one pending InvoiceItem (and its pending
+    BillingCharge) match `overage`: noop when equal, else delete the old one
+    and create the new; delete both at zero. Raises stripe.StripeError with
+    the DB as consistent as Stripe left it (a deleted item's row is gone)."""
+    from backend.models.billing_charge import BillingCharge
+
+    cents = _cents(overage)
+    pending = await _overage_charges(db, og_id, period, ("pending",))
+    if len(pending) == 1 and _cents(pending[0].amount_usd) == cents and cents > 0:
+        return {"action": "noop", "amount_usd": float(overage)}
+    for charge in pending:  # normally at most one
+        _delete_invoice_item(charge.stripe_object_id)
+        await db.delete(charge)
+        await db.flush()
+    if cents == 0:
+        return {"action": "deleted" if pending else "skip_zero", "amount_usd": 0.0}
+    # A failed create leaves the old row deleted (the caller commits on a
+    # Stripe error), so nothing claims an item Stripe no longer has.
+    item_id = _create_invoice_item(og_id, customer, sub_id, period, cents,
+                                   f"agent-overage-{og_id}-{period}-{cents}")
+    db.add(BillingCharge(ownership_group_id=og_id, kind=OVERAGE_KIND, amount_usd=overage,
+                         stripe_object_id=item_id, period=period, status="pending"))
+    await db.flush()
+    return {"action": "updated" if pending else "created", "amount_usd": float(overage)}
+
+
+async def _true_up_previous(
+    db: AsyncSession, og_id: str, customer: str, sub_id: str, prev_start: datetime,
+) -> dict | None:
+    """Bill what the previous period ran up after its last reconcile (the
+    hours between the last run and the renewal, a conversation still
+    running across the boundary): its overage minus what is already on an
+    invoice item for it (pending or paid). Only ever adds: the previous
+    period's items are on an invoice by now and are never deleted."""
+    from backend.models.billing_charge import BillingCharge
+
+    period = _period_label(prev_start)
+    _, overage = await _overage_for(db, og_id, prev_start)
+    billed = sum((Decimal(c.amount_usd) for c in await _overage_charges(
+        db, og_id, period, ("pending", "succeeded"))), Decimal(0))
+    delta = (overage - billed).quantize(_CENT)
+    if delta <= 0:
+        if delta < 0:
+            logger.warning("agent overage og %s period %s: %s billed over %s owed",
+                           og_id, period, billed, overage)
+        return None
+    total_cents = _cents(overage)
+    item_id = _create_invoice_item(og_id, customer, sub_id, period, _cents(delta),
+                                   f"agent-overage-{og_id}-{period}-trueup-{total_cents}")
+    db.add(BillingCharge(ownership_group_id=og_id, kind=OVERAGE_KIND, amount_usd=delta,
+                         stripe_object_id=item_id, period=period, status="pending"))
+    await db.flush()
+    return {"period": period, "action": "true_up", "amount_usd": float(delta)}
+
+
+async def reconcile_agent_overage(
+    db: AsyncSession, og: OwnershipGroup, now: datetime | None = None,
+) -> dict:
+    """Bill the agent subscription's current-period usage over the included
+    amount as one InvoiceItem on its upcoming invoice (decision 37), the
+    pattern of billing.bill_monthly_overages_for_og.
+
+    Under the group lock: re-read the subscription from Stripe (skip unless
+    active, trialing or past_due); re-stamp misassigned usage rows
+    (_sweep_usage_periods); make the current period's pending item match
+    its overage (_reconcile_current); and true up the previous period
+    (_true_up_previous). Period = the current period's start date (UTC,
+    YYYY-MM-DD). Commits. Never raises on a Stripe error: logs it and
+    returns {"error": ...}; whatever Stripe had already done is recorded."""
+    del now  # Stripe's current period decides; kept for the job's signature
+    # The key without a load: `og` may be expired by the caller's commit.
+    identity = sa_inspect(og).identity
+    og_id = identity[0] if identity else og.id
+    summary: dict = {"og_id": og_id}
+    await _lock_group(db, og_id)
+    row = await _locked_row(db, og_id)
+    if row is None or not row.stripe_subscription_id:
+        await db.rollback()
+        return {**summary, "skipped": "no_subscription"}
+    sub_id = row.stripe_subscription_id
+    summary["subscription"] = sub_id
+    try:
+        sub = _retrieve_subscription(sub_id)
+        status = _field(sub, "status")
+        if status not in ANSWERING_STATUSES:
+            await db.rollback()
+            return {**summary, "skipped": f"subscription_status={status}"}
+        start, end = _period(sub)
+        customer = _as_id(_field(sub, "customer"))
+        if start is None or not customer:
+            await db.rollback()
+            return {**summary, "error": "subscription has no current period or customer"}
+        since = _when(_field(sub, "start_date")) or start
+        summary["swept"] = await _sweep_usage_periods(db, og_id, start, end, since)
+        period = _period_label(start)
+        used, overage = await _overage_for(db, og_id, start)
+        summary.update(period=period, usage_usd=float(used), overage_usd=float(overage))
+        summary.update(await _reconcile_current(db, og_id, customer, sub_id, period, overage))
+        prev_start = period_start_for(start, end, start - timedelta(microseconds=1))
+        if prev_start >= since:
+            true_up = await _true_up_previous(db, og_id, customer, sub_id, prev_start)
+            if true_up:
+                summary["true_up"] = true_up
+    except (stripe.StripeError, SubscriptionMissing) as e:
+        logger.warning("agent overage og %s (subscription %s) not reconciled: %s", og_id, sub_id, e)
+        await db.commit()
+        return {**summary, "error": f"{type(e).__name__}: {str(e)[:200]}"}
+    await db.commit()
+    return summary
+
+
+def _invoice_item_ids(invoice: Any) -> list[str]:
+    """The InvoiceItem ids on an invoice's lines: line.invoice_item before
+    API 2025-03-31, line.parent.invoice_item_details.invoice_item since."""
+    ids = []
+    for line in _field(_field(invoice, "lines"), "data") or []:
+        item = _as_id(_field(line, "invoice_item")) or _as_id(_field(
+            _field(_field(line, "parent"), "invoice_item_details"), "invoice_item"))
+        if item:
+            ids.append(item)
+    return ids
+
+
+async def _mark_overage_paid(db: AsyncSession, og_id: str, invoice: Any) -> int:
+    """A paid agent invoice: its overage items' pending BillingCharges
+    become succeeded."""
+    from backend.models.billing_charge import BillingCharge
+
+    ids = _invoice_item_ids(invoice)
+    if not ids:
+        return 0
+    charges = (await db.execute(
+        select(BillingCharge).where(
+            BillingCharge.ownership_group_id == og_id,
+            BillingCharge.kind == OVERAGE_KIND,
+            BillingCharge.status == "pending",
+            BillingCharge.stripe_object_id.in_(ids),
+        )
+    )).scalars().all()
+    for charge in charges:
+        charge.status = "succeeded"
+    await db.flush()
+    return len(charges)
+
+
+async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | None = None) -> dict:
+    """The daily job (backend/scripts/run_agent_overage_reconcile.py): for
+    every group whose agent row still has a subscription that is not ended,
+    re-sync the row from Stripe (a missed customer.subscription.deleted is
+    caught here), then reconcile the overage of each one still answering.
+    One group's failure never stops the others."""
+    from backend.tenant import tenant_scope_disabled
+
+    now = now or datetime.now(timezone.utc)
+    out: dict[str, list] = {"synced": [], "reconciled": [], "errors": []}
+    with tenant_scope_disabled():
+        groups = (await db.execute(
+            select(ReservationSubscription.ownership_group_id,
+                   ReservationSubscription.stripe_subscription_id)
+            .where(ReservationSubscription.stripe_subscription_id.is_not(None),
+                   ReservationSubscription.status.not_in(TERMINAL_STATUSES))
+            .order_by(ReservationSubscription.ownership_group_id)
+        )).all()
+        for og_id, sub_id in groups:
+            try:
+                await _lock_group(db, og_id)
+                try:
+                    row, duplicate = await _sync_from_stripe(db, og_id, sub_id)
+                except SubscriptionMissing:
+                    await db.rollback()
+                    out["errors"].append({"og": og_id, "error": f"Stripe has no subscription {sub_id}"})
+                    continue
+                await db.commit()
+                out["synced"].append({"og": og_id, "status": row.status if row else None,
+                                      **({"duplicate": duplicate} if duplicate else {})})
+                if row is None or row.status not in ANSWERING_STATUSES:
+                    continue
+                og = await db.get(OwnershipGroup, og_id)
+                result = await reconcile_agent_overage(db, og, now)
+                (out["errors"] if "error" in result else out["reconciled"]).append(result)
+            except Exception as e:  # noqa: BLE001 - one group never stops the run
+                logger.exception("agent billing daily run failed for og %s", og_id)
+                await db.rollback()
+                out["errors"].append({"og": og_id, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+    return out
 
 
 async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dict:
@@ -544,10 +847,11 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
 
     if event_type == "invoice.upcoming":
         row = await _row_by_subscription(db, sub_id)
-        if row is None:
+        og = await db.get(OwnershipGroup, og_id)
+        if row is None or og is None:
             return {"handled": False, "og_id": og_id}
         return {"handled": True, "og_id": og_id,
-                "overage": await reconcile_agent_overage(db, row)}
+                "overage": await reconcile_agent_overage(db, og)}
 
     og = await _lock_group(db, og_id)
     if event_type == "checkout.session.completed":
@@ -564,8 +868,13 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
                        event_type, sub_id)
         await db.rollback()
         return {"handled": False, "og_id": og_id}
+    paid = 0
+    if event_type == "invoice.payment_succeeded":
+        paid = await _mark_overage_paid(db, og_id, obj)
     await db.commit()
     out: dict = {"handled": True, "og_id": og_id, "status": row.status if row else None}
+    if paid:
+        out["overage_paid"] = paid
     if duplicate:
         out["duplicate"] = duplicate
     return out

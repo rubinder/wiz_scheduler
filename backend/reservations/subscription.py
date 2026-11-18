@@ -30,6 +30,7 @@ RESERVATION_AGENT_MAX_TOKENS output each. Conversation starts make no model
 call and add nothing.
 """
 
+import calendar
 import logging
 from datetime import datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
@@ -74,21 +75,63 @@ def _utc_month_start(at: datetime) -> datetime:
         day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-def usage_period_start(sub: ReservationSubscription | None, at: datetime) -> datetime:
-    """The start of the billing period that contains `at`.
+def _add_months(base: datetime, months: int, day: int) -> datetime:
+    """`base` moved by `months` calendar months onto day-of-month `day`,
+    clamped to the month's last day, keeping its time of day."""
+    total = base.year * 12 + (base.month - 1) + months
+    year, month = divmod(total, 12)
+    month += 1
+    last = calendar.monthrange(year, month)[1]
+    return base.replace(year=year, month=month, day=min(day, last))
 
-    From the subscription's stored period, rolled forward (a stale period
-    the webhook has not moved yet) or backward by whole intervals of its
-    length until it contains `at`. With a start but no end, the start once
-    `at` is past it. Only with no stored period at all (or `at` before an
-    open-ended start): the UTC calendar month of `at`."""
+
+def _month_step(start: datetime, end: datetime) -> tuple[int, int] | None:
+    """(months per period, anchor day) when start..end is a calendar-month
+    period the way Stripe bills one: the same day of month as the billing
+    anchor, clamped to the month's end. A start clamped from a later anchor
+    (Feb 28 of a 31st anchor) shows the anchor in its end (Mar 31), so the
+    anchor day is the later of the two. None for any other length (a daily
+    or weekly price, a test clock): those step by a fixed interval."""
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if months < 1:
+        return None
+    day = max(start.day, end.day)
+    if _add_months(start, months, day) != end:
+        return None
+    return months, day
+
+
+def period_start_for(start: datetime, end: datetime | None, at: datetime) -> datetime:
+    """The start of the billing period containing `at`, for a subscription
+    whose known period is start..end (end None: open-ended).
+
+    A calendar-month period rolls by whole months from the start, anchored
+    on Stripe's day of month (Jan 31 -> Feb 28 -> Mar 31), forward when the
+    stored period is stale and backward when `at` is before it. Any other
+    period rolls by whole intervals of its length. With no end, the start
+    once `at` is past it, else the UTC calendar month of `at`."""
+    if end is None or end <= start:
+        return start if end is None and at >= start else _utc_month_start(at)
+    step = _month_step(start, end)
+    if step is None:
+        interval = end - start
+        return start + ((at - start) // interval) * interval
+    months, day = step
+    k = ((at.year - start.year) * 12 + (at.month - start.month)) // months
+    # The month estimate is off by at most one period either way.
+    while _add_months(start, k * months, day) > at:
+        k -= 1
+    while _add_months(start, (k + 1) * months, day) <= at:
+        k += 1
+    return _add_months(start, k * months, day)
+
+
+def usage_period_start(sub: ReservationSubscription | None, at: datetime) -> datetime:
+    """The start of the billing period that contains `at`: from the
+    subscription's stored period (period_start_for), or, with no stored
+    period at all, the UTC calendar month of `at`."""
     if sub is not None and sub.current_period_start is not None:
-        start, end = sub.current_period_start, sub.current_period_end
-        if end is not None and end > start:
-            step = end - start
-            return start + ((at - start) // step) * step
-        if end is None and at >= start:
-            return start
+        return period_start_for(sub.current_period_start, sub.current_period_end, at)
     return _utc_month_start(at)
 
 

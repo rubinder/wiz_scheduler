@@ -40,23 +40,50 @@ def test_usage_period_start_uses_the_containing_period_else_the_utc_month_withou
     assert usage_period_start(None, inside) == datetime(2026, 12, 1, tzinfo=timezone.utc)
 
 
-def test_usage_period_start_rolls_a_stale_period_by_whole_intervals():
+def test_usage_period_start_rolls_a_stale_period_by_calendar_months():
     start = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
     sub = ReservationSubscription(status="active", current_period_start=start,
-                                  current_period_end=start + timedelta(days=30))
-    nxt = start + timedelta(days=30)
+                                  current_period_end=datetime(2026, 12, 10, 12, tzinfo=timezone.utc))
+    nxt = datetime(2026, 12, 10, 12, tzinfo=timezone.utc)
     # Just past a stale end: the next period, not the calendar month.
     assert usage_period_start(sub, nxt) == nxt
     assert usage_period_start(sub, nxt + timedelta(seconds=1)) == nxt
-    assert usage_period_start(sub, start + timedelta(days=65)) == start + timedelta(days=60)
+    # Stripe's periods are calendar months from the anchor, not 30-day steps.
+    assert usage_period_start(sub, start + timedelta(days=65)) == datetime(2027, 1, 10, 12, tzinfo=timezone.utc)
+    assert usage_period_start(sub, datetime(2027, 3, 10, 11, 59, tzinfo=timezone.utc)) == \
+        datetime(2027, 2, 10, 12, tzinfo=timezone.utc)
     # Before the stored start: rolled backward.
-    assert usage_period_start(sub, start - timedelta(seconds=1)) == start - timedelta(days=30)
-    assert usage_period_start(sub, start - timedelta(days=31)) == start - timedelta(days=60)
+    assert usage_period_start(sub, start - timedelta(seconds=1)) == datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
+    assert usage_period_start(sub, start - timedelta(days=32)) == datetime(2026, 9, 10, 12, tzinfo=timezone.utc)
     # A start without an end, and no period at all.
     open_ended = ReservationSubscription(status="active", current_period_start=start)
     assert usage_period_start(open_ended, nxt) == start
     bare = ReservationSubscription(status="incomplete")
     assert usage_period_start(bare, nxt) == datetime(2026, 12, 1, tzinfo=timezone.utc)
+
+
+def test_usage_period_start_keeps_a_month_end_anchor():
+    """A 31st anchor: Jan 31 -> Feb 28 -> Mar 31 -> Apr 30, whichever of
+    those periods is the stored one."""
+    utc = timezone.utc
+    starts = [datetime(2027, 1, 31, 8, tzinfo=utc), datetime(2027, 2, 28, 8, tzinfo=utc),
+              datetime(2027, 3, 31, 8, tzinfo=utc), datetime(2027, 4, 30, 8, tzinfo=utc),
+              datetime(2027, 5, 31, 8, tzinfo=utc)]
+    for stored in range(len(starts) - 1):
+        sub = ReservationSubscription(status="active", current_period_start=starts[stored],
+                                      current_period_end=starts[stored + 1])
+        for i, s in enumerate(starts):
+            assert usage_period_start(sub, s) == s, (stored, i)
+            assert usage_period_start(sub, s - timedelta(seconds=1)) == (
+                starts[i - 1] if i else datetime(2026, 12, 31, 8, tzinfo=utc)), (stored, i)
+
+
+def test_usage_period_start_steps_a_non_monthly_period_by_its_length():
+    start = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
+    sub = ReservationSubscription(status="active", current_period_start=start,
+                                  current_period_end=start + timedelta(days=7))
+    assert usage_period_start(sub, start + timedelta(days=15)) == start + timedelta(days=14)
+    assert usage_period_start(sub, start - timedelta(seconds=1)) == start - timedelta(days=7)
 
 
 @pytest.mark.integration

@@ -485,7 +485,7 @@ async def test_invoice_upcoming_reconciles_the_agent_not_the_scheduling_overage(
     r = await _post(client, monkeypatch, "invoice.upcoming", _invoice())
     body = r.json()["reservation_agent"]
     assert body["handled"] is True
-    assert body["overage"] == {"skipped": "not_implemented"}
+    assert body["overage"]["action"] == "skip_zero"  # no usage: nothing billed
     await _assert_scheduling_untouched(db_session)
 
 
@@ -1083,3 +1083,60 @@ async def test_checkout_treats_a_vanished_listed_subscription_as_nothing_to_clea
     r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert await _row(db_session) is None
+
+
+# Task 3 carries: a retry re-reads an unpaid invoice; the row's own
+# subscription is never backstopped ---------------------------------------
+
+
+async def test_a_retry_rereads_an_invoice_that_was_unpaid(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    fake["invoices"]["in_dup"]["amount_paid"] = 0  # not paid yet
+    fake["hooks"]["cancel"] = _down
+    await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    assert alerts[-1][1]["refund"] == "none" and fake["refunds"] == []
+
+    # Stripe then collected it; the retry must see that and refund.
+    fake["invoices"]["in_dup"]["amount_paid"] = 1000
+    del fake["hooks"]["cancel"]
+    await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
+    assert fake["refunds"] == [{"payment_intent": "pi_dup",
+                                "idempotency_key": "agent-dup-refund-sub_dup"}]
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert (charge.status, float(charge.amount_usd)) == ("succeeded", 10.0)
+    assert charge.error_message == "cancelled=yes refund=refunded"
+
+
+@pytest.mark.parametrize("status", ["unpaid", "paused", "incomplete"])
+async def test_the_rows_own_subscription_is_never_backstopped(
+    client, og, db_session, monkeypatch, fake, alerts, status,
+):
+    """A failed duplicate record for the subscription the row now holds,
+    whatever its status: nothing cancelled or refunded, record closed."""
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, status, sub_id="sub_dup")
+    db_session.add(BillingCharge(ownership_group_id=OG_ID, kind="agent_duplicate_refund",
+                                 stripe_object_id="sub_dup", amount_usd=10, status="failed",
+                                 error_message="cancelled=no refund=failed; cancel failed: down"))
+    await db_session.commit()
+    sub = _paid_duplicate(fake)
+    sub["status"] = status
+    r = await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
+    assert r.status_code == 200
+    assert fake["cancelled"] == [] and fake["refunds"] == []
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "succeeded" and "superseded" in charge.error_message
+    assert (await _row(db_session)).stripe_subscription_id == "sub_dup"
+    n = len(alerts)
+    await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
+    assert fake["cancelled"] == [] and len(alerts) == n
