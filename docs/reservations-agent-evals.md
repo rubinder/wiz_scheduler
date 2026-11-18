@@ -30,7 +30,12 @@ each passing scenario to `recordings/`.
 `DATABASE_URL`, creates the tables there, runs, stores the run, prints the
 report and drops the schema (`DROP SCHEMA ... CASCADE`, in a `finally`). The
 public schema is never touched. A non-local database host is refused (exit 4)
-unless `--allow-remote-db` is given; never point it at production. The run uses
+unless `--allow-remote-db` is given; if a run is killed hard and leaves a
+schema behind, list them with
+`select schema_name from information_schema.schemata where schema_name like 'evals\_%'`
+and drop with `python -m backend.reservations.evals.run --cleanup` (drops
+those older than an hour). Ctrl-C prints the partial report before cleanup;
+a run that errors is a failed outcome and the suite continues; never point it at production. The run uses
 the owner role with no `app_role` binding, so row-level security is not
 exercised: isolation is the schema.
 

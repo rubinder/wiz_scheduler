@@ -19,9 +19,10 @@ Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key,
 
 import argparse
 import asyncio
+import logging
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import text
@@ -32,7 +33,10 @@ from sqlalchemy.pool import NullPool
 from backend.config import settings
 from backend.reservations.evals.diner import DINER_MAX_TOKENS, DINER_MODEL
 
+logger = logging.getLogger(__name__)
+
 MAX_DINER_TURNS = 20
+STALE_AFTER = timedelta(hours=1)
 INPUT_TOKEN_ESTIMATE = 6000
 COST_LIMIT_USD = 1.00
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "host.docker.internal", "postgres", "db"}
@@ -42,8 +46,8 @@ _SCHEMA_RE = re.compile(r"^evals_[0-9]{8}t[0-9]{6}z$")
 def cost_upper_bound(scenario_count: int, repeat: int) -> float:
     """scenarios x repeat x 20 diner turns x (MAX_TOOL_ROUNDS agent calls +
     1 diner call), each at its per-call bound: max output tokens plus a
-    6000-token input estimate at the configured prices (the diner uses the
-    same prices, with 300 max output)."""
+    6000-token input estimate at the configured agent prices. The diner is
+    priced at the agent's prices too (both are Haiku), with 300 max output."""
     inp = settings.RESERVATION_AGENT_INPUT_USD_PER_MTOK
     out = settings.RESERVATION_AGENT_OUTPUT_USD_PER_MTOK
     agent_call = (settings.RESERVATION_AGENT_MAX_TOKENS * out
@@ -54,7 +58,12 @@ def cost_upper_bound(scenario_count: int, repeat: int) -> float:
 
 
 def host_is_local(database_url: str) -> bool:
-    return (make_url(database_url).host or "localhost") in LOCAL_HOSTS
+    url = make_url(database_url)
+    if url.host is None:
+        # A unix-socket / libpq default connection, unless a host is given
+        # as a query parameter.
+        return "host" not in url.query
+    return url.host in LOCAL_HOSTS
 
 
 def scratch_schema_name(now: datetime | None = None) -> str:
@@ -71,13 +80,50 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--record", action="store_true",
                    help="live: write recordings for passing scenarios")
     p.add_argument("--notes", default=None, help="free text stored with the run")
+    p.add_argument("--cleanup", action="store_true",
+                   help="drop every evals_* schema older than 1 hour, then exit")
     p.add_argument("--allow-remote-db", action="store_true",
                    help="allow a DATABASE_URL whose host is not local")
     return p
 
 
+def _created_at(schema: str) -> datetime | None:
+    m = re.match(r"^evals_(\d{8}t\d{6}z)$", schema)
+    if not m:
+        return None
+    return datetime.strptime(m.group(1), "%Y%m%dt%H%M%Sz").replace(tzinfo=timezone.utc)
+
+
+async def cleanup_stale(database_url: str, now: datetime | None = None) -> list[str]:
+    """Drop every `evals_<timestamp>` schema older than an hour."""
+    now = now or datetime.now(timezone.utc)
+    admin = create_async_engine(database_url, poolclass=NullPool)
+    dropped: list[str] = []
+    try:
+        async with admin.connect() as conn:
+            await conn.execution_options(isolation_level="AUTOCOMMIT")
+            names = (await conn.execute(text(
+                "select schema_name from information_schema.schemata "
+                "where schema_name like 'evals\\_%'"))).scalars().all()
+            for name in names:
+                made = _created_at(name)
+                if made is not None and now - made > STALE_AFTER:
+                    await conn.execute(text(f'DROP SCHEMA IF EXISTS "{name}" CASCADE'))
+                    dropped.append(name)
+    finally:
+        await admin.dispose()
+    return dropped
+
+
 async def _scratch_run(database_url: str, schema: str, body: Any) -> Any:
-    """Create the schema and its tables, run `body(db_factory)`, drop it."""
+    """Create the schema and its tables, run `body(db_factory)`, drop it.
+
+    search_path is the scratch schema first, then public, so the btree_gist
+    operator classes (installed in public) still resolve. Tables are created
+    with checkfirst=False: with public on the path, the default existence
+    check would see the application's tables there and create nothing, and
+    the run would write to public. A check afterwards verifies every table
+    really is in the scratch schema."""
     assert _SCHEMA_RE.match(schema), schema
     import backend.models  # noqa: F401  (registers the tables)
     import backend.reservations.evals.models  # noqa: F401
@@ -87,22 +133,38 @@ async def _scratch_run(database_url: str, schema: str, body: Any) -> Any:
     engine = create_async_engine(
         database_url, poolclass=NullPool,
         connect_args={"server_settings": {"search_path": f"{schema},public"}})
+    failed = False
     try:
         async with admin.connect() as conn:
             await conn.execution_options(isolation_level="AUTOCOMMIT")
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(lambda c: Base.metadata.create_all(c, checkfirst=False))
+            made = set((await conn.execute(text(
+                "select table_name from information_schema.tables "
+                "where table_schema = :s"), {"s": schema})).scalars().all())
+        missing = set(Base.metadata.tables) - made
+        if missing:
+            raise RuntimeError(f"scratch schema {schema} is missing tables: "
+                               f"{sorted(missing)}; refusing to run")
         factory = async_sessionmaker(engine, class_=AsyncSession,
                                      expire_on_commit=False)
         return await body(factory)
+    except BaseException:
+        failed = True
+        raise
     finally:
         await engine.dispose()
         try:
             async with admin.connect() as conn:
                 await conn.execution_options(isolation_level="AUTOCOMMIT")
                 await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        except Exception:
+            logger.exception("could not drop scratch schema %s; remove it with "
+                             "--cleanup", schema)
+            if not failed:
+                raise
         finally:
             await admin.dispose()
 
@@ -128,6 +190,19 @@ async def amain(argv: list[str] | None = None, *, database_url: str | None = Non
               "(pass --allow-remote-db to override)", file=sys.stderr)
         return 4
 
+    if args.cleanup:
+        if not host_is_local(url) and not args.allow_remote_db:
+            print("refusing: database host is not local", file=sys.stderr)
+            return 4
+        dropped = await cleanup_stale(url)
+        print(f"dropped {len(dropped)} stale schema(s)" + "".join(f"\n  {n}" for n in dropped))
+        return 0
+    known = {sc.id for sc in load_scenarios()}
+    unknown = sorted(set(ids or []) - known)
+    if unknown:
+        print(f"unknown scenario id(s): {', '.join(unknown)}; known: "
+              f"{', '.join(sorted(known))}", file=sys.stderr)
+        return 2
     scenarios = load_scenarios(ids=ids)
     if args.live:
         if not settings.ANTHROPIC_API_KEY:
@@ -149,31 +224,49 @@ async def amain(argv: list[str] | None = None, *, database_url: str | None = Non
 
     async def body(factory: Any) -> tuple[str, bool]:
         from backend.reservations.agent.core import AgentCore
+        from backend.reservations.evals.checker import CheckResult
         from backend.reservations.evals.diner import DinerSim
+        from backend.reservations.evals.runner import ScenarioOutcome
 
-        outcomes = []
+        outcomes: list[ScenarioOutcome] = []
         recorded: list[tuple[Any, Any]] = []
-        if args.live:
-            from backend.reservations.agent.llm import AnthropicLlm
+        interrupted = False
+        try:
+            if args.live:
+                from backend.reservations.agent.llm import AnthropicLlm
 
-            sim = DinerSim(diner_client)
-            for scenario in scenarios:
-                client = replay.RecordingLlm(llm or AnthropicLlm())
-                res = await run_suite(factory, [scenario], core=AgentCore(client),
-                                      diner_factory=lambda s: sim, repeat=args.repeat)
-                outcomes += res.outcomes
-                if args.record:
-                    recorded += [(o, client.responses) for o in res.outcomes]
-        else:
-            by_id = {sc.id: sc for sc in scenarios}
-            for name, rec in replay.load_recordings():
-                scenario = by_id.get(rec["scenario_id"])
-                if scenario is None:
-                    continue
-                res = await run_suite(factory, [scenario],
-                                      core=replay.replay_core(rec, name),
-                                      diner_factory=lambda s, r=rec: replay.replay_diner(r))
-                outcomes += res.outcomes
+                sim = DinerSim(diner_client)
+                for scenario in scenarios:
+                    for _ in range(args.repeat):
+                        client = replay.RecordingLlm(llm or AnthropicLlm())
+                        # run_suite turns a run that raises into a failed outcome.
+                        res = await run_suite(
+                            factory, [scenario], core=AgentCore(client),
+                            diner_factory=lambda s: sim)
+                        outcomes += res.outcomes
+                        if args.record:
+                            recorded += [(o, client.responses) for o in res.outcomes]
+            else:
+                by_id = {sc.id: sc for sc in scenarios}
+                for name, rec in replay.load_recordings():
+                    scenario = by_id.get(rec["scenario_id"])
+                    if scenario is None:
+                        continue
+                    try:
+                        core = replay.replay_core(rec, name)
+                    except replay.ReplayInvalid as exc:
+                        outcomes.append(ScenarioOutcome(
+                            scenario_id=scenario.id, conversation_id=None,
+                            check=CheckResult(passed=False, failures=[str(exc)]),
+                            transcript=[], stop="error"))
+                        continue
+                    res = await run_suite(
+                        factory, [scenario], core=core,
+                        diner_factory=lambda s, r=rec: replay.replay_diner(r))
+                    outcomes += res.outcomes
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            interrupted = True
+            print("interrupted: reporting the runs finished so far", file=sys.stderr)
         suite = SuiteResult(outcomes=outcomes)
         async with factory() as db:
             run = await store.store_run(db, suite, meta)
@@ -182,7 +275,8 @@ async def amain(argv: list[str] | None = None, *, database_url: str | None = Non
         for o, responses in recorded:
             if o.check.passed:
                 replay.save_recording(replay.record_transcript(o, responses))
-        return report, bool(outcomes) and all(o.check.passed for o in outcomes)
+        ok = bool(outcomes) and all(o.check.passed for o in outcomes) and not interrupted
+        return report, ok
 
     report, ok = await _scratch_run(url, scratch_schema_name(), body)
     print(report)
