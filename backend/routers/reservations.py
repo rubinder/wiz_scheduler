@@ -17,7 +17,9 @@ from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
 )
 from backend.reservations.models import Reservation
-from backend.reservations.queries import list_between, table_labels
+from backend.reservations.queries import (
+    list_between, list_pending_approvals, table_labels,
+)
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ReservationOut, ReservationPatch, RulesOut, SlotOut, StatusIn,
@@ -204,6 +206,20 @@ async def read_reservations(
     loc = await _location(db, scope, user, location_id)
     start, end = _day_window(loc, day)
     rows = await list_between(db, str(user.company_id), location_id, start, end)
+    return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
+
+
+@gated.get("/locations/{location_id}/approvals",
+            response_model=list[ReservationOut])
+async def read_approvals(
+    location_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> list[ReservationOut]:
+    """Live pending requests on any day, so none lapses unseen."""
+    await _location(db, scope, user, location_id)
+    rows = await list_pending_approvals(db, str(user.company_id), location_id)
     return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
 
 
