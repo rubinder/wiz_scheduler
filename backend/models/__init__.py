@@ -37,6 +37,14 @@ from backend.models.manager_location import ManagerLocation
 from backend.models.feedback_submission import FeedbackSubmission
 from backend.models.preference_submission import EmployeePreferenceSubmission
 from backend.models.payroll_archive import PayrollArchive, PayrollArchiveToken
+from backend.reservations.models import (
+    DiningTable,
+    FloorSection,
+    Reservation,
+    ReservationRules,
+    ReservationTable,
+    TableCombination,
+)
 
 __all__ = [
     "EmployeePreferenceSubmission",
@@ -85,4 +93,10 @@ __all__ = [
     "FeedbackSubmission",
     "PayrollArchive",
     "PayrollArchiveToken",
+    "FloorSection",
+    "DiningTable",
+    "TableCombination",
+    "ReservationRules",
+    "Reservation",
+    "ReservationTable",
 ]
