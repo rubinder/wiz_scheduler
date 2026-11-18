@@ -77,3 +77,15 @@ Decisions made while building without stopping to ask (owner instruction,
     chat they come from.
 24. **One turn at a time per chat.** A second message sent while the agent
     is still answering gets "please wait"; the turn cap can't be raced.
+25. **The load balancer accepts traffic that skips CloudFront** (security
+    group open to the internet, no origin secret), so the chat limits check
+    two keys: the viewer address CloudFront saw and the address that
+    connected to the load balancer. **Owner follow-up:** restrict the load
+    balancer to CloudFront's origin-facing prefix list (or an origin secret
+    header); then one key suffices and the login limiters become safe too.
+26. **No hard per-restaurant chat cap** (it would let one actor block a
+    restaurant); per-(restaurant, client) limits plus a warning when a
+    restaurant sees unusual volume.
+27. **Lookup lockouts are per (restaurant, phone, client)**, so a stranger
+    can't lock a real diner out; heavy abuse of one number sends diners to
+    staff instead of refusing them.
