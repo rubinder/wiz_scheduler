@@ -1520,6 +1520,23 @@ async def _mark_overage_unpaid(db: AsyncSession, og_id: str, invoice: Any, outco
     return charges
 
 
+async def _ensure_voice(db: AsyncSession, og_id: str) -> None:
+    """Bring the group's voice numbers in line with its subscription
+    (reservations.voice_numbers.ensure_for_group), after the subscription
+    change is committed. Best effort: any failure is logged and left to the
+    daily run; it never raises into a webhook or checkout."""
+    from backend.reservations import voice_numbers
+
+    try:
+        await voice_numbers.ensure_for_group(db, og_id)
+    except Exception:  # noqa: BLE001 - the daily run retries
+        logger.exception("voice numbers not updated for og %s", og_id)
+        try:
+            await db.rollback()
+        except Exception:  # noqa: BLE001
+            logger.exception("rollback after voice number failure failed for og %s", og_id)
+
+
 async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | None = None) -> dict:
     """The daily job (backend/scripts/run_agent_overage_reconcile.py): for
     every group whose agent row still has a subscription that is not ended,
@@ -1629,6 +1646,8 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
         unpaid = await _mark_overage_unpaid(db, og_id, obj, UNPAID_OUTCOMES[event_type])
         out["overage_failed"] = len(unpaid)
     await db.commit()
+    if row is not None:
+        await _ensure_voice(db, og_id)
     if unpaid:
         send_agent_invoice_unpaid_alert(og_id, _as_id(_field(obj, "id")) or "?",
                                         UNPAID_OUTCOMES[event_type], float(_total(unpaid)),
@@ -1753,6 +1772,7 @@ async def confirm_checkout(db: AsyncSession, og: OwnershipGroup, session_id: str
     await db.commit()
     if row is None:
         raise AlreadySubscribed("already_subscribed")
+    await _ensure_voice(db, og_id)
     return row
 
 

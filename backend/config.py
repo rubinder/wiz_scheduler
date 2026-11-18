@@ -264,6 +264,15 @@ class Settings(BaseSettings):
     # Reservations (#254): off until the feature is ready to ship.
     RESERVATIONS_ENABLED: bool = False
 
+    # AI host voice channel (#259 step 6). Amazon Connect numbers are claimed
+    # and released only while VOICE_PROVISIONING_ENABLED is true (a claimed
+    # number is billed daily). A number whose subscription ended is held for
+    # VOICE_RELEASE_HOLD_DAYS so a resubscribe keeps it.
+    VOICE_PROVISIONING_ENABLED: bool = False
+    CONNECT_INSTANCE_ARN: str = ""
+    CONNECT_CONTACT_FLOW_ID: str = ""
+    VOICE_RELEASE_HOLD_DAYS: int = 7
+
     # AI host agent (#259). Prices are USD per million tokens.
     RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"
     RESERVATION_AGENT_INPUT_USD_PER_MTOK: float = 0.10

@@ -1158,3 +1158,55 @@ async def test_the_rows_own_subscription_is_never_backstopped(
     n = len(alerts)
     await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
     assert fake["cancelled"] == [] and len(alerts) == n
+
+
+# ---------------------------------------------------------------------------
+# Voice numbers follow the subscription (#259 step 6)
+# ---------------------------------------------------------------------------
+
+
+async def test_webhooks_claim_and_hold_the_locations_voice_number(
+    client, og, db_session, monkeypatch, fake,
+):
+    from tests.reservations.test_voice_numbers import FakeConnect
+    from backend.reservations.voice_number_models import VoiceNumber
+    from backend.services import connect_numbers
+
+    connect = FakeConnect()
+    monkeypatch.setattr(settings, "VOICE_PROVISIONING_ENABLED", True)
+    monkeypatch.setattr(settings, "CONNECT_INSTANCE_ARN", "arn:aws:connect:r:1:instance/i")
+    monkeypatch.setattr(connect_numbers, "_make_client", lambda: connect)
+    connect_numbers.reset_client()
+
+    async def number() -> VoiceNumber | None:
+        db_session.expire_all()
+        return (await db_session.execute(
+            select(VoiceNumber).where(VoiceNumber.location_id == LOCATION_ID))
+        ).scalar_one_or_none()
+
+    await _add_row(db_session, "incomplete")
+    r = await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
+    assert r.status_code == 200
+    assert (await number()).status == "active"
+
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    r = await _post(client, monkeypatch, "customer.subscription.deleted",
+                    _subscription(status="canceled"))
+    assert r.status_code == 200
+    held = await number()
+    assert held.status == "releasing" and held.release_after is not None
+    connect_numbers.reset_client()
+
+
+async def test_a_voice_number_failure_never_fails_the_webhook(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.reservations import voice_numbers
+
+    async def broken(db, og_id, now=None):
+        raise RuntimeError("db gone")
+    monkeypatch.setattr(voice_numbers, "ensure_for_group", broken)
+    await _add_row(db_session, "incomplete")
+    r = await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
+    assert r.status_code == 200
+    assert (await _row(db_session)).status == "active"

@@ -51,8 +51,10 @@ from backend.reservations.models import (
     TableCombination,
 )
 from backend.reservations.subscription_models import AgentUsage, ReservationSubscription
+from backend.reservations.voice_number_models import VoiceNumber
 
 __all__ = [
+    "VoiceNumber",
     "AgentUsage",
     "ReservationSubscription",
     "AgentConversation",

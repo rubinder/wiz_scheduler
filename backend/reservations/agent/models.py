@@ -56,6 +56,11 @@ class AgentConversation(Base):
                         name="ck_agent_conversations_status"),
         CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
                         name="ck_agent_conversations_outcome"),
+        # One conversation per external contact (the Amazon Connect contact
+        # id for a call) at a location.
+        Index("uq_agent_conversations_location_external_ref", "location_id",
+              "external_ref", unique=True,
+              postgresql_where=text("external_ref IS NOT NULL")),
     )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
@@ -67,6 +72,8 @@ class AgentConversation(Base):
     public_token: Mapped[str] = mapped_column(
         String(43), nullable=False, unique=True, default=new_public_token)
     caller_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The channel's own id for the contact (voice: the Connect contact id).
+    external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # The rate-limit viewer key the conversation was started from
     # (rate_limit.trusted_client_keys); keys the lookup lockout.
     source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)

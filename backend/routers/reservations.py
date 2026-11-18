@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
-from backend.reservations import booking, diner_data
+from backend.reservations import booking, diner_data, voice_numbers
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -28,7 +28,7 @@ from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
-    ReservationsConfigOut, RulesOut, SlotOut, StatusIn, WalkInIn,
+    ReservationsConfigOut, RulesOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
@@ -419,6 +419,21 @@ async def erase_diner_data(
             db, str(user.company_id), location_id, body.phone)
         await db.commit()
     return DinerEraseOut(**counts)
+
+
+@gated.get("/locations/{location_id}/voice", response_model=VoiceNumberOut)
+async def read_voice_number(
+    location_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> VoiceNumberOut:
+    """The location's AI host phone number and where it stands."""
+    await _location(db, scope, user, location_id)
+    row = await voice_numbers.for_location(db, str(user.company_id), location_id)
+    if row is None:
+        return VoiceNumberOut(e164=None, status="none")
+    return VoiceNumberOut(e164=row.e164, status=row.status, release_after=row.release_after)
 
 
 router.include_router(gated)
