@@ -1,11 +1,42 @@
 """Read-only reservation listings for the manager API."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.reservations.models import DiningTable, Reservation, ReservationTable
+from backend.reservations.models import (
+    BOOKED, EXPIRED, HELD, PENDING, SEATED, DiningTable, Reservation,
+    ReservationTable,
+)
+
+
+async def count_upcoming(
+    db: AsyncSession, company_id: str, location_id: str, now: datetime
+) -> int:
+    """Reservations diners still expect to honour: booked, seated, or a live
+    hold/pending (held_until NULL fails closed), starting at or after `now`."""
+    return (await db.execute(
+        select(func.count()).select_from(Reservation).where(
+            Reservation.company_id == company_id,
+            Reservation.location_id == location_id,
+            Reservation.start_at >= now,
+            or_(
+                Reservation.status.in_((BOOKED, SEATED)),
+                Reservation.status.in_((HELD, PENDING)) & or_(
+                    Reservation.held_until.is_(None), Reservation.held_until > now),
+            ),
+        )
+    )).scalar_one()
+
+
+def effective_status(res: Reservation, now: datetime) -> str:
+    """The status a reader should see: a held or pending row whose hold has
+    lapsed is `expired` even before a write sweeps it. Never writes."""
+    if (res.status in (HELD, PENDING) and res.held_until is not None
+            and res.held_until <= now):
+        return EXPIRED
+    return res.status
 
 
 async def table_labels(
@@ -32,9 +63,12 @@ async def table_labels(
 
 async def list_between(
     db: AsyncSession, company_id: str, location_id: str,
-    window_start: datetime, window_end: datetime,
-) -> list[tuple[Reservation, list[str]]]:
-    """Every reservation (all statuses) starting in [window_start, window_end)."""
+    window_start: datetime, window_end: datetime, now: datetime | None = None,
+) -> list[tuple[Reservation, list[str], str]]:
+    """Every reservation (all statuses) starting in [window_start, window_end),
+    with its table labels and `effective_status`. Read-only: lapsed holds are
+    reported as expired, not swept."""
+    now = now or datetime.now(timezone.utc)
     rows = (await db.execute(
         select(Reservation).where(
             Reservation.company_id == company_id,
@@ -44,4 +78,4 @@ async def list_between(
         ).order_by(Reservation.start_at, Reservation.id)
     )).scalars().all()
     labels = await table_labels(db, company_id, [r.id for r in rows])
-    return [(r, labels.get(r.id, [])) for r in rows]
+    return [(r, labels.get(r.id, []), effective_status(r, now)) for r in rows]

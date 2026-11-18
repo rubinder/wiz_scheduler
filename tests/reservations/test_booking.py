@@ -353,3 +353,90 @@ async def test_code_exhaustion_raises_a_reservation_error(db_session, seeded_flo
     with pytest.raises(CodeExhausted) as info:
         await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(20), DINER)
     assert info.value.code == "code_exhausted"
+
+
+# --- final review fixes -----------------------------------------------------
+
+async def test_walk_in_is_seated_now_on_a_fitting_table(db_session, seeded_floor):
+    now = _at(18, 7) + timedelta(seconds=42)  # off the slot grid
+    res = await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2,
+                                     diner_name="Bo", notes="bar side", now=now)
+    assert res.status == SEATED and res.source == "staff"
+    assert res.diner_phone is None and res.diner_name == "Bo"
+    assert res.held_until is None and res.notes == "bar side"
+    start = _at(18, 7)
+    assert res.start_at == start
+    assert res.end_at == start + timedelta(minutes=105)
+    rows = await _tables(db_session, res.id)
+    assert [r.table_id for r in rows] == [seeded_floor.t2] and rows[0].active
+    # during includes churn: party 3 is 105 dining + 15 churn.
+    assert rows[0].during.upper == start + timedelta(minutes=120)
+    with pytest.raises(SlotUnavailable):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2, now=now)
+
+
+async def test_walk_in_cannot_take_a_table_booked_soon(db_session, seeded_floor):
+    now = _at(18, 7)
+    await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2, _at(19),
+                             DINER, now=now)
+    with pytest.raises(SlotUnavailable):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2, now=now)
+    # A party of 2 still fits T1.
+    res = await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, 2, now=now)
+    assert [r.table_id for r in await _tables(db_session, res.id)] == [seeded_floor.t1]
+
+
+async def test_walk_in_validates_party_and_phone(db_session, seeded_floor):
+    with pytest.raises(InvalidPartySize):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, 0)
+    with pytest.raises(PartyTooLarge):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, 21)
+    with pytest.raises(booking.InvalidPhone):
+        await booking.seat_walk_in(db_session, COMPANY_ID, LOCATION_ID, 2,
+                                   diner_phone="555")
+
+
+async def test_pending_hold_lapses_at_the_booking_time(db_session, seeded_floor):
+    db_session.add(TableCombination(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, name="T2+T3",
+        table_ids=[seeded_floor.t2, seeded_floor.t3], min_seats=7, max_seats=10))
+    await db_session.flush()
+    now = _at(17)
+    res = await _hold(db_session, 10, _at(19), now)
+    assert res.status == PENDING
+    assert res.held_until == _at(19)  # not now + 24 h
+    # A row whose hold outlives its start (e.g. written before this fix)
+    # still cannot be approved once the booking time has passed.
+    res.held_until = _at(19) + timedelta(hours=20)
+    await db_session.flush()
+    with pytest.raises(HoldExpired):
+        await booking.approve(db_session, COMPANY_ID, res.id, now=_at(19, 1))
+
+
+async def test_only_staff_may_grow_a_booked_party_past_self_book(db_session, seeded_floor):
+    db_session.add(TableCombination(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, name="T2+T3",
+        table_ids=[seeded_floor.t2, seeded_floor.t3], min_seats=7, max_seats=10))
+    await db_session.flush()
+    res = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19), DINER)
+    with pytest.raises(PartyTooLarge):
+        await booking.modify(db_session, COMPANY_ID, res.id, party_size=9)
+    # Skipping the cutoff alone does not make the caller staff.
+    with pytest.raises(PartyTooLarge):
+        await booking.modify(db_session, COMPANY_ID, res.id, party_size=9,
+                             apply_cutoff=False)
+    res = await booking.modify(db_session, COMPANY_ID, res.id, party_size=9,
+                               apply_cutoff=False, by_staff=True)
+    assert res.party_size == 9
+
+
+async def test_staff_booking_needs_no_phone_but_agents_do(db_session, seeded_floor):
+    no_phone = DinerContact(name="Walk-up")
+    res = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                                   no_phone)
+    assert res.status == BOOKED and res.diner_phone is None
+    held = await _hold(db_session, ONLY_T2, _at(19))
+    with pytest.raises(booking.PhoneRequired):
+        await booking.confirm(db_session, COMPANY_ID, held.id, no_phone)
+    with pytest.raises(ValueError):
+        DinerContact(name="Ada", phone="555")

@@ -24,6 +24,7 @@ from backend.models import (
     User,
 )
 from backend.services.archive import (
+    LocationHasReservations,
     active,
     archive_employee,
     archive_location,
@@ -257,7 +258,17 @@ async def _import_single_company(
     # Gone upstream: archive, never delete, so its history survives (#126).
     for ext_id, loc in existing_locs.items():
         if ext_id not in seen_loc_ext_ids and loc.archived_at is None:
-            await archive_location(db, wiz_company_id, loc)
+            # Not a 409: the import's cooldown row is already committed, so
+            # failing the whole import would burn it. The location stays
+            # active and the manager is told why (reservations decision 13).
+            try:
+                await archive_location(db, wiz_company_id, loc)
+            except LocationHasReservations as e:
+                errors.append(
+                    f"Location '{loc.name}' is gone from 7shifts but was not "
+                    f"archived: {e}; cancel or move them, then re-import"
+                )
+                continue
             counts["locations"]["archived"] += 1
 
     # ── Departments ──

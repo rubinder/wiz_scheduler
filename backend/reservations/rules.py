@@ -1,6 +1,7 @@
 """Reservation rules: the per-location JSON document and its helpers."""
 
 from datetime import date, datetime, time, timezone
+from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
@@ -62,15 +63,15 @@ class RulesSchema(BaseModel):
     service_periods: list[ServicePeriod] = []
     slot_interval_minutes: int = Field(default=15, ge=5, le=60)
     durations: list[DurationBand] = Field(default_factory=_default_durations, min_length=1)
-    max_concurrent_covers: int | None = None
-    max_covers_per_slot: int | None = None
+    max_concurrent_covers: int | None = Field(default=None, ge=1)
+    max_covers_per_slot: int | None = Field(default=None, ge=1)
     date_overrides: list[DateOverride] = []
-    max_self_book_party: int = 8
-    max_party_size: int = 20
+    max_self_book_party: int = Field(default=8, ge=1)
+    max_party_size: int = Field(default=20, ge=1)
     booking_horizon_days: int = Field(default=60, ge=1, le=365)
     cutoff_minutes: int = Field(default=60, ge=0, le=1440)
     closures: list[date] = []
-    section_cover_limits: dict[str, int] = {}
+    section_cover_limits: dict[str, Annotated[int, Field(ge=1)]] = {}
     hold_timeout_minutes: int = Field(default=5, ge=1, le=30)
     pending_hold_hours: int = Field(default=24, ge=1, le=72)
     persona: Persona = Field(default_factory=Persona)

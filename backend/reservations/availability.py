@@ -8,6 +8,10 @@ definition of "bookable".
 Two clocks per booking: dining time [start, dining_end) is when covers are in
 the room (restaurant capacity, pacing, section limits), and occupied time
 [start, end) adds the band's churn and is when the table cannot be reseated.
+
+Section cover limits: a party seated on a combination that spans two
+sections counts its whole party against each section's limit (decision 15,
+conservative), both when it is being placed and when it is already booked.
 """
 
 from dataclasses import dataclass
@@ -155,11 +159,16 @@ def compute_slots(
     now: datetime,
     *,
     apply_cutoff: bool = True,
+    at: datetime | None = None,
 ) -> list[Slot]:
     """Bookable start times for one party, one Slot per time, ordered by start.
 
     `apply_cutoff=False` (staff bookings) skips `cutoff_minutes`; the booking
     horizon and "not in the past" still apply.
+
+    `at` (walk-ins only) evaluates that one start instead of the slot grid
+    and service periods; every other rule still applies, and it must still
+    lie in [window_start, window_end).
     """
     if party_size < 1 or party_size > rules.max_party_size:
         return []
@@ -184,13 +193,19 @@ def compute_slots(
         dining[b.reservation_id] = entry
         by_section.setdefault(b.section_id, {})[b.reservation_id] = entry
     seatings = _seatings(tables, combos, party_size)
+    # A limit keyed by a section no current table is in (e.g. a deleted
+    # section) is ignored.
+    current_sections = {t.section_id for t in tables if t.section_id is not None}
+    section_limits = {k: v for k, v in rules.section_cover_limits.items()
+                      if k in current_sections}
+    pacing_step = timedelta(minutes=rules.slot_interval_minutes)
 
     def table_free(table_id: str, start: datetime, until: datetime) -> bool:
         return all(not (s < until and e > start) for s, e in by_table.get(table_id, ()))
 
     def section_ok(seating: _Seating, start: datetime, end: datetime) -> bool:
         for section in seating.sections:
-            limit = rules.section_cover_limits.get(section) if section else None
+            limit = section_limits.get(section) if section else None
             if limit is None:
                 continue
             seated = sum(p for s, e, p in by_section.get(section, {}).values()
@@ -200,7 +215,9 @@ def compute_slots(
         return True
 
     slots: list[Slot] = []
-    for local_start in _candidates(rules, zone, window_start, window_end):
+    candidates = ([at.astimezone(zone)] if at is not None
+                  else _candidates(rules, zone, window_start, window_end))
+    for local_start in candidates:
         start = _utc(local_start)
         if not (w_start <= start < w_end) or start < earliest:
             continue
@@ -211,7 +228,10 @@ def compute_slots(
             if _peak_covers(dining, start, end) + party_size > rules.max_concurrent_covers:
                 continue
         if rules.max_covers_per_slot is not None:
-            starting = sum(p for s, _, p in dining.values() if s == start)
+            # Bookings starting anywhere in this slot's interval, so a changed
+            # interval (or an off-grid walk-in) still counts (decision 16).
+            starting = sum(p for s, _, p in dining.values()
+                           if start <= s < start + pacing_step)
             if starting + party_size > rules.max_covers_per_slot:
                 continue
         until = start + occupied_len
@@ -236,8 +256,12 @@ async def find_slots(
     exclude_reservation_id: str | None = None,
     *,
     apply_cutoff: bool = True,
+    at: datetime | None = None,
 ) -> list[Slot]:
-    """Load one location's floor, rules and busy tables, then `compute_slots`."""
+    """Load one location's floor, rules and busy tables, then `compute_slots`.
+
+    `at` is passed through: see `compute_slots`.
+    """
     now = now or datetime.now(timezone.utc)
     location = (await db.execute(
         select(Location).where(
@@ -299,5 +323,5 @@ async def find_slots(
     ]
     return compute_slots(
         rules, location.timezone, tables, combos, busy, party_size,
-        window_start, window_end, now, apply_cutoff=apply_cutoff,
+        window_start, window_end, now, apply_cutoff=apply_cutoff, at=at,
     )

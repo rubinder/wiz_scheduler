@@ -40,3 +40,20 @@ Decisions made while building without stopping to ask (owner instruction,
 11. **Lock order is location first.** Every write locks the location row,
     then touches reservations. Future code must keep that order to avoid
     deadlocks.
+12. **Walk-ins have their own path** (corrects decision 8): staff can seat a
+    walk-in now on a free table in one step, with no phone number needed.
+    Past start times still can't be booked. A walk-in is not bound to the
+    slot grid or service periods (the party is at the door); table fit,
+    churn, capacity, pacing and section limits still apply.
+13. **A location with upcoming reservations can't be archived** (409); the
+    manager cancels or moves them first. Cost if wrong: one extra step for
+    the manager, instead of diners arriving at a closed restaurant. The
+    7shifts import does not 409 (its cooldown is already spent): it leaves
+    such a location active and reports it in the import's `errors`.
+14. **A table combination's minimum party is its largest member's
+    minimum**, so two 2-tops pushed together can seat 3.
+15. **A combination spanning two sections counts the whole party against
+    each section's limit** (conservative).
+16. **Pacing counts bookings starting within the slot's interval**, so
+    changing the interval doesn't make old bookings invisible to pacing.
+17. **Staff bookings don't need a phone number**; diner (agent) bookings do.

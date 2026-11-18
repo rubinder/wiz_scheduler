@@ -1,7 +1,8 @@
 """Holds and bookings: the write paths that must never double-book.
 
 Every write takes the location row lock (`SELECT ... FROM locations ... FOR
-UPDATE`), sweeps that location's lapsed holds to `expired`, and only then
+UPDATE`), sweeps that location's lapsed holds to `expired`
+(`begin_location_write`, which floor.save_floor also calls), and only then
 checks availability and writes, so two writers for one location run one after
 the other. The exclusion constraint `ex_reservation_tables_no_overlap` is the
 backstop; its violation surfaces as `SlotUnavailable`.
@@ -97,15 +98,32 @@ class CodeExhausted(ReservationError):
     code = "code_exhausted"
 
 
+class InvalidPhone(ReservationError, ValueError):
+    code = "invalid_phone"
+
+
+class PhoneRequired(ReservationError):
+    """Diner (agent) bookings need a phone number; staff bookings do not."""
+
+    code = "phone_required"
+
+
+def _check_phone(phone: str | None) -> None:
+    if phone is not None and not E164.match(phone):
+        raise InvalidPhone("phone must be E.164, e.g. +12125550100")
+
+
 @dataclass(frozen=True)
 class DinerContact:
+    """Who the booking is for. `phone` is optional only for staff bookings
+    (decision 17): `confirm` raises PhoneRequired for any other source."""
+
     name: str
-    phone: str
+    phone: str | None = None
     email: str | None = None
 
     def __post_init__(self) -> None:
-        if not E164.match(self.phone):
-            raise ValueError("phone must be E.164, e.g. +12125550100")
+        _check_phone(self.phone)
 
 
 def _now(now: datetime | None) -> datetime:
@@ -150,9 +168,15 @@ async def _sweep_expired(
         )
 
 
-async def _begin_write(
+async def begin_location_write(
     db: AsyncSession, company_id: str, location_id: str, now: datetime
 ) -> bool:
+    """Lock the location row, then sweep its lapsed holds to `expired`.
+
+    Every reservations write (bookings here, floor saves in floor.py) starts
+    with this, so it runs after any in-flight write for the same location and
+    sees only live holds. False when the location is not this company's.
+    """
     locked = await _lock_location(db, company_id, location_id)
     if locked:
         await _sweep_expired(db, company_id, location_id, now)
@@ -179,7 +203,7 @@ async def _load_for_write(
 ) -> Reservation:
     """Load, lock its location, sweep, then reload so the status is current."""
     res = await _load(db, company_id, reservation_id)
-    if not await _begin_write(db, company_id, res.location_id, now):
+    if not await begin_location_write(db, company_id, res.location_id, now):
         raise ReservationNotFound()
     return await _load(db, company_id, reservation_id, res.location_id)
 
@@ -220,12 +244,12 @@ async def _flush_tables(db: AsyncSession) -> None:
 async def _find_exact_slot(
     db: AsyncSession, company_id: str, location_id: str, party_size: int,
     start: datetime, now: datetime, *, exclude_reservation_id: str | None = None,
-    apply_cutoff: bool,
+    apply_cutoff: bool, off_grid: bool = False,
 ) -> Slot:
     slots = await find_slots(
         db, company_id, location_id, party_size, start, start + timedelta(minutes=1),
         now=now, exclude_reservation_id=exclude_reservation_id,
-        apply_cutoff=apply_cutoff,
+        apply_cutoff=apply_cutoff, at=start if off_grid else None,
     )
     target = _utc(start)
     for slot in slots:
@@ -281,7 +305,7 @@ async def hold(
     are booking them.
     """
     now = _now(now)
-    if not await _begin_write(db, company_id, location_id, now):
+    if not await begin_location_write(db, company_id, location_id, now):
         raise SlotUnavailable()
     if party_size < 1:
         raise InvalidPartySize()
@@ -291,10 +315,11 @@ async def hold(
     slot = await _find_exact_slot(db, company_id, location_id, party_size, start, now,
                                   apply_cutoff=apply_cutoff)
     pending = party_size > rules.max_self_book_party and source != SOURCE_STAFF
-    held_until = now + (
-        timedelta(hours=rules.pending_hold_hours) if pending
-        else timedelta(minutes=rules.hold_timeout_minutes)
-    )
+    if pending:
+        # Approval after the booking time is meaningless: lapse at start_at.
+        held_until = min(now + timedelta(hours=rules.pending_hold_hours), _utc(slot.start))
+    else:
+        held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
     res = Reservation(
         company_id=company_id, location_id=location_id, party_size=party_size,
         start_at=slot.start, end_at=slot.end, status=PENDING if pending else HELD,
@@ -319,6 +344,8 @@ async def confirm(
         raise HoldExpired()
     if res.status not in (HELD, PENDING):
         raise InvalidTransition()
+    if diner.phone is None and res.source != SOURCE_STAFF:
+        raise PhoneRequired()
     res.diner_name, res.diner_phone, res.diner_email = diner.name, diner.phone, diner.email
     res.updated_at = now
     if res.confirmation_code is None:
@@ -356,6 +383,8 @@ async def approve(
         raise HoldExpired()
     if res.status != PENDING:
         raise InvalidTransition()
+    if _utc(res.start_at) <= now:
+        raise HoldExpired()
     await _set_status(db, res, BOOKED, now)
     return res
 
@@ -381,6 +410,7 @@ async def modify(
     notes: str | None = None,
     now: datetime | None = None,
     apply_cutoff: bool = True,
+    by_staff: bool = False,
 ) -> Reservation:
     """Change party, time or notes of a booked or pending reservation.
 
@@ -388,9 +418,9 @@ async def modify(
     notes (pass "" to blank them). On `SlotUnavailable`, `PartyTooLarge` or
     `InvalidPartySize` the reservation and its table rows are unchanged: the
     table swap runs in a savepoint and the reservation's fields are only
-    assigned after it succeeds. Staff pass
-    `apply_cutoff=False`. A diner (`apply_cutoff=True`) cannot grow a booked
-    party above `max_self_book_party`: that would skip approval.
+    assigned after it succeeds. Staff pass `apply_cutoff=False` and
+    `by_staff=True`. A diner (`by_staff=False`) cannot grow a booked party
+    above `max_self_book_party`: that would skip approval.
     """
     now = _now(now)
     if party_size is not None and party_size < 1:
@@ -407,7 +437,7 @@ async def modify(
         rules, _ = await get_rules(db, company_id, res.location_id)
         if new_party > rules.max_party_size:
             raise PartyTooLarge()
-        if (apply_cutoff and res.status == BOOKED and new_party != res.party_size
+        if (not by_staff and res.status == BOOKED and new_party != res.party_size
                 and new_party > rules.max_self_book_party):
             raise PartyTooLarge()
         slot = await _find_exact_slot(
@@ -473,3 +503,48 @@ async def lookup(
             Reservation.diner_phone == phone,
         )
     )).scalar_one_or_none()
+
+
+async def seat_walk_in(
+    db: AsyncSession,
+    company_id: str,
+    location_id: str,
+    party_size: int,
+    *,
+    diner_name: str | None = None,
+    diner_phone: str | None = None,
+    notes: str | None = None,
+    now: datetime | None = None,
+) -> Reservation:
+    """Seat a walk-in party now, in one step (decision 12).
+
+    The start is `now` truncated to the minute and need not be on the slot
+    grid or inside a service period: the party is already standing at the
+    host stand. Everything else is the evaluator's: table fit, churn,
+    capacity, pacing and section limits, via `find_slots(at=...)`. No phone
+    is needed. Raises SlotUnavailable when nothing fits.
+    """
+    now = _now(now)
+    _check_phone(diner_phone)
+    start = now.replace(second=0, microsecond=0)
+    if not await begin_location_write(db, company_id, location_id, now):
+        raise SlotUnavailable()
+    if party_size < 1:
+        raise InvalidPartySize()
+    rules, _ = await get_rules(db, company_id, location_id)
+    if party_size > rules.max_party_size:
+        raise PartyTooLarge()
+    # `now=start` so the truncated start is not "in the past".
+    slot = await _find_exact_slot(db, company_id, location_id, party_size, start, start,
+                                  apply_cutoff=False, off_grid=True)
+    res = Reservation(
+        company_id=company_id, location_id=location_id, party_size=party_size,
+        start_at=slot.start, end_at=slot.end, status=SEATED, held_until=None,
+        source=SOURCE_STAFF, diner_name=diner_name, diner_phone=diner_phone,
+        notes=notes, created_at=now, updated_at=now,
+    )
+    db.add(res)
+    await db.flush()
+    db.add_all(_table_rows(company_id, res.id, slot, rules, party_size))
+    await _flush_tables(db)
+    return res

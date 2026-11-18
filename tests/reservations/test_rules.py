@@ -97,3 +97,18 @@ async def test_save_rules_bumps_version(db_session, seed_location):
     assert version == 2
     assert rules.cutoff_minutes == 45
     assert rules.service_periods[0].first_seating == time(17)
+
+
+@pytest.mark.parametrize("field", [
+    "max_concurrent_covers", "max_covers_per_slot", "max_self_book_party",
+    "max_party_size",
+])
+async def test_cover_and_party_limits_must_be_positive(field):
+    with pytest.raises(ValidationError):
+        RulesSchema(**{field: 0})
+
+
+async def test_section_cover_limits_must_be_positive():
+    with pytest.raises(ValidationError):
+        RulesSchema(section_cover_limits={"patio": 0})
+    assert RulesSchema(section_cover_limits={"patio": 1}).section_cover_limits == {"patio": 1}

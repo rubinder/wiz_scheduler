@@ -293,3 +293,27 @@ async def test_deputy_failed_employee_fetch_archives_no_employee(client: AsyncCl
         archived = (await db_session.execute(select(Employee).where(Employee.archived_at.is_not(None))
                     .execution_options(populate_existing=True))).scalars().all()
     assert archived == []
+
+
+@pytest.mark.asyncio
+async def test_7shifts_keeps_a_gone_location_with_upcoming_reservations(
+        client: AsyncClient, db_session: AsyncSession, paid_tenant: dict, monkeypatch):
+    """Reservations decision 13: a location diners are still booked at is not
+    archived by an import; the import succeeds and says why in `errors`."""
+    from backend.reservations.models import Reservation
+    routes = copy.deepcopy(SEVEN_SHIFTS)
+    install_fake_upstream(monkeypatch, routes)
+    url, h = "/api/v1/import/7shifts", paid_tenant["headers"]
+    assert (await client.post(url, json={"access_token": "f"}, headers=h)).status_code == 200
+    downtown = await _one(db_session, select(Location).where(Location.external_id == "11"))
+    start = NOW + timedelta(days=3)
+    db_session.add(Reservation(company_id=paid_tenant["company_id"], location_id=downtown.id,
+                               party_size=2, start_at=start, end_at=start + timedelta(hours=1),
+                               status="booked", source="staff"))
+    await db_session.commit()
+    routes[f"{V2}/company/100/locations"]["data"] = routes[f"{V2}/company/100/locations"]["data"][1:]
+    resp = await client.post(url, json={"access_token": "f"}, headers=h)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["locations"]["archived"] == 0
+    assert any("Downtown" in e and "reservation" in e for e in resp.json()["errors"])
+    assert (await _one(db_session, select(Location).where(Location.id == downtown.id))).archived_at is None

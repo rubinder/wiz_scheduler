@@ -21,6 +21,7 @@ from backend.reservations.queries import list_between, table_labels
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ReservationOut, ReservationPatch, RulesOut, SlotOut, StatusIn,
+    WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
@@ -44,6 +45,8 @@ _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     booking.InvalidTransition: 409,
     booking.ReservationNotFound: 404,
     booking.CodeExhausted: 503,
+    booking.InvalidPhone: 422,
+    booking.PhoneRequired: 422,
 }
 
 
@@ -169,15 +172,17 @@ async def read_slots(
     location_id: str,
     party_size: int = Query(ge=1),
     day: date = Query(alias="date"),
+    apply_cutoff: bool = False,
     user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> list[SlotOut]:
+    """Staff view by default; `apply_cutoff=true` previews what diners see."""
     loc = await _location(db, scope, user, location_id)
     start, end = _day_window(loc, day)
     slots = await find_slots(
         db, str(user.company_id), location_id, party_size, start, end,
-        apply_cutoff=False,
+        apply_cutoff=apply_cutoff,
     )
     return [SlotOut(start=s.start, end=s.end, table_ids=list(s.table_ids))
             for s in slots]
@@ -195,7 +200,7 @@ async def read_reservations(
     loc = await _location(db, scope, user, location_id)
     start, end = _day_window(loc, day)
     rows = await list_between(db, str(user.company_id), location_id, start, end)
-    return [ReservationOut.of(r, labels) for r, labels in rows]
+    return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
 
 
 @router.post("/locations/{location_id}/reservations", status_code=201,
@@ -223,6 +228,24 @@ async def create_reservation(
     return await _out(db, res)
 
 
+@router.post("/locations/{location_id}/walk-ins", status_code=201,
+             response_model=ReservationOut)
+async def seat_walk_in(
+    location_id: str,
+    body: WalkInIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> ReservationOut:
+    await _location(db, scope, user, location_id)
+    async with _domain_errors(db):
+        res = await booking.seat_walk_in(
+            db, str(user.company_id), location_id, body.party_size,
+            diner_name=body.name, diner_phone=body.phone, notes=body.notes)
+        await db.commit()
+    return await _out(db, res)
+
+
 @router.patch("/{reservation_id}", response_model=ReservationOut)
 async def update_reservation(
     reservation_id: str,
@@ -236,7 +259,7 @@ async def update_reservation(
         res = await booking.modify(
             db, str(user.company_id), reservation_id,
             party_size=body.party_size, start=body.start, notes=body.notes,
-            apply_cutoff=False)
+            apply_cutoff=False, by_staff=True)
         await db.commit()
     return await _out(db, res)
 

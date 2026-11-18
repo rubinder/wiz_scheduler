@@ -425,3 +425,35 @@ async def test_find_slots_ignores_archived_tables_and_other_tenants(db_session, 
     ws, we = _day_window(d)
     assert await find_slots(db_session, COMPANY_ID, LOCATION_ID, 2, ws, we, now=now) == []
     assert await find_slots(db_session, "zzzzzzzz", LOCATION_ID, 2, ws, we, now=now) == []
+
+
+# --- final review fixes ------------------------------------------------------
+
+def test_pacing_counts_bookings_starting_within_the_interval():
+    # A walk-in seated off the grid at 19:05 still counts for the 19:00 slot.
+    rules = _rules(max_covers_per_slot=6, interval=15)
+    tables = [_t("T1", 1, 4), _t("T2", 1, 4)]
+    busy = [_busy("r1", "T1", _at(19, 5), 105, 15, 4)]
+    starts = _starts(_slots(rules, tables, 4, busy=busy))
+    assert (19, 0) not in starts
+    assert (19, 15) in starts and (18, 45) in starts
+
+
+def test_section_limit_for_a_section_no_table_is_in_is_ignored():
+    rules = _rules(section_cover_limits={"gone": 1, "main": 4},
+                   first=time(19, 0), last=time(19, 0))
+    tables = [_t("M1", 1, 6, "main")]
+    assert _starts(_slots(rules, tables, 4)) == [(19, 0)]
+    assert _slots(rules, tables, 5) == []
+
+
+def test_explicit_start_is_evaluated_off_the_grid():
+    rules = _rules()
+    tables = [_t("T1", 1, 4)]
+    at = _at(16, 7)  # before the first seating and off the 30 min grid
+    out = compute_slots(rules, TZ, tables, [], [], 2, at, at + timedelta(minutes=1),
+                        NOW, apply_cutoff=False, at=at)
+    assert [s.start for s in out] == [at] and out[0].table_ids == ("T1",)
+    busy = [_busy("r1", "T1", _at(17, 0), 90, 10, 2)]
+    assert compute_slots(rules, TZ, tables, [], busy, 2, at, at + timedelta(minutes=1),
+                         NOW, apply_cutoff=False, at=at) == []

@@ -45,7 +45,8 @@ async def test_save_floor_creates_sections_tables_and_combination(db_session, se
     t3 = next(t for t in out.tables if t.label == "T3")
     assert t3.section_key == next(s.key for s in out.sections if s.name == "Patio")
     combo = out.combinations[0]
-    assert (combo.min_seats, combo.max_seats) == (4, 6)
+    # min = largest member minimum (decision 14), max = sum of maxima.
+    assert (combo.min_seats, combo.max_seats) == (2, 6)
     assert sorted(combo.table_labels) == ["T1", "T2"]
     again = await get_floor(db_session, COMPANY_ID, LOCATION_ID)
     assert again.model_dump() == out.model_dump()
@@ -191,3 +192,46 @@ async def test_swapping_labels_raises_floor_invalid(db_session, seed_location):
     with pytest.raises(FloorInvalid) as ei:
         await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn.model_validate(p))
     assert ei.value.code == "duplicate_label"
+
+
+async def test_lapsed_hold_does_not_block_archiving_its_table(db_session, seed_location):
+    from backend.reservations.models import EXPIRED, HELD, SOURCE_WEB_AGENT
+    out = await save_floor(db_session, COMPANY_ID, LOCATION_ID, _floor())
+    t3 = next(t for t in out.tables if t.label == "T3")
+    now = datetime.now(timezone.utc)
+    res = Reservation(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, party_size=4,
+        start_at=now + timedelta(hours=20), end_at=now + timedelta(hours=22),
+        status=HELD, held_until=now - timedelta(minutes=1), source=SOURCE_WEB_AGENT)
+    db_session.add(res)
+    await db_session.flush()
+    db_session.add(ReservationTable(
+        company_id=COMPANY_ID, reservation_id=res.id, table_id=t3.id,
+        during=Range(now + timedelta(hours=20), now + timedelta(hours=23), bounds="[)")))
+    await db_session.flush()
+    keep = [t.model_dump() for t in out.tables if t.label != "T3"]
+    await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn.model_validate(dict(
+        sections=[s.model_dump() for s in out.sections], tables=keep,
+        combinations=[c.model_dump() for c in out.combinations])), now=now)
+    await db_session.refresh(res)
+    assert res.status == EXPIRED
+
+
+async def test_combination_minimum_is_its_largest_member_minimum(db_session, seed_location):
+    from datetime import time
+    from backend.reservations.availability import find_slots
+    from backend.reservations.rules import RulesSchema, ServicePeriod, save_rules
+    t = lambda label: dict(  # noqa: E731
+        id=None, label=label, section_key="a", min_seats=2, max_seats=2, combinable=True)
+    out = await save_floor(db_session, COMPANY_ID, LOCATION_ID, _floor(
+        tables=[t("A1"), t("A2")],
+        combos=[dict(id=None, name="A1+A2", table_labels=["A1", "A2"])]))
+    combo = out.combinations[0]
+    assert (combo.min_seats, combo.max_seats) == (2, 4)
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, RulesSchema(
+        service_periods=[ServicePeriod(name="d", weekdays=list(range(7)),
+                                       first_seating=time(19), last_seating=time(19))]))
+    day = datetime.now(timezone.utc) + timedelta(days=7)
+    slots = await find_slots(db_session, COMPANY_ID, LOCATION_ID, 3,
+                             day - timedelta(days=1), day + timedelta(days=1))
+    assert slots and len(slots[0].table_ids) == 2

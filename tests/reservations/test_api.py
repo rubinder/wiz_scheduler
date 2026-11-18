@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import select
 
 from backend.config import settings
 from backend.models import Company, Location, Region
@@ -336,3 +337,97 @@ async def test_listing_uses_the_local_day_on_a_dst_day(
     await db_session.commit()
     got = await _list(client, manager_token, day)
     assert {x["id"] for x in got} == {rows[0].id, rows[2].id}
+
+
+# --- final review fixes -----------------------------------------------------
+
+async def test_naive_start_is_422(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    body = _booking()
+    body["start"] = datetime.combine(_day(), time(18)).isoformat()  # no offset
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/reservations", json=body,
+                          headers=h)
+    assert r.status_code == 422
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.patch(f"{BASE}/{rid}", json={"start": body["start"]}, headers=h)
+    assert r.status_code == 422
+
+
+async def test_walk_in_is_seated_without_a_phone(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    url = f"{BASE}/locations/{LOCATION_ID}/walk-ins"
+    r = await client.post(url, json={"party_size": 3, "name": "Bo"}, headers=h)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "seated" and body["source"] == "staff"
+    assert body["tables"] == ["T2"] and body["diner_phone"] is None
+    r = await client.post(url, json={"party_size": 3}, headers=h)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "slot_unavailable"
+    r = await client.post(url, json={"party_size": 2, "phone": "555"}, headers=h)
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_phone"
+    r = await client.post(url, json={"party_size": 0}, headers=h)
+    assert r.status_code == 422
+
+
+async def test_staff_booking_without_phone_is_201(client, manager_token, seeded_floor):
+    body = _booking()
+    del body["diner"]["phone"]
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/reservations", json=body,
+                          headers=_auth(manager_token))
+    assert r.status_code == 201, r.text
+    assert r.json()["diner_phone"] is None
+
+
+async def test_slots_can_preview_the_diner_cutoff(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()
+    rules = rules["rules"]
+    rules["service_periods"] = [{"name": "all day", "weekdays": list(range(7)),
+                                 "first_seating": "00:00", "last_seating": "23:45"}]
+    rules["cutoff_minutes"] = 1440
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+    now = datetime.now(timezone.utc)
+    tomorrow = (now.astimezone(NY) + timedelta(days=1)).date().isoformat()
+    url = f"{BASE}/locations/{LOCATION_ID}/slots"
+    staff = (await client.get(url, params={"party_size": 2, "date": tomorrow},
+                              headers=h)).json()
+    diner = (await client.get(url, params={"party_size": 2, "date": tomorrow,
+                                           "apply_cutoff": "true"}, headers=h)).json()
+    assert len(diner) < len(staff)
+    assert all(datetime.fromisoformat(s["start"]) >= now + timedelta(minutes=1440)
+               for s in diner)
+
+
+async def test_day_listing_reports_a_lapsed_hold_as_expired(
+    client, manager_token, seeded_floor, db_session
+):
+    from backend.reservations import booking
+    from backend.reservations.models import HELD, SOURCE_WEB_AGENT, Reservation
+    from tests.conftest import COMPANY_ID
+    then = datetime.now(timezone.utc) - timedelta(minutes=10)
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2,
+                             datetime.fromisoformat(_at(19)), source=SOURCE_WEB_AGENT,
+                             now=then)
+    rid = res.id
+    await db_session.commit()
+    got = await _list(client, manager_token, _day())
+    assert [(x["id"], x["status"]) for x in got] == [(rid, "expired")]
+    # Reported, not written.
+    status = (await db_session.execute(
+        select(Reservation.status).where(Reservation.id == rid))).scalar_one()
+    assert status == HELD
+
+
+async def test_archiving_a_location_with_upcoming_reservations_is_409(
+    client, manager_token, seeded_floor
+):
+    h = _auth(manager_token)
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "location_has_reservations"
+    assert (await client.post(f"{BASE}/{rid}/status", json={"status": "cancelled"},
+                              headers=h)).status_code == 200
+    r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
+    assert r.status_code == 204

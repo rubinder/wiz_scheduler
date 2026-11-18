@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.reservations.booking import begin_location_write
 from backend.services.archive import archive_dining_table
 from backend.reservations.models import (
     DiningTable,
@@ -179,6 +180,11 @@ async def save_floor(
     """
     now = now or datetime.now(timezone.utc)
     _validate(floor)
+    # Same lock and sweep as every booking write (location before
+    # reservations): no booking can land on a table while it is archived,
+    # and lapsed holds do not count as upcoming bookings.
+    if not await begin_location_write(db, company_id, location_id, now):
+        raise FloorInvalid("unknown_id", f"unknown location: {location_id}")
 
     sec_rows = await _load_owned(
         db, FloorSection, [s.id for s in floor.sections if s.id],
@@ -275,7 +281,8 @@ async def save_floor(
             db.add(row)
         row.name = c.name
         row.table_ids = [m.id for m in members]
-        row.min_seats = sum(m.min_seats for m in members)
+        # Two 2-tops pushed together seat 3 (decision 14).
+        row.min_seats = max(m.min_seats for m in members)
         row.max_seats = sum(m.max_seats for m in members)
         await db.flush()
         kept_combos.add(row.id)

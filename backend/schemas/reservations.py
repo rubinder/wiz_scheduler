@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from backend.reservations.models import Reservation
 from backend.reservations.rules import RulesSchema
@@ -22,20 +22,27 @@ class SlotOut(BaseModel):
 
 class DinerIn(BaseModel):
     name: str = Field(min_length=1)
-    phone: str
+    phone: str | None = None  # staff bookings may omit it (decision 17)
     email: str | None = None
 
 
 class BookingIn(BaseModel):
     party_size: int = Field(ge=1)
-    start: datetime
+    start: AwareDatetime
     diner: DinerIn
     notes: str | None = None
 
 
 class ReservationPatch(BaseModel):
     party_size: int | None = Field(default=None, ge=1)
-    start: datetime | None = None
+    start: AwareDatetime | None = None
+    notes: str | None = None
+
+
+class WalkInIn(BaseModel):
+    party_size: int = Field(ge=1)
+    name: str | None = None
+    phone: str | None = None
     notes: str | None = None
 
 
@@ -60,10 +67,13 @@ class ReservationOut(BaseModel):
     held_until: datetime | None
 
     @classmethod
-    def of(cls, res: Reservation, tables: list[str]) -> "ReservationOut":
+    def of(cls, res: Reservation, tables: list[str],
+           status: str | None = None) -> "ReservationOut":
+        """`status` overrides the stored one (a lapsed hold reads `expired`)."""
         return cls(
             id=res.id, location_id=res.location_id, party_size=res.party_size,
-            start=res.start_at, end=res.end_at, status=res.status, tables=tables,
+            start=res.start_at, end=res.end_at, status=status or res.status,
+            tables=tables,
             diner_name=res.diner_name, diner_phone=res.diner_phone,
             diner_email=res.diner_email, notes=res.notes, source=res.source,
             confirmation_code=res.confirmation_code, held_until=res.held_until,
