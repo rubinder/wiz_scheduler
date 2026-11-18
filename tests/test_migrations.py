@@ -275,6 +275,26 @@ def test_the_table_owner_still_sees_and_writes_rows(rds_like_postgres):
     assert _psql(pg, "SELECT count(*) FROM regions WHERE id = 'rgmig001'") == "1"
 
 
+
+def test_0063_spam_numbers_are_read_only_to_app_role(rds_like_postgres):
+    """The FTC list is global: every request reads it, only the owner (the
+    ingest) writes it."""
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, "INSERT INTO spam_numbers (e164, report_date, reports) "
+              "VALUES ('+12125550142', '2026-11-01', 3) ON CONFLICT DO NOTHING")
+    read = _psql(pg, "BEGIN; SET LOCAL ROLE app_role; "
+                     "SELECT count(*) FROM spam_numbers WHERE e164 = '+12125550142'; COMMIT;")
+    assert "1" in read.splitlines(), read
+    for sql in ("INSERT INTO spam_numbers (e164, report_date, reports) "
+                "VALUES ('+12125550143', '2026-11-01', 1)",
+                "DELETE FROM spam_numbers",
+                "INSERT INTO spam_ingest_files (file_date, status) VALUES ('2026-11-01', 'done')"):
+        result = pg.exec(["psql", "-U", "owner", "-d", pg.dbname, "-At",
+                          "-v", "ON_ERROR_STOP=1", "-c",
+                          f"BEGIN; SET LOCAL ROLE app_role; {sql}; COMMIT;"])
+        assert result.exit_code != 0 and b"permission denied" in result.output, sql
+
 def _alembic_fails(url: str, *args: str) -> str:
     """Run alembic expecting failure; return its combined output."""
     repo_root = Path(__file__).parent.parent

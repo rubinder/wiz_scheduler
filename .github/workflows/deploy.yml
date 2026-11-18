@@ -202,8 +202,8 @@ jobs:
       - name: Package voice bridge Lambda
         run: |
           mkdir -p build
-          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py
-          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py)
+          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py infra/voice/bridge/screen.py
+          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py screen.py)
 
       - name: Terraform init
         working-directory: terraform
@@ -297,8 +297,8 @@ jobs:
       - name: Package voice bridge Lambda
         run: |
           mkdir -p build
-          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py
-          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py)
+          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py infra/voice/bridge/screen.py
+          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py screen.py)
 
       - name: Terraform init
         working-directory: terraform

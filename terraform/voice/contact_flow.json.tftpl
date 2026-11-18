@@ -1,9 +1,11 @@
 ${jsonencode({
   Version     = "2019-10-30"
-  StartAction = "set-voice"
+  StartAction = "screen"
   Metadata = {
     entryPointPosition = { x = 40, y = 40 }
     ActionMetadata = {
+      "screen"         = { position = { x = 200, y = 240 } }
+      "check-screen"   = { position = { x = 440, y = 240 } }
       "set-voice"      = { position = { x = 200, y = 40 } }
       "host-bot"       = { position = { x = 440, y = 40 } }
       "check-transfer" = { position = { x = 700, y = 40 } }
@@ -12,6 +14,36 @@ ${jsonencode({
     }
   }
   Actions = [
+    {
+      # Call screening (#259 step 7): the screen Lambda answers a flat map,
+      # {"action": "answer"|"block"}, and fails open itself. An error or a
+      # timeout here also answers: only an explicit block disconnects.
+      Identifier = "screen"
+      Type       = "InvokeLambdaFunction"
+      Parameters = {
+        LambdaFunctionARN          = screen_lambda_arn
+        InvocationTimeLimitSeconds = "3"
+        ResponseValidation         = { ResponseType = "STRING_MAP" }
+      }
+      Transitions = {
+        NextAction = "check-screen"
+        Errors = [
+          { NextAction = "set-voice", ErrorType = "NoMatchingError" },
+        ]
+      }
+    },
+    {
+      Identifier = "check-screen"
+      Type       = "Compare"
+      Parameters = { ComparisonValue = "$.External.action" }
+      Transitions = {
+        NextAction = "set-voice"
+        Conditions = [
+          { NextAction = "disconnect", Condition = { Operator = "Equals", Operands = ["block"] } },
+        ]
+        Errors = [{ NextAction = "set-voice", ErrorType = "NoMatchingCondition" }]
+      }
+    },
     {
       Identifier = "set-voice"
       Type       = "UpdateContactTextToSpeechVoice"

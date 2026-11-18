@@ -342,3 +342,21 @@ def send_voice_numbers_unreleased_alert(og_id: str, phone_number_ids: list[str],
         f"billed: release them in the Connect console.</p><ul>{items}</ul>",
         "voice_numbers_unreleased",
     )
+
+
+def send_ftc_ingest_alert(summary: dict) -> bool:
+    """The weekly FTC Do Not Call ingest (#259 step 7) needs a look: the run
+    raised, a file failed or held no valid number, or nothing has been
+    ingested for FTC_INGEST_STALE_DAYS (the FTC URL may have moved). The
+    summary carries dates and counts only, never a number. Never raises."""
+    reasons = summary.get("reasons") or []
+    logger.warning("[OPERATOR] ftc_ingest reasons=%s", reasons)
+    items = "".join(f"<li>{html.escape(str(r))}</li>" for r in reasons)
+    return _send_operator_email(
+        "[WizScheduler] FTC spam list ingest needs a look",
+        f"<p>The FTC Do Not Call ingest for {html.escape(str(summary.get('today')))} "
+        f"needs a look. Call screening keeps using the list it has.</p><ul>{items}</ul>"
+        f"<p>Check <code>{html.escape(settings.FTC_DNC_CSV_URL)}</code> still serves "
+        f"the files.</p>",
+        "ftc_ingest",
+    )

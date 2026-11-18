@@ -196,13 +196,63 @@ export interface AgentEventOut {
 export interface ConversationDetailOut extends ConversationOut {
   location_id: string;
   status: string;
+  /** A phone call with a caller number: "Mark as spam" applies (the server decides). */
+  spam_markable: boolean;
   events: AgentEventOut[];
+}
+
+export type NumberRuleAction = "allow" | "block";
+
+/** A number-list entry. location_id null = every location of the company. */
+export interface NumberRuleOut {
+  id: string;
+  e164: string;
+  action: NumberRuleAction;
+  location_id: string | null;
+  expires_at: string | null;
+  /** The local date the entry stops applying at the end of (YYYY-MM-DD), or null = never. */
+  expires_on: string | null;
+  note: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  /** Server-evaluated: not yet expired. */
+  active: boolean;
+}
+
+/** POST .../mark-spam: the block entry; created false when it already existed. */
+export interface MarkSpamOut extends NumberRuleOut {
+  created: boolean;
+}
+
+export interface NumberRuleIn {
+  e164: string;
+  action: NumberRuleAction;
+  location_id: string | null;
+  expires_on: string | null;
+  note: string | null;
+}
+
+/** Only action, expiry and note change; delete and recreate to change the number or scope. */
+export interface NumberRulePatch {
+  action?: NumberRuleAction;
+  expires_on?: string | null;
+  note?: string | null;
+}
+
+/** Calls screened over the last `days` days. */
+export interface ScreeningStatsOut {
+  days: number;
+  blocked_list: number;
+  blocked_ftc: number;
+  answered: number;
 }
 
 /** One diner's data at one location (POST .../diner-data). */
 export interface DinerDataOut {
   reservations: ReservationOut[];
   conversations: ConversationDetailOut[];
+  /** That number's number-list entries at this location and company-wide (location_id null). */
+  number_rules: NumberRuleOut[];
 }
 
 /** What erasing one diner's data did (POST .../diner-data/erase). */
@@ -214,4 +264,8 @@ export interface DinerEraseOut {
   /** Held by a running turn: neither deleted nor closed; erase again later. */
   conversations_still_in_flight: number;
   lookup_failures_deleted: number;
+  /** This location's number-list entries for the number. */
+  number_rules_deleted: number;
+  /** Company-wide entries for the number, never erased here (an admin removes them in Number lists). */
+  company_rules_remaining: number;
 }

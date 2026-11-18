@@ -75,3 +75,17 @@ class VoiceTurnOut(BaseModel):
     end_call: bool
     transfer_to: str | None = None  # E.164, the location's staff number
     reason: str | None = None
+
+
+class VoiceScreenIn(BaseModel):
+    """Asked before a call is answered (#259 step 7). The caller is taken as
+    Connect sends it: "anonymous", empty or any non-E.164 value is a
+    withheld number and is answered."""
+
+    dialed: E164
+    caller: Annotated[str, StringConstraints(max_length=64)] | None = None
+
+
+class VoiceScreenOut(BaseModel):
+    action: Literal["answer", "block"]
+    reason: Literal["allow_list", "block_list", "ftc", "default", "withheld"]

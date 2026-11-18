@@ -298,8 +298,8 @@ app_url                    = "https://yourdomain.com"   # or the CloudFront doma
 ## Voice channel (#259 step 6) — off by default
 
 `voice.tf` holds the AI host's phone line: an Amazon Connect instance, a
-Lex V2 bot (`en_US`, one `HostTurn` intent), the bridge Lambda
-(`infra/voice/bridge`), its Secrets Manager secret, an ECS task-role policy
+Lex V2 bot (`en_US`, one `HostTurn` intent), the bridge and screening
+Lambdas (`infra/voice/bridge`), their Secrets Manager secret, an ECS task-role policy
 for number provisioning, and a monthly AWS Budget. Every block is gated on
 `voice_enabled` (default `false`; `tests/infra/test_terraform_voice_gated.py`
 checks it), and the ECS task definition only gains `VOICE_BRIDGE_SECRET` and
@@ -311,6 +311,28 @@ every plan/apply; nothing reads it while voice is off.
 `agent_reconcile_schedule.tf` (the daily `run_agent_overage_reconcile` task)
 is gated separately on `agent_reconcile_enabled` (default `false`); flip it
 when reservations launch.
+
+### Call screening (#259 step 7)
+
+The contact flow's first action invokes a second Lambda from the same zip,
+`screen.handler` (`infra/voice/bridge/screen.py`; 128 MB, 3 s, same role,
+secret and `BACKEND_URL`), which asks `POST /api/v1/voice/screen` whether to
+answer. Only an explicit `{"action": "block"}` disconnects; a Lambda error,
+a timeout (1 s to the backend, 3 s in the flow) or any non-200 answers the
+call. The Lambda is associated with the Connect instance
+(`aws_connect_lambda_function_association`) and Connect may invoke it only
+from this instance. A withheld caller is sent as an empty string and the
+backend answers it. Logs carry the contact id and the decision, never a
+number. All of it is gated on `voice_enabled`.
+
+The FTC reported-numbers list behind the screen is loaded by
+`ftc_ingest_schedule.tf` (`python -m backend.scripts.run_ftc_ingest` as a
+one-off Fargate task), gated on `ftc_ingest_enabled` (default `false`).
+`ftc_ingest_schedule` sets the cadence (default `cron(0 18 ? * MON *)`,
+Monday 18:00 UTC, after the FTC's noon Eastern publish). Turn it on with
+`TF_VAR_ftc_ingest_enabled: "true"` in both terraform jobs, after checking
+the `FTC_DNC_CSV_URL` file URL is live. It needs no voice resources, so it
+can run ahead of the phone line to fill the list.
 
 ### Turning voice on
 
@@ -404,6 +426,8 @@ delete it outright first:
 | `voice_polly_voice` | `Joanna` | Polly voice (neural) |
 | `voice_budget_usd` | `50` | Monthly voice budget; 80% email alert |
 | `agent_reconcile_enabled` | `false` | Daily AI host billing reconcile schedule |
+| `ftc_ingest_enabled` | `false` | Weekly FTC reported-numbers ingest for call screening |
+| `ftc_ingest_schedule` | `cron(0 18 ? * MON *)` | FTC ingest cadence (Monday 18:00 UTC) |
 
 ## Scaling Up
 

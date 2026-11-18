@@ -290,6 +290,20 @@ class Settings(BaseSettings):
     # contact) and per contact. Only the Lambda calls the bridge, so there is
     # no per-address limit; this bounds one caller's abuse.
     VOICE_CALLER_TURNS_PER_MINUTE: int = 30
+    # Call screening (#259 step 7): a caller is blocked as spam once the FTC
+    # complaint list has at least SPAM_MIN_REPORTS reports of the number over
+    # the last SPAM_WINDOW_DAYS report dates (reservations.screening).
+    SPAM_MIN_REPORTS: int = 3
+    SPAM_WINDOW_DAYS: int = 90
+    # The weekly ingest (reservations.ftc_ingest) fetches one FTC file per
+    # weekday; {date} is its ISO date. The FTC refused scripted fetches during
+    # planning, so the owner checklist verifies this URL live.
+    FTC_DNC_CSV_URL: str = (
+        "https://www.ftc.gov/sites/default/files/DNC_Complaint_Numbers_{date}.csv")
+    FTC_INGEST_MAX_BYTES: int = 20 * 1024 * 1024
+    FTC_INGEST_TIMEOUT_SECONDS: int = 30
+    # Alert the operator when the newest file ingested OK is older than this.
+    FTC_INGEST_STALE_DAYS: int = 8
 
     # AI host agent (#259). Prices are USD per million tokens.
     RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"

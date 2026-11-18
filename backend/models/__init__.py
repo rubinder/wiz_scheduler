@@ -52,8 +52,18 @@ from backend.reservations.models import (
 )
 from backend.reservations.subscription_models import AgentUsage, ReservationSubscription
 from backend.reservations.voice_number_models import VoiceNumber, VoiceTransferCount
+from backend.reservations.screening_models import (
+    NumberRule,
+    ScreenedCall,
+    SpamIngestFile,
+    SpamNumber,
+)
 
 __all__ = [
+    "NumberRule",
+    "ScreenedCall",
+    "SpamIngestFile",
+    "SpamNumber",
     "VoiceNumber",
     "VoiceTransferCount",
     "AgentUsage",

@@ -2,7 +2,8 @@
 
 A cheap textual check, no terraform binary: every resource and data source in
 terraform/voice.tf is gated on var.voice_enabled, the agent reconcile
-schedule on var.agent_reconcile_enabled, and both flags default to false.
+schedule on var.agent_reconcile_enabled, the FTC ingest schedule on
+var.ftc_ingest_enabled, and every flag defaults to false.
 """
 
 import re
@@ -37,6 +38,7 @@ def _gated(first_line: str, flag: str) -> bool:
 @pytest.mark.parametrize(("filename", "flag"), [
     ("voice.tf", "voice_enabled"),
     ("agent_reconcile_schedule.tf", "agent_reconcile_enabled"),
+    ("ftc_ingest_schedule.tf", "ftc_ingest_enabled"),
 ])
 def test_every_block_is_gated(filename: str, flag: str) -> None:
     blocks = _blocks(TERRAFORM / filename)
@@ -46,7 +48,7 @@ def test_every_block_is_gated(filename: str, flag: str) -> None:
 
 
 @pytest.mark.parametrize("flag", ["voice_enabled", "voice_provisioning_enabled",
-                                  "agent_reconcile_enabled"])
+                                  "agent_reconcile_enabled", "ftc_ingest_enabled"])
 def test_flags_default_false(flag: str) -> None:
     text = (TERRAFORM / "variables.tf").read_text()
     m = re.search(rf'variable "{flag}" \{{(.*?)\n\}}', text, re.S)
@@ -77,3 +79,44 @@ def test_connect_can_transfer_out_and_flow_logs_expire() -> None:
     assert 'name              = "/aws/connect/${local.voice_connect_alias}"' in logs.group(1)
     assert re.search(r"retention_in_days\s*=\s*30\b", logs.group(1))
     assert re.search(r"instance_alias\s*=\s*local\.voice_connect_alias", instance.group(1))
+
+
+def test_screening_resources_exist_and_are_voice_gated() -> None:
+    addrs = {addr for addr, _ in _blocks(TERRAFORM / "voice.tf")}
+    for addr in ("resource.aws_lambda_function.voice_screen",
+                 "resource.aws_cloudwatch_log_group.voice_screen",
+                 "resource.aws_lambda_permission.voice_screen_connect",
+                 "resource.aws_connect_lambda_function_association.voice_screen"):
+        assert addr in addrs, f"{addr} missing"
+    text = (TERRAFORM / "voice.tf").read_text()
+    fn = re.search(r'resource "aws_lambda_function" "voice_screen" \{(.*?)\n\}', text, re.S)
+    assert fn
+    body = fn.group(1)
+    assert 'handler          = "screen.handler"' in body
+    assert re.search(r"timeout\s*=\s*3\b", body)
+    assert re.search(r"memory_size\s*=\s*512\b", body)
+    assert "filename         = var.voice_bridge_zip" in body
+    perm = re.search(
+        r'resource "aws_lambda_permission" "voice_screen_connect" \{(.*?)\n\}', text, re.S)
+    assert perm and 'principal     = "connect.amazonaws.com"' in perm.group(1)
+    assert "source_arn    = aws_connect_instance.voice[0].arn" in perm.group(1)
+
+
+def test_contact_flow_screens_first_and_fails_open() -> None:
+    text = (TERRAFORM / "voice" / "contact_flow.json.tftpl").read_text()
+    assert 'StartAction = "screen"' in text
+    assert 'Type       = "InvokeLambdaFunction"' in text
+    assert 'ResponseValidation         = { ResponseType = "STRING_MAP" }' in text
+    assert 'InvocationTimeLimitSeconds = "3"' in text
+    assert '{ NextAction = "set-voice", ErrorType = "NoMatchingError" }' in text
+    assert re.search(r'NextAction = "disconnect", Condition = \{ Operator = "Equals", '
+                     r'Operands = \["block"\] \}', text)
+
+
+def test_ftc_schedule_default() -> None:
+    text = (TERRAFORM / "variables.tf").read_text()
+    m = re.search(r'variable "ftc_ingest_schedule" \{(.*?)\n\}', text, re.S)
+    assert m and 'default     = "cron(0 18 ? * MON *)"' in m.group(1)
+    sched = (TERRAFORM / "ftc_ingest_schedule.tf").read_text()
+    assert "schedule_expression = var.ftc_ingest_schedule" in sched
+    assert '["python", "-m", "backend.scripts.run_ftc_ingest"]' in sched

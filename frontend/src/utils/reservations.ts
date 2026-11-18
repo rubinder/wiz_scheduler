@@ -70,6 +70,11 @@ const KNOWN_ERRORS = new Set([
   "unknown_section",
   "unknown_id",
   "duplicate_section_key",
+  "duplicate_rule",
+  "expiry_in_past",
+  "no_caller_number",
+  "admin_only",
+  "number_allowed",
 ]);
 
 /** Maps an ApiError.data detail ({code, message}) to an i18n key. */

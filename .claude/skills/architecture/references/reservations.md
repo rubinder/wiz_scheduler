@@ -63,3 +63,17 @@ answers 404 while it is off.
 - `backend/reservations/voice_numbers.py`: per-location number claim and release.
 - `backend/services/connect_numbers.py`: Amazon Connect number API wrapper.
 - `infra/voice/bridge/handler.py`: the Lex V2 code-hook Lambda.
+
+## Call screening entry points
+
+- `backend/reservations/screening.py`: `decide`, the one screening verdict
+  (allow, then block, location before company, then FTC, then answer).
+- `backend/reservations/number_rules.py`: manager number rules, mark-spam,
+  stats.
+- `backend/reservations/ftc_ingest.py` and `backend/scripts/run_ftc_ingest.py`:
+  the weekly FTC reported-numbers load (schedule: `terraform/README.md`).
+- `POST /voice/screen` in `backend/routers/voice_bridge.py`: called by
+  `infra/voice/bridge/screen.py`; fails open.
+- Manager routes in `backend/routers/reservations.py`: number rules,
+  `/conversations/{id}/mark-spam`, `/screening-stats`.
+

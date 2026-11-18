@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
-import { eraseDinerData, exportDinerData, getConfig, getConversation, listConversations } from "../../api/reservations";
+import {
+  eraseDinerData,
+  exportDinerData,
+  getConfig,
+  getConversation,
+  listConversations,
+  markConversationSpam,
+} from "../../api/reservations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { ConversationDetailOut, ConversationOut } from "../../types/reservations";
 import { formatUsd, transcriptItems } from "../../utils/conversations";
 import type { TranscriptItem } from "../../utils/conversations";
+import { numberErrorKey } from "../../utils/numberRules";
 import { errorCode, formatLocalTime, localDateString } from "../../utils/reservations";
 import { border, text } from "../../theme";
 
@@ -60,17 +69,26 @@ export default function ReservationsConversations() {
   const [dinerBusy, setDinerBusy] = useState(false);
   const [dinerResult, setDinerResult] = useState("");
   const [dinerError, setDinerError] = useState("");
+  const [spamBusy, setSpamBusy] = useState(false);
+  /** Result of "Mark as spam" for the open conversation: a notice, or an error. */
+  const [spamNotice, setSpamNotice] = useState("");
+  const [spamError, setSpamError] = useState("");
 
   /** "location|date|outcome" being shown; responses for any other view are dropped. */
   const currentView = useRef("");
   const listSeq = useRef(0);
   const detailSeq = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
 
   const location = locations.find((l) => l.id === locationId) ?? null;
   const tz = location?.timezone ?? "UTC";
 
   const errorText = (e: unknown): string => {
-    const code = errorCode(e instanceof ApiError ? e.data : null);
+    const detail = e instanceof ApiError ? e.data : null;
+    const code = errorCode(detail);
+    const own = numberErrorKey(code, detail);
+    if (own) return r.numbers[own];
     return (code && (r.errors as Record<string, string>)[code]) || r.errors.generic;
   };
 
@@ -129,11 +147,30 @@ export default function ReservationsConversations() {
     setSelectedId(id);
     setDetail(null);
     setDetailError("");
+    setSpamNotice("");
+    setSpamError("");
     try {
       const out = await getConversation(id);
       if (latest()) setDetail(out);
     } catch (e) {
       if (latest()) setDetailError(errorText(e));
+    }
+  };
+
+  const markSpam = async () => {
+    if (!detail || spamBusy || !window.confirm(r.numbers.confirmMarkSpam)) return;
+    const id = detail.id;
+    setSpamBusy(true);
+    setSpamNotice("");
+    setSpamError("");
+    try {
+      const rule = await markConversationSpam(id);
+      if (selectedIdRef.current !== id) return;
+      setSpamNotice(rule.created ? r.numbers.markedSpam : r.numbers.alreadyBlocked);
+    } catch (e) {
+      if (selectedIdRef.current === id) setSpamError(errorText(e));
+    } finally {
+      setSpamBusy(false);
     }
   };
 
@@ -162,7 +199,11 @@ export default function ReservationsConversations() {
           lookups: out.lookup_failures_deleted,
         });
         const again = out.conversations_closed_in_flight + out.conversations_still_in_flight > 0;
-        setDinerResult(again ? `${summary} ${d.eraseAgain}` : summary);
+        const rules = fill(r.numbers.erasedRules, {
+          deleted: out.number_rules_deleted,
+          remaining: out.company_rules_remaining,
+        });
+        setDinerResult([summary, rules, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
       }
     } catch (e) {
       setDinerError(errorText(e));
@@ -375,6 +416,31 @@ export default function ReservationsConversations() {
                 <span>{fill(c.totalCost, { cost: formatUsd(detail.cost_usd) })}</span>
                 {detail.reservation_id && <span>{fill(c.reservation, { id: detail.reservation_id })}</span>}
               </div>
+              {detail.spam_markable && (
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    className="glass-btn-danger text-sm"
+                    disabled={spamBusy}
+                    onClick={() => void markSpam()}
+                  >
+                    {r.numbers.markSpam}
+                  </button>
+                  {spamNotice && (
+                    <p role="status" className={`text-sm ${text.primary}`}>
+                      {spamNotice}{" "}
+                      <Link to="/manager/reservations/numbers" className="underline">
+                        {r.numbers.viewLists}
+                      </Link>
+                    </p>
+                  )}
+                  {spamError && (
+                    <p role="alert" className="text-sm text-red-700">
+                      {spamError}
+                    </p>
+                  )}
+                </div>
+              )}
               <ol className="space-y-2">
                 {items.map((item) => (
                   <li key={item.seq}>{bubble(item)}</li>

@@ -1,13 +1,14 @@
 """Request and response bodies for the manager reservations API."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import Reservation
 from backend.reservations.rules import RulesSchema
+from backend.reservations.screening import spam_markable
 
 
 class RulesOut(BaseModel):
@@ -146,6 +147,9 @@ class AgentEventOut(BaseModel):
 class ConversationDetailOut(ConversationOut):
     location_id: str
     status: str
+    # A phone call with a caller number: "Mark as spam" applies. The number
+    # itself stays out of the detail.
+    spam_markable: bool
     events: list[AgentEventOut]
 
     @classmethod
@@ -153,7 +157,8 @@ class ConversationDetailOut(ConversationOut):
                     events: list[AgentEvent]) -> "ConversationDetailOut":
         return cls(
             **ConversationOut.of(c).model_dump(), location_id=c.location_id,
-            status=c.status, events=[AgentEventOut.of(e) for e in events],
+            status=c.status, spam_markable=spam_markable(c),
+            events=[AgentEventOut.of(e) for e in events],
         )
 
 
@@ -161,10 +166,80 @@ class DinerPhoneIn(BaseModel):
     phone: str
 
 
+RuleAction = Literal["allow", "block"]
+
+
+class NumberRuleIn(BaseModel):
+    """A new allow or block entry. location_id null = every location
+    (admin only). expires_on is a local date; the entry stops applying at
+    the end of it (reservations/number_rules.py)."""
+    model_config = ConfigDict(extra="forbid")
+    e164: str
+    action: RuleAction
+    location_id: str | None = None
+    expires_on: date | None = None
+    note: str | None = Field(default=None, max_length=200)
+
+
+class NumberRulePatch(BaseModel):
+    """Action, expiry and note only: the number and the scope never change
+    (delete and recreate). An omitted field is left as it is; expires_on
+    null means never; action may be omitted but not null."""
+    model_config = ConfigDict(extra="forbid")
+    action: RuleAction | None = None
+    expires_on: date | None = None
+    note: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _action_not_null(self) -> "NumberRulePatch":
+        if "action" in self.model_fields_set and self.action is None:
+            raise ValueError("action cannot be null")
+        return self
+
+
+class NumberRuleOut(BaseModel):
+    id: str
+    e164: str
+    action: str
+    location_id: str | None
+    expires_at: datetime | None
+    # expires_at as the local date the manager picked (YYYY-MM-DD).
+    expires_on: date | None
+    note: str | None
+    created_by_name: str | None
+    created_at: datetime
+    active: bool
+
+    @classmethod
+    def of(cls, v: Any) -> "NumberRuleOut":
+        """`v` is a number_rules.RuleView."""
+        r = v.rule
+        return cls(id=r.id, e164=r.e164, action=r.action, location_id=r.location_id,
+                   expires_at=r.expires_at, expires_on=v.expires_on, note=r.note,
+                   created_by_name=v.created_by_name, created_at=r.created_at,
+                   active=v.active)
+
+
+class MarkSpamOut(NumberRuleOut):
+    """The block entry; created false when it was already there (200)."""
+    created: bool
+
+
+class ScreeningStatsOut(BaseModel):
+    """Screened calls over the last 7 days."""
+    days: int
+    blocked_list: int
+    blocked_ftc: int
+    answered: int
+
+
 class DinerDataOut(BaseModel):
-    """One diner's data at one location (reservations/diner_data.py)."""
+    """One diner's data at one location (reservations/diner_data.py),
+    including that number's entries here and company-wide (location_id
+    null)."""
     reservations: list[ReservationOut]
     conversations: list[ConversationDetailOut]
+    number_rules: list[NumberRuleOut]
 
 
 class DinerEraseOut(BaseModel):
@@ -175,6 +250,11 @@ class DinerEraseOut(BaseModel):
     # Locked by a running turn: neither deleted nor closed; erase again later.
     conversations_still_in_flight: int
     lookup_failures_deleted: int
+    # This location's entries for the number.
+    number_rules_deleted: int
+    # Company-wide entries for the number, never erased here: an admin
+    # removes them from the number lists page.
+    company_rules_remaining: int
 
 
 class ReservationsConfigOut(BaseModel):

@@ -182,6 +182,18 @@ variable "agent_reconcile_enabled" {
   default     = false
 }
 
+variable "ftc_ingest_enabled" {
+  description = "Run the weekly FTC Do Not Call reported-numbers ingest for call screening (ftc_ingest_schedule.tf)."
+  type        = bool
+  default     = false
+}
+
+variable "ftc_ingest_schedule" {
+  description = "EventBridge schedule for the FTC ingest. Default Monday 18:00 UTC, after the FTC's noon Eastern publish."
+  type        = string
+  default     = "cron(0 18 ? * MON *)"
+}
+
 # --- Voice channel (#259 step 6) — everything billable is behind voice_enabled ---
 
 variable "voice_enabled" {
