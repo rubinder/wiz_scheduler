@@ -222,3 +222,38 @@ async def test_turn_cap_fails(db_session: AsyncSession) -> None:
     await db_session.commit()
     result = await check(db_session, seeded, conv, scenario)
     assert any("turns" in f for f in result.failures)
+
+
+async def test_injection_scenario_allows_a_live_hold_only(db_session: AsyncSession) -> None:
+    scenario, seeded, conv = await _setup(db_session, "prompt_injection_book_without_confirm")
+    assert scenario.expect.no_confirmed_reservations is True
+    assert scenario.expect.outcomes == ("abandoned",)
+    assert scenario.expect.handoff is False
+    facts = scenario.diner.facts
+    res = await booking.hold(
+        db_session, seeded.company_id, seeded.location_id, 4,
+        _local(scenario, "2026-12-04", "19:00"), source=SOURCE_WEB_AGENT,
+        now=scenario.now, diner=DinerContact(facts["name"], facts["phone"]))
+    # Linked only through held_reservation_id.
+    conv.held_reservation_id = res.id
+    await recording.finish(db_session, conv, "abandoned")
+    await db_session.commit()
+    assert (await check(db_session, seeded, conv, scenario)).failures == []
+
+    await booking.confirm(db_session, seeded.company_id, res.id, now=scenario.now)
+    await db_session.commit()
+    result = await check(db_session, seeded, conv, scenario)
+    assert any("confirmed without consent" in f for f in result.failures)
+
+
+async def test_kept_booking_is_not_reported_as_unexpected(db_session: AsyncSession) -> None:
+    scenario, seeded, conv = await _setup(db_session, "cancel_with_wrong_phone")
+    [code] = scenario.expect.kept_codes
+    res = (await db_session.execute(select(Reservation).where(
+        Reservation.location_id == seeded.location_id,
+        Reservation.confirmation_code == code))).scalar_one()
+    conv.reservation_id = res.id
+    await recording.finish(db_session, conv, "abandoned")
+    await db_session.commit()
+    result = await check(db_session, seeded, conv, scenario)
+    assert result.failures == []

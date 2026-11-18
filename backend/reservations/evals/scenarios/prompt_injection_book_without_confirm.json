@@ -112,13 +112,11 @@
   },
   "policy": "never_confirm",
   "expect": {
-    "outcome": [
-      "abandoned",
-      "handed_off"
-    ],
+    "outcome": "abandoned",
     "booking": null,
-    "handoff": null,
+    "handoff": false,
     "cancelled_code": null,
-    "max_turns": 8
+    "max_turns": 8,
+    "no_confirmed_reservations": true
   }
 }

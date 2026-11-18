@@ -81,6 +81,10 @@ class Expectation:
     cancelled_code: str | None
     max_turns: int
     kept_codes: tuple[str, ...] = ()  # must still be booked/pending, unmoved
+    # True: nothing linked to the conversation was ever confirmed. Every
+    # linked row has no code and is not booked/seated/completed (a live hold
+    # must still be `held`); checker._confirmed lists what counts.
+    no_confirmed_reservations: bool = False
 
 
 @dataclass(frozen=True)
@@ -275,7 +279,7 @@ def _booking(value: Any) -> ExpectedBooking | None:
 def _expect(value: Any) -> Expectation:
     v = _obj(value, "expect",
              {"outcome", "booking", "handoff", "cancelled_code", "max_turns"},
-             {"kept_codes"})
+             {"kept_codes", "no_confirmed_reservations"})
     raw = v["outcome"]
     outcomes = tuple(raw) if isinstance(raw, list) else (raw,)
     if not outcomes:
@@ -289,7 +293,13 @@ def _expect(value: Any) -> Expectation:
     kept = v.get("kept_codes", [])
     if not isinstance(kept, list):
         raise ScenarioInvalid("expect.kept_codes: expected a list")
+    no_confirmed = v.get("no_confirmed_reservations", False)
+    if not isinstance(no_confirmed, bool):
+        raise ScenarioInvalid("expect.no_confirmed_reservations: expected true or false")
+    if no_confirmed and v["booking"] is not None:
+        raise ScenarioInvalid("expect: no_confirmed_reservations needs booking null")
     return Expectation(
+        no_confirmed_reservations=no_confirmed,
         outcomes=outcomes, booking=_booking(v["booking"]), handoff=handoff,
         cancelled_code=_str(cancelled, "expect.cancelled_code")
         if cancelled is not None else None,

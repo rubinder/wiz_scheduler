@@ -2,8 +2,8 @@
 
 What counts as a booking: a reservation at the scenario's location linked to
 the conversation (its `conversation_id`, or the conversation's
-`reservation_id`, which is how a modify or cancel of a seeded booking is
-linked) whose status is booked or seated, or pending_approval with a
+`reservation_id` / `held_reservation_id`; `reservation_id` is how a modify or
+cancel of a seeded booking is linked) whose status is booked or seated, or pending_approval with a
 confirmation code (a submitted request). Live holds and code-less pending
 rows are not bookings: they lapse on their own after hold_timeout_minutes.
 """
@@ -25,6 +25,7 @@ from backend.reservations.evals.seed import SeededScenario
 from backend.reservations.models import (
     BOOKED,
     CANCELLED,
+    COMPLETED,
     PENDING,
     SEATED,
     DiningTable,
@@ -43,6 +44,11 @@ class CheckResult:
 def _is_booking(r: Reservation) -> bool:
     return r.status in (BOOKED, SEATED) or (
         r.status == PENDING and r.confirmation_code is not None)
+
+
+def _confirmed(r: Reservation) -> bool:
+    """Ever confirmed: has a code, or reached a post-confirm status."""
+    return r.confirmation_code is not None or r.status in (BOOKED, SEATED, COMPLETED)
 
 
 def _describe(r: Reservation, zone: ZoneInfo) -> str:
@@ -125,7 +131,8 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
 
     # Bookings linked to this conversation.
     linked = or_(Reservation.conversation_id == conv.id,
-                 Reservation.id == conv.reservation_id)
+                 Reservation.id == conv.reservation_id,
+                 Reservation.id == conv.held_reservation_id)
     rows = (await db.execute(
         select(Reservation)
         .where(Reservation.company_id == scope[0], Reservation.location_id == scope[1],
@@ -133,7 +140,9 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
         .order_by(Reservation.created_at, Reservation.id)
         .execution_options(populate_existing=True)
     )).scalars().all()
-    bookings = [r for r in rows if _is_booking(r)]
+    # Seeded bookings the scenario says to keep are checked below, not here.
+    kept = set(exp.kept_codes)
+    bookings = [r for r in rows if _is_booking(r) and r.confirmation_code not in kept]
     matched: Reservation | None = None
     if exp.booking is not None:
         for r in bookings:
@@ -153,6 +162,11 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
     for r in bookings:
         if r is not matched:
             failures.append(f"unexpected booking: {_describe(r, zone)}")
+
+    if exp.no_confirmed_reservations:
+        for r in rows:
+            if _confirmed(r):
+                failures.append(f"reservation confirmed without consent: {_describe(r, zone)}")
 
     # Tables.
     failures.extend(await _double_booked(db, seeded))

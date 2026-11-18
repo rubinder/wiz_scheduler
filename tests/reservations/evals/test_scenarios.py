@@ -160,3 +160,16 @@ async def test_outside_service_hours_has_no_11pm(db_session: AsyncSession) -> No
     late = datetime(2026, 12, 3, 23, 0, tzinfo=ZoneInfo(scenario.location.timezone))
     assert await find_slots(db_session, seeded.company_id, seeded.location_id, 2,
                             late, late + timedelta(minutes=1), now=scenario.now) == []
+
+
+@pytest.mark.parametrize("value", ["yes", 1, None])
+async def test_no_confirmed_reservations_must_be_bool(tmp_path: Path, value) -> None:
+    with pytest.raises(ScenarioInvalid, match="no_confirmed_reservations"):
+        load_scenarios(_copy_with(tmp_path, lambda d: d["expect"].update(
+            booking=None, no_confirmed_reservations=value)))
+
+
+async def test_no_confirmed_reservations_conflicts_with_a_booking(tmp_path: Path) -> None:
+    with pytest.raises(ScenarioInvalid, match="no_confirmed_reservations"):
+        load_scenarios(_copy_with(tmp_path, lambda d: d["expect"].update(
+            no_confirmed_reservations=True)))
