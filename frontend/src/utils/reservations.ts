@@ -106,6 +106,7 @@ export interface RulesForm {
   pending_hold_hours: string;
   persona: Persona;
   staff_transfer_number: string;
+  daily_spend_cap_usd: string;
 }
 
 const hm = (t: string): string => t.slice(0, 5);
@@ -142,6 +143,7 @@ export function payloadToRulesForm(r: RulesSchema): RulesForm {
     pending_hold_hours: str(r.pending_hold_hours),
     persona: { ...r.persona, facts: [...r.persona.facts] },
     staff_transfer_number: r.staff_transfer_number ?? "",
+    daily_spend_cap_usd: str(r.daily_spend_cap_usd),
   };
 }
 
@@ -168,6 +170,7 @@ export function rulesFormToPayload(f: RulesForm): RulesSchema {
     pending_hold_hours: num(f.pending_hold_hours),
     persona: { ...f.persona, facts: [...f.persona.facts] },
     staff_transfer_number: f.staff_transfer_number.trim() === "" ? null : f.staff_transfer_number.trim(),
+    daily_spend_cap_usd: num(f.daily_spend_cap_usd),
   };
 }
 

@@ -164,12 +164,13 @@ export default function ReservationsRules() {
     </button>
   );
   /** `min`/`max` mirror the server's ge/le for the field. */
-  const numField = (label: string, key: keyof RulesForm, min: number, max?: number, hint?: string) => (
+  const numField = (label: string, key: keyof RulesForm, min: number, max?: number, hint?: string, step?: number) => (
     <Field label={label} hint={hint}>
       <input
         type="number"
         min={min}
         max={max}
+        step={step}
         className={`${input} w-full`}
         value={form ? (form[key] as string) : ""}
         onChange={(e) => patch({ [key]: e.target.value } as Partial<RulesForm>)}
@@ -449,6 +450,7 @@ export default function ReservationsRules() {
               "text",
               r.rules.facts,
             )}
+            {numField(r.rules.dailySpendCap, "daily_spend_cap_usd", 1, undefined, r.rules.dailySpendCapHint, 0.01)}
             <Field label={r.rules.transferNumber}>
               <input
                 type="tel"

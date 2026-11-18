@@ -61,6 +61,7 @@ describe("admin-only paths", () => {
       "/manager/roles",
       "/manager/role-equivalents",
       "/manager/payroll",
+      "/manager/billing",
     ]) {
       expect(ADMIN_ONLY_PATHS).toContain(p);
       expect(isAdminOnlyPath(p)).toBe(true);

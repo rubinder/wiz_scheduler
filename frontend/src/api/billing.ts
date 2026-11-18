@@ -231,3 +231,48 @@ export function redeemPayrollArchiveDownload(token: string): Promise<{ url: stri
     body: JSON.stringify({ token }),
   });
 }
+
+// ── Reservation AI host subscription (#259) ──
+
+export interface AgentLocationSpend {
+  location_id: string;
+  name: string;
+  spend_today_usd: number;
+  daily_cap_usd: number;
+  cap_reached: boolean;
+}
+
+export interface AgentUsage {
+  period_start: string;
+  billed_usd: number;
+  included_usd: number;
+  overage_usd: number;
+}
+
+export interface ReservationAgentStatus {
+  /** False until the operator has set the AI host price; Subscribe answers 503 not_configured. */
+  configured: boolean;
+  /** Stripe subscription status, or null when the group never subscribed. */
+  status: string | null;
+  answering: boolean;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  usage: AgentUsage;
+  locations: AgentLocationSpend[];
+}
+
+export function getReservationAgent(): Promise<ReservationAgentStatus> {
+  return apiFetch<ReservationAgentStatus>("/billing/reservation-agent");
+}
+
+export function reservationAgentCheckout(): Promise<{ url: string }> {
+  return apiFetch<{ url: string }>("/billing/reservation-agent/checkout", { method: "POST" });
+}
+
+export function confirmReservationAgent(sessionId: string): Promise<ReservationAgentStatus> {
+  return apiFetch<ReservationAgentStatus>("/billing/reservation-agent/confirm", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}

@@ -89,6 +89,8 @@ export interface RulesSchema {
   pending_hold_hours: number;
   persona: Persona;
   staff_transfer_number: string | null;
+  /** The AI host stops taking new conversations at this location once today's spend reaches it (min 1). */
+  daily_spend_cap_usd: number;
 }
 
 export interface RulesOut {

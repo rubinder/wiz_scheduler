@@ -1046,7 +1046,9 @@ async def auto_reload_if_needed(
 
 
 def refund_payment_intent(payment_intent_id: str | None, idempotency_key: str) -> bool:
-    """Fully refund one PaymentIntent. The one place a refund is issued.
+    """Fully refund one PaymentIntent. The refund path for scheduling and
+    credit payments; the AI host's duplicate subscriptions are refunded by
+    billing_reservations._refund (same contract, its own client).
 
     Never raises: returns True when the payment is refunded (now, or
     already), False when there is nothing to refund or Stripe refused, so
