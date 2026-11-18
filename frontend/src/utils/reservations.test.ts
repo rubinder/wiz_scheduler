@@ -17,6 +17,7 @@ import {
   nextLabel,
   nextSectionKey,
   payloadToRulesForm,
+  pendingApprovals,
   rulesFormToPayload,
   snap,
   tableStates,
@@ -249,6 +250,16 @@ function res(id: string, start: string, status: string, tables: string[] = []): 
     held_until: null,
   };
 }
+
+describe("pendingApprovals", () => {
+  it("lists only submitted requests (with a code), ordered by start", () => {
+    const submitted = { ...res("a", "2026-12-04T20:00:00-05:00", "pending_approval"), confirmation_code: "ABC123" };
+    const earlier = { ...res("b", "2026-12-04T18:00:00-05:00", "pending_approval"), confirmation_code: "DEF456" };
+    const unsubmitted = res("c", "2026-12-04T19:00:00-05:00", "pending_approval");
+    const booked = { ...res("d", "2026-12-04T19:00:00-05:00", "booked"), confirmation_code: "GHI789" };
+    expect(pendingApprovals([submitted, unsubmitted, booked, earlier]).map((r) => r.id)).toEqual(["b", "a"]);
+  });
+});
 
 describe("groupBySeating", () => {
   it("is empty for no reservations", () => {

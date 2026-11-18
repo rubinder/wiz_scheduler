@@ -327,6 +327,17 @@ function seatingKey(iso: string, timeZone: string): string {
  */
 const NOT_SEATING = new Set(["cancelled", "declined", "expired", "held", "pending_approval"]);
 
+/**
+ * Requests waiting for the restaurant's approval, ordered by start. A pending
+ * row without a confirmation code is a large-party hold the diner has not
+ * submitted yet: it is not a request, and the server refuses to approve it.
+ */
+export function pendingApprovals(reservations: ReservationOut[]): ReservationOut[] {
+  return reservations
+    .filter((r) => r.status === "pending_approval" && !!r.confirmation_code)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+}
+
 /** The day's bookings grouped by seating time (restaurant time), ordered by start. */
 export function groupBySeating(
   reservations: ReservationOut[],

@@ -1,7 +1,9 @@
-"""Manager reservations API: floor, rules, slots and bookings."""
+"""Manager reservations API: floor, rules, slots, bookings and the AI host's
+conversations."""
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,19 +13,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
-from backend.reservations import booking
+from backend.reservations import booking, diner_data
+from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
 )
 from backend.reservations.models import Reservation
 from backend.reservations.queries import (
-    list_between, list_pending_approvals, table_labels,
+    conversation_events, get_conversation, list_between, list_conversations,
+    list_pending_approvals, table_labels,
 )
 from backend.reservations.rules import RulesSchema, get_rules, save_rules
 from backend.schemas.reservations import (
-    BookingIn, ReservationOut, ReservationPatch, RulesOut, SlotOut, StatusIn,
-    WalkInIn,
+    BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
+    DinerEraseOut, DinerPhoneIn, ReservationOut, ReservationPatch,
+    ReservationsConfigOut, RulesOut, SlotOut, StatusIn, WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
@@ -38,10 +43,12 @@ router = APIRouter(prefix="/reservations", tags=["reservations"])
 gated = APIRouter(dependencies=[Depends(require_reservations_enabled)])
 
 
-@router.get("/config")
-async def read_config(_: User = Depends(require_manager)) -> dict[str, bool]:
+@router.get("/config", response_model=ReservationsConfigOut)
+async def read_config(_: User = Depends(require_manager)) -> ReservationsConfigOut:
     """Whether reservations are on; the one route that answers when off."""
-    return {"enabled": settings.RESERVATIONS_ENABLED}
+    return ReservationsConfigOut(
+        enabled=settings.RESERVATIONS_ENABLED,
+        conversation_outcomes=list(OUTCOMES))
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     booking.SlotUnavailable: 409,
@@ -70,14 +77,16 @@ async def _domain_errors(db: AsyncSession) -> AsyncIterator[None]:
 
 
 async def _location(
-    db: AsyncSession, scope: LocationScope, user: User, location_id: str
+    db: AsyncSession, scope: LocationScope, user: User, location_id: str,
+    *, include_archived: bool = False,
 ) -> Location:
-    loc = (await db.execute(
-        select(Location).where(
-            Location.id == location_id, Location.company_id == user.company_id,
-            active(Location),
-        )
-    )).scalar_one_or_none()
+    """`include_archived` is for history (diner data requests): an archived
+    location's diners keep their rights."""
+    q = select(Location).where(
+        Location.id == location_id, Location.company_id == user.company_id)
+    if not include_archived:
+        q = q.where(active(Location))
+    loc = (await db.execute(q)).scalar_one_or_none()
     if loc is None:
         raise HTTPException(status_code=404, detail="Location not found")
     scope.require(location_id)
@@ -329,6 +338,87 @@ async def decline_reservation(
         res = await booking.decline(db, str(user.company_id), reservation_id)
         await db.commit()
     return await _out(db, res)
+
+
+Outcome = Literal[OUTCOMES]  # type: ignore[valid-type]
+
+
+@gated.get("/locations/{location_id}/conversations",
+            response_model=list[ConversationOut])
+async def read_conversations(
+    location_id: str,
+    day: date = Query(alias="date"),
+    outcome: Outcome | None = None,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> list[ConversationOut]:
+    """The AI host's conversations started on `date` (the location's local
+    day), newest first."""
+    loc = await _location(db, scope, user, location_id)
+    start, end = _day_window(loc, day)
+    rows = await list_conversations(
+        db, str(user.company_id), location_id, start, end, outcome)
+    return [ConversationOut.of(c) for c in rows]
+
+
+@gated.get("/conversations/{conversation_id}",
+            response_model=ConversationDetailOut)
+async def read_conversation(
+    conversation_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> ConversationDetailOut:
+    conv = await get_conversation(db, str(user.company_id), conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    scope.require(conv.location_id, "Conversation")
+    events = await conversation_events(db, str(user.company_id), [conv.id])
+    return ConversationDetailOut.with_events(conv, events[conv.id])
+
+
+
+@gated.post("/locations/{location_id}/diner-data", response_model=DinerDataOut)
+async def read_diner_data(
+    location_id: str,
+    body: DinerPhoneIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerDataOut:
+    """One diner's reservations and conversations here, for an access request.
+    POST so the phone number travels in the body, not the URL (access logs)."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        found = await diner_data.find_diner_data(
+            db, str(user.company_id), location_id, body.phone)
+    labels = await table_labels(
+        db, str(user.company_id), [r.id for r in found.reservations])
+    return DinerDataOut(
+        reservations=[ReservationOut.of(r, labels.get(r.id, []))
+                      for r in found.reservations],
+        conversations=[ConversationDetailOut.with_events(c, found.events[c.id])
+                       for c in found.conversations],
+    )
+
+
+@gated.post("/locations/{location_id}/diner-data/erase",
+             response_model=DinerEraseOut)
+async def erase_diner_data(
+    location_id: str,
+    body: DinerPhoneIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerEraseOut:
+    """Erase one diner's data here: contact scrubbed, conversations deleted."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        counts = await diner_data.erase_diner_data(
+            db, str(user.company_id), location_id, body.phone)
+        await db.commit()
+    return DinerEraseOut(**counts)
 
 
 router.include_router(gated)

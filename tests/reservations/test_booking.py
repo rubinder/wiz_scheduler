@@ -109,11 +109,13 @@ async def test_large_party_goes_pending_and_holds_table(db_session, seeded_floor
     now = _now()
     res = await _hold(db_session, 10, _at(19), now)
     assert res.status == PENDING
-    assert res.held_until == now + timedelta(hours=24)
+    # Unsubmitted: held like any hold, not for the approval window.
+    assert res.held_until == now + timedelta(minutes=5)
     assert sorted(r.table_id for r in await _tables(db_session, res.id)) == sorted(
         [seeded_floor.t2, seeded_floor.t3])
     res = await booking.confirm(db_session, COMPANY_ID, res.id, DINER, now=now)
     assert res.status == PENDING and len(res.confirmation_code) == 6
+    assert res.held_until == now + timedelta(hours=24)
     with pytest.raises(SlotUnavailable):
         await _hold(db_session, ONLY_T2, _at(19), now)
     res = await booking.approve(db_session, COMPANY_ID, res.id, now=now)
@@ -127,6 +129,7 @@ async def test_decline_frees_the_tables(db_session, seeded_floor):
     await db_session.flush()
     now = _now()
     res = await _hold(db_session, 10, _at(19), now)
+    res = await booking.confirm(db_session, COMPANY_ID, res.id, DINER, now=now)
     res = await booking.decline(db_session, COMPANY_ID, res.id, now=now)
     assert res.status == DECLINED
     assert not any(r.active for r in await _tables(db_session, res.id))
@@ -404,6 +407,7 @@ async def test_pending_hold_lapses_at_the_booking_time(db_session, seeded_floor)
     now = _at(17)
     res = await _hold(db_session, 10, _at(19), now)
     assert res.status == PENDING
+    res = await booking.confirm(db_session, COMPANY_ID, res.id, DINER, now=now)
     assert res.held_until == _at(19)  # not now + 24 h
     # A row whose hold outlives its start (e.g. written before this fix)
     # still cannot be approved once the booking time has passed.
@@ -440,3 +444,52 @@ async def test_staff_booking_needs_no_phone_but_agents_do(db_session, seeded_flo
         await booking.confirm(db_session, COMPANY_ID, held.id, no_phone)
     with pytest.raises(ValueError):
         DinerContact(name="Ada", phone="555")
+
+
+async def test_hold_stores_the_diner_and_confirm_falls_back_to_it(db_session, seeded_floor):
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                             source=SOURCE_WEB_AGENT, diner=DINER)
+    assert (res.status, res.diner_name, res.diner_phone, res.diner_email) == (
+        HELD, "Ada", "+12125550100", "ada@example.com")
+    res = await booking.confirm(db_session, COMPANY_ID, res.id)
+    assert res.status == BOOKED and res.confirmation_code
+    assert (res.diner_name, res.diner_phone) == ("Ada", "+12125550100")
+
+
+async def test_confirm_diner_overrides_the_stored_one(db_session, seeded_floor):
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                             source=SOURCE_WEB_AGENT, diner=DINER)
+    other = DinerContact(name="Bea", phone="+12125550199")
+    res = await booking.confirm(db_session, COMPANY_ID, res.id, other)
+    assert (res.diner_name, res.diner_phone, res.diner_email) == (
+        "Bea", "+12125550199", None)
+
+
+async def test_confirm_without_any_phone_raises_phone_required(db_session, seeded_floor):
+    held = await _hold(db_session, 2, _at(19))
+    with pytest.raises(booking.PhoneRequired):
+        await booking.confirm(db_session, COMPANY_ID, held.id)
+    assert held.status == HELD and held.diner_name is None
+
+
+async def test_unsubmitted_large_party_request_lapses_like_a_hold(db_session, seeded_floor):
+    """A pending row the diner never submitted (no code) holds its tables
+    for hold_timeout_minutes, not pending_hold_hours, and staff can neither
+    approve nor decline it."""
+    db_session.add(TableCombination(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, name="T2+T3",
+        table_ids=[seeded_floor.t2, seeded_floor.t3], min_seats=7, max_seats=10))
+    await db_session.flush()
+    now = _now()
+    res = await _hold(db_session, 10, _at(19), now)
+    assert res.status == PENDING and res.confirmation_code is None
+    with pytest.raises(InvalidTransition):
+        await booking.approve(db_session, COMPANY_ID, res.id, now=now)
+    with pytest.raises(InvalidTransition):
+        await booking.decline(db_session, COMPANY_ID, res.id, now=now)
+    # Six minutes later the tables are free again.
+    later = now + timedelta(minutes=6)
+    assert (await _hold(db_session, ONLY_T2, _at(19), later)).status == HELD
+    res = (await db_session.execute(select(Reservation).where(Reservation.id == res.id)
+                                    .execution_options(populate_existing=True))).scalar_one()
+    assert res.status == EXPIRED

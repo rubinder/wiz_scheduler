@@ -12,6 +12,8 @@ the schedule-generate burst cap keys on company_id instead.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import threading
 import time
 from collections import defaultdict, deque
@@ -94,6 +96,50 @@ def source_ip_from_request(request) -> str:
     return "unknown"
 
 
+def trusted_client_keys(request) -> tuple[str, str]:
+    """(viewer_key, hop_key) for the AI host agent's limiters (#259).
+
+    Each proxy appends the address it received from. Through CloudFront the
+    ALB passes `[client-sent..., viewer, edge]`, so:
+    - viewer_key, the entry TRUSTED_PROXY_HOPS from the right, is the diner
+      as CloudFront saw them;
+    - hop_key, the last entry, is the peer the ALB itself saw.
+    The ALB also takes traffic straight from the internet, and then the
+    viewer entry is whatever the client sent; the hop entry is still the
+    sender's real address. So a request must pass a per-viewer limit and a
+    looser per-hop one: CloudFront traffic is limited per diner, a forged
+    header only moves the per-viewer count. Without the header (local dev,
+    tests) both keys are request.client.host, then "unknown".
+
+    With PUBLIC_ORIGIN_SECRET set (Ruling O) only CloudFront can reach the
+    routes that use this, so the viewer entry is trustworthy and the result
+    is (viewer, viewer): callers skip the hop limit when the keys are equal.
+
+    source_ip_from_request is kept as it is for the older limiters and logs.
+    """
+    hops = max(1, settings.TRUSTED_PROXY_HOPS)
+    parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",")]
+    parts = [p for p in parts if p]
+    peer = request.client.host if request.client else "unknown"
+    hop = parts[-1] if parts else peer
+    viewer = parts[-hops] if len(parts) >= hops else hop
+    if settings.PUBLIC_ORIGIN_SECRET:
+        return viewer[:64], viewer[:64]
+    return viewer[:64], hop[:64]
+
+
+def source_key_for(viewer_key: str) -> str:
+    """What is stored for a viewer key: HMAC-SHA256 under SECRET_KEY, hex
+    (64 chars). Equal keys still compare equal; no raw IP is kept."""
+    return hmac.new(settings.SECRET_KEY.encode(), viewer_key.encode(),
+                    hashlib.sha256).hexdigest()[:64]
+
+
+def trusted_client_ip(request) -> str:
+    """The viewer key alone (see trusted_client_keys)."""
+    return trusted_client_keys(request)[0]
+
+
 # Module-level singletons. Configured at import time from settings; tests
 # reset via .reset() (see tests/conftest.py).
 from backend.config import settings  # noqa: E402
@@ -146,5 +192,42 @@ compliance_check_limiter = SlidingWindowLimiter(
 # workers and answers silently.
 payroll_archive_retrieve_limiter = SlidingWindowLimiter(
     max_requests=settings.PAYROLL_ARCHIVE_RETRIEVE_RATE_LIMIT_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Per-IP cap on the unauthenticated AI host agent (#259): conversation
+# starts and turns share it. Each turn may cost model calls, so it is
+# checked before any lookup or model call. Keyed by trusted_client_ip.
+reservation_agent_ip_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Looser per-IP cap on the agent's location info read (no model call).
+reservation_agent_info_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_IP_INFO_PER_HOUR,
+    window_seconds=3600,
+)
+
+# The same two budgets per hop key (trusted_client_keys), 10x looser.
+reservation_agent_hop_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_HOP_TURNS_PER_HOUR,
+    window_seconds=3600,
+)
+reservation_agent_hop_info_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_HOP_INFO_PER_HOUR,
+    window_seconds=3600,
+)
+
+# Conversation starts per "location|viewer_key".
+reservation_agent_viewer_starts_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR,
+    window_seconds=3600,
+)
+
+# Location-wide start count. Observe-only: when it is full the route logs a
+# warning for the operator and still starts the conversation.
+reservation_agent_location_starts_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR,
     window_seconds=3600,
 )

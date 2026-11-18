@@ -35,6 +35,7 @@ import QuickEntry from "./pages/manager/QuickEntry";
 import ReservationsHost from "./pages/manager/ReservationsHost";
 import ReservationsFloor from "./pages/manager/ReservationsFloor";
 import ReservationsRules from "./pages/manager/ReservationsRules";
+import ReservationsConversations from "./pages/manager/ReservationsConversations";
 import PreferenceReviews from "./pages/manager/PreferenceReviews";
 import ManagerDataPrivacy from "./pages/manager/DataPrivacy";
 import EmployeeDataPrivacy from "./pages/employee/DataPrivacy";
@@ -49,6 +50,7 @@ const AcceptManagerInvite = lazy(() => import("./pages/AcceptManagerInvite"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
+const ReserveChat = lazy(() => import("./pages/ReserveChat"));
 const PayrollArchiveRetrieve = lazy(() => import("./pages/PayrollArchiveRetrieve"));
 const PayrollArchiveDownload = lazy(() => import("./pages/PayrollArchiveDownload"));
 
@@ -132,6 +134,8 @@ export default function App() {
         <Route path="/payroll-archive" element={<PayrollArchiveRetrieve />} />
         <Route path="/payroll-archive/download" element={<PayrollArchiveDownload />} />
 
+        <Route path="/r/:slug/:locationId" element={<ReserveChat />} />
+
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>
           {/* Manager routes */}
@@ -161,6 +165,7 @@ export default function App() {
             <Route path="reservations" element={<ReservationsHost />} />
             <Route path="reservations/floor" element={<ReservationsFloor />} />
             <Route path="reservations/rules" element={<ReservationsRules />} />
+            <Route path="reservations/conversations" element={<ReservationsConversations />} />
             <Route path="special-hours" element={<SpecialHours />} />
             <Route path="schedule" element={<Schedule />} />
             <Route path="export-schedules" element={<ExportSchedules />} />

@@ -14,7 +14,9 @@ reservation rows before their location, or it can deadlock against this.
 
 `ReservationTable.active` always equals `status in ACTIVE_STATUSES`. Every
 held or pending row has `held_until` set (fail closed); it is cleared only
-when the row becomes booked.
+when the row becomes booked. A pending row without a confirmation code is
+an unsubmitted request: held for `hold_timeout_minutes` like any hold, and
+not approvable until `confirm` gives it a code and the approval window.
 
 Functions flush; callers commit. On any `ReservationError` (or other
 exception) the caller must roll back: a failed flush leaves the session's
@@ -188,6 +190,23 @@ async def begin_location_write(
     return locked
 
 
+async def lock_location_including_archived(
+    db: AsyncSession, company_id: str, location_id: str
+) -> bool:
+    """Lock the location row whether or not it is archived; no sweep.
+
+    For history writes (diner data erasure) that must serialize with every
+    reservations write at the location even after it was archived. Active
+    locations should use `begin_location_write`. False when the location is
+    not this company's."""
+    found = (await db.execute(
+        select(Location.id)
+        .where(Location.id == location_id, Location.company_id == company_id)
+        .with_for_update()
+    )).scalar_one_or_none()
+    return found is not None
+
+
 async def _load(
     db: AsyncSession, company_id: str, reservation_id: str,
     location_id: str | None = None,
@@ -303,11 +322,13 @@ async def hold(
     conversation_id: str | None = None,
     now: datetime | None = None,
     apply_cutoff: bool = True,
+    diner: DinerContact | None = None,
 ) -> Reservation:
     """Hold tables for one party at exactly `start`.
 
     Parties above `max_self_book_party` go to `pending_approval` unless staff
-    are booking them.
+    are booking them. `diner`, when given, is stored on the held row so a
+    later `confirm` can omit it.
     """
     now = _now(now)
     if not await begin_location_write(db, company_id, location_id, now):
@@ -320,15 +341,16 @@ async def hold(
     slot = await _find_exact_slot(db, company_id, location_id, party_size, start, now,
                                   apply_cutoff=apply_cutoff)
     pending = party_size > rules.max_self_book_party and source != SOURCE_STAFF
-    if pending:
-        # Approval after the booking time is meaningless: lapse at start_at.
-        held_until = min(now + timedelta(hours=rules.pending_hold_hours), _utc(slot.start))
-    else:
-        held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
+    # An unsubmitted request (no code yet) is held like any hold; `confirm`
+    # extends it to the approval window once the diner submits it.
+    held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
     res = Reservation(
         company_id=company_id, location_id=location_id, party_size=party_size,
         start_at=slot.start, end_at=slot.end, status=PENDING if pending else HELD,
         held_until=held_until, source=source, conversation_id=conversation_id,
+        diner_name=diner.name if diner else None,
+        diner_phone=diner.phone if diner else None,
+        diner_email=diner.email if diner else None,
         created_at=now, updated_at=now,
     )
     db.add(res)
@@ -339,22 +361,34 @@ async def hold(
 
 
 async def confirm(
-    db: AsyncSession, company_id: str, reservation_id: str, diner: DinerContact,
-    now: datetime | None = None,
+    db: AsyncSession, company_id: str, reservation_id: str,
+    diner: DinerContact | None = None, now: datetime | None = None,
 ) -> Reservation:
-    """A live hold becomes booked; a pending row gets the diner and a code."""
+    """A live hold becomes booked; a pending row gets the diner and a code.
+
+    Without `diner`, the contact stored by `hold(diner=...)` is kept.
+    """
     now = _now(now)
     res = await _load_for_write(db, company_id, reservation_id, now)
     if res.status == EXPIRED:
         raise HoldExpired()
     if res.status not in (HELD, PENDING):
         raise InvalidTransition()
-    if diner.phone is None and res.source != SOURCE_STAFF:
+    phone = diner.phone if diner is not None else res.diner_phone
+    if phone is None and res.source != SOURCE_STAFF:
         raise PhoneRequired()
-    res.diner_name, res.diner_phone, res.diner_email = diner.name, diner.phone, diner.email
+    if diner is not None:
+        res.diner_name, res.diner_phone, res.diner_email = (
+            diner.name, diner.phone, diner.email)
     res.updated_at = now
     if res.confirmation_code is None:
         await _assign_code(db, res)
+        if res.status == PENDING:
+            # Submitted: hold the tables for the approval window, but never
+            # past the booking time (approval after it is meaningless).
+            rules, _ = await get_rules(db, company_id, res.location_id)
+            res.held_until = min(now + timedelta(hours=rules.pending_hold_hours),
+                                 _utc(res.start_at))
     if res.status == HELD:
         await _set_status(db, res, BOOKED, now)
     await db.flush()
@@ -386,7 +420,8 @@ async def approve(
     res = await _load_for_write(db, company_id, reservation_id, now)
     if res.status == EXPIRED:
         raise HoldExpired()
-    if res.status != PENDING:
+    if res.status != PENDING or res.confirmation_code is None:
+        # A code-less pending row is an unsubmitted request, not one to approve.
         raise InvalidTransition()
     if _utc(res.start_at) <= now:
         raise HoldExpired()
@@ -399,7 +434,7 @@ async def decline(
 ) -> Reservation:
     now = _now(now)
     res = await _load_for_write(db, company_id, reservation_id, now)
-    if res.status != PENDING:
+    if res.status != PENDING or res.confirmation_code is None:
         raise InvalidTransition()
     await _set_status(db, res, DECLINED, now)
     return res

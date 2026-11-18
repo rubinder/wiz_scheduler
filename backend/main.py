@@ -35,6 +35,7 @@ from backend.routers import (
     preference_submissions,
     payroll_archive,
     public,
+    public_reservations,
     regions,
     reservations,
     roles,
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router, prefix=api_prefix)
     app.include_router(webhooks.router, prefix=api_prefix)
     app.include_router(public.router, prefix=api_prefix)
+    app.include_router(public_reservations.router, prefix=api_prefix)
     app.include_router(payroll_archive.router, prefix=api_prefix)
 
     # ── Daily background task: storage snapshots ──

@@ -1,7 +1,7 @@
 import logging
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -18,6 +18,8 @@ from backend.models import (
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
+from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
+from backend.reservations.models import Reservation
 from backend.services.archive import DISCARDED, delete_past_check_ins
 from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
@@ -222,6 +224,48 @@ async def run_data_retention(db: AsyncSession) -> dict:
             ),
             now=now,
         )
+
+        # 7c. Agent booking-lookup failures (#259) only feed a 15-minute
+        #     lockout window; a day is ample.
+        cutoff_lookups = now - timedelta(days=settings.RETENTION_LOOKUP_FAILURES_DAYS)
+        result = await db.execute(
+            delete(ReservationLookupFailure).where(
+                ReservationLookupFailure.created_at < cutoff_lookups)
+        )
+        summary["old_lookup_failures_deleted"] = result.rowcount
+
+        # 7d. Agent conversations (#259) past the reservations window, by
+        #     start; their agent_events go with them (ON DELETE CASCADE).
+        cutoff_reservations = now - timedelta(days=settings.RETENTION_RESERVATIONS_DAYS)
+        result = await db.execute(
+            delete(AgentConversation).where(
+                AgentConversation.started_at < cutoff_reservations)
+        )
+        summary["old_agent_conversations_deleted"] = result.rowcount
+
+        # 7e. Diner contact on reservations that ended before the same window
+        #     is cleared; the row stays for covers analytics. Every status,
+        #     since holds, cancellations and declines carry contact too.
+        #     Deliberately by end_at, not started_at as in 7d: a booking can
+        #     be made months ahead, so its contact is kept a year past the
+        #     meal, while a conversation is aged from when it happened. A
+        #     conversation about a far-future booking can therefore go before
+        #     the booking's contact does.
+        result = await db.execute(
+            update(Reservation)
+            .where(
+                Reservation.end_at < cutoff_reservations,
+                or_(
+                    Reservation.diner_name.isnot(None),
+                    Reservation.diner_phone.isnot(None),
+                    Reservation.diner_email.isnot(None),
+                    Reservation.notes.isnot(None),
+                ),
+            )
+            .values(diner_name=None, diner_phone=None, diner_email=None,
+                    notes=None)
+        )
+        summary["old_reservation_diners_scrubbed"] = result.rowcount
 
         # 8. Signup signals past their window. These are observe-only
         #    anti-abuse breadcrumbs (services/signup_signals.py), not account

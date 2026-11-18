@@ -159,3 +159,57 @@ export interface ReservationOut {
   confirmation_code: string | null;
   held_until: string | null;
 }
+
+/** GET /reservations/config. conversation_outcomes mirrors agent/models.py OUTCOMES (served, so it cannot drift). */
+export interface ReservationsConfig {
+  enabled: boolean;
+  conversation_outcomes: string[];
+}
+
+/** One AI host conversation in the manager list. cost_usd is a decimal string. */
+export interface ConversationOut {
+  id: string;
+  channel: "web" | "voice" | string;
+  started_at: string;
+  ended_at: string | null;
+  outcome: string | null;
+  turn_count: number;
+  cost_usd: string;
+  reservation_id: string | null;
+}
+
+export interface AgentEventOut {
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+  latency_ms: Record<string, unknown>;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: string;
+  created_at: string;
+}
+
+export interface ConversationDetailOut extends ConversationOut {
+  location_id: string;
+  status: string;
+  events: AgentEventOut[];
+}
+
+/** One diner's data at one location (POST .../diner-data). */
+export interface DinerDataOut {
+  reservations: ReservationOut[];
+  conversations: ConversationDetailOut[];
+}
+
+/** What erasing one diner's data did (POST .../diner-data/erase). */
+export interface DinerEraseOut {
+  reservations_scrubbed: number;
+  conversations_deleted: number;
+  /** Mid-turn conversations closed rather than deleted. */
+  conversations_closed_in_flight: number;
+  /** Held by a running turn: neither deleted nor closed; erase again later. */
+  conversations_still_in_flight: number;
+  lookup_failures_deleted: number;
+}

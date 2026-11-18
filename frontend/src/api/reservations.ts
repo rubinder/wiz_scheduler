@@ -1,10 +1,15 @@
 import { apiFetch } from "./client";
 import type {
   BookingIn,
+  ConversationDetailOut,
+  ConversationOut,
+  DinerDataOut,
+  DinerEraseOut,
   FloorIn,
   FloorOut,
   ReservationOut,
   ReservationPatch,
+  ReservationsConfig,
   RulesOut,
   RulesSchema,
   SettableStatus,
@@ -14,7 +19,7 @@ import type {
 
 const base = (locationId: string) => `/reservations/locations/${locationId}`;
 
-export function getConfig(): Promise<{ enabled: boolean }> {
+export function getConfig(): Promise<ReservationsConfig> {
   return apiFetch("/reservations/config");
 }
 
@@ -77,4 +82,29 @@ export function approveReservation(id: string): Promise<ReservationOut> {
 
 export function declineReservation(id: string): Promise<ReservationOut> {
   return apiFetch(`/reservations/${id}/decline`, { method: "POST" });
+}
+
+/** The AI host's conversations started on `date` (the location's local day), newest first. */
+export function listConversations(
+  locationId: string,
+  date: string,
+  outcome?: string,
+): Promise<ConversationOut[]> {
+  const qs = new URLSearchParams({ date });
+  if (outcome) qs.set("outcome", outcome);
+  return apiFetch(`${base(locationId)}/conversations?${qs.toString()}`);
+}
+
+export function getConversation(id: string): Promise<ConversationDetailOut> {
+  return apiFetch(`/reservations/conversations/${id}`);
+}
+
+/** One diner's reservations and conversations at a location, by E.164 phone (an access request). */
+export function exportDinerData(locationId: string, phone: string): Promise<DinerDataOut> {
+  return apiFetch(`${base(locationId)}/diner-data`, { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+/** Erase one diner's data at a location: contact details scrubbed, conversations deleted. */
+export function eraseDinerData(locationId: string, phone: string): Promise<DinerEraseOut> {
+  return apiFetch(`${base(locationId)}/diner-data/erase`, { method: "POST", body: JSON.stringify({ phone }) });
 }

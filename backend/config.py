@@ -258,10 +258,55 @@ class Settings(BaseSettings):
     # Auto-reload (real-time billing for AI + schedules)
     AUTORELOAD_DEFAULT_ENABLED: bool = True
 
-    # Reservations (#254): off until the feature is ready to ship.
-    RESERVATIONS_ENABLED: bool = False
     AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
     AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
+
+    # Reservations (#254): off until the feature is ready to ship.
+    RESERVATIONS_ENABLED: bool = False
+
+    # AI host agent (#259). Prices are USD per million tokens.
+    RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"
+    RESERVATION_AGENT_INPUT_USD_PER_MTOK: float = 0.10
+    RESERVATION_AGENT_OUTPUT_USD_PER_MTOK: float = 0.50
+    RESERVATION_AGENT_CACHE_READ_USD_PER_MTOK: float = 0.01
+    RESERVATION_AGENT_CACHE_WRITE_USD_PER_MTOK: float = 0.125
+    RESERVATION_AGENT_MAX_TURNS: int = 30
+    RESERVATION_AGENT_MAX_TOOL_ROUNDS: int = 6
+    # A diner waits on the whole turn: past this no further model call starts
+    # and the diner is asked to send the message again.
+    RESERVATION_AGENT_TURN_DEADLINE_SECONDS: float = 25
+    RESERVATION_AGENT_MAX_MESSAGE_CHARS: int = 1000
+    RESERVATION_AGENT_IP_TURNS_PER_HOUR: int = 60
+    RESERVATION_AGENT_IP_INFO_PER_HOUR: int = 300
+    # Per hop key (the address the ALB saw: a CloudFront edge, or the real
+    # peer of traffic sent straight to the ALB), 50x the per-viewer limits,
+    # since every diner behind one edge shares it. Unused once
+    # PUBLIC_ORIGIN_SECRET is set.
+    RESERVATION_AGENT_HOP_TURNS_PER_HOUR: int = 3000
+    RESERVATION_AGENT_HOP_INFO_PER_HOUR: int = 15000
+    # Ruling O: when set, CloudFront sends it as X-Origin-Verify and every
+    # public reservations route 404s without it, so only CloudFront reaches
+    # them and the viewer key alone can be trusted. Empty = not enforced.
+    PUBLIC_ORIGIN_SECRET: str = ""
+    # Conversation starts per (location, viewer); past the location-wide
+    # figure a warning is logged for the operator, nothing is blocked.
+    RESERVATION_AGENT_VIEWER_STARTS_PER_LOCATION_HOUR: int = 20
+    RESERVATION_AGENT_LOCATION_STARTS_PER_HOUR: int = 120
+    # Wrong booking lookups (#259), counted across conversations in the
+    # lockout window: per (location, phone, viewer) they refuse lookups;
+    # per (location, phone) from anyone they hand the diner to staff.
+    RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES: int = 5
+    RESERVATION_AGENT_LOOKUP_PHONE_HANDOFF_FAILURES: int = 20
+    RESERVATION_AGENT_LOOKUP_LOCKOUT_MINUTES: int = 15
+    RETENTION_LOOKUP_FAILURES_DAYS: int = 1
+    # Agent conversations (and their events) by started_at (#259); Task 6
+    # extends it to reservations' diner fields.
+    RETENTION_RESERVATIONS_DAYS: int = 365
+    # Proxies that append to X-Forwarded-For in front of the app
+    # (CloudFront, then the ALB). The client is this many entries from the
+    # right; anything further left is whatever the client sent.
+    TRUSTED_PROXY_HOPS: int = 2
+    RESERVATION_AGENT_MAX_TOKENS: int = 1024
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30

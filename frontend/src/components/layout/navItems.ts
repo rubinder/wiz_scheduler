@@ -105,6 +105,11 @@ export const managerNav: NavEntry[] = [
         labelKey: "reservationRules",
         requiresReservations: true,
       },
+      {
+        to: "/manager/reservations/conversations",
+        labelKey: "conversations",
+        requiresReservations: true,
+      },
     ],
   },
   { to: "/manager/data-privacy", labelKey: "dataPrivacy" },

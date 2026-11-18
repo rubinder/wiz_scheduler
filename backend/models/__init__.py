@@ -37,6 +37,11 @@ from backend.models.manager_location import ManagerLocation
 from backend.models.feedback_submission import FeedbackSubmission
 from backend.models.preference_submission import EmployeePreferenceSubmission
 from backend.models.payroll_archive import PayrollArchive, PayrollArchiveToken
+from backend.reservations.agent.models import (
+    AgentConversation,
+    AgentEvent,
+    ReservationLookupFailure,
+)
 from backend.reservations.models import (
     DiningTable,
     FloorSection,
@@ -47,6 +52,9 @@ from backend.reservations.models import (
 )
 
 __all__ = [
+    "AgentConversation",
+    "ReservationLookupFailure",
+    "AgentEvent",
     "EmployeePreferenceSubmission",
     "OwnershipGroup",
     "Company",

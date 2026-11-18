@@ -1,10 +1,11 @@
-"""Read-only reservation listings for the manager API."""
+"""Read-only reservation and agent-conversation listings for the manager API."""
 
 from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import (
     BOOKED, EXPIRED, HELD, PENDING, SEATED, DiningTable, Reservation,
     ReservationTable,
@@ -84,8 +85,8 @@ async def list_between(
 async def list_pending_approvals(
     db: AsyncSession, company_id: str, location_id: str, now: datetime | None = None,
 ) -> list[tuple[Reservation, list[str], str]]:
-    """The location's approval queue across every day: pending requests whose
-    hold is still live (held_until NULL or in the future) and that have not
+    """The location's approval queue across every day: submitted pending
+    requests (with a confirmation code) whose hold is still live (held_until NULL or in the future) and that have not
     started, soonest first, with table labels and `effective_status`."""
     now = now or datetime.now(timezone.utc)
     rows = (await db.execute(
@@ -93,9 +94,59 @@ async def list_pending_approvals(
             Reservation.company_id == company_id,
             Reservation.location_id == location_id,
             Reservation.status == PENDING,
+            # A code-less pending row is a large-party hold the diner has not
+            # submitted yet: not a request, and approve/decline refuse it.
+            Reservation.confirmation_code.is_not(None),
             Reservation.start_at >= now,
             or_(Reservation.held_until.is_(None), Reservation.held_until > now),
         ).order_by(Reservation.start_at, Reservation.id)
     )).scalars().all()
     labels = await table_labels(db, company_id, [r.id for r in rows])
     return [(r, labels.get(r.id, []), effective_status(r, now)) for r in rows]
+
+
+async def list_conversations(
+    db: AsyncSession, company_id: str, location_id: str,
+    window_start: datetime, window_end: datetime, outcome: str | None = None,
+) -> list[AgentConversation]:
+    """Agent conversations started in [window_start, window_end), newest first."""
+    q = select(AgentConversation).where(
+        AgentConversation.company_id == company_id,
+        AgentConversation.location_id == location_id,
+        AgentConversation.started_at >= window_start,
+        AgentConversation.started_at < window_end,
+    )
+    if outcome is not None:
+        q = q.where(AgentConversation.outcome == outcome)
+    q = q.order_by(AgentConversation.started_at.desc(), AgentConversation.id)
+    return list((await db.execute(q)).scalars().all())
+
+
+async def get_conversation(
+    db: AsyncSession, company_id: str, conversation_id: str
+) -> AgentConversation | None:
+    return (await db.execute(
+        select(AgentConversation).where(
+            AgentConversation.id == conversation_id,
+            AgentConversation.company_id == company_id,
+        )
+    )).scalar_one_or_none()
+
+
+async def conversation_events(
+    db: AsyncSession, company_id: str, conversation_ids: list[str]
+) -> dict[str, list[AgentEvent]]:
+    """Each conversation's events in seq order."""
+    out: dict[str, list[AgentEvent]] = {cid: [] for cid in conversation_ids}
+    if not conversation_ids:
+        return out
+    rows = (await db.execute(
+        select(AgentEvent).where(
+            AgentEvent.company_id == company_id,
+            AgentEvent.conversation_id.in_(conversation_ids),
+        ).order_by(AgentEvent.conversation_id, AgentEvent.seq)
+    )).scalars().all()
+    for e in rows:
+        out[e.conversation_id].append(e)
+    return out
+

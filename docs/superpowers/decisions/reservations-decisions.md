@@ -57,3 +57,71 @@ Decisions made while building without stopping to ask (owner instruction,
 16. **Pacing counts bookings starting within the slot's interval**, so
     changing the interval doesn't make old bookings invisible to pacing.
 17. **Staff bookings don't need a phone number**; diner (agent) bookings do.
+18. **The AI host can never change a booking by itself.** Booking needs the
+    diner's Confirm button; cancelling and changing a booking also need a
+    button press after the agent proposes it (security review).
+19. **A diner gets 3 tries to look up a booking** by code + phone per
+    conversation, then must call or start over.
+20. **Large parties:** on web chat they become a request the restaurant
+    approves; on the phone the agent transfers to staff.
+21. **Each tool round commits on its own**, so one slow model reply never
+    holds a restaurant's booking lock.
+22. *(Superseded by 25 and 28.)* **Public chat rate limits key on the address our own proxies saw**
+    (the X-Forwarded-For entry 2 hops from the right: CloudFront, then the
+    load balancer), not the first entry, which a client can forge. The
+    app's older shared helper still trusts the first entry for the login
+    and forgot-password limits: **owner follow-up**, not changed overnight
+    because it affects sign-in.
+23. *(Superseded by 27.)* **Failed booking lookups lock out across chats:** 5 failures for one
+    phone at one restaurant in 15 minutes blocks further tries, whichever
+    chat they come from.
+24. **One turn at a time per chat.** A second message sent while the agent
+    is still answering gets "please wait"; the turn cap can't be raced.
+25. **The load balancer accepts traffic that skips CloudFront** (security
+    group open to the internet, no origin secret), so the chat limits check
+    two keys: the viewer address CloudFront saw and the address that
+    connected to the load balancer. **Owner follow-up:** restrict the load
+    balancer to CloudFront's origin-facing prefix list (or an origin secret
+    header); then one key suffices and the login limiters become safe too.
+26. **No hard per-restaurant chat cap** (it would let one actor block a
+    restaurant); per-(restaurant, client) limits plus a warning when a
+    restaurant sees unusual volume.
+27. **Lookup lockouts are per (restaurant, phone, client)**, so a stranger
+    can't lock a real diner out; heavy abuse of one number sends diners to
+    staff instead of refusing them.
+28. **Origin secret for the public chat.** When `PUBLIC_ORIGIN_SECRET` is
+    set, the public chat routes only answer requests carrying CloudFront's
+    `X-Origin-Verify` header, and limits key on the viewer address alone.
+    **Switch-on prerequisite (owner):** add that header to the CloudFront
+    origin in Terraform with a secret value, and set the same secret in the
+    ECS task. Until then the two-key limits apply.
+29. **No raw IP addresses are stored.** Rate-limit and lockout keys are
+    stored as a keyed hash; conversations are deleted after a year.
+30. **Diners' data requests go through the restaurant.** Diners aren't
+    WizScheduler users, so the restaurant (the data controller) handles
+    their access and erasure requests with two manager tools: export and
+    erase a diner's data by phone number at a location. A manager's own
+    GDPR export stays about the manager. Retention removes diner contact
+    details and transcripts after a year automatically.
+31. **Managers see what the agent said and did, not its internal
+    reasoning blocks**; stored raw copies stay server-side.
+32. **Large-party requests only hold tables once submitted.** Until the
+    diner presses Confirm, a large-party offer is held for the normal
+    5 minutes; managers only see and approve submitted requests.
+33. **Diners confirm changes against structured details**, not the model's
+    wording: the chat shows the current and proposed booking above the
+    Confirm button. A proposed cancellation can be dismissed ("Keep my
+    booking").
+34. **A turn never runs longer than 25 seconds** (under CloudFront's 30 s
+    origin timeout); if it would, the diner is asked to send the message
+    again and the chat stays open.
+
+## Before switching reservations on (owner checklist)
+
+- Step 5 (subscription, spend caps, per-company opt-in) must ship first;
+  otherwise every active location gets a public chat on the operator's bill.
+- Set `PUBLIC_ORIGIN_SECRET` and the matching CloudFront origin header
+  (decision 28), or restrict the load balancer to CloudFront (decision 25).
+- Legal: privacy policy / DPA wording for diner data (spec section 11).
+- Set each location's staff transfer number.
+- Run the evaluation suite (step 4) live once and record the baseline.

@@ -24,6 +24,7 @@ import {
   formatLocalTime,
   groupBySeating,
   localDateString,
+  pendingApprovals,
   tableStates,
   validParty,
 } from "../../utils/reservations";
@@ -221,7 +222,7 @@ export default function ReservationsHost() {
     try {
       const out = await listApprovals(forLocation);
       if (!latest()) return;
-      setApprovals(out);
+      setApprovals(pendingApprovals(out));
       setApprovalsError("");
     } catch (e) {
       if (latest()) setApprovalsError(errorText(e instanceof ApiError ? e.data : null));
