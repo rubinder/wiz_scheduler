@@ -187,7 +187,8 @@ async def write_rules(
         problem = transfer_number_problem(body.staff_transfer_number,
                                           own.e164 if own else None)
         if problem:
-            raise HTTPException(status_code=422, detail=problem)
+            raise HTTPException(status_code=422, detail={
+                "code": "transfer_number_not_allowed", "message": problem})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

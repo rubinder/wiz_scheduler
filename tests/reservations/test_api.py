@@ -559,6 +559,7 @@ async def test_staff_transfer_number_is_screened_for_toll_fraud(
         r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
                              json={**rules, "staff_transfer_number": bad}, headers=h)
         assert r.status_code == 422, (bad, r.text)
+        assert r.json()["detail"]["code"] == "transfer_number_not_allowed"
     for good in ("+12125550111", None):
         r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
                              json={**rules, "staff_transfer_number": good}, headers=h)
