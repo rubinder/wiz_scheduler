@@ -172,7 +172,11 @@ async def save_floor(
     db: AsyncSession, company_id: str, location_id: str, floor: FloorIn,
     now: datetime | None = None,
 ) -> FloorOut:
-    """Replace the location's floor plan with the payload. Does not commit."""
+    """Replace the location's floor plan with the payload. Does not commit.
+
+    On FloorInvalid or TableHasBookings the caller must roll back the session:
+    flushes made earlier in the same save are not undone.
+    """
     now = now or datetime.now(timezone.utc)
     _validate(floor)
 
@@ -250,6 +254,12 @@ async def save_floor(
         async with db.begin_nested():
             await db.flush()
     except IntegrityError as exc:
+        orig = getattr(exc, "orig", None)
+        cause = getattr(orig, "__cause__", None)
+        name = (getattr(orig, "constraint_name", None)
+                or getattr(cause, "constraint_name", None) or "")
+        if "uq_dining_tables_location_label" not in (name or str(orig)):
+            raise
         raise FloorInvalid(
             "duplicate_label", "table labels must be unique (swapping labels "
             "between existing tables is not supported; use a temporary label)"
