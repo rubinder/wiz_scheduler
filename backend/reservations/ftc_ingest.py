@@ -192,6 +192,7 @@ async def ingest(db: AsyncSession, today: date, fetch: Fetch = default_fetch) ->
     """Fetch and load every weekday file not yet ingested OK, through today,
     then prune. One failed file is recorded and skipped, never fatal."""
     start, dates = await _candidates(db, today)
+    await db.commit()  # no read transaction sits idle through the first fetch
 
     summary: dict[str, Any] = {
         "today": today.isoformat(), "from": start.isoformat(), "files": len(dates),

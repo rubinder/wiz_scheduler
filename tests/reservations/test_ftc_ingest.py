@@ -135,6 +135,18 @@ async def test_first_run_fetches_weekdays_from_two_weeks_back(db_session: AsyncS
 
 
 @pytest.mark.asyncio
+async def test_no_read_transaction_is_held_through_the_first_fetch(
+        db_session: AsyncSession):
+    seen: list[bool] = []
+
+    def fetch(url: str) -> bytes | None:
+        seen.append(db_session.in_transaction())
+        return None
+    await ingest(db_session, TODAY, fetch=fetch)
+    assert seen and seen[0] is False
+
+
+@pytest.mark.asyncio
 async def test_later_run_fetches_only_dates_not_yet_ok(db_session: AsyncSession):
     db_session.add_all([SpamIngestFile(file_date=date(2026, 11, 13), status="ok", rows=1),
                         SpamIngestFile(file_date=date(2026, 11, 16), status="error")])
