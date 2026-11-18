@@ -1,13 +1,16 @@
 """Conversation recording: start, append events, finish, and cost."""
 
+import logging
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal, Mapping
 
 from sqlalchemy import func, select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
+from backend.reservations import subscription
 from backend.reservations.agent.models import (
     CHANNELS,
     EVENT_TYPES,
@@ -15,6 +18,9 @@ from backend.reservations.agent.models import (
     AgentConversation,
     AgentEvent,
 )
+from backend.utils.id_gen import generate_short_id
+
+logger = logging.getLogger(__name__)
 
 _MILLION = Decimal(1_000_000)
 _CENT_MILLIONTH = Decimal("0.000001")
@@ -94,12 +100,48 @@ async def record_event(
 
 
 async def finish(db: AsyncSession, conv: AgentConversation, outcome: str) -> None:
+    """Close the conversation and meter it (`_meter`). Does not commit."""
     if outcome not in OUTCOMES:
         raise ValueError(f"invalid outcome: {outcome!r}")
     conv.outcome = outcome
     conv.status = "closed"
     conv.ended_at = datetime.now(timezone.utc)
     await db.flush()
+    await _meter(db, conv)
+
+
+async def _meter(db: AsyncSession, conv: AgentConversation) -> None:
+    """Record the conversation's AgentUsage row: one per conversation
+    (ON CONFLICT DO NOTHING on conversation_id), none for a `blocked`
+    outcome or a billed amount of 0.00, none when the company has no
+    ownership group. A DB write only, in a savepoint: metering never raises
+    into the call path (it logs and the conversation stays finished)."""
+    cost = conv.cost_usd or Decimal(0)
+    if conv.outcome == "blocked" or cost <= 0:
+        return
+    billed = subscription.billed_amount(cost)
+    if billed <= 0:
+        return
+    try:
+        async with db.begin_nested():
+            og_id = await subscription.ownership_group_of(db, conv.company_id)
+            if og_id is None:
+                logger.warning("agent usage not metered: company %s has no "
+                               "ownership group (conversation %s)",
+                               conv.company_id, conv.id)
+                return
+            sub = await subscription.for_group(db, og_id)
+            ended_at = conv.ended_at or datetime.now(timezone.utc)
+            await db.execute(
+                pg_insert(subscription.AgentUsage)
+                .values(id=generate_short_id(), company_id=conv.company_id,
+                        ownership_group_id=og_id, location_id=conv.location_id,
+                        conversation_id=conv.id, cost_usd=cost, billed_usd=billed,
+                        period_start=subscription.usage_period_start(sub, ended_at),
+                        product=subscription.PRODUCT)
+                .on_conflict_do_nothing(index_elements=["conversation_id"]))
+    except Exception:
+        logger.exception("agent usage metering failed (conversation %s)", conv.id)
 
 
 # Longer than the worst live turn (MAX_TOOL_ROUNDS x the model timeout),

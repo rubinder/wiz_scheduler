@@ -24,11 +24,19 @@ hop limit is skipped.
 - viewer keys are stored only as `source_key_for` HMACs;
 - each turn is claimed atomically (`recording.claim_turn`), which enforces
   the turn cap and refuses a second concurrent turn with 409.
+
+Billing (#259 step 5), after the limits and the scope: every route 404s
+unless the location's ownership group has an AI host subscription that is
+`active` or `trialing` (`subscription.active_for_location`). Once the
+location's model spend today reaches its `daily_spend_cap_usd`, a new
+conversation is created closed (`blocked`, so it bills nothing) and a turn
+closes its conversation, both answering `subscription.busy_text`.
 """
 
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import hmac
 
@@ -41,8 +49,9 @@ from backend.config import settings
 from backend.database import RLS_COMPANY_IDS
 from backend.dependencies import bind_rls_context, get_db
 from backend.models import Company, Location
+from backend.reservations import subscription
 from backend.reservations.agent import recording
-from backend.reservations.agent.core import AgentCore, TurnInput
+from backend.reservations.agent.core import AgentCore, TurnInput, TurnOutput
 from backend.reservations.agent.llm import AnthropicLlm
 from backend.reservations.agent.models import AgentConversation
 from backend.reservations.rules import get_rules
@@ -147,6 +156,22 @@ async def public_company_scope(
             tenant_context.set(None)
 
 
+async def require_subscription(
+    scope: PublicScope = Depends(public_company_scope),
+    db: AsyncSession = Depends(get_db),
+) -> PublicScope:
+    """The scope, once its group's AI host subscription answers; else 404."""
+    if await subscription.active_for_location(
+            db, scope.company_id, scope.location.id, datetime.now(timezone.utc)) is None:
+        raise _not_found()
+    return scope
+
+
+async def _busy(db: AsyncSession, scope: PublicScope) -> str:
+    logger.info("reservation_agent.spend_cap_reached location=%s", scope.location.id)
+    return await subscription.busy_text(db, scope.company_id, scope.location.id)
+
+
 CLEAR_LOCK_TIMEOUT = "2s"
 
 _core: AgentCore | None = None
@@ -176,7 +201,7 @@ router = APIRouter(
 @router.get("/{slug}/{location_id}", response_model=LocationInfoOut,
             dependencies=[Depends(consume_info_limit)])
 async def location_info(
-    scope: PublicScope = Depends(public_company_scope),
+    scope: PublicScope = Depends(require_subscription),
     db: AsyncSession = Depends(get_db),
 ) -> LocationInfoOut:
     return LocationInfoOut(location_name=scope.location.name,
@@ -199,10 +224,17 @@ async def start_conversation(
     if not reservation_agent_location_starts_limiter.check_and_record(location_id):
         # Operator signal only: many diners may share a busy restaurant.
         logger.warning("reservation_agent.location_starts_high location=%s", location_id)
-    greeting = await _greeting(db, scope)
+    scope = await require_subscription(scope, db)
+    now = datetime.now(timezone.utc)
     conv = await recording.start_conversation(db, scope.company_id, location_id,
                                               "web", source_key=source_key_for(viewer))
     token = conv.public_token
+    if await subscription.cap_reached(db, scope.company_id, scope.location, now):
+        await recording.finish(db, conv, "blocked")
+        reply = await _busy(db, scope)
+        await db.commit()
+        return ConversationOut(conversation_token=token, reply_text=reply, expect="text")
+    greeting = await _greeting(db, scope)
     await db.commit()
     return ConversationOut(conversation_token=token, reply_text=greeting, expect="text")
 
@@ -216,6 +248,7 @@ async def post_turn(
     db: AsyncSession = Depends(get_db),
     core: AgentCore = Depends(get_agent_core),
 ) -> TurnOut:
+    scope = await require_subscription(scope, db)
     conv = (await db.execute(
         select(AgentConversation).where(
             AgentConversation.public_token == token,
@@ -234,6 +267,13 @@ async def post_turn(
         raise _not_found()
     conv_id, company_id = conv.id, conv.company_id
     try:
+        now = datetime.now(timezone.utc)
+        if await subscription.cap_reached(db, scope.company_id, scope.location, now):
+            # Closes as the turn cap does (a live hold released, outcome by
+            # what the conversation achieved), clearing the turn mark.
+            reply = await _busy(db, scope)
+            await core.close_conversation(db, conv, now=now)
+            return TurnOut.from_turn(TurnOutput(reply, "text", None, True, None))
         out = await core.handle_turn(db, conv,
                                      TurnInput(text=body.text, action=body.action))
     except BaseException:

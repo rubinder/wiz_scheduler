@@ -28,6 +28,7 @@ from backend.services.rate_limit import (
 from tests.conftest import COMPANY2_ID, COMPANY_ID, LOCATION_ID
 from tests.reservations.agent.fakes import ScriptedLlm, last_tool_result, reply, text, tool_use
 from tests.reservations.agent.test_core import _booked_res, _day, _hold_script, _lookup
+from tests.reservations.conftest import subscribe
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -46,6 +47,13 @@ def _via(client_ip: str, spoof: str | None = None) -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def _enabled(monkeypatch):
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _subscribed(db_session, seed_company):
+    """Every test here is about a subscribed group (tests/reservations/billing
+    covers the gate)."""
+    await subscribe(db_session)
 
 
 @pytest_asyncio.fixture
@@ -69,7 +77,15 @@ async def _turn(client, token: str, body: dict, base: str = BASE,
 
 
 async def _other_company(db) -> str:
-    db.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    """A second company, in its own subscribed ownership group."""
+    from backend.models import OwnershipGroup
+    from backend.reservations.subscription import ReservationSubscription
+
+    db.add(OwnershipGroup(id="ogother1", name="Other OG"))
+    await db.flush()
+    db.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co",
+                   ownership_group_id="ogother1"))
+    db.add(ReservationSubscription(ownership_group_id="ogother1", status="active"))
     await db.flush()
     db.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
     await db.flush()

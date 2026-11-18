@@ -49,3 +49,28 @@ async def seeded_floor(db_session: AsyncSession, seed_location: Location) -> See
             first_seating=time(17, 0), last_seating=time(21, 0))]))
     await db_session.commit()
     return SeededFloor(seed_location, section.id, t1.id, t2.id, t3.id, combo.id)
+
+
+AGENT_OG_ID = "ogagent1"
+
+
+async def subscribe(db: AsyncSession, status: str = "active", *,
+                    period_start=None, period_end=None):
+    """Put the test company in an ownership group with an AI host
+    subscription of `status`. Committed."""
+    from sqlalchemy import update
+
+    from backend.models import Company, OwnershipGroup
+    from backend.reservations.subscription import ReservationSubscription
+
+    if await db.get(OwnershipGroup, AGENT_OG_ID) is None:
+        db.add(OwnershipGroup(id=AGENT_OG_ID, name="Agent OG"))
+        await db.flush()
+    await db.execute(update(Company).where(Company.id == COMPANY_ID)
+                     .values(ownership_group_id=AGENT_OG_ID))
+    sub = ReservationSubscription(
+        ownership_group_id=AGENT_OG_ID, status=status,
+        current_period_start=period_start, current_period_end=period_end)
+    db.add(sub)
+    await db.commit()
+    return sub

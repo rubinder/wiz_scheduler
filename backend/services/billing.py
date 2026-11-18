@@ -1413,6 +1413,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         ReservationTable,
         TableCombination,
     )
+    from backend.reservations.subscription_models import (
+        AgentUsage,
+        ReservationSubscription,
+    )
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1444,7 +1448,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     agent_events/agent_conversations (#259) ref reservations, so
         #     they go first (events, then conversations).
         #     reservation_lookup_failures ref companies and locations.
-        for model in (AgentEvent, AgentConversation, ReservationLookupFailure,
+        #     agent_usage (#259 step 5) refs companies, locations and
+        #     conversations, so it goes first of all.
+        for model in (AgentUsage, AgentEvent, AgentConversation,
+                      ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):
             await db.execute(delete(model).where(model.company_id.in_(company_ids)))
@@ -1503,6 +1510,12 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     # cascade has already fired. Still defensive-delete by user_id to be
     # explicit — User rows are gone but the audit log might survive a
     # rare race where the user was deleted out-of-band.
+
+    # 25. reservation_subscriptions (#259 step 5): OG-level. Its FK cascades,
+    #     and agent_usage's too, but say so explicitly like the rows above.
+    await db.execute(delete(AgentUsage).where(AgentUsage.ownership_group_id == og.id))
+    await db.execute(delete(ReservationSubscription).where(
+        ReservationSubscription.ownership_group_id == og.id))
 
     # storage_snapshots + billing_charges cascade automatically.
 

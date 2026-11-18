@@ -78,6 +78,9 @@ class RulesSchema(BaseModel):
     staff_transfer_number: str | None = Field(
         default=None, pattern=r"^\+[1-9]\d{6,14}$"
     )
+    # Model cost (USD) the AI host may spend at this location per local day;
+    # once reached, new and ongoing chats are closed with a call-us reply.
+    daily_spend_cap_usd: float = Field(default=20.0, ge=1)
 
     @field_validator("durations")
     @classmethod

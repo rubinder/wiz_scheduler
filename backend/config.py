@@ -307,6 +307,13 @@ class Settings(BaseSettings):
     # right; anything further left is whatever the client sent.
     TRUSTED_PROXY_HOPS: int = 2
     RESERVATION_AGENT_MAX_TOKENS: int = 1024
+    # AI host subscription (#259 step 5): a licensed monthly price, the
+    # first RESERVATIONS_INCLUDED_USAGE_USD of billed usage per period free,
+    # and usage billed at model cost x RESERVATIONS_USAGE_MARKUP. Empty
+    # price id: the subscribe endpoints answer 503 not_configured.
+    RESERVATIONS_PRICE_ID: str = ""
+    RESERVATIONS_INCLUDED_USAGE_USD: float = 5.00
+    RESERVATIONS_USAGE_MARKUP: float = 1.5
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30
