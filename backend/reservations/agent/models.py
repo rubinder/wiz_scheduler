@@ -74,7 +74,8 @@ class AgentConversation(Base):
     verified_reservation_id: Mapped[str | None] = _reservation_fk()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
-    offered_starts: Mapped[list[str]] = mapped_column(
+    # [{"start_iso": ..., "party_size": ...}] offered by find_slots (tools.py).
+    offered_starts: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
     cost_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0"),

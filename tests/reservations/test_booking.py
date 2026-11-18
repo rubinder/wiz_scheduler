@@ -440,3 +440,29 @@ async def test_staff_booking_needs_no_phone_but_agents_do(db_session, seeded_flo
         await booking.confirm(db_session, COMPANY_ID, held.id, no_phone)
     with pytest.raises(ValueError):
         DinerContact(name="Ada", phone="555")
+
+
+async def test_hold_stores_the_diner_and_confirm_falls_back_to_it(db_session, seeded_floor):
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                             source=SOURCE_WEB_AGENT, diner=DINER)
+    assert (res.status, res.diner_name, res.diner_phone, res.diner_email) == (
+        HELD, "Ada", "+12125550100", "ada@example.com")
+    res = await booking.confirm(db_session, COMPANY_ID, res.id)
+    assert res.status == BOOKED and res.confirmation_code
+    assert (res.diner_name, res.diner_phone) == ("Ada", "+12125550100")
+
+
+async def test_confirm_diner_overrides_the_stored_one(db_session, seeded_floor):
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19),
+                             source=SOURCE_WEB_AGENT, diner=DINER)
+    other = DinerContact(name="Bea", phone="+12125550199")
+    res = await booking.confirm(db_session, COMPANY_ID, res.id, other)
+    assert (res.diner_name, res.diner_phone, res.diner_email) == (
+        "Bea", "+12125550199", None)
+
+
+async def test_confirm_without_any_phone_raises_phone_required(db_session, seeded_floor):
+    held = await _hold(db_session, 2, _at(19))
+    with pytest.raises(booking.PhoneRequired):
+        await booking.confirm(db_session, COMPANY_ID, held.id)
+    assert held.status == HELD and held.diner_name is None

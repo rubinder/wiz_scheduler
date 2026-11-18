@@ -303,11 +303,13 @@ async def hold(
     conversation_id: str | None = None,
     now: datetime | None = None,
     apply_cutoff: bool = True,
+    diner: DinerContact | None = None,
 ) -> Reservation:
     """Hold tables for one party at exactly `start`.
 
     Parties above `max_self_book_party` go to `pending_approval` unless staff
-    are booking them.
+    are booking them. `diner`, when given, is stored on the held row so a
+    later `confirm` can omit it.
     """
     now = _now(now)
     if not await begin_location_write(db, company_id, location_id, now):
@@ -329,6 +331,9 @@ async def hold(
         company_id=company_id, location_id=location_id, party_size=party_size,
         start_at=slot.start, end_at=slot.end, status=PENDING if pending else HELD,
         held_until=held_until, source=source, conversation_id=conversation_id,
+        diner_name=diner.name if diner else None,
+        diner_phone=diner.phone if diner else None,
+        diner_email=diner.email if diner else None,
         created_at=now, updated_at=now,
     )
     db.add(res)
@@ -339,19 +344,25 @@ async def hold(
 
 
 async def confirm(
-    db: AsyncSession, company_id: str, reservation_id: str, diner: DinerContact,
-    now: datetime | None = None,
+    db: AsyncSession, company_id: str, reservation_id: str,
+    diner: DinerContact | None = None, now: datetime | None = None,
 ) -> Reservation:
-    """A live hold becomes booked; a pending row gets the diner and a code."""
+    """A live hold becomes booked; a pending row gets the diner and a code.
+
+    Without `diner`, the contact stored by `hold(diner=...)` is kept.
+    """
     now = _now(now)
     res = await _load_for_write(db, company_id, reservation_id, now)
     if res.status == EXPIRED:
         raise HoldExpired()
     if res.status not in (HELD, PENDING):
         raise InvalidTransition()
-    if diner.phone is None and res.source != SOURCE_STAFF:
+    phone = diner.phone if diner is not None else res.diner_phone
+    if phone is None and res.source != SOURCE_STAFF:
         raise PhoneRequired()
-    res.diner_name, res.diner_phone, res.diner_email = diner.name, diner.phone, diner.email
+    if diner is not None:
+        res.diner_name, res.diner_phone, res.diner_email = (
+            diner.name, diner.phone, diner.email)
     res.updated_at = now
     if res.confirmation_code is None:
         await _assign_code(db, res)
