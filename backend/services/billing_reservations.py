@@ -667,15 +667,20 @@ async def _sweep_usage_periods(
     kept = [p for p in bad if _period_label(p) in billed]
     if kept:
         left = (await db.execute(
-            select(AgentUsage.period_start, func.count()).where(
+            select(AgentUsage.period_start, func.count(), func.max(AgentUsage.created_at)).where(
                 AgentUsage.ownership_group_id == og_id, AgentUsage.created_at >= since,
                 AgentUsage.period_start.in_(kept)).group_by(AgentUsage.period_start)
         )).all()
-        for stamp, n in left:
-            logger.warning("agent usage of og %s: %d row(s) stamped %s are off the "
-                           "subscription's periods (an anchor reset) but already billed "
-                           "under label %s; left with that stale label, never re-billed",
-                           og_id, n, stamp.isoformat(), _period_label(stamp))
+        # Nothing is stored about them: rows made since the previous period
+        # began are a fresh finding (a warning, the first runs after the
+        # anchor moved); older ones were reported before (info).
+        recent = period_start_for(start, end, start - timedelta(microseconds=1))
+        for stamp, n, newest in left:
+            logger.log(logging.WARNING if newest >= recent else logging.INFO,
+                       "agent usage of og %s: %d row(s) stamped %s are off the "
+                       "subscription's periods (an anchor reset) but already billed "
+                       "under label %s; left with that stale label, never re-billed",
+                       og_id, n, stamp.isoformat(), _period_label(stamp))
     movable = [p for p in bad if p not in kept]
     if not movable:
         return 0
@@ -904,14 +909,18 @@ async def reconcile_agent_overage(
 # Final period (Ruling V) -----------------------------------------------------
 #
 # A canceled subscription gets no further invoice, and Stripe may refuse an
-# item or invoice that names it. So the last period is billed on a
-# standalone one-off invoice that never names the subscription: one item
-# for the final amount (overage - what is settled - what is already on a
-# final invoice past its draft). Nothing billable is removed before its
-# replacement exists: the old subscription-attached items are deleted only
-# after the final item is created, and an earlier final draft for a smaller
-# amount is deleted just before its replacement (a changed amount gets a
-# new invoice, key agent-final-<sub>-<cents>).
+# item or invoice that names it. Its unbilled overage goes on a standalone
+# final invoice that never names the subscription:
+#   - the last period: overage - settled - what a final invoice past its
+#     draft already holds;
+#   - every other period with recorded pending items (a true-up made after
+#     the renewal invoice): those items' amounts, moved.
+# One item per period. The invoice is created with auto_advance False, its
+# items added, and only then finalized, so an empty draft never goes out.
+# Nothing is recorded, and no old item is touched, until it is finalized;
+# a failure deletes what this call made in Stripe and alerts the operator.
+# Then the old subscription-attached items are deleted and their charges
+# superseded (they cannot be invoiced any more either way).
 
 
 def _final_invoice_of(charge: Any) -> str | None:
@@ -924,18 +933,89 @@ def _supersede(charge: Any, why: str) -> None:
     charge.error_message = why[:1000]
 
 
+def _invoice_status(inv_id: str) -> str | None:
+    """A final invoice's status; None when Stripe no longer has it (a
+    deleted draft)."""
+    try:
+        return _field(_client().v1.invoices.retrieve(inv_id), "status")
+    except stripe.InvalidRequestError as e:
+        if getattr(e, "code", None) == "resource_missing":
+            return None
+        raise
+
+
+def _create_final_invoice(customer: str, sub_id: str, og_id: str, period: str, cents: int) -> str:
+    """A new draft final invoice (auto_advance False: finalized by the
+    caller once its items are on it). Key agent-final-<sub>-<cents>; a key
+    that replays an invoice that is no longer a draft (deleted after a
+    failed run, or an earlier final for the same total) is retried with
+    -r1, -r2, ..."""
+    params = {
+        "customer": customer,
+        "pending_invoice_items_behavior": "exclude",
+        "auto_advance": False,
+        "collection_method": "charge_automatically",
+        "description": f"Final AI host usage — {period}",
+        "metadata": {"product": PRODUCT, "og_id": og_id, "subscription": sub_id},
+    }
+    key = f"agent-final-{sub_id}-{cents}"
+    for attempt in range(_MAX_KEY_RETRIES + 1):
+        attempt_key = key if attempt == 0 else f"{key}-r{attempt}"
+        inv_id = _as_id(_client().v1.invoices.create(params, {"idempotency_key": attempt_key}))
+        if _invoice_status(inv_id) == "draft":
+            return inv_id
+        logger.warning("final invoice key %s replayed %s, no longer a draft; retrying",
+                       attempt_key, inv_id)
+    raise OverageError(f"every key for {key} replays an invoice that is not a draft")
+
+
+def _undo(created_items: list[str], invoice_id: str | None) -> list[str]:
+    """Best-effort removal of what a failed finalize made in Stripe."""
+    problems = []
+    for item_id in created_items:
+        try:
+            _delete_invoice_item(item_id, set())
+        except stripe.StripeError as e:
+            problems.append(f"item {item_id} not removed: {e}")
+    if invoice_id:
+        try:
+            _client().v1.invoices.delete(invoice_id)
+        except stripe.StripeError as e:
+            if getattr(e, "code", None) != "resource_missing":
+                problems.append(f"draft {invoice_id} not deleted: {e}")
+    return problems
+
+
+async def _retire_regular(charges: list, why: str) -> list[str]:
+    """Delete the subscription-attached items the final invoice replaced and
+    supersede their charges. A failed delete still supersedes (the item is
+    on an ended subscription and can never be invoiced) and is reported."""
+    errors = []
+    for charge in charges:
+        try:
+            _delete_invoice_item(charge.stripe_object_id, set())
+        except stripe.StripeError as e:
+            errors.append(f"item {charge.stripe_object_id} not deleted: {e}")
+            why = f"{why}; its Stripe item could not be deleted: {str(e)[:200]}"
+        _supersede(charge, why)
+    return errors
+
+
 async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> dict:
-    """The agent subscription ended (canceled): bill its last period on a
-    standalone final invoice. Under the group lock; commits; never raises:
-    a failure is logged, returned and sent to the operator. Replay safe: a
-    final draft already holding the amount is a no-op, and a paid or open
-    one counts as billed. `amount_usd` is what this call put on a final
-    invoice."""
+    """The agent subscription ended (canceled): bill what it never will
+    (see the notes above) on one standalone final invoice. Under the group
+    lock; commits; never raises: a failure is logged, returned and sent to
+    the operator. Replay safe: nothing left to add is a no-op. `amount_usd`
+    is what this call put on a final invoice."""
+    from collections import defaultdict
+
     from backend.services.operator_alerts import send_agent_final_invoice_alert
 
     summary: dict = {"og_id": og_id, "subscription": sub_id, "final_invoice": None,
                      "amount_usd": 0.0}
     period = None
+    created_items: list[str] = []
+    new_invoice: str | None = None
     await _lock_group(db, og_id)
     try:
         sub = _retrieve_subscription(sub_id)
@@ -952,88 +1032,102 @@ async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> d
         used, overage = await _overage_for(db, og_id, start)
         summary.update(period=period, usage_usd=float(used), overage_usd=float(overage))
 
-        settled = await _overage_charges(db, og_id, sub_id, period, ("succeeded", "failed"))
-        pending = await _overage_charges(db, og_id, sub_id, period, ("pending",))
+        pending = await _overage_charges(db, og_id, sub_id, None, ("pending",))
         regular = [c for c in pending if _final_invoice_of(c) is None]
-        drafts: list[tuple[Any, str]] = []
-        on_final = Decimal(0)
+        draft_id: str | None = None
+        on_draft: dict[str, Decimal] = defaultdict(Decimal)
+        draft_charges: list = []
+        billed_final = Decimal(0)
+        newly_failed = Decimal(0)
         for charge in pending:
             inv_id = _final_invoice_of(charge)
             if inv_id is None:
                 continue
-            status = _field(_client().v1.invoices.retrieve(inv_id), "status")
+            status = _invoice_status(inv_id)
             if status == "draft":
-                drafts.append((charge, inv_id))
+                if draft_id not in (None, inv_id):
+                    raise OverageError(f"two final drafts {draft_id} and {inv_id}")
+                draft_id = inv_id
+                draft_charges.append(charge)
+                on_draft[charge.period] += Decimal(charge.amount_usd)
+            elif status is None:
+                _supersede(charge, f"final draft {inv_id} no longer exists")
             elif status == "void":  # the voided webhook was missed
                 charge.status, charge.error_message = "failed", f"invoice {inv_id} voided"
-                settled.append(charge)
-            else:
-                on_final += Decimal(charge.amount_usd)
-        target = max(Decimal(0), overage - _total(settled) - on_final).quantize(_CENT)
-        cents = _cents(target)
-        if len(drafts) == 1 and _cents(drafts[0][0].amount_usd) == cents and not regular:
-            await db.commit()
-            return {**summary, "final_invoice": drafts[0][1], "action": "noop"}
-
-        deleted: set[str] = set()
-        deleted_invoices: set[str] = set()
-        new_invoice = None
-        if cents > 0 and not (len(drafts) == 1 and _cents(drafts[0][0].amount_usd) == cents):
-            # An earlier final draft for another amount goes first.
-            for charge, inv_id in drafts:
-                try:
-                    _client().v1.invoices.delete(inv_id)
-                except stripe.InvalidRequestError as e:
-                    if getattr(e, "code", None) != "resource_missing":
-                        raise
-                deleted_invoices.add(inv_id)
-                _delete_invoice_item(charge.stripe_object_id, deleted)
-                _supersede(charge, f"final draft {inv_id} replaced for a new amount")
-                await db.flush()
-            invoice = _client().v1.invoices.create({
-                "customer": customer,
-                "pending_invoice_items_behavior": "exclude",
-                "auto_advance": True,
-                "collection_method": "charge_automatically",
-                "description": f"Final AI host usage — {period}",
-                "metadata": {"product": PRODUCT, "og_id": og_id, "subscription": sub_id},
-            }, {"idempotency_key": f"agent-final-{sub_id}-{cents}"})
-            new_invoice = _as_id(invoice)
-            if new_invoice in deleted_invoices:
-                raise OverageError(f"final invoice key replayed deleted invoice {new_invoice}")
-            item_id = _create_invoice_item(og_id, customer, sub_id, period, cents,
-                                           f"agent-final-item-{sub_id}-{cents}", deleted,
-                                           invoice=new_invoice)
-            charge = _new_charge(og_id, sub_id, period, target, item_id)
-            charge.error_message = f"{FINAL_MARK}{new_invoice}"
-            db.add(charge)
-            await db.flush()
-            summary.update(final_invoice=new_invoice, amount_usd=float(target))
-        elif drafts:
-            summary["final_invoice"] = drafts[0][1]
-
-        # Only now: the subscription-attached items it replaces (never
-        # invoiced; the subscription has ended).
-        errors = []
+                if charge.period == period:
+                    newly_failed += Decimal(charge.amount_usd)
+            elif charge.period == period:
+                billed_final += Decimal(charge.amount_usd)
+        settled = _total(await _overage_charges(db, og_id, sub_id, period, ("succeeded", "failed")))
+        wanted: dict[str, Decimal] = {
+            period: max(Decimal(0), overage - settled - billed_final).quantize(_CENT)}
         for charge in regular:
-            try:
-                _delete_invoice_item(charge.stripe_object_id, deleted)
-            except stripe.StripeError as e:
-                errors.append(f"item {charge.stripe_object_id} not deleted: {e}")
-                continue
-            _supersede(charge, f"replaced by final invoice {new_invoice}" if new_invoice
-                       else "subscription ended; nothing left to bill")
+            if charge.period != period:
+                wanted[charge.period] = wanted.get(charge.period, Decimal(0)) + Decimal(charge.amount_usd)
+        for p, amount in on_draft.items():
+            if p != period:
+                wanted[p] = wanted.get(p, Decimal(0)) + amount
+        adds: list[tuple[str, Decimal]] = []
+        for p in sorted(wanted):
+            delta = (wanted[p] - on_draft.get(p, Decimal(0))).quantize(_CENT)
+            if delta > 0:
+                adds.append((p, delta))
+            elif delta < 0:
+                logger.warning("final AI host invoice og %s period %s: draft holds %s over %s "
+                               "owed; left as it is", og_id, p, on_draft[p], wanted[p])
+        total_wanted = sum(wanted.values(), Decimal(0))
+
+        errors: list[str] = []
+        if not adds:
+            if draft_id and total_wanted == 0:
+                _undo([], draft_id)
+                for charge in draft_charges:
+                    _supersede(charge, f"final draft {draft_id} deleted: nothing left to bill")
+                summary["action"] = "draft_deleted"
+            elif draft_id:  # a leftover draft holding the right amount
+                _client().v1.invoices.finalize_invoice(draft_id, {"auto_advance": True})
+                summary.update(action="finalized", final_invoice=draft_id)
+            else:
+                summary["action"] = "noop"
+            errors = await _retire_regular(regular, "subscription ended; on no further invoice")
+        else:
+            invoice_id = draft_id
+            if invoice_id is None:
+                total_cents = _cents(sum((d for _, d in adds), Decimal(0)))
+                invoice_id = new_invoice = _create_final_invoice(
+                    customer, sub_id, og_id, period, total_cents)
+            made = []
+            deleted: set[str] = set()
+            for p, delta in adds:
+                item_id = _create_invoice_item(
+                    og_id, customer, sub_id, p, _cents(delta),
+                    f"agent-final-item-{invoice_id}-{p}-{_cents(delta)}", deleted,
+                    invoice=invoice_id)
+                created_items.append(item_id)
+                made.append((p, delta, item_id))
+            _client().v1.invoices.finalize_invoice(invoice_id, {"auto_advance": True})
+            for p, delta, item_id in made:
+                charge = _new_charge(og_id, sub_id, p, delta, item_id)
+                charge.error_message = f"{FINAL_MARK}{invoice_id}"
+                db.add(charge)
+            errors = await _retire_regular(regular, f"replaced by final invoice {invoice_id}")
+            summary.update(final_invoice=invoice_id, action="invoiced",
+                           amount_usd=float(sum((d for _, d, _ in made), Decimal(0))))
         await db.flush()
         await db.commit()
         if errors:
             logger.warning("final AI host invoice og %s: %s", og_id, "; ".join(errors))
             summary["warnings"] = errors
+            send_agent_final_invoice_alert(og_id, sub_id, period, "; ".join(errors))
         return summary
     except (stripe.StripeError, AgentBillingError) as e:
         logger.warning("final AI host invoice for og %s (subscription %s) failed: %s", og_id, sub_id, e)
-        await db.commit()  # a draft already deleted stays recorded as superseded
-        send_agent_final_invoice_alert(og_id, sub_id, period, f"{type(e).__name__}: {str(e)[:300]}")
-        return {**summary, "error": f"{type(e).__name__}: {str(e)[:200]}"}
+        await db.rollback()  # nothing is recorded until the invoice is finalized
+        problems = _undo(created_items, new_invoice)
+        detail = "; ".join([f"{type(e).__name__}: {str(e)[:300]}"] + problems)
+        send_agent_final_invoice_alert(og_id, sub_id, period, detail)
+        return {**summary, "amount_usd": 0.0, "final_invoice": None,
+                "error": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
 # Invoice outcomes ------------------------------------------------------------
