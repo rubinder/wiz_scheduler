@@ -3,7 +3,9 @@ erase it on request. A diner is identified by phone (E.164).
 
 The diner's data is every reservation at the location with that
 `diner_phone` (all statuses) and every agent conversation linked to one of
-them (booked, held or verified) or started from that caller number, plus
+them (booked, held or verified, or named by the reservation's own
+`conversation_id`, which survives a declined, expired or replaced hold) or
+started from that caller number, plus
 the agent's booking-lookup failures for that phone. Erasing clears the
 reservations' contact fields (the rows stay for covers analytics), deletes
 the conversations (their events cascade) and the lookup failures.
@@ -16,6 +18,13 @@ recording.TURN_STALE_SECONDS) is not deleted under that turn, which would
 then fail writing its events: it is closed instead, so it takes no further
 turns, and counted in `conversations_closed_in_flight`. Running the erase
 again once the turn has ended deletes it.
+
+Lock order: a running turn locks its conversation row (record_event) and
+then, in a tool, waits for the location lock. The erase holds the location
+lock, so it must never wait on a conversation row: it locks the rows it
+deletes or closes with FOR UPDATE SKIP LOCKED, and a row a turn holds is
+left as it is and counted in `conversations_still_in_flight` (erase again
+later).
 """
 
 from dataclasses import dataclass
@@ -49,20 +58,24 @@ def _require_phone(phone: str) -> None:
         raise InvalidPhone("phone must be E.164, e.g. +12125550100")
 
 
-async def _reservation_ids(
+async def _reservations(
     db: AsyncSession, company_id: str, location_id: str, phone: str
-) -> list[str]:
-    return list((await db.execute(
-        select(Reservation.id).where(
+) -> tuple[list[str], list[str]]:
+    """The diner's reservation ids here, and the conversations they came from."""
+    rows = (await db.execute(
+        select(Reservation.id, Reservation.conversation_id).where(
             Reservation.company_id == company_id,
             Reservation.location_id == location_id,
             Reservation.diner_phone == phone,
         )
-    )).scalars().all())
+    )).all()
+    return ([r.id for r in rows],
+            sorted({r.conversation_id for r in rows if r.conversation_id}))
 
 
 def _conversation_filter(
-    company_id: str, location_id: str, phone: str, reservation_ids: list[str]
+    company_id: str, location_id: str, phone: str, reservation_ids: list[str],
+    conversation_ids: list[str],
 ):
     linked = [AgentConversation.caller_number == phone]
     if reservation_ids:
@@ -71,6 +84,8 @@ def _conversation_filter(
             AgentConversation.held_reservation_id.in_(reservation_ids),
             AgentConversation.verified_reservation_id.in_(reservation_ids),
         ]
+    if conversation_ids:
+        linked.append(AgentConversation.id.in_(conversation_ids))
     return (
         AgentConversation.company_id == company_id,
         AgentConversation.location_id == location_id,
@@ -92,7 +107,8 @@ async def find_diner_data(
     conversations = list((await db.execute(
         select(AgentConversation)
         .where(*_conversation_filter(
-            company_id, location_id, phone, [r.id for r in reservations]))
+            company_id, location_id, phone, [r.id for r in reservations],
+            sorted({r.conversation_id for r in reservations if r.conversation_id})))
         .order_by(AgentConversation.started_at, AgentConversation.id)
     )).scalars().all())
     events = await conversation_events(db, company_id, [c.id for c in conversations])
@@ -122,22 +138,44 @@ async def erase_diner_data(
                 db, company_id, location_id):
             raise booking.ReservationNotFound()
     # 2. Snapshot under the lock, before the reservations lose their phone.
-    reservation_ids = await _reservation_ids(db, company_id, location_id, phone)
-    matched = _conversation_filter(company_id, location_id, phone, reservation_ids)
-    # 3. Delete the idle conversations. The in-flight test is in the DELETE
-    #    itself, so a turn claimed while we wait on its row lock is re-checked
-    #    and skipped rather than deleted under it.
-    deleted = (await db.execute(
-        delete(AgentConversation).where(*matched, not_(_in_flight()))
-        .execution_options(synchronize_session=False)
-    )).rowcount
-    # 4. What is left of the match has a turn in flight: close it.
-    closed = (await db.execute(
-        update(AgentConversation).where(*matched)
-        .values(status="closed",
-                ended_at=func.coalesce(AgentConversation.ended_at, func.now()))
-        .execution_options(synchronize_session=False)
-    )).rowcount
+    reservation_ids, conversation_ids = await _reservations(
+        db, company_id, location_id, phone)
+    matched = _conversation_filter(company_id, location_id, phone, reservation_ids,
+                                   conversation_ids)
+    total = (await db.execute(
+        select(func.count()).select_from(AgentConversation).where(*matched)
+    )).scalar_one()
+    # 3. Delete the idle conversations. Rows are locked SKIP LOCKED (never
+    #    waited on, see the lock order above) and the in-flight test runs
+    #    once the lock is held, so a turn claimed meanwhile is skipped rather
+    #    than deleted under it.
+    idle = list((await db.execute(
+        select(AgentConversation.id).where(*matched, not_(_in_flight()))
+        .with_for_update(skip_locked=True)
+    )).scalars().all())
+    deleted = 0
+    if idle:
+        deleted = (await db.execute(
+            delete(AgentConversation).where(AgentConversation.company_id == company_id,
+                                            AgentConversation.id.in_(idle))
+            .execution_options(synchronize_session=False)
+        )).rowcount
+    # 4. What is left of the match has a turn in flight: close what is not
+    #    locked; a row a turn holds is skipped and counted as still in flight.
+    busy = list((await db.execute(
+        select(AgentConversation.id).where(*matched)
+        .with_for_update(skip_locked=True)
+    )).scalars().all())
+    closed = 0
+    if busy:
+        closed = (await db.execute(
+            update(AgentConversation)
+            .where(AgentConversation.company_id == company_id,
+                   AgentConversation.id.in_(busy))
+            .values(status="closed",
+                    ended_at=func.coalesce(AgentConversation.ended_at, func.now()))
+            .execution_options(synchronize_session=False)
+        )).rowcount
     # 5. Scrub the snapshot, all statuses.
     scrubbed = 0
     if reservation_ids:
@@ -161,5 +199,6 @@ async def erase_diner_data(
         "reservations_scrubbed": scrubbed,
         "conversations_deleted": deleted,
         "conversations_closed_in_flight": closed,
+        "conversations_still_in_flight": total - deleted - closed,
         "lookup_failures_deleted": lookups,
     }

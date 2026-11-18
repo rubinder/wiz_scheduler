@@ -94,8 +94,8 @@ async def diners(db_session: AsyncSession, seeded_floor, other_location):
 
 
 async def test_export_returns_only_that_diner_at_that_location(client, manager_token, diners):
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/diner-data",
-                         params={"phone": ADA}, headers=_auth(manager_token))
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                         json={"phone": ADA}, headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     body = r.json()
     assert sorted(x["id"] for x in body["reservations"]) == sorted(diners["ada"])
@@ -112,8 +112,8 @@ async def test_export_returns_only_that_diner_at_that_location(client, manager_t
 
 async def test_invalid_phone_is_422(client, manager_token, seeded_floor):
     h = _auth(manager_token)
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/diner-data",
-                         params={"phone": "555-0100"}, headers=h)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                         json={"phone": "555-0100"}, headers=h)
     assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_phone"
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
                           json={"phone": "nope"}, headers=h)
@@ -128,6 +128,7 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
     assert r.status_code == 200, r.text
     assert r.json() == {"reservations_scrubbed": 2, "conversations_deleted": 3,
                         "conversations_closed_in_flight": 0,
+                        "conversations_still_in_flight": 0,
                         "lookup_failures_deleted": 1}
 
     db_session.expire_all()
@@ -151,8 +152,8 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
         ReservationLookupFailure.location_id, ReservationLookupFailure.phone))).all()
     assert sorted(phones) == sorted([(LOCATION_ID, BOB), (OTHER_LOCATION_ID, ADA)])
 
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/diner-data",
-                         params={"phone": ADA}, headers=_auth(manager_token))
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                         json={"phone": ADA}, headers=_auth(manager_token))
     assert r.json() == {"reservations": [], "conversations": []}
 
 
@@ -169,8 +170,8 @@ async def test_other_company_is_404(client, manager_token, seeded_floor, db_sess
     await db_session.commit()
     theirs_id = theirs.id
     h = _auth(manager_token)
-    r = await client.get(f"{BASE}/locations/loc2xxxx/diner-data",
-                         params={"phone": ADA}, headers=h)
+    r = await client.post(f"{BASE}/locations/loc2xxxx/diner-data",
+                         json={"phone": ADA}, headers=h)
     assert r.status_code == 404
     r = await client.post(f"{BASE}/locations/loc2xxxx/diner-data/erase",
                           json={"phone": ADA}, headers=h)
@@ -183,24 +184,24 @@ async def test_restricted_manager_out_of_scope_is_404(
     client, regular_token, diners, db_session: AsyncSession
 ):
     h = _auth(regular_token)
-    r = await client.get(f"{BASE}/locations/{OTHER_LOCATION_ID}/diner-data",
-                         params={"phone": ADA}, headers=h)
+    r = await client.post(f"{BASE}/locations/{OTHER_LOCATION_ID}/diner-data",
+                         json={"phone": ADA}, headers=h)
     assert r.status_code == 404
     r = await client.post(f"{BASE}/locations/{OTHER_LOCATION_ID}/diner-data/erase",
                           json={"phone": ADA}, headers=h)
     assert r.status_code == 404
     db_session.expire_all()
     assert (await db_session.get(Reservation, diners["ada_elsewhere"])).diner_phone == ADA
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/diner-data",
-                         params={"phone": ADA}, headers=h)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                         json={"phone": ADA}, headers=h)
     assert r.status_code == 200 and len(r.json()["reservations"]) == 2
 
 
 async def test_routes_404_when_flag_off(client, manager_token, seeded_floor, monkeypatch):
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
     h = _auth(manager_token)
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/diner-data",
-                         params={"phone": ADA}, headers=h)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                         json={"phone": ADA}, headers=h)
     assert r.status_code == 404
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
                           json={"phone": ADA}, headers=h)
@@ -282,3 +283,54 @@ async def test_erase_at_archived_location_takes_the_lock(
                     other, COMPANY_ID, LOCATION_ID)
             await other.rollback()
         await eraser.commit()
+
+
+async def test_a_conversation_linked_only_by_its_reservation_is_found_and_erased(
+    client, manager_token, diners, db_session: AsyncSession
+):
+    """A hold that was declined, expired or replaced is no longer on the
+    conversation (held_reservation_id is cleared), but the reservation still
+    names the conversation it came from."""
+    conv = await _conv(db_session, text="Ada's declined request")
+    conv_id = conv.id
+    declined = _res(ADA, "Ada", "declined")
+    declined.conversation_id = conv_id
+    db_session.add(declined)
+    await db_session.commit()
+    h = _auth(manager_token)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data",
+                          json={"phone": ADA}, headers=h)
+    assert conv_id in {x["id"] for x in r.json()["conversations"]}
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
+                          json={"phone": ADA}, headers=h)
+    assert r.json()["conversations_deleted"] == 4
+    db_session.expire_all()
+    assert await db_session.get(AgentConversation, conv_id) is None
+
+
+async def test_erase_skips_a_conversation_a_running_turn_has_locked(
+    diners, db_session: AsyncSession
+):
+    """A running turn locks its conversation row (record_event) and may then
+    wait for the location lock the erase holds. The erase must skip that row
+    rather than wait on it, or the two deadlock."""
+    c = diners["convs"]
+    conv = await db_session.get(AgentConversation, c["caller"])
+    conv.turn_started_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    factory = get_test_session_factory()
+    async with factory() as turn:
+        await turn.execute(
+            select(AgentConversation).where(AgentConversation.id == c["caller"])
+            .with_for_update())
+        async with factory() as eraser:
+            await eraser.execute(text("SET LOCAL lock_timeout = '2s'"))
+            counts = await erase_diner_data(eraser, COMPANY_ID, LOCATION_ID, ADA)
+            await eraser.commit()
+        await turn.rollback()
+    assert counts["conversations_deleted"] == 2
+    assert counts["conversations_closed_in_flight"] == 0
+    assert counts["conversations_still_in_flight"] == 1
+    db_session.expire_all()
+    kept = await db_session.get(AgentConversation, c["caller"])
+    assert kept is not None and kept.status == "open"

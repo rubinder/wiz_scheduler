@@ -379,19 +379,20 @@ async def read_conversation(
 
 
 
-@gated.get("/locations/{location_id}/diner-data", response_model=DinerDataOut)
+@gated.post("/locations/{location_id}/diner-data", response_model=DinerDataOut)
 async def read_diner_data(
     location_id: str,
-    phone: str,
+    body: DinerPhoneIn,
     user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> DinerDataOut:
-    """One diner's reservations and conversations here, for an access request."""
+    """One diner's reservations and conversations here, for an access request.
+    POST so the phone number travels in the body, not the URL (access logs)."""
     await _location(db, scope, user, location_id, include_archived=True)
     async with _domain_errors(db):
         found = await diner_data.find_diner_data(
-            db, str(user.company_id), location_id, phone)
+            db, str(user.company_id), location_id, body.phone)
     labels = await table_labels(
         db, str(user.company_id), [r.id for r in found.reservations])
     return DinerDataOut(

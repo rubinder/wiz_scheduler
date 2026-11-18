@@ -172,6 +172,8 @@ class DinerEraseOut(BaseModel):
     conversations_deleted: int
     # Mid-turn conversations closed rather than deleted; erase again later.
     conversations_closed_in_flight: int
+    # Locked by a running turn: neither deleted nor closed; erase again later.
+    conversations_still_in_flight: int
     lookup_failures_deleted: int
 
 
