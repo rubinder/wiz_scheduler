@@ -39,6 +39,13 @@ call with the no-transfer line.
 
 No per-address limit (only the Lambda calls this); turns are limited per
 caller number (per contact for a withheld number) and per contact.
+
+Screening (#259 step 7): before answering, the Lambda asks `/voice/screen`
+whether to take the call (`reservations.screening.decide`). It has the same
+secret, flag and number mapping; it makes no model call, creates no
+conversation and is not rate limited by caller. Each decision is recorded
+as a ScreenedCall; an unknown dialled number is answered (the turn then
+closes politely) and records nothing, having no company.
 """
 
 import asyncio
@@ -56,14 +63,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import bind_rls_context, get_db
 from backend.models import Location
-from backend.reservations import voice_numbers
+from backend.reservations import screening, voice_numbers
 from backend.reservations.agent import gate, recording, voice
 from backend.reservations.agent.core import AgentCore, TurnInput
 from backend.reservations.agent.gate import get_agent_core
 from backend.reservations.agent.models import AgentConversation
 from backend.reservations import voice_transfers
 from backend.reservations.rules import get_rules
-from backend.schemas.voice import VoiceTurnIn, VoiceTurnOut
+from backend.schemas.voice import VoiceScreenIn, VoiceScreenOut, VoiceTurnIn, VoiceTurnOut
 from backend.services.archive import active
 from backend.services.rate_limit import source_key_for, voice_caller_limiter
 from backend.tenant import tenant_context
@@ -116,6 +123,29 @@ def _limited(body: VoiceTurnIn) -> bool:
             logger.info("voice_bridge.rate_limited key=%s", source_key_for(key))
             return True
     return False
+
+
+@router.post("/screen", response_model=VoiceScreenOut)
+async def voice_screen(
+    body: VoiceScreenIn,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    found = await voice_numbers.location_for_number(db, body.dialed)
+    if found is None:
+        return {"action": screening.ANSWER, "reason": "default"}
+    company_id, location_id = found
+    token = tenant_context.set([company_id])
+    try:
+        await bind_rls_context(db, [company_id])
+        decision, reason = await screening.screen(
+            db, company_id, location_id, body.caller, datetime.now(timezone.utc))
+        await db.commit()
+        return {"action": decision, "reason": reason}
+    finally:
+        try:
+            tenant_context.reset(token)
+        except ValueError:  # teardown ran in another context
+            tenant_context.set(None)
 
 
 @router.post("/turn", response_model=VoiceTurnOut)

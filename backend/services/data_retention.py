@@ -20,6 +20,7 @@ from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
 from backend.reservations.models import Reservation
+from backend.reservations.screening_models import ScreenedCall
 from backend.services.archive import DISCARDED, delete_past_check_ins
 from backend.services.billing import utc_month_start
 from backend.tenant import tenant_scope_disabled
@@ -242,6 +243,13 @@ async def run_data_retention(db: AsyncSession) -> dict:
                 AgentConversation.started_at < cutoff_reservations)
         )
         summary["old_agent_conversations_deleted"] = result.rowcount
+
+        # 7d'. Call screening decisions (#259 step 7) on the same window as
+        #      agent conversations and their events.
+        result = await db.execute(
+            delete(ScreenedCall).where(ScreenedCall.created_at < cutoff_reservations)
+        )
+        summary["old_screened_calls_deleted"] = result.rowcount
 
         # 7e. Diner contact on reservations that ended before the same window
         #     is cleared; the row stays for covers analytics. Every status,

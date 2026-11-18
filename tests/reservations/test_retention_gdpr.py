@@ -85,6 +85,28 @@ async def test_retention_purges_old_conversations_and_scrubs_old_diners(
 
 
 
+async def test_retention_purges_old_screened_calls(db_session: AsyncSession, seed_location):
+    from backend.config import settings
+    from backend.reservations.screening_models import ScreenedCall
+
+    now = datetime.now(timezone.utc)
+    window = timedelta(days=settings.RETENTION_RESERVATIONS_DAYS)
+    old = ScreenedCall(company_id=COMPANY_ID, location_id=LOCATION_ID, caller_key=None,
+                       decision="answer", reason="withheld",
+                       created_at=now - window - timedelta(days=1))
+    new = ScreenedCall(company_id=COMPANY_ID, location_id=LOCATION_ID, caller_key=None,
+                       decision="block", reason="ftc", created_at=now - timedelta(days=10))
+    db_session.add_all([old, new])
+    await db_session.commit()
+    old_id, new_id = old.id, new.id
+
+    summary = await run_data_retention(db_session)
+    assert summary["old_screened_calls_deleted"] == 1
+    db_session.expire_all()
+    assert await db_session.get(ScreenedCall, old_id) is None
+    assert await db_session.get(ScreenedCall, new_id) is not None
+
+
 async def test_gdpr_user_export_carries_no_diner_data(
     client, manager_token, seed_location, db_session: AsyncSession
 ):

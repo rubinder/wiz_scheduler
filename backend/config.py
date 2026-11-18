@@ -290,6 +290,11 @@ class Settings(BaseSettings):
     # contact) and per contact. Only the Lambda calls the bridge, so there is
     # no per-address limit; this bounds one caller's abuse.
     VOICE_CALLER_TURNS_PER_MINUTE: int = 30
+    # Call screening (#259 step 7): a caller is blocked as spam once the FTC
+    # complaint list has at least SPAM_MIN_REPORTS reports of the number over
+    # the last SPAM_WINDOW_DAYS report dates (reservations.screening).
+    SPAM_MIN_REPORTS: int = 3
+    SPAM_WINDOW_DAYS: int = 90
 
     # AI host agent (#259). Prices are USD per million tokens.
     RESERVATION_AGENT_MODEL: str = "claude-haiku-5-5"

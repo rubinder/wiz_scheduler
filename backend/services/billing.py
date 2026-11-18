@@ -1420,6 +1420,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         ReservationSubscription,
     )
     from backend.reservations.voice_number_models import VoiceNumber, VoiceTransferCount
+    from backend.reservations.screening_models import NumberRule, ScreenedCall
     from backend.reservations.voice_numbers import release_for_deleted_group
 
     company_ids = (await db.execute(
@@ -1458,8 +1459,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     Connect numbers are released first (best effort, never blocks
         #     the deletion), or AWS would keep billing a deleted group.
         #     voice_transfer_counts ref companies and locations.
+        #     number_rules and screened_calls (#259 step 7) ref companies
+        #     and locations.
         await release_for_deleted_group(db, og.id)
-        for model in (VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
+        for model in (NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
                       ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):
