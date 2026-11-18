@@ -71,7 +71,9 @@ data "aws_iam_policy_document" "secrets_access" {
     actions = [
       "secretsmanager:GetSecretValue",
     ]
-    resources = [
+    # Voice (voice.tf) adds its bridge secret only when voice_enabled, so
+    # with voice off this list, and the policy, are unchanged.
+    resources = concat([
       aws_secretsmanager_secret.database_url.arn,
       aws_secretsmanager_secret.secret_key.arn,
       aws_secretsmanager_secret.anthropic_api_key.arn,
@@ -80,7 +82,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.stripe_webhook_secret.arn,
       aws_secretsmanager_secret.demo_seed_password.arn,
       aws_secretsmanager_secret.checkin_qr_secret.arn,
-    ]
+    ], aws_secretsmanager_secret.voice_bridge[*].arn)
   }
 }
 
@@ -137,7 +139,7 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      secrets = [
+      secrets = concat([
         {
           name      = "DATABASE_URL"
           valueFrom = aws_secretsmanager_secret.database_url.arn
@@ -174,9 +176,17 @@ resource "aws_ecs_task_definition" "app" {
           name      = "CHECKIN_QR_SECRET"
           valueFrom = aws_secretsmanager_secret.checkin_qr_secret.arn
         },
-      ]
+        ], [
+        # Voice channel (voice.tf): only when voice_enabled, so with voice
+        # off the container definition, and so the task definition, is
+        # byte-identical and nothing redeploys.
+        for arn in aws_secretsmanager_secret.voice_bridge[*].arn : {
+          name      = "VOICE_BRIDGE_SECRET"
+          valueFrom = arn
+        }
+      ])
 
-      environment = [
+      environment = concat([
         {
           name  = "PORT"
           value = tostring(var.container_port)
@@ -259,7 +269,22 @@ resource "aws_ecs_task_definition" "app" {
           name  = "OPERATOR_ALERT_EMAIL"
           value = var.ops_alert_email
         },
-      ]
+        ], var.voice_enabled ? [
+        {
+          name  = "CONNECT_INSTANCE_ARN"
+          value = aws_connect_instance.voice[0].arn
+        },
+        {
+          # Empty until the second voice apply creates the contact flow
+          # (voice.tf header); the app claims no number without it.
+          name  = "CONNECT_CONTACT_FLOW_ID"
+          value = join("", aws_connect_contact_flow.voice[*].contact_flow_id)
+        },
+        {
+          name  = "VOICE_PROVISIONING_ENABLED"
+          value = var.voice_provisioning_enabled ? "true" : "false"
+        },
+      ] : [])
 
       logConfiguration = {
         logDriver = "awslogs"

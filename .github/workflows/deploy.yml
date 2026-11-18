@@ -50,6 +50,8 @@ jobs:
           filters: |
             terraform:
               - 'terraform/**'
+              # The voice bridge Lambda's code ships through terraform apply.
+              - 'infra/voice/**'
             # Anything that changes the image or the task definition it runs
             # under. terraform/** is here because an env-var change only
             # reaches the service through a new deploy (#139).
@@ -193,6 +195,16 @@ jobs:
           terraform_version: 1.14.8
           terraform_wrapper: true
 
+      # Voice bridge Lambda package (terraform/voice.tf). Read only when
+      # voice_enabled; built every time so flipping the flag needs no
+      # workflow change. Fixed mtimes keep the zip, and so the Lambda's
+      # source_code_hash, stable across runs.
+      - name: Package voice bridge Lambda
+        run: |
+          mkdir -p build
+          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py
+          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py)
+
       - name: Terraform init
         working-directory: terraform
         run: terraform init -input=false -no-color
@@ -215,6 +227,7 @@ jobs:
           # CloudWatch alarm notifications (#49) and the billing operator
           # alert (backend/services/operator_alerts.py) both go here.
           TF_VAR_ops_alert_email: "admin@suggestival.com"
+          TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -277,6 +290,16 @@ jobs:
         with:
           terraform_version: 1.14.8
 
+      # Voice bridge Lambda package (terraform/voice.tf). Read only when
+      # voice_enabled; built every time so flipping the flag needs no
+      # workflow change. Fixed mtimes keep the zip, and so the Lambda's
+      # source_code_hash, stable across runs.
+      - name: Package voice bridge Lambda
+        run: |
+          mkdir -p build
+          touch -t 198001010000 infra/voice/bridge/handler.py infra/voice/bridge/ssml.py
+          (cd infra/voice/bridge && zip -X -q "$GITHUB_WORKSPACE/build/voice_bridge.zip" handler.py ssml.py)
+
       - name: Terraform init
         working-directory: terraform
         run: terraform init -input=false -no-color
@@ -298,6 +321,7 @@ jobs:
           # CloudWatch alarm notifications (#49) and the billing operator
           # alert (backend/services/operator_alerts.py) both go here.
           TF_VAR_ops_alert_email: "admin@suggestival.com"
+          TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
