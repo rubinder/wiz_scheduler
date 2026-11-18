@@ -51,14 +51,21 @@ def items(fake):
     """Invoice items and invoices on the fake Stripe. Items: create (honours
     idempotency keys the way Stripe does: a replayed key returns the first
     item, even one deleted since), delete, list(pending). Invoices: create
-    (with `subscription` + include it attaches that subscription's pending
-    items). Override with items["hooks"][name]."""
+    (as a draft), retrieve, delete (drafts only). Both refuse
+    `subscription=` naming a canceled subscription. Override with
+    items["hooks"][name]."""
     state: dict = {"live": {}, "created": [], "deleted": [], "keys": {}, "hooks": {}, "n": 0,
                    "invoices": [], "inv_keys": {}}
+
+    def refuse_canceled(params):
+        sub = fake["subs"].get(params.get("subscription"))
+        if sub is not None and sub["status"] == "canceled":
+            raise stripe.InvalidRequestError("subscription is canceled", "subscription")
 
     def create(params, options=None):
         if "create" in state["hooks"]:
             return state["hooks"]["create"](params, options)
+        refuse_canceled(params)
         key = (options or {}).get("idempotency_key")
         if key in state["keys"]:
             return state["keys"][key]
@@ -86,21 +93,35 @@ def items(fake):
     def invoice_create(params, options=None):
         if "invoice_create" in state["hooks"]:
             return state["hooks"]["invoice_create"](params, options)
+        refuse_canceled(params)
         key = (options or {}).get("idempotency_key")
         if key in state["inv_keys"]:
             return state["inv_keys"][key]
-        inv = {"id": f"in_final_{len(state['invoices']) + 1}", **params}
+        inv = {"id": f"in_final_{len(state['invoices']) + 1}", "status": "draft", **params}
         state["invoices"].append({"params": params, "key": key})
         state["inv_keys"][key] = inv
-        if params.get("pending_invoice_items_behavior") == "include":
-            for item in state["live"].values():
-                if not item.get("invoice") and item.get("subscription") == params.get("subscription"):
-                    item["invoice"] = inv["id"]
+        state["by_id"][inv["id"]] = inv
         return inv
 
+    def invoice_delete(inv_id, params=None, options=None):
+        state["invoices_deleted"].append(inv_id)
+        assert state["by_id"][inv_id]["status"] == "draft", "only a draft can be deleted"
+        state["by_id"][inv_id]["status"] = "deleted"
+        return {"id": inv_id, "deleted": True}
+
+    base_retrieve = br._client().v1.invoices.retrieve
+
+    def invoice_retrieve(inv_id, params=None, options=None):
+        if inv_id in state["by_id"]:
+            return state["by_id"][inv_id]
+        return base_retrieve(inv_id, params, options)
+
+    state.update(by_id={}, invoices_deleted=[])
     v1 = br._client().v1
     v1.invoice_items = SimpleNamespace(create=create, delete=delete, list=item_list)
     v1.invoices.create = invoice_create
+    v1.invoices.delete = invoice_delete
+    v1.invoices.retrieve = invoice_retrieve
     return state
 
 
@@ -503,117 +524,6 @@ async def test_a_replayed_key_of_a_deleted_orphan_is_retried(og, db_session, fak
     assert charge.stripe_object_id == "ii_2"
 
 
-async def test_cancellation_bills_the_last_period_on_a_final_invoice(
-    client, og, db_session, monkeypatch, fake, items,
-):
-    await _add_row(db_session)
-    await _usage(db_session, "7.50")
-    await _reconcile(db_session, og)          # $2.50 pending on ii_1
-    await _usage(db_session, "1.00")          # the tail after the last run
-    fake["subs"][AGENT_SUB]["status"] = "canceled"
-    r = await _post(client, monkeypatch, "customer.subscription.deleted",
-                    _subscription(status="canceled"))
-    final = r.json()["reservation_agent"]["final"]
-    assert (final["final_invoice"], final["standalone"], final["amount_usd"]) == ("in_final_1", False, 3.5)
-    [inv] = items["invoices"]
-    assert inv["params"] == {
-        "customer": CUSTOMER, "subscription": AGENT_SUB, "pending_invoice_items_behavior": "include",
-        "auto_advance": True, "collection_method": "charge_automatically",
-        "description": f"Final AI host usage — {PERIOD}",
-        "metadata": {"product": "reservation_agent", "og_id": OG_ID, "subscription": AGENT_SUB}}
-    assert inv["key"] == f"agent-final-{AGENT_SUB}"
-    assert {i["invoice"] for i in items["live"].values()} == {"in_final_1"}
-    [charge] = await _charges(db_session)
-    assert (Decimal(charge.amount_usd), charge.status, charge.error_message) == (
-        Decimal("3.50"), "pending", "final invoice in_final_1")
-    assert (await _row(db_session)).status == "canceled"
-
-    # Replays (Stripe redelivers for days): no new item, no new invoice.
-    for _ in range(2):
-        r = await _post(client, monkeypatch, "customer.subscription.deleted",
-                        _subscription(status="canceled"))
-        assert r.json()["reservation_agent"]["final"]["final_invoice"] is None
-    assert len(items["invoices"]) == 1 and len(items["created"]) == 2
-    # The daily run does not look at it again either.
-    assert (await br.reconcile_all_agent_subscriptions(db_session))["synced"] == []
-
-
-async def test_no_final_invoice_without_overage(client, og, db_session, monkeypatch, fake, items):
-    await _add_row(db_session)
-    await _usage(db_session, "4.00")
-    fake["subs"][AGENT_SUB]["status"] = "canceled"
-    r = await _post(client, monkeypatch, "customer.subscription.deleted",
-                    _subscription(status="canceled"))
-    assert r.json()["reservation_agent"]["final"]["final_invoice"] is None
-    assert items["invoices"] == [] and items["created"] == []
-
-
-async def test_a_deleted_older_subscription_gets_no_final_invoice(
-    client, og, db_session, monkeypatch, fake, items,
-):
-    await _add_row(db_session)
-    await _usage(db_session, "9.00")
-    fake["subs"]["sub_old"] = _subscription("sub_old", "canceled")
-    r = await _post(client, monkeypatch, "customer.subscription.deleted",
-                    _subscription("sub_old", "canceled"))
-    assert "final" not in r.json()["reservation_agent"]
-    assert items["invoices"] == [] and items["created"] == []
-
-
-async def test_final_invoice_falls_back_to_a_standalone_invoice(
-    og, db_session, fake, items, monkeypatch,
-):
-    """If Stripe refuses `subscription` for the ended subscription, the
-    invoice is made without it and only this subscription's overage items
-    are put on it (re-created with invoice=, the originals deleted)."""
-    await _add_row(db_session)
-    await _usage(db_session, "7.50")
-    await _reconcile(db_session, og)
-    # A pending item of the scheduling subscription must not be swept in.
-    items["live"]["ii_s"] = {"id": "ii_s", "subscription": "sub_sched", "metadata": {}}
-    real = items["hooks"].pop("invoice_create", None)
-    assert real is None
-
-    def refuse_subscription(params, options=None):
-        if "subscription" in params:
-            raise stripe.InvalidRequestError("subscription is canceled", "subscription")
-        del items["hooks"]["invoice_create"]
-        return br._client().v1.invoices.create(params, options)
-    items["hooks"]["invoice_create"] = refuse_subscription
-    fake["subs"][AGENT_SUB]["status"] = "canceled"
-    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
-    assert (out["final_invoice"], out["standalone"], out["amount_usd"]) == ("in_final_1", True, 2.5)
-    [inv] = items["invoices"]
-    assert inv["params"]["pending_invoice_items_behavior"] == "exclude"
-    assert "subscription" not in inv["params"]
-    assert inv["key"] == f"agent-final-{AGENT_SUB}-standalone"
-    assert "ii_1" not in items["live"]
-    moved = items["live"]["ii_2"]
-    assert (moved["invoice"], moved["amount"], moved["metadata"]["subscription"]) == (
-        "in_final_1", 250, AGENT_SUB)
-    assert items["live"]["ii_s"].get("invoice") is None
-    [charge] = await _charges(db_session)
-    assert (charge.stripe_object_id, charge.error_message) == ("ii_2", "final invoice in_final_1")
-
-
-async def test_a_failed_final_invoice_alerts_and_never_raises(og, db_session, fake, items, monkeypatch):
-    sent = []
-    monkeypatch.setattr("backend.services.operator_alerts.send_agent_final_invoice_alert",
-                        lambda *a: sent.append(a) or True)
-    await _add_row(db_session)
-    await _usage(db_session, "7.50")
-    fake["subs"][AGENT_SUB]["status"] = "canceled"
-    items["hooks"]["invoice_create"] = _down
-    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
-    assert "APIConnectionError" in out["error"]
-    assert len(sent) == 1 and sent[0][:3] == (OG_ID, AGENT_SUB, PERIOD)
-    # The last period's item was still recorded; a retry invoices it.
-    [charge] = await _charges(db_session, "pending")
-    assert charge.error_message is None
-    del items["hooks"]["invoice_create"]
-    assert (await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB))["final_invoice"] == "in_final_1"
-
-
 @pytest.mark.parametrize("event_type,outcome", [("invoice.voided", "voided"),
                                                 ("invoice.marked_uncollectible", "marked uncollectible")])
 async def test_a_voided_or_uncollectible_invoice_fails_its_charges_and_alerts(
@@ -661,14 +571,152 @@ async def test_a_standalone_final_invoice_is_routed_by_its_metadata(
     assert r.json()["reservation_agent"]["overage_paid"] == 1
 
 
-async def test_the_final_invoice_drops_an_unrecorded_item(og, db_session, fake, items):
+# ---------------------------------------------------------------------------
+# Final invoice (Ruling V, restructured): standalone, replacement first
+# ---------------------------------------------------------------------------
+
+
+def _final_params(cents_desc_period: str = PERIOD) -> dict:
+    return {"customer": CUSTOMER, "pending_invoice_items_behavior": "exclude",
+            "auto_advance": True, "collection_method": "charge_automatically",
+            "description": f"Final AI host usage — {cents_desc_period}",
+            "metadata": {"product": "reservation_agent", "og_id": OG_ID,
+                         "subscription": AGENT_SUB}}
+
+
+async def _cancel_and_post(client, monkeypatch, fake) -> dict:
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    r = await _post(client, monkeypatch, "customer.subscription.deleted",
+                    _subscription(status="canceled"))
+    return r.json()["reservation_agent"]
+
+
+async def test_cancellation_bills_the_last_period_on_a_standalone_final_invoice(
+    client, og, db_session, monkeypatch, fake, items,
+):
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    await _reconcile(db_session, og)          # $2.50 pending on ii_1 (subscription-attached)
+    await _usage(db_session, "1.00")          # the tail after the last run
+    final = (await _cancel_and_post(client, monkeypatch, fake))["final"]
+    assert (final["final_invoice"], final["amount_usd"]) == ("in_final_1", 3.5)
+    [inv] = items["invoices"]
+    assert inv["params"] == _final_params()
+    assert inv["key"] == f"agent-final-{AGENT_SUB}-350"
+    made = items["created"][-1]
+    assert made["params"] == {
+        "customer": CUSTOMER, "amount": 350, "currency": "usd", "invoice": "in_final_1",
+        "description": "AI host usage over $5.00 — 2026-11-10",
+        "metadata": {"og_id": OG_ID, "period": PERIOD, "kind": KIND, "subscription": AGENT_SUB}}
+    assert made["key"] == f"agent-final-item-{AGENT_SUB}-350"
+    # The replacement exists, then the subscription-attached item went.
+    assert sorted(items["live"]) == ["ii_2"] and items["deleted"] == ["ii_1"]
+    by_item = {c.stripe_object_id: (c.status, Decimal(c.amount_usd), c.error_message)
+               for c in await _charges(db_session)}
+    assert by_item["ii_1"][0] == "superseded"
+    assert by_item["ii_2"] == ("pending", Decimal("3.50"), "final invoice in_final_1")
+
+    # Replays (Stripe redelivers for days): no new item, no new invoice.
+    for _ in range(2):
+        final = (await _cancel_and_post(client, monkeypatch, fake))["final"]
+        assert (final["action"], final["final_invoice"], final["amount_usd"]) == ("noop", "in_final_1", 0.0)
+    assert len(items["invoices"]) == 1 and len(items["created"]) == 2
+    assert (await br.reconcile_all_agent_subscriptions(db_session))["synced"] == []
+
+
+async def test_a_grown_amount_replaces_the_final_draft(og, db_session, fake, items):
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    await _usage(db_session, "0.50")  # a conversation that was still running
+    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    assert (out["final_invoice"], out["amount_usd"]) == ("in_final_2", 3.0)
+    assert items["invoices_deleted"] == ["in_final_1"]
+    assert [i["key"] for i in items["invoices"]] == [f"agent-final-{AGENT_SUB}-250",
+                                                     f"agent-final-{AGENT_SUB}-300"]
+    assert sorted(items["live"]) == ["ii_2"] and items["live"]["ii_2"]["invoice"] == "in_final_2"
+    pending = await _charges(db_session, "pending")
+    assert [(c.stripe_object_id, Decimal(c.amount_usd)) for c in pending] == [("ii_2", Decimal("3.00"))]
+    assert [c.stripe_object_id for c in await _charges(db_session, "superseded")] == ["ii_1"]
+
+
+async def test_an_open_final_invoice_counts_as_billed(og, db_session, fake, items):
+    await _add_row(db_session)
+    await _usage(db_session, "7.50")
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    items["by_id"]["in_final_1"]["status"] = "open"   # finalized, being collected
+    await _usage(db_session, "0.50")
+    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    assert (out["final_invoice"], out["amount_usd"]) == ("in_final_2", 0.5)
+    assert items["invoices_deleted"] == []
+    assert items["invoices"][-1]["key"] == f"agent-final-{AGENT_SUB}-50"
+    assert sum(Decimal(c.amount_usd) for c in await _charges(db_session, "pending")) == Decimal("3.00")
+
+
+@pytest.mark.parametrize("fail", ["invoice_create", "create"])
+async def test_a_failure_before_the_final_item_leaves_everything_and_alerts(
+    og, db_session, fake, items, monkeypatch, fail,
+):
+    sent = []
+    monkeypatch.setattr("backend.services.operator_alerts.send_agent_final_invoice_alert",
+                        lambda *a: sent.append(a) or True)
     await _add_row(db_session)
     await _usage(db_session, "7.50")
     await _reconcile(db_session, og)
-    items["live"]["ii_orphan"] = {"id": "ii_orphan", "subscription": AGENT_SUB, "amount": 999,
-                                  "metadata": {"kind": KIND, "period": "2026-10-10",
-                                               "subscription": AGENT_SUB}}
+    fake["subs"][AGENT_SUB]["status"] = "canceled"
+    items["hooks"][fail] = _down
+    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    assert "APIConnectionError" in out["error"] and out["amount_usd"] == 0.0
+    assert len(sent) == 1 and sent[0][:3] == (OG_ID, AGENT_SUB, PERIOD)
+    assert list(items["live"]) == ["ii_1"] and items["deleted"] == []
+    [charge] = await _charges(db_session)
+    assert (charge.stripe_object_id, charge.status, charge.error_message) == ("ii_1", "pending", None)
+    # A retry with Stripe back finishes it (same key: the same invoice).
+    del items["hooks"][fail]
+    out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
+    assert (out["final_invoice"], out["amount_usd"]) == ("in_final_1", 2.5)
+    assert len(items["invoices"]) == 1
+
+
+async def test_the_final_invoice_never_names_the_canceled_subscription(og, db_session, fake, items):
+    """The fake refuses subscription= for a canceled subscription, as
+    Stripe may; the final path never sends it."""
+    await _add_row(db_session)
+    await _usage(db_session, "9.00")
     fake["subs"][AGENT_SUB]["status"] = "canceled"
     out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
-    assert out["amount_usd"] == 2.5 and "ii_orphan" not in items["live"]
-    assert items["live"]["ii_1"]["invoice"] == "in_final_1"
+    assert out["amount_usd"] == 4.0 and "error" not in out
+    assert all("subscription" not in c["params"] for c in items["created"])
+    assert all("subscription" not in i["params"] for i in items["invoices"])
+
+
+async def test_no_final_invoice_without_overage(client, og, db_session, monkeypatch, fake, items):
+    await _add_row(db_session)
+    await _usage(db_session, "4.00")
+    final = (await _cancel_and_post(client, monkeypatch, fake))["final"]
+    assert (final["final_invoice"], final["amount_usd"]) == (None, 0.0)
+    assert items["invoices"] == [] and items["created"] == []
+
+
+async def test_a_deleted_older_subscription_gets_no_final_invoice(
+    client, og, db_session, monkeypatch, fake, items,
+):
+    await _add_row(db_session)
+    await _usage(db_session, "9.00")
+    fake["subs"]["sub_old"] = _subscription("sub_old", "canceled")
+    r = await _post(client, monkeypatch, "customer.subscription.deleted",
+                    _subscription("sub_old", "canceled"))
+    assert "final" not in r.json()["reservation_agent"]
+    assert items["invoices"] == [] and items["created"] == []
+
+
+async def test_superseded_charges_are_not_listed(client, manager_token, og, db_session):
+    db_session.add(_charge(PERIOD, "2.50", "ii_1", "superseded"))
+    db_session.add(_charge(PERIOD, "3.50", "ii_2", "pending"))
+    await db_session.commit()
+    r = await client.get("/api/v1/billing/charges",
+                         headers={"Authorization": f"Bearer {manager_token}"})
+    assert r.status_code == 200, r.text
+    assert [c["stripe_object_id"] for c in r.json()["charges"]] == ["ii_2"]

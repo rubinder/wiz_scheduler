@@ -342,6 +342,8 @@ async def get_billing_charges(
             # cancelled and refunded (#259): its amount is money returned, not
             # charged, and the page has no label for it yet. Hidden for now.
             BillingCharge.kind != "agent_duplicate_refund",
+            # An AI host usage item replaced by a final invoice: never billed.
+            BillingCharge.status != "superseded",
         )
         .order_by(BillingCharge.created_at.desc())
         .limit(clamp_limit(limit, default=50, max=200))

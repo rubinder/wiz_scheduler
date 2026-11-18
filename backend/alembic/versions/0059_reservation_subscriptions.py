@@ -9,7 +9,9 @@ conversation_id NULL. billing_charges.kind gains
 'agent_duplicate_refund' for a duplicate agent subscription cancelled and
 refunded by the webhook backstop, and a nullable stripe_subscription_id that
 names the agent subscription an overage charge belongs to (a cancel and a
-resubscribe on one day give two subscriptions the same period label).
+resubscribe on one day give two subscriptions the same period label), and
+status 'superseded' for an overage item replaced by the final invoice of an
+ended agent subscription (never billed; kept for the record).
 
 RLS: agent_usage has a company_id and gets 0058's policies;
 reservation_subscriptions is keyed by ownership group and follows 0052/0056
@@ -32,6 +34,9 @@ KINDS_OLD = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
 KINDS_NEW = ("kind IN ('autoreload', 'purchase', 'invoice_item_storage', "
              "'invoice_item_employees', 'invoice_item_reservation_agent', "
              "'agent_duplicate_refund')")
+
+CHARGE_STATUSES_OLD = "status IN ('succeeded', 'failed', 'pending')"
+CHARGE_STATUSES_NEW = "status IN ('succeeded', 'failed', 'pending', 'superseded')"
 
 STATUSES = ("incomplete", "incomplete_expired", "active", "trialing", "past_due",
             "canceled", "unpaid", "paused")
@@ -118,6 +123,9 @@ def upgrade() -> None:
     op.create_check_constraint("billing_charges_kind_check", "billing_charges", KINDS_NEW)
     op.add_column("billing_charges",
                   sa.Column("stripe_subscription_id", sa.String(), nullable=True))
+    op.drop_constraint("billing_charges_status_check", "billing_charges", type_="check")
+    op.create_check_constraint("billing_charges_status_check", "billing_charges",
+                               CHARGE_STATUSES_NEW)
 
 
 def _company_rls(T: str) -> None:
@@ -154,11 +162,14 @@ def downgrade() -> None:
     n = conn.execute(sa.text(
         "SELECT count(*) FROM billing_charges "
         "WHERE kind IN ('invoice_item_reservation_agent', "
-        "'agent_duplicate_refund')")).scalar()
+        "'agent_duplicate_refund') OR status = 'superseded'")).scalar()
     if n:
         raise RuntimeError(
             f"{n} billing_charges rows of the reservation agent kinds "
             "exist; downgrading 0059 would violate billing_charges_kind_check")
+    op.drop_constraint("billing_charges_status_check", "billing_charges", type_="check")
+    op.create_check_constraint("billing_charges_status_check", "billing_charges",
+                               CHARGE_STATUSES_OLD)
     op.drop_column("billing_charges", "stripe_subscription_id")
     op.drop_constraint("billing_charges_kind_check", "billing_charges", type_="check")
     op.create_check_constraint("billing_charges_kind_check", "billing_charges", KINDS_OLD)

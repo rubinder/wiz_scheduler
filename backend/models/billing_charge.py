@@ -34,7 +34,7 @@ class BillingCharge(Base):
             name="billing_charges_kind_check",
         ),
         CheckConstraint(
-            "status IN ('succeeded', 'failed', 'pending')",
+            "status IN ('succeeded', 'failed', 'pending', 'superseded')",
             name="billing_charges_status_check",
         ),
         Index(
