@@ -154,6 +154,19 @@ class AgentCore:
             logger.exception("agent turn failed (conversation %s)", conv_id)
             return await self._fail(db, conv_id, company_id, channel, now)
 
+    async def close_conversation(self, db: AsyncSession, conv: AgentConversation,
+                                 *, now: datetime) -> None:
+        """Close an open conversation outside a turn, as the turn cap does:
+        release a live hold and finish with the same outcome (`booked`, a
+        submitted pending request `handed_off`, otherwise `abandoned`).
+        Commits. A conversation that is already closed is left as it is."""
+        if conv.status != "open":
+            return
+        await self._release_hold(db, conv, now.astimezone(timezone.utc))
+        await recording.finish(db, conv, await self._outcome(db, conv, "abandoned"))
+        recording.end_turn(conv)
+        await db.commit()
+
     # -- failure -----------------------------------------------------------
 
     async def _fail(self, db: AsyncSession, conv_id: str, company_id: str,

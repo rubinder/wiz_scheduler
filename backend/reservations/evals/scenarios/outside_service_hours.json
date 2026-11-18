@@ -1,0 +1,125 @@
+{
+  "id": "outside_service_hours",
+  "title": "Asks for 11pm, accepts 9pm",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "T1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 2,
+        "combinable": true
+      },
+      {
+        "label": "T2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4,
+        "combinable": true
+      },
+      {
+        "label": "T3",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "T4",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "B1",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      },
+      {
+        "label": "B2",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      }
+    ],
+    "combinations": [
+      {
+        "name": "T1+T2",
+        "table_labels": [
+          "T1",
+          "T2"
+        ]
+      },
+      {
+        "name": "B1+B2",
+        "table_labels": [
+          "B1",
+          "B2"
+        ]
+      }
+    ]
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [],
+  "diner": {
+    "persona": "A night owl who wants a late dinner. Accepts the latest time the host can offer.",
+    "goal": "Book 2 on Thursday 3 December, ideally 11pm; accept 9pm if that is the latest available.",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550142",
+      "party_size": "2",
+      "date": "Thursday 3 December",
+      "time": "11pm, or 9pm if 11 is not possible"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "expect": {
+    "outcome": "booked",
+    "booking": {
+      "party_size": 2,
+      "local_date": "2026-12-03",
+      "local_time": "21:00"
+    },
+    "handoff": false,
+    "cancelled_code": null,
+    "max_turns": 10
+  }
+}

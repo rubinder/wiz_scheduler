@@ -53,6 +53,11 @@ def _violations() -> set[tuple[str, str, str]]:
             for m in mods:
                 if m.startswith(("backend.services", "backend.routers")):
                     found.add(("model-imports-service", rel, m.split(".")[1] + "." + (m.split(".")[2] if m.count(".") >= 2 else "")))
+        # The eval suite (#259) is a dev/CI tool: product code never imports it.
+        if not rel.startswith("backend/reservations/evals/"):
+            for m in mods:
+                if m == "backend.reservations.evals" or m.startswith("backend.reservations.evals."):
+                    found.add(("product-imports-evals", rel, "backend.reservations.evals"))
         in_billing = path.parent.name == "services" and path.name.startswith("billing")
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -92,8 +97,14 @@ def test_allowlist_entries_are_well_formed():
 def test_planted_violation_is_caught(tmp_path, monkeypatch):
     """Prove the sweep fails: plant one real violation shape for every rule."""
     backend = tmp_path / "backend"
-    for sub in ("routers", "models", "services"):
+    for sub in ("routers", "models", "services", "reservations/evals"):
         (backend / sub).mkdir(parents=True)
+    (backend / "reservations" / "agent.py").write_text(
+        "from backend.reservations.evals.checker import check\n")
+    (backend / "reservations" / "voice.py").write_text(
+        "from backend.reservations import evals\n")
+    (backend / "reservations" / "evals" / "run.py").write_text(
+        "from backend.reservations.evals.checker import check\n")
     (backend / "routers" / "a.py").write_text("from backend.routers.b import thing\n")
     (backend / "models" / "m.py").write_text("from backend.services.plan import assert_can_add\n")
     (backend / "services" / "x.py").write_text(
@@ -107,3 +118,8 @@ def test_planted_violation_is_caught(tmp_path, monkeypatch):
     assert ("model-imports-service", "backend/models/m.py", "services.plan") in v
     assert ("stripe-outside-billing", "backend/services/x.py", "Refund.create") in v
     assert ("archived-at-outside-archive", "backend/services/x.py", "archived_at =") in v
+    assert ("product-imports-evals", "backend/reservations/agent.py",
+            "backend.reservations.evals") in v
+    assert ("product-imports-evals", "backend/reservations/voice.py",
+            "backend.reservations.evals") in v
+    assert not any(f.startswith("backend/reservations/evals/") for _, f, _ in v)

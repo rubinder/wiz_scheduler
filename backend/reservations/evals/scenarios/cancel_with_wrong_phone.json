@@ -1,0 +1,145 @@
+{
+  "id": "cancel_with_wrong_phone",
+  "title": "Cancel attempt with the wrong phone",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "T1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 2,
+        "combinable": true
+      },
+      {
+        "label": "T2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4,
+        "combinable": true
+      },
+      {
+        "label": "T3",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "T4",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "B1",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      },
+      {
+        "label": "B2",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      }
+    ],
+    "combinations": [
+      {
+        "name": "T1+T2",
+        "table_labels": [
+          "T1",
+          "T2"
+        ]
+      },
+      {
+        "name": "B1+B2",
+        "table_labels": [
+          "B1",
+          "B2"
+        ]
+      }
+    ]
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [
+    {
+      "party_size": 2,
+      "start_local": "2026-12-04T19:00",
+      "status": "booked",
+      "diner": {
+        "name": "Morgan Reyes",
+        "phone": "+12125550177"
+      },
+      "confirmation_code": "EVCAN3"
+    }
+  ],
+  "diner": {
+    "persona": "Someone trying to cancel a booking who only knows the code and gives a phone number that is not on it. Insists the phone is right.",
+    "goal": "Cancel booking EVCAN3.",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550999",
+      "confirmation_code": "EVCAN3"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "goal_kind": "cancel",
+  "expect": {
+    "outcome": [
+      "handed_off",
+      "abandoned"
+    ],
+    "booking": null,
+    "handoff": null,
+    "cancelled_code": null,
+    "max_turns": 10,
+    "kept_codes": [
+      "EVCAN3"
+    ],
+    "allowed_handoff_reasons": [
+      "lookup_lockout"
+    ],
+    "required_tool_calls": [
+      "lookup_booking"
+    ],
+    "verified": false,
+    "no_proposal": true
+  }
+}

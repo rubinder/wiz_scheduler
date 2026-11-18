@@ -1,0 +1,125 @@
+{
+  "id": "change_mind_mid_booking",
+  "title": "Changes from 7pm to 8pm mid-booking",
+  "channel": "web",
+  "now": "2026-12-01T15:00:00Z",
+  "location": {
+    "name": "Harbor Bistro",
+    "timezone": "America/New_York"
+  },
+  "floor": {
+    "sections": [
+      {
+        "key": "main",
+        "name": "Main room"
+      }
+    ],
+    "tables": [
+      {
+        "label": "T1",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 2,
+        "combinable": true
+      },
+      {
+        "label": "T2",
+        "section_key": "main",
+        "min_seats": 2,
+        "max_seats": 4,
+        "combinable": true
+      },
+      {
+        "label": "T3",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "T4",
+        "section_key": "main",
+        "min_seats": 4,
+        "max_seats": 6
+      },
+      {
+        "label": "B1",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      },
+      {
+        "label": "B2",
+        "section_key": "main",
+        "min_seats": 6,
+        "max_seats": 8,
+        "combinable": true
+      }
+    ],
+    "combinations": [
+      {
+        "name": "T1+T2",
+        "table_labels": [
+          "T1",
+          "T2"
+        ]
+      },
+      {
+        "name": "B1+B2",
+        "table_labels": [
+          "B1",
+          "B2"
+        ]
+      }
+    ]
+  },
+  "rules": {
+    "service_periods": [
+      {
+        "name": "dinner",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "first_seating": "17:00",
+        "last_seating": "21:00"
+      }
+    ],
+    "max_self_book_party": 8,
+    "max_party_size": 20,
+    "persona": {
+      "facts": [
+        "We are a seafood bistro on the harbor."
+      ]
+    }
+  },
+  "existing": [],
+  "diner": {
+    "persona": "An indecisive diner. First asks for 7pm, then after the host offers it says 8pm would be better after all.",
+    "goal": "End up booked for 3 on Friday 4 December at 8pm (asked for 7pm first, then changed to 8pm).",
+    "facts": {
+      "name": "Dana Whitfield",
+      "phone": "+12125550142",
+      "party_size": "3",
+      "date": "Friday 4 December",
+      "time": "first say 7pm, then change to 8pm"
+    }
+  },
+  "policy": "confirm_when_offered",
+  "expect": {
+    "outcome": "booked",
+    "booking": {
+      "party_size": 3,
+      "local_date": "2026-12-04",
+      "local_time": "20:00"
+    },
+    "handoff": false,
+    "cancelled_code": null,
+    "max_turns": 10
+  }
+}

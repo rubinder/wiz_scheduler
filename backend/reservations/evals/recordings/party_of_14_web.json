@@ -1,0 +1,68 @@
+{
+  "diner_lines": [
+    "14 people Saturday 5 December at 6pm, Dana Whitfield +12125550142, team dinner."
+  ],
+  "responses": [
+    {
+      "content": [
+        {
+          "id": "tu_f",
+          "input": {
+            "date": "2026-12-05",
+            "earliest": "18:00",
+            "latest": "18:00",
+            "party_size": 14
+          },
+          "name": "find_slots",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "id": "tu_h",
+          "input": {
+            "name": "Dana Whitfield",
+            "party_size": 14,
+            "phone": "+12125550142",
+            "start_iso": "2026-12-05T18:00:00-05:00"
+          },
+          "name": "hold_slot",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "text": "I'm holding 18:00 for 14. Press Confirm to book it.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    }
+  ],
+  "scenario_id": "party_of_14_web",
+  "version": 1
+}

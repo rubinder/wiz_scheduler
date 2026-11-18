@@ -115,6 +115,23 @@ Decisions made while building without stopping to ask (owner instruction,
 34. **A turn never runs longer than 25 seconds** (under CloudFront's 30 s
     origin timeout); if it would, the diner is asked to send the message
     again and the chat stays open.
+35. **The evaluation suite measures the voice channel's text only.** Voice
+    audio runs through Lex (speech to text) and Polly (text to speech),
+    which arrive with the phone channel in step 8. Until then the voice
+    scenarios play the agent's voice prompt over text, and neither
+    per-stage voice latency (recognition, model, synthesis) nor first-try
+    understanding (how often the agent gets the caller's words right the
+    first time) is measured. Step 8 adds both. Cost if wrong: a voice
+    regression that lives in the audio path passes the suite.
+36. **Ruling R: no eval tables in any real database.** The eval run and
+    result models are metadata only (there is no migration); the runner
+    creates them with the application's tables in its throwaway scratch
+    schema, and writes every run (meta, per-attempt results, report) to
+    `evals-runs/<run-id>.json` at the repo root (gitignored) before the
+    schema is dropped. Comparing runs means comparing those files. The run
+    forces `RLS_ENFORCE` off for its duration (isolation is the schema, not
+    row-level security) and restores it after. Cost if wrong: run history
+    lives on one developer's disk, not in a shared table.
 
 ## Before switching reservations on (owner checklist)
 
