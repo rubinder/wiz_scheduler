@@ -1,10 +1,13 @@
 """The eval CLI: guards without network, and replay end to end."""
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 from sqlalchemy import text
 
+import backend.reservations.evals.models  # noqa: F401  (eval tables in public)
 from backend.config import settings
 from backend.reservations.evals import run
 from tests.conftest import _get_test_engine
@@ -51,11 +54,21 @@ async def test_remote_database_refused() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_replay_runs_end_to_end_and_drops_its_schema(capsys) -> None:
-    code = await run.amain([], database_url=_url())
+async def test_replay_runs_end_to_end_and_drops_its_schema(capsys, tmp_path: Path) -> None:
+    code = await run.amain([], database_url=_url(), runs_dir=tmp_path)
     out = capsys.readouterr().out
     assert code == 0, out
     assert "pass rate" in out and "book_four_friday_7pm" in out
+    # The run outlives its scratch schema as a file.
+    [saved] = list(tmp_path.glob("*.json"))
+    assert f"run saved to {saved}" in out
+    doc = json.loads(saved.read_text())
+    assert doc["id"] == saved.stem
+    assert doc["meta"]["mode"] == "replay"
+    assert doc["report"] in out
+    assert {r["scenario_id"] for r in doc["results"]} >= {"book_four_friday_7pm"}
+    assert all(r["passed"] for r in doc["results"])
+    assert doc["results"][0]["conversation_snapshot"]["transcript"]
     async with _get_test_engine().connect() as conn:
         left = (await conn.execute(text(
             "select count(*) from information_schema.schemata "
@@ -65,7 +78,7 @@ async def test_replay_runs_end_to_end_and_drops_its_schema(capsys) -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_replay_never_writes_to_public(capsys) -> None:
+async def test_replay_never_writes_to_public(capsys, tmp_path: Path) -> None:
     """The conftest database has the public tables; the run must not touch
     them (search_path includes public for the btree_gist operator classes)."""
     async def counts() -> tuple[int, int]:
@@ -76,8 +89,39 @@ async def test_replay_never_writes_to_public(capsys) -> None:
             return out[0], out[1]
 
     before = await counts()
-    assert await run.amain([], database_url=_url()) == 0, capsys.readouterr().out
+    assert await run.amain([], database_url=_url(), runs_dir=tmp_path) == 0, \
+        capsys.readouterr().out
     assert await counts() == before
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_rls_enforce_is_off_for_the_run_and_restored(
+        monkeypatch, capsys, tmp_path: Path) -> None:
+    """With RLS_ENFORCE on in settings a replay still runs as the owner in
+    its scratch schema: nothing lands in public, and the setting is back on
+    afterwards."""
+    monkeypatch.setattr(settings, "RLS_ENFORCE", True)
+    seen: list[bool] = []
+    real = run._scratch_run
+
+    async def spy(url: str, schema: str, body: Any) -> Any:
+        seen.append(settings.RLS_ENFORCE)
+        return await real(url, schema, body)
+
+    monkeypatch.setattr(run, "_scratch_run", spy)
+
+    async def counts() -> list[int]:
+        async with _get_test_engine().connect() as conn:
+            return [(await conn.execute(text(f"select count(*) from {t}"))).scalar_one()
+                    for t in ("eval_runs", "agent_conversations", "reservations")]
+
+    before = await counts()
+    code = await run.amain([], database_url=_url(), runs_dir=tmp_path)
+    assert code == 0, capsys.readouterr().out
+    assert seen == [False]
+    assert await counts() == before
+    assert settings.RLS_ENFORCE is True
 
 
 @pytest.mark.asyncio

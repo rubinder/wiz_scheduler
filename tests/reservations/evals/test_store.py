@@ -12,6 +12,7 @@ from backend.reservations.evals.store import (
     load_results,
     prompt_hashes,
     store_run,
+    write_run_file,
 )
 from tests.conftest import get_test_session_factory
 
@@ -111,3 +112,32 @@ def test_prompt_hashes_are_stable_and_per_channel() -> None:
     assert (web, voice) == prompt_hashes()
     assert web != voice
     assert len(web) == len(voice) == 64
+
+
+def test_write_run_file(tmp_path) -> None:
+    import json
+    from datetime import datetime, timezone
+
+    run = _run()
+    run.created_at = datetime(2026, 11, 18, 12, tzinfo=timezone.utc)
+    results = [_result("alpha", 1, True, turns=2, calls=4, cost=0.01, p50=100, p95=200)]
+    meta = RunMeta(git_sha="abc", agent_model="m-a", diner_model="m-d",
+                   prompt_hash_web="w", prompt_hash_voice="v", mode="live", notes="n")
+    path = write_run_file(run, results, meta, "the report", tmp_path / "evals-runs")
+    assert path == tmp_path / "evals-runs" / "run00001.json"
+    doc = json.loads(path.read_text())
+    assert doc["id"] == "run00001"
+    assert doc["created_at"] == "2026-11-18T12:00:00+00:00"
+    assert doc["meta"]["notes"] == "n" and doc["meta"]["mode"] == "live"
+    assert doc["results"][0]["scenario_id"] == "alpha"
+    assert doc["results"][0]["metrics"]["model_calls"] == 4
+    assert doc["report"] == "the report"
+
+
+def test_no_migration_creates_eval_tables() -> None:
+    """Decision 36 (Ruling R): eval tables are metadata only."""
+    from pathlib import Path
+
+    versions = Path(__file__).resolve().parents[3] / "backend" / "alembic" / "versions"
+    for f in versions.glob("*.py"):
+        assert "eval_runs" not in f.read_text(), f.name

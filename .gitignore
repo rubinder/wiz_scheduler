@@ -37,3 +37,6 @@ frontend/dist/
 # Playwright MCP output (console logs, snapshots, screenshots)
 .playwright-mcp/
 factory/baselines/*.lock
+
+# Eval run files (python -m backend.reservations.evals.run); local only.
+evals-runs/

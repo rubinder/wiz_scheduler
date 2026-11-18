@@ -1,5 +1,9 @@
-"""Stored eval runs (#259). Not tenant tables: no company_id, because eval
-data is synthetic and runs in isolated databases (migration 0059)."""
+"""Stored eval runs (#259). Metadata only (decision 36, Ruling R): there is
+no migration and no production table. The runner creates these tables with
+`create_all` in its scratch schema, alongside the application's, and drops
+them with it; every run is also written to `evals-runs/<run-id>.json` at the
+repo root before the schema goes. Not tenant tables: no company_id, because
+eval data is synthetic."""
 
 from datetime import datetime
 from typing import Any

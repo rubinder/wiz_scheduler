@@ -7,10 +7,13 @@ prompts.
 """
 
 import hashlib
+import json
 import os
 import statistics
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import select
@@ -23,6 +26,8 @@ from backend.reservations.rules import RulesSchema
 
 REFERENCE_LOCATION = "Reference Bistro"
 REFERENCE_TIMEZONE = "America/New_York"
+# Every run's file lands here (gitignored); the scratch schema is dropped.
+RUNS_DIR = Path(__file__).resolve().parents[3] / "evals-runs"
 
 
 @dataclass(frozen=True)
@@ -63,7 +68,7 @@ def git_sha() -> str:
 async def store_run(db: AsyncSession, suite: SuiteResult, meta: RunMeta) -> EvalRun:
     """Insert the run and one result per outcome (attempt numbered per
     scenario in run order). Flushes; the caller commits."""
-    run = EvalRun(git_sha=meta.git_sha, agent_model=meta.agent_model,
+    run = EvalRun(created_at=datetime.now(timezone.utc), git_sha=meta.git_sha, agent_model=meta.agent_model,
                   diner_model=meta.diner_model,
                   prompt_hash_web=meta.prompt_hash_web,
                   prompt_hash_voice=meta.prompt_hash_voice,
@@ -151,3 +156,25 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
 def run_summary(run: EvalRun, results: Sequence[EvalResult]) -> dict[str, Any]:
     return {"id": run.id, "passed": sum(1 for r in results if r.passed),
             "total": len(results)}
+
+
+def write_run_file(run: EvalRun, results: Sequence[EvalResult], meta: RunMeta,
+                   report: str, directory: Path = RUNS_DIR) -> Path:
+    """Write the run (meta, every result, the report text) to
+    `<directory>/<run-id>.json`. The scratch schema the run was stored in is
+    dropped afterwards, so this file is the run's only lasting record."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{run.id}.json"
+    doc = {
+        "id": run.id,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "meta": asdict(meta),
+        "results": [{"scenario_id": r.scenario_id, "attempt": r.attempt,
+                     "passed": r.passed, "failures": list(r.failures),
+                     "metrics": dict(r.metrics),
+                     "conversation_snapshot": dict(r.conversation_snapshot)}
+                    for r in results],
+        "report": report,
+    }
+    path.write_text(json.dumps(doc, indent=2, sort_keys=True, default=str) + "\n")
+    return path

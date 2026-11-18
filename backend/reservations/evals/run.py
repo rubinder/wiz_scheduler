@@ -10,8 +10,15 @@ prints a cost upper bound first and refuses above $1.00 without --yes.
 Every run happens in a scratch Postgres schema `evals_<utc timestamp>` of
 DATABASE_URL, created and dropped here; the public schema is never touched.
 The scratch run uses the owner role with no `app_role` / RLS binding (the
-isolation is the schema, not row-level security). A DATABASE_URL whose host
-is not local is refused unless --allow-remote-db is passed.
+isolation is the schema, not row-level security): `settings.RLS_ENFORCE` is
+forced off for the duration of `amain` and restored after, because with it
+on every session that names a company would `SET LOCAL ROLE app_role`, which
+has no grants on the scratch tables. A DATABASE_URL whose host is not local
+is refused unless --allow-remote-db is passed.
+
+Each run (meta, results, report) is written to `evals-runs/<run-id>.json` at
+the repo root before the scratch schema is dropped (decision 36): there are
+no eval tables in any real database.
 
 Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key,
 3 cost guard refused, 4 remote database refused.
@@ -23,6 +30,7 @@ import logging
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
@@ -170,8 +178,21 @@ async def _scratch_run(database_url: str, schema: str, body: Any) -> Any:
 
 
 async def amain(argv: list[str] | None = None, *, database_url: str | None = None,
-                diner_client: Any = None, llm: Any = None) -> int:
-    """`database_url`, `diner_client` and `llm` are test seams."""
+                diner_client: Any = None, llm: Any = None,
+                runs_dir: Path | None = None) -> int:
+    """`database_url`, `diner_client`, `llm` and `runs_dir` are test seams.
+    RLS_ENFORCE is off while it runs (see the module docstring)."""
+    saved = settings.RLS_ENFORCE
+    settings.RLS_ENFORCE = False
+    try:
+        return await _amain(argv, database_url=database_url,
+                            diner_client=diner_client, llm=llm, runs_dir=runs_dir)
+    finally:
+        settings.RLS_ENFORCE = saved
+
+
+async def _amain(argv: list[str] | None, *, database_url: str | None,
+                 diner_client: Any, llm: Any, runs_dir: Path | None) -> int:
     from backend.reservations.evals import replay, store
     from backend.reservations.evals.runner import SuiteResult, run_suite
     from backend.reservations.evals.scenarios_io import load_scenarios
@@ -222,7 +243,7 @@ async def amain(argv: list[str] | None = None, *, database_url: str | None = Non
         diner_model=DINER_MODEL, prompt_hash_web=web, prompt_hash_voice=voice,
         mode="live" if args.live else "replay", repeat=args.repeat, notes=args.notes)
 
-    async def body(factory: Any) -> tuple[str, bool]:
+    async def body(factory: Any) -> tuple[str, bool, Path]:
         from backend.reservations.agent.core import AgentCore
         from backend.reservations.evals.checker import CheckResult
         from backend.reservations.evals.diner import DinerSim
@@ -271,15 +292,20 @@ async def amain(argv: list[str] | None = None, *, database_url: str | None = Non
         async with factory() as db:
             run = await store.store_run(db, suite, meta)
             await db.commit()
-            report = store.format_report(run, await store.load_results(db, run.id))
+            results = await store.load_results(db, run.id)
+            report = store.format_report(run, results)
+            # Before the scratch schema (and the run with it) is dropped.
+            saved_to = store.write_run_file(run, results, meta, report,
+                                            runs_dir or store.RUNS_DIR)
         for o, responses in recorded:
             if o.check.passed:
                 replay.save_recording(replay.record_transcript(o, responses))
         ok = bool(outcomes) and all(o.check.passed for o in outcomes) and not interrupted
-        return report, ok
+        return report, ok, saved_to
 
-    report, ok = await _scratch_run(url, scratch_schema_name(), body)
+    report, ok, saved_to = await _scratch_run(url, scratch_schema_name(), body)
     print(report)
+    print(f"run saved to {saved_to}")
     return 0 if ok else 1
 
 
