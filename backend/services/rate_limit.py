@@ -148,3 +148,11 @@ payroll_archive_retrieve_limiter = SlidingWindowLimiter(
     max_requests=settings.PAYROLL_ARCHIVE_RETRIEVE_RATE_LIMIT_PER_HOUR,
     window_seconds=3600,
 )
+
+# Per-IP cap on the unauthenticated AI host agent (#259): conversation
+# starts and turns share it. Each turn may cost model calls, so it is
+# checked before any lookup or model call.
+reservation_agent_ip_limiter = SlidingWindowLimiter(
+    max_requests=settings.RESERVATION_AGENT_IP_TURNS_PER_HOUR,
+    window_seconds=3600,
+)
