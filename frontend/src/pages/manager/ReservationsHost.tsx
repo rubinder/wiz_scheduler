@@ -16,7 +16,7 @@ import {
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { FloorOut, ReservationOut, SettableStatus, SlotOut } from "../../types/reservations";
-import { CANVAS, errorKey, formatLocalTime, groupBySeating, localDateString, tableStates } from "../../utils/reservations";
+import { CANVAS, errorCode, formatLocalTime, groupBySeating, localDateString, tableStates } from "../../utils/reservations";
 import type { TableState } from "../../utils/reservations";
 import { border, text } from "../../theme";
 
@@ -78,6 +78,8 @@ export default function ReservationsHost() {
   const [locationsFailed, setLocationsFailed] = useState(false);
   const [locationId, setLocationId] = useState("");
   const [date, setDate] = useState("");
+  /** The location `date` was defaulted for; the list waits until it matches, so a switch fetches once. */
+  const [dateFor, setDateFor] = useState("");
   const [floor, setFloor] = useState<FloorOut | null>(null);
   const [floorError, setFloorError] = useState("");
   const [list, setList] = useState<ReservationOut[] | null>(null);
@@ -118,8 +120,8 @@ export default function ReservationsHost() {
   const tz = location?.timezone ?? "UTC";
 
   const errorText = (detail: unknown): string => {
-    const key = errorKey(detail).split(".")[2];
-    return (r.errors as Record<string, string>)[key] ?? r.errors.generic;
+    const code = errorCode(detail);
+    return (code && (r.errors as Record<string, string>)[code]) || r.errors.generic;
   };
   /** Translated message, plus the server's own message when it adds something. */
   const fullError = (e: unknown): string => {
@@ -157,6 +159,7 @@ export default function ReservationsHost() {
     setActionError("");
     if (!location) return;
     setDate(localDateString(new Date(), location.timezone));
+    setDateFor(location.id);
     let cancelled = false;
     setFloor(null);
     setFloorError("");
@@ -195,12 +198,12 @@ export default function ReservationsHost() {
     listSeq.current += 1;
     setList(null);
     setListError("");
-    if (!locationId || !date) return;
+    if (!locationId || !date || dateFor !== locationId) return;
     void loadList();
     const timer = window.setInterval(() => void loadList(), REFRESH_MS);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId, date]);
+  }, [locationId, date, dateFor]);
 
   const groups = useMemo(() => groupBySeating(list ?? [], tz), [list, tz]);
   const pending = useMemo(
@@ -210,8 +213,13 @@ export default function ReservationsHost() {
         .sort((a, b) => Date.parse(a.start) - Date.parse(b.start)),
     [list],
   );
+  // Live state is only meaningful for today in the restaurant's zone.
+  const isToday = location !== null && date === localDateString(now, location.timezone);
   // Display only: the server decides what is bookable.
-  const states = useMemo(() => tableStates(floor?.tables ?? [], list ?? [], now), [floor, list, now]);
+  const states = useMemo(
+    () => (isToday ? tableStates(floor?.tables ?? [], list ?? [], now) : {}),
+    [isToday, floor, list, now],
+  );
 
   if (enabled === null) return <p className={text.muted}>{r.common.loading}</p>;
   if (!enabled) return <div className="glass-card p-6">{r.common.notEnabled}</div>;
@@ -599,7 +607,12 @@ export default function ReservationsHost() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <section className="glass-card space-y-2 p-3">
             <h2 className={`text-lg font-semibold ${text.heading}`}>{h.floorHeading}</h2>
-            {floorError && <div className="glass-alert-error">{floorError}</div>}
+            {floorError && (
+              <div className="glass-alert-error" role="alert">
+                {floorError}
+              </div>
+            )}
+            {!isToday && <p className={`text-sm ${text.muted}`}>{h.todayOnly}</p>}
             {!floor && !floorError && <p className={text.muted}>{r.common.loading}</p>}
             {floor && (
               <>
@@ -649,20 +662,26 @@ export default function ReservationsHost() {
                   })}
                 </svg>
                 {floor.tables.length === 0 && <p className={`text-sm ${text.muted}`}>{h.noTables}</p>}
-                <ul className="flex flex-wrap gap-4 text-xs" aria-label={h.legend}>
-                  {(["free", "upcoming", "seated"] as const).map((s) => (
-                    <li key={s} className="flex items-center gap-1">
-                      <span className={`inline-block h-3 w-3 rounded-sm border ${LEGEND_CLASS[s]}`} aria-hidden />
-                      {h.state[s]}
-                    </li>
-                  ))}
-                </ul>
+                {isToday && (
+                  <ul className="flex flex-wrap gap-4 text-xs" aria-label={h.legend}>
+                    {(["free", "upcoming", "seated"] as const).map((s) => (
+                      <li key={s} className="flex items-center gap-1">
+                        <span className={`inline-block h-3 w-3 rounded-sm border ${LEGEND_CLASS[s]}`} aria-hidden />
+                        {h.state[s]}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </>
             )}
           </section>
 
           <div className="space-y-4">
-            {listError && <div className="glass-alert-error">{listError}</div>}
+            {listError && (
+              <div className="glass-alert-error" role="alert">
+                {listError}
+              </div>
+            )}
             {!list && !listError && <p className={text.muted}>{r.common.loading}</p>}
 
             {pending.length > 0 && (

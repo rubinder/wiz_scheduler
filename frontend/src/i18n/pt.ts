@@ -1617,6 +1617,7 @@ const pt = {
       seating: "Acomodando...",
       walkInSeated: "Acomodado em {labels}.",
       noTableFree: "Nenhuma mesa está livre agora.",
+      todayOnly: "O estado das mesas em tempo real só aparece para hoje.",
     },
   },
 } as const;

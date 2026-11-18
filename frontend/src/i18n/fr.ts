@@ -1617,6 +1617,7 @@ const fr = {
       seating: "Installation...",
       walkInSeated: "Installé à {labels}.",
       noTableFree: "Aucune table n'est libre pour le moment.",
+      todayOnly: "L'état des tables en direct n'est affiché que pour aujourd'hui.",
     },
   },
 } as const;

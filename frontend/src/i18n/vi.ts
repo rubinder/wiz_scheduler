@@ -1617,6 +1617,7 @@ const vi = {
       seating: "Đang xếp bàn...",
       walkInSeated: "Đã xếp vào {labels}.",
       noTableFree: "Hiện không còn bàn trống.",
+      todayOnly: "Trạng thái bàn trực tiếp chỉ hiển thị cho hôm nay.",
     },
   },
 } as const;

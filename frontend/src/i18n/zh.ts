@@ -1617,6 +1617,7 @@ const zh = {
       seating: "正在安排入座...",
       walkInSeated: "已安排在 {labels}。",
       noTableFree: "目前没有空闲的餐桌。",
+      todayOnly: "实时餐桌状态仅显示今天的。",
     },
   },
 } as const;

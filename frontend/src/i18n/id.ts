@@ -1617,6 +1617,7 @@ const ind = {
       seating: "Mendudukkan...",
       walkInSeated: "Didudukkan di {labels}.",
       noTableFree: "Saat ini tidak ada meja kosong.",
+      todayOnly: "Status meja langsung hanya ditampilkan untuk hari ini.",
     },
   },
 } as const;

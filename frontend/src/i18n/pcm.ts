@@ -1617,6 +1617,7 @@ const pcm = {
       seating: "E dey sit dem...",
       walkInSeated: "Dem don sit for {labels}.",
       noTableFree: "No table free right now.",
+      todayOnly: "Na only today we dey show how di tables be live.",
     },
   },
 } as const;

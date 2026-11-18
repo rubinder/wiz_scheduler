@@ -1617,6 +1617,7 @@ const es = {
       seating: "Sentando...",
       walkInSeated: "Sentado en {labels}.",
       noTableFree: "Ahora mismo no hay ninguna mesa libre.",
+      todayOnly: "El estado de las mesas en vivo solo se muestra para hoy.",
     },
   },
 } as const;

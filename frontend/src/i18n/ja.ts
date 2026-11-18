@@ -1617,6 +1617,7 @@ const ja = {
       seating: "案内中...",
       walkInSeated: "{labels} に案内しました。",
       noTableFree: "現在、空いているテーブルはありません。",
+      todayOnly: "テーブルのリアルタイムの状態は今日の分のみ表示されます。",
     },
   },
 } as const;

@@ -53,11 +53,17 @@ const KNOWN_ERRORS = new Set([
 
 /** Maps an ApiError.data detail ({code, message}) to an i18n key. */
 export function errorKey(detail: unknown): string {
+  const code = errorCode(detail);
+  return code ? `reservations.errors.${code}` : "reservations.errors.generic";
+}
+
+/** The known error code in an ApiError.data detail ({code, message}), or null. */
+export function errorCode(detail: unknown): string | null {
   const code =
-    detail && typeof detail === "object" ? (detail as { code?: unknown }).code : undefined;
-  return typeof code === "string" && KNOWN_ERRORS.has(code)
-    ? `reservations.errors.${code}`
-    : "reservations.errors.generic";
+    detail && typeof detail === "object" && !Array.isArray(detail)
+      ? (detail as { code?: unknown }).code
+      : undefined;
+  return typeof code === "string" && KNOWN_ERRORS.has(code) ? code : null;
 }
 
 /** The rules editor's state: every number is the raw input string, so blank is representable. */

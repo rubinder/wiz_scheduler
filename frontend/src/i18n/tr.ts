@@ -1617,6 +1617,7 @@ const trLang = {
       seating: "Oturtuluyor...",
       walkInSeated: "{labels} masasına oturtuldu.",
       noTableFree: "Şu anda boş masa yok.",
+      todayOnly: "Canlı masa durumu yalnızca bugün için gösterilir.",
     },
   },
 } as const;

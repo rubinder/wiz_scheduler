@@ -4,6 +4,7 @@ import {
   CANVAS,
   clampTable,
   editorToFloorIn,
+  errorCode,
   errorKey,
   firstFreeSpot,
   floorToEditor,
@@ -34,6 +35,16 @@ describe("reservations helpers", () => {
     expect(errorKey("boom")).toBe("reservations.errors.generic");
     expect(errorKey({ code: "nope" })).toBe("reservations.errors.generic");
     expect(errorKey(null)).toBe("reservations.errors.generic");
+  });
+
+  it("extracts a known error code, else null", () => {
+    expect(errorCode({ code: "slot_unavailable", message: "x" })).toBe("slot_unavailable");
+    expect(errorCode({ code: "invalid_phone" })).toBe("invalid_phone");
+    expect(errorCode({ code: "nope" })).toBeNull();
+    expect(errorCode({ code: 3 })).toBeNull();
+    expect(errorCode([{ loc: ["body"], msg: "bad" }])).toBeNull();
+    expect(errorCode("boom")).toBeNull();
+    expect(errorCode(null)).toBeNull();
   });
 });
 

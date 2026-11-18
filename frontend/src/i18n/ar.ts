@@ -1617,6 +1617,7 @@ const ar = {
       seating: "جارٍ الإجلاس...",
       walkInSeated: "تم الإجلاس على {labels}.",
       noTableFree: "لا توجد طاولة متاحة الآن.",
+      todayOnly: "تظهر حالة الطاولات المباشرة لليوم فقط.",
     },
   },
 } as const;

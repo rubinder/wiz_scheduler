@@ -1617,6 +1617,7 @@ const ur = {
       seating: "بٹھا رہے ہیں...",
       walkInSeated: "{labels} پر بٹھا دیا گیا۔",
       noTableFree: "ابھی کوئی میز خالی نہیں۔",
+      todayOnly: "میزوں کی براہِ راست حالت صرف آج کے لیے دکھائی جاتی ہے۔",
     },
   },
 } as const;

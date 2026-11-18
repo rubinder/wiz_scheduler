@@ -1617,6 +1617,7 @@ const mr = {
       seating: "बसवत आहोत...",
       walkInSeated: "{labels} येथे बसवले.",
       noTableFree: "सध्या कोणतेही टेबल रिकामे नाही.",
+      todayOnly: "टेबलची थेट स्थिती फक्त आजसाठी दाखवली जाते.",
     },
   },
 } as const;

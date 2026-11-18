@@ -1625,6 +1625,7 @@ const en = {
       seating: "Seating...",
       walkInSeated: "Seated at {labels}.",
       noTableFree: "No table is free right now.",
+      todayOnly: "Live table status is shown for today only.",
     },
   },
 } as const;

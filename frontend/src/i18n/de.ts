@@ -1617,6 +1617,7 @@ const de = {
       seating: "Wird platziert...",
       walkInSeated: "Platziert an {labels}.",
       noTableFree: "Gerade ist kein Tisch frei.",
+      todayOnly: "Der aktuelle Tischstatus wird nur für heute angezeigt.",
     },
   },
 } as const;
