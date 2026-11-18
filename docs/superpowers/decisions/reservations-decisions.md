@@ -194,6 +194,46 @@ Decisions made while building without stopping to ask (owner instruction,
     numbers. Cost if wrong: if forgotten, overage is not re-synced and
     numbers are claimed only at checkout.
 
+46. **Screening precedence: allow beats block, location beats company,
+    then FTC, then answer.** Withheld (no caller ID) callers are always
+    answered. Why: a manager's explicit allow must never be silently
+    overridden, and a caller we cannot identify cannot be judged. Cost if
+    wrong: a withheld spammer reaches the agent and is billed as usage.
+47. **Screening fails open.** The backend has 1 s to decide, the Lambda 3 s;
+    any error, timeout or cold start answers the call. Why: a missed
+    real booking costs more than one spam call. Cost if wrong: during an
+    outage spam gets through.
+48. **Blocked calls are not usage; answered calls are.** A blocked call never
+    reaches the agent, so it consumes nothing. Cost if wrong: none for the
+    owner; the manager just sees it in screening stats instead of usage.
+49. **FTC threshold: 3 reports in 90 days.** Reports are stored per file
+    date, so a re-run replaces that day's counts instead of adding to them.
+    Dates in the window that are not `ok` are retried; missing files are
+    retried only within 10 days. Cost if wrong: too low blocks real
+    callers, too high lets spam through; it is a constant to tune.
+50. **Spam tables are global and `app_role` is read-only on them**; the
+    ingest writes as the owner role. Why: the data is not tenant data and
+    no request path should be able to alter it. Cost if wrong: none beyond
+    needing the owner connection for the ingest task.
+51. **Number rules: one active entry per scope and number**, enforced by an
+    advisory lock plus a partial unique index on permanent rules. Mark-spam
+    and a location block are refused with 409 when an allow would override
+    them. Cost if wrong: a manager must remove the allow first.
+52. **Diner erase touches only that location's rules.** Company-wide rules
+    appear in the export and are removed by admins from Number lists.
+    Why: a diner's request to one restaurant must not edit another scope.
+    Cost if wrong: a company-wide rule on the diner's number outlives the
+    erase until an admin removes it.
+53. **Ingest and screening are gated** by `ftc_ingest_enabled` and
+    `voice_enabled`. Cost if wrong: forgetting the first leaves the FTC list
+    empty, so only manager rules block.
+54. **The FTC CSV URL is a setting** (`FTC_DNC_CSV_URL`). The FTC site refused
+    a scripted fetch during planning (404), so it is verified live (see
+    checklist). Cost if wrong: the ingest alerts and FTC blocking is off.
+55. **`ix_spam_numbers_e164` was dropped** (it duplicated the primary key's
+    leading column and slowed ingest writes). Cost if wrong: none, the PK
+    serves reads.
+
 ## Before switching reservations on (owner checklist)
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
@@ -283,3 +323,18 @@ Setup steps are in the voice section of `terraform/README.md`.
 - Expected costs: a Connect DID daily fee per number, plus per-minute
   inbound, Lex speech requests, Polly neural characters, and the $50 budget
   alarm. See AWS pricing for current rates.
+
+### Call screening (step 7)
+
+Schedule and Lambda notes are in the call screening section of
+`terraform/README.md`.
+
+- Verify `FTC_DNC_CSV_URL` against a live file. Our planning fetch got a
+  404, likely bot filtering, so check from the ECS task or switch to the
+  FTC API (decision 54).
+- Set `ftc_ingest_enabled` and run the ingest once by hand. Expect an
+  alert-free summary.
+- Make a test call from a number on a block entry; it should hang up. Then
+  call from an allowed number.
+- Confirm the screening Lambda's cold start stays under 3 s. Calls still
+  fail open if it does not (decision 47).
