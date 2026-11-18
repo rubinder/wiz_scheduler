@@ -1464,6 +1464,8 @@ const trLang = {
       unknown_id: "Bilinmeyen kimlik.",
       duplicate_section_key: "İki bölüm aynı anahtara sahip.",
       invalid_phone: "Bu telefon numarası geçerli değil. Uluslararası biçimi kullanın, ör. +12125550100.",
+      phone_required: "Bu rezervasyon için telefon numarası gerekli.",
+      code_exhausted: "Onay kodu oluşturulamadı. Lütfen tekrar deneyin.",
       generic: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const trLang = {
       firstSeating: "İlk oturma",
       lastSeating: "Son oturma",
       addPeriod: "Servis dönemi ekle",
+      removePeriod: "Servis dönemini kaldır",
       slotInterval: "Zaman dilimi aralığı (dakika)",
       durations: "Masa süreleri",
       maxParty: "En fazla grup büyüklüğü",
@@ -1514,6 +1517,7 @@ const trLang = {
       noSlots: "Müsait saat yok.",
       showTimes: "Saatleri göster",
       saveFailed: "Kurallar kaydedilemedi. Düzenlemeleriniz korundu.",
+      discardConfirm: "Bu kurallardaki kaydedilmemiş değişiklikler silinsin mi?",
     },
     floor: {
       title: "Salon Planı",
@@ -1597,6 +1601,7 @@ const trLang = {
       decline: "Reddet",
       cancelConfirm: "Bu rezervasyon iptal edilsin mi?",
       declineConfirm: "Bu rezervasyon talebi reddedilsin mi?",
+      noShowConfirm: "Bu rezervasyon gelmedi olarak işaretlensin mi? Bu işlem geri alınamaz.",
       newBooking: "Yeni rezervasyon",
       partySize: "Kişi sayısı",
       showTimes: "Saatleri göster",
@@ -1618,6 +1623,8 @@ const trLang = {
       walkInSeated: "{labels} masasına oturtuldu.",
       noTableFree: "Şu anda boş masa yok.",
       todayOnly: "Canlı masa durumu yalnızca bugün için gösterilir.",
+      retry: "Tekrar dene",
+      walkInTodayOnly: "Rezervasyonsuz misafirler yalnızca bugün için oturtulabilir.",
     },
   },
 } as const;

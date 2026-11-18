@@ -1472,6 +1472,8 @@ const en = {
       unknown_id: "Unknown id.",
       duplicate_section_key: "Two sections share the same key.",
       invalid_phone: "That phone number is not valid. Use international format, e.g. +12125550100.",
+      phone_required: "A phone number is required for this booking.",
+      code_exhausted: "Could not create a confirmation code. Please try again.",
       generic: "Something went wrong. Please try again.",
     },
     rules: {
@@ -1484,6 +1486,7 @@ const en = {
       firstSeating: "First seating",
       lastSeating: "Last seating",
       addPeriod: "Add service period",
+      removePeriod: "Remove service period",
       slotInterval: "Slot interval (minutes)",
       durations: "Table durations",
       maxParty: "Up to party of",
@@ -1522,6 +1525,7 @@ const en = {
       noSlots: "No times available.",
       showTimes: "Show times",
       saveFailed: "Could not save the rules. Your edits are kept.",
+      discardConfirm: "Discard your unsaved changes to these rules?",
     },
     floor: {
       title: "Floor Plan",
@@ -1605,6 +1609,7 @@ const en = {
       decline: "Decline",
       cancelConfirm: "Cancel this booking?",
       declineConfirm: "Decline this booking request?",
+      noShowConfirm: "Mark this booking as a no-show? This cannot be undone.",
       newBooking: "New booking",
       partySize: "Party size",
       showTimes: "Show times",
@@ -1626,6 +1631,8 @@ const en = {
       walkInSeated: "Seated at {labels}.",
       noTableFree: "No table is free right now.",
       todayOnly: "Live table status is shown for today only.",
+      retry: "Retry",
+      walkInTodayOnly: "Walk-ins can only be seated for today.",
     },
   },
 } as const;

@@ -8,6 +8,7 @@ import {
   errorKey,
   firstFreeSpot,
   floorToEditor,
+  formatLocalDateTime,
   formatLocalTime,
   groupBySeating,
   labelsForIds,
@@ -19,6 +20,7 @@ import {
   rulesFormToPayload,
   snap,
   tableStates,
+  validParty,
 } from "./reservations";
 
 describe("reservations helpers", () => {
@@ -28,6 +30,24 @@ describe("reservations helpers", () => {
 
   it("gives the local date in the restaurant zone", () => {
     expect(localDateString(new Date(Date.UTC(2026, 11, 5, 3, 0)), "America/New_York")).toBe("2026-12-04");
+  });
+
+  it("formats date and time in the restaurant zone", () => {
+    // 23:30 in New York is already the next day in UTC and in Tokyo (the test TZ).
+    const out = formatLocalDateTime("2026-12-05T04:30:00Z", "America/New_York", "en");
+    expect(out).toContain("Dec 4");
+    expect(out).toContain("11:30");
+  });
+
+  it("accepts only whole party sizes of at least one", () => {
+    expect(validParty("2")).toBe(true);
+    expect(validParty("1")).toBe(true);
+    expect(validParty("0")).toBe(false);
+    expect(validParty("-1")).toBe(false);
+    expect(validParty("2.5")).toBe(false);
+    expect(validParty("")).toBe(false);
+    expect(validParty("  ")).toBe(false);
+    expect(validParty("abc")).toBe(false);
   });
 
   it("maps error codes to i18n keys", () => {
@@ -40,6 +60,8 @@ describe("reservations helpers", () => {
   it("extracts a known error code, else null", () => {
     expect(errorCode({ code: "slot_unavailable", message: "x" })).toBe("slot_unavailable");
     expect(errorCode({ code: "invalid_phone" })).toBe("invalid_phone");
+    expect(errorCode({ code: "phone_required" })).toBe("phone_required");
+    expect(errorCode({ code: "code_exhausted" })).toBe("code_exhausted");
     expect(errorCode({ code: "nope" })).toBeNull();
     expect(errorCode({ code: 3 })).toBeNull();
     expect(errorCode([{ loc: ["body"], msg: "bad" }])).toBeNull();
@@ -181,6 +203,8 @@ describe("floor editor conversion", () => {
     const ed = floorToEditor(out);
     expect(ed.combinations[0].uids).toEqual(["a", "b"]);
     expect(ed.combinations[0].seats).toEqual({ min: 2, max: 8 });
+    expect(ed.combinations[0].key).toBe("c1");
+    expect(editorToFloorIn(ed).combinations[0]).not.toHaveProperty("key");
     expect(editorToFloorIn(ed)).toEqual({
       sections: out.sections,
       tables: out.tables,
@@ -242,6 +266,14 @@ describe("groupBySeating", () => {
     );
     expect(groups.map((g) => g.time)).toEqual(["18:30", "19:00"]);
     expect(groups[1].items.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("leaves the agent's short holds off the host list", () => {
+    const groups = groupBySeating(
+      [res("a", "2026-12-04T19:00:00-05:00", "held"), res("b", "2026-12-04T19:00:00-05:00", "booked")],
+      NY,
+    );
+    expect(groups).toEqual([{ time: "19:00", items: [expect.objectContaining({ id: "b" })] }]);
   });
 
   it("drops cancelled, declined and expired rows, and leaves pending ones to approvals", () => {

@@ -1464,6 +1464,8 @@ const zh = {
       unknown_id: "未知 ID。",
       duplicate_section_key: "两个区域的键相同。",
       invalid_phone: "电话号码无效。请使用国际格式，例如 +12125550100。",
+      phone_required: "此预订需要电话号码。",
+      code_exhausted: "无法生成确认码，请重试。",
       generic: "出了点问题，请重试。",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const zh = {
       firstSeating: "首个入座时间",
       lastSeating: "最后入座时间",
       addPeriod: "添加营业时段",
+      removePeriod: "删除营业时段",
       slotInterval: "时段间隔（分钟）",
       durations: "用餐时长",
       maxParty: "人数不超过",
@@ -1514,6 +1517,7 @@ const zh = {
       noSlots: "没有可用时间。",
       showTimes: "显示时间",
       saveFailed: "无法保存规则。您的修改已保留。",
+      discardConfirm: "放弃对这些规则的未保存更改？",
     },
     floor: {
       title: "平面图",
@@ -1597,6 +1601,7 @@ const zh = {
       decline: "拒绝",
       cancelConfirm: "要取消此预订吗？",
       declineConfirm: "要拒绝此预订请求吗？",
+      noShowConfirm: "将此预订标记为未到店？此操作无法撤销。",
       newBooking: "新建预订",
       partySize: "人数",
       showTimes: "查看可订时间",
@@ -1618,6 +1623,8 @@ const zh = {
       walkInSeated: "已安排在 {labels}。",
       noTableFree: "目前没有空闲的餐桌。",
       todayOnly: "实时餐桌状态仅显示今天的。",
+      retry: "重试",
+      walkInTodayOnly: "无预订顾客只能安排在今天入座。",
     },
   },
 } as const;

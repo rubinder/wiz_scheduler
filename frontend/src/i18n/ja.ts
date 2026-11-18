@@ -1464,6 +1464,8 @@ const ja = {
       unknown_id: "不明なIDです。",
       duplicate_section_key: "2つのセクションに同じキーがあります。",
       invalid_phone: "電話番号が正しくありません。国際形式で入力してください（例: +12125550100）。",
+      phone_required: "この予約には電話番号が必要です。",
+      code_exhausted: "確認コードを作成できませんでした。もう一度お試しください。",
       generic: "問題が発生しました。もう一度お試しください。",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const ja = {
       firstSeating: "最初の案内時刻",
       lastSeating: "最後の案内時刻",
       addPeriod: "営業時間帯を追加",
+      removePeriod: "営業時間帯を削除",
       slotInterval: "枠の間隔（分）",
       durations: "テーブル利用時間",
       maxParty: "最大人数",
@@ -1514,6 +1517,7 @@ const ja = {
       noSlots: "空いている時間はありません。",
       showTimes: "時間を表示",
       saveFailed: "ルールを保存できませんでした。編集内容は保持されています。",
+      discardConfirm: "これらのルールの未保存の変更を破棄しますか？",
     },
     floor: {
       title: "フロアプラン",
@@ -1597,6 +1601,7 @@ const ja = {
       decline: "お断り",
       cancelConfirm: "この予約をキャンセルしますか？",
       declineConfirm: "この予約リクエストをお断りしますか？",
+      noShowConfirm: "この予約を無断キャンセルとして記録しますか？この操作は元に戻せません。",
       newBooking: "新規予約",
       partySize: "人数",
       showTimes: "空き時間を表示",
@@ -1618,6 +1623,8 @@ const ja = {
       walkInSeated: "{labels} に案内しました。",
       noTableFree: "現在、空いているテーブルはありません。",
       todayOnly: "テーブルのリアルタイムの状態は今日の分のみ表示されます。",
+      retry: "再試行",
+      walkInTodayOnly: "予約なしのお客様の案内は本日分のみ可能です。",
     },
   },
 } as const;

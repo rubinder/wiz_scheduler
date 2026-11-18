@@ -1464,6 +1464,8 @@ const pcm = {
       unknown_id: "We no know dat id.",
       duplicate_section_key: "Two sections get di same key.",
       invalid_phone: "Dat phone number no correct. Use international format, like +12125550100.",
+      phone_required: "Dis booking need phone number.",
+      code_exhausted: "We no fit create confirmation code. Abeg try again.",
       generic: "Something go wrong. Abeg try again.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const pcm = {
       firstSeating: "First time to sit",
       lastSeating: "Last seating",
       addPeriod: "Add service time",
+      removePeriod: "Comot service period",
       slotInterval: "Slot gap (minutes)",
       durations: "How long table dey stay",
       maxParty: "Group size reach",
@@ -1514,6 +1517,7 @@ const pcm = {
       noSlots: "No time dey available.",
       showTimes: "Show times",
       saveFailed: "We no fit save di rules. Your edits still dey.",
+      discardConfirm: "You wan throway di changes wey you never save for dis rules?",
     },
     floor: {
       title: "Floor Plan",
@@ -1597,6 +1601,7 @@ const pcm = {
       decline: "No gree",
       cancelConfirm: "You wan cancel dis booking?",
       declineConfirm: "You no wan gree for dis booking request?",
+      noShowConfirm: "Mark dis booking as person wey no show? You no go fit undo am.",
       newBooking: "New booking",
       partySize: "How many people",
       showTimes: "Show di times",
@@ -1618,6 +1623,8 @@ const pcm = {
       walkInSeated: "Dem don sit for {labels}.",
       noTableFree: "No table free right now.",
       todayOnly: "Na only today we dey show how di tables be live.",
+      retry: "Try again",
+      walkInTodayOnly: "You fit seat walk-in customers only for today.",
     },
   },
 } as const;

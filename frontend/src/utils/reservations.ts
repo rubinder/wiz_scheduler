@@ -21,6 +21,25 @@ export function formatLocalTime(iso: string, timeZone: string, locale: string): 
   }).format(new Date(iso));
 }
 
+/** Short date plus time of an instant, in the restaurant's zone (e.g. "Fri, Dec 4, 7:00 PM"). */
+export function formatLocalDateTime(iso: string, timeZone: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(iso));
+}
+
+/** A party size the server accepts (a whole number >= 1); input is the raw field string. */
+export function validParty(s: string): boolean {
+  if (s.trim() === "") return false;
+  const n = Number(s);
+  return Number.isInteger(n) && n >= 1;
+}
+
 /** "YYYY-MM-DD" of `now` in `timeZone`. */
 export function localDateString(now: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -36,6 +55,8 @@ export function localDateString(now: Date, timeZone: string): string {
 const KNOWN_ERRORS = new Set([
   "slot_unavailable",
   "invalid_phone",
+  "phone_required",
+  "code_exhausted",
   "hold_expired",
   "party_too_large",
   "invalid_transition",
@@ -240,6 +261,8 @@ export interface EditorTable extends TableIO {
 
 /** Combinations point at tables by uid so a rename does not break them. */
 export interface EditorCombination {
+  /** Stable React key: the server id, or a client key for a new combination. */
+  key: string;
   id: string | null;
   name: string;
   uids: string[];
@@ -259,7 +282,8 @@ export function floorToEditor(out: FloorOut): EditorFloor {
   return {
     sections: out.sections.map((s) => ({ ...s })),
     tables,
-    combinations: out.combinations.map((c) => ({
+    combinations: out.combinations.map((c, i) => ({
+      key: c.id ?? `loaded-c-${i}`,
       id: c.id,
       name: c.name,
       uids: c.table_labels.flatMap((l) => uidByLabel.get(l) ?? []),
@@ -297,8 +321,11 @@ function seatingKey(iso: string, timeZone: string): string {
   return `${get("hour")}:${get("minute")}`;
 }
 
-/** Off the host's list: gone for good, or (pending_approval) shown in the approvals section instead. */
-const NOT_SEATING = new Set(["cancelled", "declined", "expired", "pending_approval"]);
+/**
+ * Off the host's list: gone for good, an agent's short-lived offer (held), or
+ * (pending_approval) shown in the approvals section instead.
+ */
+const NOT_SEATING = new Set(["cancelled", "declined", "expired", "held", "pending_approval"]);
 
 /** The day's bookings grouped by seating time (restaurant time), ordered by start. */
 export function groupBySeating(

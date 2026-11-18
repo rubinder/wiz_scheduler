@@ -270,7 +270,7 @@ export default function ReservationsFloor() {
       setSelected(tbl.uid);
       const [dx, dy] = moves[e.key];
       patchTable(tbl.uid, moveTable(tbl, dx, dy));
-    } else if (e.key === "Delete") {
+    } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       removeTable(tbl.uid);
     } else if (e.key === "Enter" || e.key === " ") {
@@ -597,7 +597,7 @@ export default function ReservationsFloor() {
             <Panel title={f.combinations}>
               {combinable.length === 0 && <p className={`text-sm ${text.muted}`}>{f.noCombinable}</p>}
               {floor.combinations.map((c, i) => (
-                <div key={c.id ?? `new-${i}`} className="space-y-2 rounded border p-3">
+                <div key={c.key} className="space-y-2 rounded border p-3">
                   <div className="flex items-center gap-2">
                     <input
                       className={`${input} flex-1`}
@@ -663,12 +663,14 @@ export default function ReservationsFloor() {
               <button
                 type="button"
                 className="glass-btn-secondary text-sm"
-                onClick={() =>
+                onClick={() => {
+                  newUid.current += 1;
+                  const key = `new-c:${newUid.current}`;
                   edit((fl) => ({
                     ...fl,
-                    combinations: [...fl.combinations, { id: null, name: "", uids: [], seats: null }],
-                  }))
-                }
+                    combinations: [...fl.combinations, { key, id: null, name: "", uids: [], seats: null }],
+                  }));
+                }}
               >
                 + {f.addCombination}
               </button>

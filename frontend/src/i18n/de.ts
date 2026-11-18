@@ -1464,6 +1464,8 @@ const de = {
       unknown_id: "Unbekannte ID.",
       duplicate_section_key: "Zwei Bereiche haben denselben Schlüssel.",
       invalid_phone: "Diese Telefonnummer ist ungültig. Bitte im internationalen Format, z. B. +12125550100.",
+      phone_required: "Für diese Reservierung ist eine Telefonnummer erforderlich.",
+      code_exhausted: "Es konnte kein Bestätigungscode erstellt werden. Bitte erneut versuchen.",
       generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const de = {
       firstSeating: "Erste Platzierung",
       lastSeating: "Letzte Platzierung",
       addPeriod: "Servicezeit hinzufügen",
+      removePeriod: "Servicezeit entfernen",
       slotInterval: "Zeitfenster-Intervall (Minuten)",
       durations: "Verweildauer am Tisch",
       maxParty: "Bis Gruppengröße",
@@ -1514,6 +1517,7 @@ const de = {
       noSlots: "Keine Zeiten verfügbar.",
       showTimes: "Zeiten anzeigen",
       saveFailed: "Die Regeln konnten nicht gespeichert werden. Ihre Änderungen bleiben erhalten.",
+      discardConfirm: "Ungespeicherte Änderungen an diesen Regeln verwerfen?",
     },
     floor: {
       title: "Raumplan",
@@ -1597,6 +1601,7 @@ const de = {
       decline: "Ablehnen",
       cancelConfirm: "Diese Reservierung stornieren?",
       declineConfirm: "Diese Reservierungsanfrage ablehnen?",
+      noShowConfirm: "Diese Reservierung als nicht erschienen markieren? Das lässt sich nicht rückgängig machen.",
       newBooking: "Neue Reservierung",
       partySize: "Personenzahl",
       showTimes: "Zeiten anzeigen",
@@ -1618,6 +1623,8 @@ const de = {
       walkInSeated: "Platziert an {labels}.",
       noTableFree: "Gerade ist kein Tisch frei.",
       todayOnly: "Der aktuelle Tischstatus wird nur für heute angezeigt.",
+      retry: "Erneut versuchen",
+      walkInTodayOnly: "Laufkundschaft kann nur für heute platziert werden.",
     },
   },
 } as const;

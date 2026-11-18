@@ -1464,6 +1464,8 @@ const ind = {
       unknown_id: "ID tidak dikenal.",
       duplicate_section_key: "Dua bagian memiliki kunci yang sama.",
       invalid_phone: "Nomor telepon itu tidak valid. Gunakan format internasional, mis. +12125550100.",
+      phone_required: "Nomor telepon wajib untuk reservasi ini.",
+      code_exhausted: "Tidak dapat membuat kode konfirmasi. Silakan coba lagi.",
       generic: "Terjadi kesalahan. Silakan coba lagi.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const ind = {
       firstSeating: "Penempatan pertama",
       lastSeating: "Penempatan terakhir",
       addPeriod: "Tambah periode layanan",
+      removePeriod: "Hapus periode layanan",
       slotInterval: "Interval slot (menit)",
       durations: "Durasi meja",
       maxParty: "Hingga rombongan",
@@ -1514,6 +1517,7 @@ const ind = {
       noSlots: "Tidak ada waktu tersedia.",
       showTimes: "Tampilkan waktu",
       saveFailed: "Aturan tidak dapat disimpan. Perubahan Anda tetap ada.",
+      discardConfirm: "Buang perubahan yang belum disimpan pada aturan ini?",
     },
     floor: {
       title: "Denah Ruangan",
@@ -1597,6 +1601,7 @@ const ind = {
       decline: "Tolak",
       cancelConfirm: "Batalkan reservasi ini?",
       declineConfirm: "Tolak permintaan reservasi ini?",
+      noShowConfirm: "Tandai reservasi ini sebagai tidak hadir? Tindakan ini tidak dapat dibatalkan.",
       newBooking: "Reservasi baru",
       partySize: "Jumlah orang",
       showTimes: "Tampilkan waktu",
@@ -1618,6 +1623,8 @@ const ind = {
       walkInSeated: "Didudukkan di {labels}.",
       noTableFree: "Saat ini tidak ada meja kosong.",
       todayOnly: "Status meja langsung hanya ditampilkan untuk hari ini.",
+      retry: "Coba lagi",
+      walkInTodayOnly: "Tamu tanpa reservasi hanya dapat didudukkan untuk hari ini.",
     },
   },
 } as const;

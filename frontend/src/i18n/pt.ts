@@ -1464,6 +1464,8 @@ const pt = {
       unknown_id: "ID desconhecido.",
       duplicate_section_key: "Duas seções têm a mesma chave.",
       invalid_phone: "Esse número de telefone não é válido. Use o formato internacional, ex.: +12125550100.",
+      phone_required: "É necessário um número de telefone para esta reserva.",
+      code_exhausted: "Não foi possível criar um código de confirmação. Tente novamente.",
       generic: "Algo deu errado. Tente novamente.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const pt = {
       firstSeating: "Primeira acomodação",
       lastSeating: "Última acomodação",
       addPeriod: "Adicionar turno de serviço",
+      removePeriod: "Remover período de serviço",
       slotInterval: "Intervalo de horários (minutos)",
       durations: "Duração da mesa",
       maxParty: "Até grupo de",
@@ -1514,6 +1517,7 @@ const pt = {
       noSlots: "Nenhum horário disponível.",
       showTimes: "Mostrar horários",
       saveFailed: "Não foi possível salvar as regras. Suas edições foram mantidas.",
+      discardConfirm: "Descartar as alterações não salvas nestas regras?",
     },
     floor: {
       title: "Planta do salão",
@@ -1597,6 +1601,7 @@ const pt = {
       decline: "Recusar",
       cancelConfirm: "Cancelar esta reserva?",
       declineConfirm: "Recusar este pedido de reserva?",
+      noShowConfirm: "Marcar esta reserva como não comparecimento? Isso não pode ser desfeito.",
       newBooking: "Nova reserva",
       partySize: "Número de pessoas",
       showTimes: "Ver horários",
@@ -1618,6 +1623,8 @@ const pt = {
       walkInSeated: "Acomodado em {labels}.",
       noTableFree: "Nenhuma mesa está livre agora.",
       todayOnly: "O estado das mesas em tempo real só aparece para hoje.",
+      retry: "Tentar novamente",
+      walkInTodayOnly: "Clientes sem reserva só podem ser acomodados para hoje.",
     },
   },
 } as const;

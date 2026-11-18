@@ -1464,6 +1464,8 @@ const vi = {
       unknown_id: "Mã không xác định.",
       duplicate_section_key: "Hai khu vực có cùng khóa.",
       invalid_phone: "Số điện thoại không hợp lệ. Hãy dùng định dạng quốc tế, ví dụ +12125550100.",
+      phone_required: "Đặt chỗ này cần có số điện thoại.",
+      code_exhausted: "Không thể tạo mã xác nhận. Vui lòng thử lại.",
       generic: "Đã xảy ra lỗi. Vui lòng thử lại.",
     },
     rules: {
@@ -1476,6 +1478,7 @@ const vi = {
       firstSeating: "Lượt xếp chỗ đầu tiên",
       lastSeating: "Lượt xếp chỗ cuối cùng",
       addPeriod: "Thêm ca phục vụ",
+      removePeriod: "Xóa khung giờ phục vụ",
       slotInterval: "Khoảng cách khung giờ (phút)",
       durations: "Thời lượng bàn",
       maxParty: "Nhóm tối đa",
@@ -1514,6 +1517,7 @@ const vi = {
       noSlots: "Không có giờ trống.",
       showTimes: "Hiển thị giờ",
       saveFailed: "Không thể lưu quy tắc. Các chỉnh sửa của bạn vẫn được giữ.",
+      discardConfirm: "Hủy các thay đổi chưa lưu đối với các quy tắc này?",
     },
     floor: {
       title: "Sơ đồ bàn",
@@ -1597,6 +1601,7 @@ const vi = {
       decline: "Từ chối",
       cancelConfirm: "Hủy lượt đặt bàn này?",
       declineConfirm: "Từ chối yêu cầu đặt bàn này?",
+      noShowConfirm: "Đánh dấu đặt chỗ này là không đến? Không thể hoàn tác thao tác này.",
       newBooking: "Đặt bàn mới",
       partySize: "Số người",
       showTimes: "Xem giờ trống",
@@ -1618,6 +1623,8 @@ const vi = {
       walkInSeated: "Đã xếp vào {labels}.",
       noTableFree: "Hiện không còn bàn trống.",
       todayOnly: "Trạng thái bàn trực tiếp chỉ hiển thị cho hôm nay.",
+      retry: "Thử lại",
+      walkInTodayOnly: "Chỉ có thể xếp chỗ cho khách vãng lai trong hôm nay.",
     },
   },
 } as const;
