@@ -188,13 +188,17 @@ def fake(monkeypatch):
             expire=hooked("session_expire",
                           lambda sid, params=None, options=None: state["expired"].append(sid)))),
         customers=SimpleNamespace(create=hooked("customer_create", no_call("customers.create"))),
-        invoices=SimpleNamespace(retrieve=hooked(
-            "invoice_retrieve", lambda iid, params=None, options=None: state["invoices"][iid])),
+        invoices=SimpleNamespace(
+            retrieve=hooked(
+                "invoice_retrieve", lambda iid, params=None, options=None: state["invoices"][iid]),
+            # No final invoices here either.
+            list=lambda params=None, options=None: _Page([])),
         refunds=SimpleNamespace(create=hooked("refund", refund)),
         # No overage here (test_overage.py covers it): nothing pending.
         invoice_items=SimpleNamespace(
             list=lambda params=None, options=None: _Page([]),
-            create=no_call("invoice_items.create"), delete=no_call("invoice_items.delete")),
+            create=no_call("invoice_items.create"), delete=no_call("invoice_items.delete"),
+            retrieve=no_call("invoice_items.retrieve")),
     ))
     monkeypatch.setattr(br, "_client", lambda: client)
     return state
