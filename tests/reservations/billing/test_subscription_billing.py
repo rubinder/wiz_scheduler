@@ -1172,6 +1172,8 @@ def _connect(monkeypatch):
     connect = FakeConnect()
     monkeypatch.setattr(settings, "VOICE_PROVISIONING_ENABLED", True)
     monkeypatch.setattr(settings, "CONNECT_INSTANCE_ARN", "arn:aws:connect:r:1:instance/i")
+    # No claim without a flow to route it (connect_numbers.can_claim).
+    monkeypatch.setattr(settings, "CONNECT_CONTACT_FLOW_ID", "flow-1")
     monkeypatch.setattr(connect_numbers, "_make_client", lambda: connect)
     connect_numbers.reset_client()
     return connect
