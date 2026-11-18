@@ -8,12 +8,15 @@ from sqlalchemy import select
 from backend.reservations import booking
 from backend.reservations.booking import (
     DinerContact,
+    CodeExhausted,
     HoldExpired,
+    InvalidPartySize,
     InvalidTransition,
     PartyTooLarge,
     ReservationNotFound,
     SlotUnavailable,
 )
+from backend.reservations.availability import Slot
 from backend.reservations.codes import ALPHABET, new_code
 from backend.reservations.models import (
     BOOKED,
@@ -289,3 +292,64 @@ async def test_writers_for_one_location_wait_on_the_location_lock(seeded_floor):
         res = await asyncio.wait_for(b_task, timeout=10)
         assert res.status == HELD
         await b.commit()
+
+
+async def test_modify_backstop_conflict_keeps_original(db_session, seeded_floor, monkeypatch):
+    blocker = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2,
+                                       _at(20), DINER)
+    res = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, ONLY_T2,
+                                   _at(17), DINER)
+
+    # find_slots wrongly offers T2 at 20:00, so only the exclusion constraint stops it.
+    async def lying_find_slots(*args, **kwargs):
+        return [Slot(_at(20), _at(20) + timedelta(minutes=105), (seeded_floor.t2,),
+                     seeded_floor.section_id)]
+
+    monkeypatch.setattr(booking, "find_slots", lying_find_slots)
+    with pytest.raises(SlotUnavailable):
+        await booking.modify(db_session, COMPANY_ID, res.id, start=_at(20), notes="x")
+    monkeypatch.undo()
+    assert res.start_at == _at(17) and res.notes is None
+    rows = await _tables(db_session, res.id)
+    assert [r.table_id for r in rows] == [seeded_floor.t2] and rows[0].active
+    assert rows[0].during.lower == _at(17)
+    # The session is still usable without a rollback.
+    await db_session.refresh(res)
+    assert res.start_at == _at(17)
+    assert (await _hold(db_session, 2, _at(18))).status == HELD
+    assert blocker.status == BOOKED
+
+
+async def test_in_session_table_rows_see_cancel(db_session, seeded_floor):
+    res = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19), DINER)
+    rows = await _tables(db_session, res.id)  # strong references, no re-query below
+    assert rows and all(r.active for r in rows)
+    await booking.cancel(db_session, COMPANY_ID, res.id)
+    assert all(r.active is False for r in rows)
+
+
+async def test_in_session_rows_see_the_expiry_sweep(db_session, seeded_floor):
+    now = _now()
+    first = await _hold(db_session, ONLY_T2, _at(19), now)
+    rows = await _tables(db_session, first.id)
+    await _hold(db_session, 2, _at(17), now + timedelta(minutes=6))
+    assert first.status == EXPIRED
+    assert all(r.active is False for r in rows)
+
+
+async def test_party_size_below_one_is_rejected(db_session, seeded_floor):
+    with pytest.raises(InvalidPartySize):
+        await _hold(db_session, 0, _at(19))
+    res = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19), DINER)
+    with pytest.raises(InvalidPartySize):
+        await booking.modify(db_session, COMPANY_ID, res.id, party_size=0)
+    assert InvalidPartySize.code == "invalid_party_size"
+
+
+async def test_code_exhaustion_raises_a_reservation_error(db_session, seeded_floor,
+                                                          monkeypatch):
+    first = await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(19), DINER)
+    monkeypatch.setattr(booking, "new_code", lambda: first.confirmation_code)
+    with pytest.raises(CodeExhausted) as info:
+        await booking.book_staff(db_session, COMPANY_ID, LOCATION_ID, 2, _at(20), DINER)
+    assert info.value.code == "code_exhausted"

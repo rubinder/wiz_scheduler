@@ -6,6 +6,11 @@ checks availability and writes, so two writers for one location run one after
 the other. The exclusion constraint `ex_reservation_tables_no_overlap` is the
 backstop; its violation surfaces as `SlotUnavailable`.
 
+Lock order: the location row first, then reservations. A reservation id
+passed in is read without a lock only to learn its location (which never
+changes); it is re-read after the location lock. New code must not lock
+reservation rows before their location, or it can deadlock against this.
+
 `ReservationTable.active` always equals `status in ACTIVE_STATUSES`. Every
 held or pending row has `held_until` set (fail closed); it is cleared only
 when the row becomes booked.
@@ -19,7 +24,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,6 +87,16 @@ class ReservationNotFound(ReservationError):
     code = "not_found"
 
 
+class InvalidPartySize(ReservationError):
+    code = "invalid_party_size"
+
+
+class CodeExhausted(ReservationError):
+    """Every attempt at a unique confirmation code collided."""
+
+    code = "code_exhausted"
+
+
 @dataclass(frozen=True)
 class DinerContact:
     name: str
@@ -123,7 +138,6 @@ async def _sweep_expired(
         )
         .values(status=EXPIRED, updated_at=now)
         .returning(Reservation.id)
-        .execution_options(synchronize_session=False)
     )).scalars().all()
     if expired_ids:
         await db.execute(
@@ -133,7 +147,6 @@ async def _sweep_expired(
                 ReservationTable.reservation_id.in_(expired_ids),
             )
             .values(active=False)
-            .execution_options(synchronize_session=False)
         )
 
 
@@ -181,7 +194,6 @@ async def _set_tables_active(
             ReservationTable.reservation_id == reservation_id,
         )
         .values(active=active_flag)
-        .execution_options(synchronize_session=False)
     )
 
 
@@ -248,7 +260,7 @@ async def _assign_code(db: AsyncSession, res: Reservation) -> None:
         except IntegrityError as exc:
             if _CODE_INDEX not in str(exc.orig):
                 raise
-    raise RuntimeError("could not allocate a unique confirmation code")
+    raise CodeExhausted()
 
 
 async def hold(
@@ -271,6 +283,8 @@ async def hold(
     now = _now(now)
     if not await _begin_write(db, company_id, location_id, now):
         raise SlotUnavailable()
+    if party_size < 1:
+        raise InvalidPartySize()
     rules, _ = await get_rules(db, company_id, location_id)
     if party_size > rules.max_party_size:
         raise PartyTooLarge()
@@ -370,11 +384,17 @@ async def modify(
 ) -> Reservation:
     """Change party, time or notes of a booked or pending reservation.
 
-    On `SlotUnavailable` nothing has been changed. Staff pass
+    `None` means "leave unchanged" for every field, so `notes=None` keeps the
+    notes (pass "" to blank them). On `SlotUnavailable`, `PartyTooLarge` or
+    `InvalidPartySize` the reservation and its table rows are unchanged: the
+    table swap runs in a savepoint and the reservation's fields are only
+    assigned after it succeeds. Staff pass
     `apply_cutoff=False`. A diner (`apply_cutoff=True`) cannot grow a booked
     party above `max_self_book_party`: that would skip approval.
     """
     now = _now(now)
+    if party_size is not None and party_size < 1:
+        raise InvalidPartySize()
     res = await _load_for_write(db, company_id, reservation_id, now)
     if res.status == EXPIRED:
         raise HoldExpired()
@@ -394,21 +414,25 @@ async def modify(
             db, company_id, res.location_id, new_party, new_start, now,
             exclude_reservation_id=res.id, apply_cutoff=apply_cutoff,
         )
-        old_rows = (await db.execute(
-            select(ReservationTable).where(
-                ReservationTable.company_id == company_id,
-                ReservationTable.reservation_id == res.id,
-            )
-        )).scalars().all()
-        for row in old_rows:
-            await db.delete(row)
-        await db.flush()
-        db.add_all(_table_rows(company_id, res.id, slot, rules, new_party))
+        # The savepoint keeps the original table rows if the exclusion
+        # constraint (the backstop behind find_slots) rejects the new ones.
+        async with db.begin_nested():
+            old_rows = (await db.execute(
+                select(ReservationTable).where(
+                    ReservationTable.company_id == company_id,
+                    ReservationTable.reservation_id == res.id,
+                )
+            )).scalars().all()
+            for row in old_rows:
+                await db.delete(row)
+            await db.flush()
+            db.add_all(_table_rows(company_id, res.id, slot, rules, new_party))
+            await _flush_tables(db)
         res.party_size, res.start_at, res.end_at = new_party, slot.start, slot.end
     if notes is not None:
         res.notes = notes
     res.updated_at = now
-    await _flush_tables(db)
+    await db.flush()
     return res
 
 
@@ -444,7 +468,8 @@ async def lookup(
         select(Reservation).where(
             Reservation.company_id == company_id,
             Reservation.location_id == location_id,
-            func.upper(Reservation.confirmation_code) == code.strip().upper(),
+            # Codes are stored upper-case, so this stays index-friendly.
+            Reservation.confirmation_code == code.strip().upper(),
             Reservation.diner_phone == phone,
         )
     )).scalar_one_or_none()
