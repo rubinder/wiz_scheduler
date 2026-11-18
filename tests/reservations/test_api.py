@@ -481,12 +481,15 @@ async def test_every_reservations_route_but_config_is_gated():
 # --- approval queue ---------------------------------------------------------
 
 def _pending(company_id: str, location_id: str, start: datetime,
-             held_until: datetime | None, status: str = "pending_approval"):
+             held_until: datetime | None, status: str = "pending_approval",
+             submitted: bool = True):
+    import secrets
     from backend.reservations.models import Reservation
     return Reservation(
         company_id=company_id, location_id=location_id, party_size=2,
         start_at=start, end_at=start + timedelta(hours=1), status=status,
-        source="web_agent", held_until=held_until, diner_name="P")
+        source="web_agent", held_until=held_until, diner_name="P",
+        confirmation_code=secrets.token_hex(4).upper() if submitted else None)
 
 
 async def test_approvals_lists_live_requests_on_any_day(
@@ -500,7 +503,10 @@ async def test_approvals_lists_live_requests_on_any_day(
     past = _pending(COMPANY_ID, LOCATION_ID, now - timedelta(hours=1), now + timedelta(hours=5))
     booked = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(days=1), None, status="booked")
     elsewhere = _pending(COMPANY_ID, OTHER_LOCATION_ID, now + timedelta(days=1), None)
-    db_session.add_all([live_later, live_soon, lapsed, past, booked, elsewhere])
+    # A large-party hold the diner has not submitted (no code) is not a request.
+    unsubmitted = _pending(COMPANY_ID, LOCATION_ID, now + timedelta(hours=2),
+                           now + timedelta(minutes=10), submitted=False)
+    db_session.add_all([live_later, live_soon, lapsed, past, booked, elsewhere, unsubmitted])
     await db_session.commit()
     r = await client.get(f"{BASE}/locations/{LOCATION_ID}/approvals",
                          headers=_auth(manager_token))

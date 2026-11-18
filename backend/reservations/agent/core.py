@@ -32,6 +32,7 @@ event is recorded, the conversation is finished as `failed` and that is
 committed. It never raises.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -275,10 +276,14 @@ class AgentCore:
                                                  rules, handoff)
             started = time.perf_counter()
             try:
-                response = await self.llm.create(system=system, messages=messages,
-                                                 tools=tools.TOOLS,
-                                                 timeout=min(LLM_TIMEOUT_S, remaining))
-            except anthropic.APITimeoutError:
+                # The SDK's own timeout is per attempt and it retries, so
+                # bound the whole call (retries included) by what is left.
+                response = await asyncio.wait_for(
+                    self.llm.create(system=system, messages=messages,
+                                    tools=tools.TOOLS,
+                                    timeout=min(LLM_TIMEOUT_S, remaining)),
+                    timeout=remaining)
+            except (anthropic.APITimeoutError, asyncio.TimeoutError):
                 logger.warning("agent model call timed out (conversation %s)", conv.id)
                 return await self._past_deadline(db, conv, "llm_timeout", now, zone,
                                                  rules, handoff,

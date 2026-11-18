@@ -199,6 +199,6 @@ async def erase_diner_data(
         "reservations_scrubbed": scrubbed,
         "conversations_deleted": deleted,
         "conversations_closed_in_flight": closed,
-        "conversations_still_in_flight": total - deleted - closed,
+        "conversations_still_in_flight": max(0, total - deleted - closed),
         "lookup_failures_deleted": lookups,
     }

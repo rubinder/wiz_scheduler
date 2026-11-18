@@ -651,6 +651,31 @@ async def test_model_timeout_asks_to_send_again(db_session, web_conv):
     assert events[-1].payload == {"error": "llm_timeout"}
 
 
+async def test_model_call_cannot_outlive_the_turn_deadline(db_session, web_conv,
+                                                          monkeypatch):
+    """SDK retries could stretch one call past the deadline: the whole call
+    is bounded by what is left of the turn."""
+    import asyncio
+    import time
+    monkeypatch.setattr(settings, "RESERVATION_AGENT_TURN_DEADLINE_SECONDS", 0.3)
+
+    async def stuck(request):
+        await asyncio.sleep(5)
+        raise AssertionError("the call should have been cancelled")
+
+    assert await recording.claim_turn(db_session, web_conv) == "claimed"
+    await db_session.commit()
+    began = time.monotonic()
+    out = await AgentCore(ScriptedLlm(stuck)).handle_turn(db_session, web_conv, say("hi"))
+    assert time.monotonic() - began < 3
+    assert out.reply_text == DEADLINE_TEXT and not out.ended and out.handoff is None
+    assert web_conv.status == "open" and web_conv.outcome is None
+    assert web_conv.turn_started_at is None
+    events = await _events(db_session, web_conv)
+    assert [e.type for e in events] == ["user_turn", "error"]
+    assert events[-1].payload == {"error": "llm_timeout"}
+
+
 async def test_confirm_on_the_closing_turn_still_books(db_session, web_conv, monkeypatch):
     monkeypatch.setattr(settings, "RESERVATION_AGENT_MAX_TURNS", 1)
     now = _now()
