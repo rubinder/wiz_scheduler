@@ -27,14 +27,14 @@ class DinerIn(BaseModel):
 
 
 class BookingIn(BaseModel):
-    party_size: int
+    party_size: int = Field(ge=1)
     start: datetime
     diner: DinerIn
     notes: str | None = None
 
 
 class ReservationPatch(BaseModel):
-    party_size: int | None = None
+    party_size: int | None = Field(default=None, ge=1)
     start: datetime | None = None
     notes: str | None = None
 

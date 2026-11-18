@@ -168,13 +168,13 @@ async def write_rules(
 async def read_slots(
     location_id: str,
     party_size: int = Query(ge=1),
-    date: date = Query(),
+    day: date = Query(alias="date"),
     user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> list[SlotOut]:
     loc = await _location(db, scope, user, location_id)
-    start, end = _day_window(loc, date)
+    start, end = _day_window(loc, day)
     slots = await find_slots(
         db, str(user.company_id), location_id, party_size, start, end,
         apply_cutoff=False,
@@ -187,13 +187,13 @@ async def read_slots(
             response_model=list[ReservationOut])
 async def read_reservations(
     location_id: str,
-    date: date = Query(),
+    day: date = Query(alias="date"),
     user: User = Depends(require_manager),
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> list[ReservationOut]:
     loc = await _location(db, scope, user, location_id)
-    start, end = _day_window(loc, date)
+    start, end = _day_window(loc, day)
     rows = await list_between(db, str(user.company_id), location_id, start, end)
     return [ReservationOut.of(r, labels) for r, labels in rows]
 
@@ -212,6 +212,7 @@ async def create_reservation(
         diner = booking.DinerContact(
             name=body.diner.name, phone=body.diner.phone, email=body.diner.email)
     except ValueError as e:
+        # Raised before any write, so there is nothing to roll back.
         raise HTTPException(status_code=422, detail={
             "code": "invalid_phone", "message": str(e)})
     async with _domain_errors(db):

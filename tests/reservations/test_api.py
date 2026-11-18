@@ -44,12 +44,29 @@ async def _book(client, token, party: int = 3, hh: int = 18):
         json=_booking(party, hh), headers=_auth(token))
 
 
-async def test_routes_404_when_flag_off(client, manager_token, seed_location, monkeypatch):
+_ROUTES = [
+    ("get", f"/locations/{LOCATION_ID}/floor"),
+    ("put", f"/locations/{LOCATION_ID}/floor"),
+    ("get", f"/locations/{LOCATION_ID}/rules"),
+    ("put", f"/locations/{LOCATION_ID}/rules"),
+    ("get", f"/locations/{LOCATION_ID}/slots?party_size=2&date=2030-01-01"),
+    ("get", f"/locations/{LOCATION_ID}/reservations?date=2030-01-01"),
+    ("post", f"/locations/{LOCATION_ID}/reservations"),
+    ("patch", "/abcd1234"),
+    ("post", "/abcd1234/status"),
+    ("post", "/abcd1234/approve"),
+    ("post", "/abcd1234/decline"),
+]
+
+
+@pytest.mark.parametrize("method,path", _ROUTES)
+async def test_routes_404_when_flag_off(
+    client, manager_token, seed_location, monkeypatch, method, path
+):
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
-    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/floor", headers=_auth(manager_token))
+    r = await client.request(method, BASE + path, json={}, headers=_auth(manager_token))
     assert r.status_code == 404
-    r = await client.post(f"{BASE}/x/approve", headers=_auth(manager_token))
-    assert r.status_code == 404
+    assert r.json()["detail"] == "Not found"
 
 
 async def test_floor_and_rules_round_trip(client, manager_token, seed_location):
@@ -121,7 +138,6 @@ async def test_party_size_zero_is_422(client, manager_token, seeded_floor):
     assert r.status_code == 422
     r = await _book(client, manager_token, party=0)
     assert r.status_code == 422
-    assert r.json()["detail"]["code"] == "invalid_party_size"
 
 
 async def test_bad_phone_is_422(client, manager_token, seeded_floor):
@@ -220,3 +236,103 @@ async def test_cancel_and_approve_decline(client, manager_token, seeded_floor):
     rid2 = (await _book(client, manager_token)).json()["id"]
     assert (await client.post(f"{BASE}/{rid2}/approve", headers=h)).status_code == 409
     assert (await client.post(f"{BASE}/{rid2}/decline", headers=h)).status_code == 409
+
+
+async def _list(client, token, day, location_id=LOCATION_ID):
+    r = await client.get(f"{BASE}/locations/{location_id}/reservations",
+                         params={"date": day.isoformat()}, headers=_auth(token))
+    assert r.status_code == 200
+    return r.json()
+
+
+async def test_failed_modify_rolls_back(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    # Party 3 fits only T2; two parties at 18:00 and 19:30 (default turn 90+
+    # min) - move the second onto the first's time.
+    first = (await _book(client, manager_token, party=3, hh=18)).json()
+    second = (await _book(client, manager_token, party=3, hh=20)).json()
+    before = {r["id"]: r for r in await _list(client, manager_token, _day())}
+    r = await client.patch(f"{BASE}/{second['id']}", json={"start": _at(18)}, headers=h)
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "slot_unavailable"
+    after = {r["id"]: r for r in await _list(client, manager_token, _day())}
+    assert after[second["id"]]["start"] == before[second["id"]]["start"]
+    assert after[second["id"]]["party_size"] == 3
+    assert after[second["id"]]["tables"] == ["T2"]
+    assert after[first["id"]] == before[first["id"]]
+
+
+async def test_failed_modify_keeps_table_row_active(
+    client, manager_token, seeded_floor, db_session
+):
+    from sqlalchemy import select
+    from backend.reservations.models import ReservationTable
+    await _book(client, manager_token, party=3, hh=18)
+    second = (await _book(client, manager_token, party=3, hh=20)).json()
+    r = await client.patch(f"{BASE}/{second['id']}", json={"start": _at(18)},
+                           headers=_auth(manager_token))
+    assert r.status_code == 409
+    rows = (await db_session.execute(
+        select(ReservationTable).where(
+            ReservationTable.reservation_id == second["id"]))).scalars().all()
+    assert len(rows) == 1 and rows[0].active is True
+
+
+async def test_regular_manager_in_scope_can_read_and_book(
+    client, regular_token, seeded_floor, other_location
+):
+    h = _auth(regular_token)
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/floor", headers=h)
+    assert r.status_code == 200
+    r = await _book(client, regular_token)
+    assert r.status_code == 201, r.text
+
+
+async def test_other_company_reservation_id_is_404(
+    client, manager_token, db_session
+):
+    from backend.models import Company, Location, Region
+    from backend.reservations.models import Reservation
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/New_York"))
+    await db_session.flush()
+    start = datetime.now(timezone.utc) + timedelta(days=3)
+    res = Reservation(
+        company_id=COMPANY2_ID, location_id="loc2xxxx", party_size=2,
+        start_at=start, end_at=start + timedelta(hours=1), status="booked",
+        source="staff")
+    db_session.add(res)
+    await db_session.commit()
+    h = _auth(manager_token)
+    rid = res.id
+    assert (await client.patch(f"{BASE}/{rid}", json={"notes": "x"}, headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/status", json={"status": "seated"},
+                              headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/approve", headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/decline", headers=h)).status_code == 404
+
+
+async def test_listing_uses_the_local_day_on_a_dst_day(
+    client, manager_token, seeded_floor, db_session
+):
+    from datetime import date
+    from backend.reservations.models import Reservation
+    # 2027-03-14 is the US spring-forward day: the local day is 23 hours.
+    day = date(2027, 3, 14)
+    def mk(local: datetime) -> Reservation:
+        return Reservation(
+            company_id=seeded_floor.location.company_id, location_id=LOCATION_ID,
+            party_size=2, start_at=local, end_at=local + timedelta(hours=1),
+            status="booked", source="staff")
+    late = datetime.combine(day, time(23, 30), tzinfo=NY)
+    next_day = datetime.combine(day + timedelta(days=1), time(0, 30), tzinfo=NY)
+    early = datetime.combine(day, time(0, 30), tzinfo=NY)
+    rows = [mk(late), mk(next_day), mk(early)]
+    db_session.add_all(rows)
+    await db_session.commit()
+    got = await _list(client, manager_token, day)
+    assert {x["id"] for x in got} == {rows[0].id, rows[2].id}
