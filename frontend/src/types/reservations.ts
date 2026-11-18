@@ -159,3 +159,46 @@ export interface ReservationOut {
   confirmation_code: string | null;
   held_until: string | null;
 }
+
+/** Mirrors backend/reservations/agent/models.py OUTCOMES. */
+export const CONVERSATION_OUTCOMES = [
+  "booked",
+  "modified",
+  "cancelled",
+  "handed_off",
+  "abandoned",
+  "failed",
+  "blocked",
+] as const;
+export type ConversationOutcome = (typeof CONVERSATION_OUTCOMES)[number];
+
+/** One AI host conversation in the manager list. cost_usd is a decimal string. */
+export interface ConversationOut {
+  id: string;
+  channel: "web" | "voice" | string;
+  started_at: string;
+  ended_at: string | null;
+  outcome: ConversationOutcome | string | null;
+  turn_count: number;
+  cost_usd: string;
+  reservation_id: string | null;
+}
+
+export interface AgentEventOut {
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+  latency_ms: Record<string, unknown>;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: string;
+  created_at: string;
+}
+
+export interface ConversationDetailOut extends ConversationOut {
+  location_id: string;
+  status: string;
+  events: AgentEventOut[];
+}

@@ -1,14 +1,16 @@
-"""Read-only reservation listings for the manager API."""
+"""Read-only reservation and agent-conversation listings for the manager API."""
 
 from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import (
     BOOKED, EXPIRED, HELD, PENDING, SEATED, DiningTable, Reservation,
     ReservationTable,
 )
+from backend.services.location_scope import LocationScope
 
 
 async def count_upcoming(
@@ -99,3 +101,70 @@ async def list_pending_approvals(
     )).scalars().all()
     labels = await table_labels(db, company_id, [r.id for r in rows])
     return [(r, labels.get(r.id, []), effective_status(r, now)) for r in rows]
+
+
+async def list_conversations(
+    db: AsyncSession, company_id: str, location_id: str,
+    window_start: datetime, window_end: datetime, outcome: str | None = None,
+) -> list[AgentConversation]:
+    """Agent conversations started in [window_start, window_end), newest first."""
+    q = select(AgentConversation).where(
+        AgentConversation.company_id == company_id,
+        AgentConversation.location_id == location_id,
+        AgentConversation.started_at >= window_start,
+        AgentConversation.started_at < window_end,
+    )
+    if outcome is not None:
+        q = q.where(AgentConversation.outcome == outcome)
+    q = q.order_by(AgentConversation.started_at.desc(), AgentConversation.id)
+    return list((await db.execute(q)).scalars().all())
+
+
+async def get_conversation(
+    db: AsyncSession, company_id: str, conversation_id: str
+) -> AgentConversation | None:
+    return (await db.execute(
+        select(AgentConversation).where(
+            AgentConversation.id == conversation_id,
+            AgentConversation.company_id == company_id,
+        )
+    )).scalar_one_or_none()
+
+
+async def conversation_events(
+    db: AsyncSession, company_id: str, conversation_ids: list[str]
+) -> dict[str, list[AgentEvent]]:
+    """Each conversation's events in seq order."""
+    out: dict[str, list[AgentEvent]] = {cid: [] for cid in conversation_ids}
+    if not conversation_ids:
+        return out
+    rows = (await db.execute(
+        select(AgentEvent).where(
+            AgentEvent.company_id == company_id,
+            AgentEvent.conversation_id.in_(conversation_ids),
+        ).order_by(AgentEvent.conversation_id, AgentEvent.seq)
+    )).scalars().all()
+    for e in rows:
+        out[e.conversation_id].append(e)
+    return out
+
+
+async def export_rows(
+    db: AsyncSession, company_id: str, scope: LocationScope,
+) -> tuple[list[Reservation], list[AgentConversation], dict[str, list[AgentEvent]]]:
+    """Every reservation and agent conversation of the company within the
+    manager's location scope, oldest first, for the GDPR export."""
+    reservations = (await db.execute(
+        select(Reservation).where(
+            Reservation.company_id == company_id,
+            scope.clause(Reservation.location_id),
+        ).order_by(Reservation.start_at, Reservation.id)
+    )).scalars().all()
+    conversations = (await db.execute(
+        select(AgentConversation).where(
+            AgentConversation.company_id == company_id,
+            scope.clause(AgentConversation.location_id),
+        ).order_by(AgentConversation.started_at, AgentConversation.id)
+    )).scalars().all()
+    events = await conversation_events(db, company_id, [c.id for c in conversations])
+    return list(reservations), list(conversations), events

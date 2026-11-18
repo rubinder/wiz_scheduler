@@ -73,12 +73,14 @@ describe("manager navigation", () => {
       const off = visibleManagerNav({ isAdmin }, true, true, false);
       expect(off.filter(isGroup).map((g) => g.labelKey)).not.toContain("groupReservations");
       expect(paths(off)).not.toContain("/manager/reservations");
+      expect(paths(off)).not.toContain("/manager/reservations/conversations");
       const on = visibleManagerNav({ isAdmin }, true, true, true);
       expect(paths(on)).toEqual(
         expect.arrayContaining([
           "/manager/reservations",
           "/manager/reservations/floor",
           "/manager/reservations/rules",
+          "/manager/reservations/conversations",
         ]),
       );
     }

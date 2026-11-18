@@ -1,6 +1,8 @@
 import { apiFetch } from "./client";
 import type {
   BookingIn,
+  ConversationDetailOut,
+  ConversationOut,
   FloorIn,
   FloorOut,
   ReservationOut,
@@ -77,4 +79,19 @@ export function approveReservation(id: string): Promise<ReservationOut> {
 
 export function declineReservation(id: string): Promise<ReservationOut> {
   return apiFetch(`/reservations/${id}/decline`, { method: "POST" });
+}
+
+/** The AI host's conversations started on `date` (the location's local day), newest first. */
+export function listConversations(
+  locationId: string,
+  date: string,
+  outcome?: string,
+): Promise<ConversationOut[]> {
+  const qs = new URLSearchParams({ date });
+  if (outcome) qs.set("outcome", outcome);
+  return apiFetch(`${base(locationId)}/conversations?${qs.toString()}`);
+}
+
+export function getConversation(id: string): Promise<ConversationDetailOut> {
+  return apiFetch(`/reservations/conversations/${id}`);
 }
