@@ -15,7 +15,9 @@ that fails (the hold expired, the change could not be applied) does not end
 the run: the diner may pick again. A
 conversation still open then (e.g. a submitted request, which stays open)
 is closed the way the turn cap closes it (`AgentCore.close_conversation`),
-and the database end state is graded by `checker.check`.
+and the database end state is graded by `checker.check`. A run that stopped
+because the diner went silent, a turn was not claimed or the runner errored
+(FAILED_STOPS) fails whatever the end state.
 """
 
 import logging
@@ -48,6 +50,9 @@ _BUTTONS = {tools.EXPECT_CONFIRM_HOLD: "Confirm / No",
 _PRESSED = {"confirm_hold": "Confirm", "confirm_modify": "Confirm change",
             "confirm_cancel": "Confirm cancellation", "decline_hold": "No"}
 _CONFIRMS = ("confirm_hold", "confirm_modify", "confirm_cancel")
+# Stops that mean the run did not play out, whatever the end state: a run
+# that stopped this way is a failure even if the checker found nothing.
+FAILED_STOPS = ("diner_empty", "not_claimed", "error")
 
 DbFactory = async_sessionmaker[AsyncSession]
 
@@ -283,6 +288,10 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         )).scalar_one()
         await core.close_conversation(db, conv, now=now)
         result = await check(db, seeded, conv, scenario)
+    if stop in FAILED_STOPS:
+        result = CheckResult(passed=False,
+                             failures=[*result.failures, f"run stopped: {stop}"],
+                             metrics=result.metrics)
     return ScenarioOutcome(scenario_id=scenario.id, conversation_id=conv_id,
                            check=result, transcript=transcript,
                            diner_turns=diner_turns, stop=stop, presses=presses)

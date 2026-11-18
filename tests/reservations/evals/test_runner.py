@@ -200,6 +200,8 @@ async def test_one_empty_reply_is_a_repeat_request_and_two_stop_the_run() -> Non
     out = await run_scenario(get_test_session_factory(), scenario, core=AgentCore(llm),
                              diner=ScriptedDiner(["", "hi", "  ", "never sent"]))
     assert out.stop == "diner_empty"
+    assert out.check.passed is False
+    assert "run stopped: diner_empty" in out.check.failures
     assert out.diner_turns == 2
     assert [line for who, line in out.transcript if who == "diner"] == \
         [EMPTY_STAND_IN, "hi"]

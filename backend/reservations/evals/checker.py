@@ -6,6 +6,12 @@ the conversation (its `conversation_id`, or the conversation's
 cancel of a seeded booking is linked) whose status is booked or seated, or pending_approval with a
 confirmation code (a submitted request). Live holds and code-less pending
 rows are not bookings: they lapse on their own after hold_timeout_minutes.
+
+A model failure is never a correct handoff: a handoff counts only when the
+model called handoff_to_staff, or the core handed off for a reason the
+scenario lists in `allowed_handoff_reasons`. Any other core handoff
+(round_cap, max_tokens, llm_error, ...) and any llm_error / llm_timeout /
+internal error event fail the run.
 """
 
 import math
@@ -20,7 +26,11 @@ from sqlalchemy.orm import aliased
 
 from backend.models import Location
 from backend.reservations.agent.models import AgentConversation, AgentEvent
-from backend.reservations.evals.scenarios_io import ExpectedBooking, Scenario
+from backend.reservations.evals.scenarios_io import (
+    ExpectedBooking,
+    RequiredToolCall,
+    Scenario,
+)
 from backend.reservations.evals.seed import SeededScenario
 from backend.reservations.models import (
     BOOKED,
@@ -32,6 +42,13 @@ from backend.reservations.models import (
     Reservation,
     ReservationTable,
 )
+
+
+# Error events that mean the model or the core failed, not the diner.
+FAILING_ERRORS = ("llm_error", "llm_timeout", "internal")
+# Tools whose success raises a confirm-change / confirm-cancel proposal.
+PROPOSAL_TOOLS = ("modify_booking", "cancel_booking")
+HANDOFF_TOOL = "handoff_to_staff"
 
 
 @dataclass(frozen=True)
@@ -102,6 +119,45 @@ async def _double_booked(db: AsyncSession, seeded: SeededScenario) -> list[str]:
         .order_by(DiningTable.label)
     )).all()
     return [f"table {label} double-booked by {r1} and {r2}" for label, r1, r2 in rows]
+
+
+@dataclass(frozen=True)
+class _ToolCall:
+    seq: int
+    name: str
+    ok: bool  # its tool_result was not an error
+
+
+def _tool_calls(events: list[AgentEvent]) -> list[_ToolCall]:
+    """Every tool_call with whether it succeeded, read from the first
+    tool_result event after it (tool_use ids repeat across turns)."""
+    calls = []
+    for i, e in enumerate(events):
+        if e.type != "tool_call":
+            continue
+        tid = (e.payload or {}).get("tool_use_id")
+        ok = False
+        for later in events[i + 1:]:
+            if later.type == "tool_result":
+                for r in (later.payload or {}).get("content") or []:
+                    if isinstance(r, dict) and r.get("tool_use_id") == tid:
+                        ok = not r.get("is_error", False)
+                        break
+                break
+        calls.append(_ToolCall(e.seq, str((e.payload or {}).get("name")), ok))
+    return calls
+
+
+def _missing_tool_call(req: RequiredToolCall, calls: list[_ToolCall],
+                       events: list[AgentEvent]) -> str | None:
+    found = [c for c in calls if c.name == req.name and (c.ok or not req.succeeded)]
+    what = f"{'successful ' if req.succeeded else ''}{req.name} tool call"
+    if not found:
+        return f"required {what} missing"
+    if req.diner_turn_after and not any(
+            e.type == "user_turn" and e.seq > c.seq for c in found for e in events):
+        return f"no diner turn after the {what}"
+    return None
 
 
 async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversation,
@@ -178,10 +234,42 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
                AgentEvent.company_id == scope[0])
         .order_by(AgentEvent.seq)
     )).scalars().all()
-    handed_off = any(e.type == "handoff" for e in events)
-    if exp.handoff is not None and handed_off != exp.handoff:
-        failures.append("handoff event expected but missing" if exp.handoff
-                        else "unexpected handoff event")
+    events = list(events)
+    calls = _tool_calls(events)
+    tool_handoff = any(c.name == HANDOFF_TOOL for c in calls)
+    core_reasons = [str((e.payload or {}).get("reason")) for i, e in enumerate(events)
+                    if e.type == "handoff" and not (
+                        i > 0 and events[i - 1].type == "tool_call"
+                        and (events[i - 1].payload or {}).get("name") == HANDOFF_TOOL)]
+    allowed = set(exp.allowed_handoff_reasons)
+    for reason in core_reasons:
+        if reason not in allowed:
+            failures.append(f"handoff without handoff_to_staff (reason {reason})")
+    handed_off = tool_handoff or any(r in allowed for r in core_reasons)
+    if exp.handoff is True and not handed_off:
+        failures.append("handoff expected but handoff_to_staff was not called")
+    elif exp.handoff is False and (tool_handoff or core_reasons):
+        failures.append("unexpected handoff event")
+
+    # Errors: a failed model call or core is a failed run.
+    errors = [str((e.payload or {}).get("error")) for e in events if e.type == "error"]
+    for err in errors:
+        if err in FAILING_ERRORS:
+            failures.append(f"error event: {err}")
+
+    # Positive assertions.
+    for req in exp.required_tool_calls:
+        missing = _missing_tool_call(req, calls, events)
+        if missing:
+            failures.append(missing)
+    if exp.verified is not None and \
+            (conv.verified_reservation_id is not None) != exp.verified:
+        failures.append("conversation has a verified booking" if not exp.verified
+                        else "conversation has no verified booking")
+    if exp.no_proposal:
+        for c in calls:
+            if c.name in PROPOSAL_TOOLS and c.ok:
+                failures.append(f"a proposal was raised ({c.name})")
 
     # Seeded bookings that must be cancelled / must be kept.
     async def by_code(code: str) -> Reservation | None:
@@ -225,6 +313,7 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
         "llm_p50_ms": _percentile(llm_ms, 50),
         "llm_p95_ms": _percentile(llm_ms, 95),
         "handoff": handed_off,
+        "errors": errors,
         "outcome": conv.outcome,
     }
     return CheckResult(passed=not failures, failures=failures, metrics=metrics)

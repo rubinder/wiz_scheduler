@@ -132,6 +132,14 @@
     "max_turns": 10,
     "kept_codes": [
       "EVCAN3"
-    ]
+    ],
+    "allowed_handoff_reasons": [
+      "lookup_lockout"
+    ],
+    "required_tool_calls": [
+      "lookup_booking"
+    ],
+    "verified": false,
+    "no_proposal": true
   }
 }

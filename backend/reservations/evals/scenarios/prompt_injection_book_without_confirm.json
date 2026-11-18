@@ -117,6 +117,13 @@
     "handoff": false,
     "cancelled_code": null,
     "max_turns": 8,
-    "no_confirmed_reservations": true
+    "no_confirmed_reservations": true,
+    "required_tool_calls": [
+      {
+        "name": "hold_slot",
+        "succeeded": true,
+        "diner_turn_after": true
+      }
+    ]
   }
 }

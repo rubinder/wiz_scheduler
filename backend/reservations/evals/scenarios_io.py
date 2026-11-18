@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ValidationError
 
+from backend.reservations.agent import tools
 from backend.reservations.agent.models import CHANNELS, OUTCOMES
 from backend.reservations.booking import E164
 from backend.reservations.floor import FloorIn
@@ -75,6 +76,21 @@ class ExpectedBooking:
 
 
 @dataclass(frozen=True)
+class RequiredToolCall:
+    """The agent must have called tool `name`; with `succeeded`, a call whose
+    result was not an error; with `diner_turn_after`, such a call followed by
+    at least one more diner turn."""
+    name: str
+    succeeded: bool = False
+    diner_turn_after: bool = False
+
+
+# Handoff reasons the core records on its own (not via handoff_to_staff)
+# that a scenario may accept as a correct handoff.
+ALLOWABLE_HANDOFF_REASONS = ("lookup_lockout",)
+
+
+@dataclass(frozen=True)
 class Expectation:
     outcomes: tuple[str, ...]  # any of these passes
     booking: ExpectedBooking | None
@@ -86,6 +102,16 @@ class Expectation:
     # linked row has no code and is not booked/seated/completed (a live hold
     # must still be `held`); checker._confirmed lists what counts.
     no_confirmed_reservations: bool = False
+    # A handoff counts only when the model called handoff_to_staff, or when
+    # the core handed off for a reason listed here (e.g. lookup_lockout).
+    allowed_handoff_reasons: tuple[str, ...] = ()
+    required_tool_calls: tuple[RequiredToolCall, ...] = ()
+    # True / False: the conversation ended with / without a verified booking
+    # (`verified_reservation_id`). None: not checked.
+    verified: bool | None = None
+    # True: no change or cancellation was ever proposed (no successful
+    # modify_booking / cancel_booking call).
+    no_proposal: bool = False
 
 
 @dataclass(frozen=True)
@@ -280,10 +306,32 @@ def _booking(value: Any) -> ExpectedBooking | None:
         if code is not None else None)
 
 
+def _required_tool_calls(value: Any) -> tuple[RequiredToolCall, ...]:
+    if not isinstance(value, list):
+        raise ScenarioInvalid("expect.required_tool_calls: expected a list")
+    names = {t["name"] for t in tools.TOOLS}
+    out = []
+    for i, item in enumerate(value):
+        where = f"expect.required_tool_calls[{i}]"
+        if isinstance(item, str):
+            item = {"name": item}
+        v = _obj(item, where, {"name"}, {"succeeded", "diner_turn_after"})
+        name = _one_of(v["name"], f"{where}.name", tuple(sorted(names)))
+        flags = {}
+        for key in ("succeeded", "diner_turn_after"):
+            flag = v.get(key, False)
+            if not isinstance(flag, bool):
+                raise ScenarioInvalid(f"{where}.{key}: expected true or false")
+            flags[key] = flag
+        out.append(RequiredToolCall(name=name, **flags))
+    return tuple(out)
+
+
 def _expect(value: Any) -> Expectation:
     v = _obj(value, "expect",
              {"outcome", "booking", "handoff", "cancelled_code", "max_turns"},
-             {"kept_codes", "no_confirmed_reservations"})
+             {"kept_codes", "no_confirmed_reservations", "allowed_handoff_reasons",
+              "required_tool_calls", "verified", "no_proposal"})
     raw = v["outcome"]
     outcomes = tuple(raw) if isinstance(raw, list) else (raw,)
     if not outcomes:
@@ -302,8 +350,22 @@ def _expect(value: Any) -> Expectation:
         raise ScenarioInvalid("expect.no_confirmed_reservations: expected true or false")
     if no_confirmed and v["booking"] is not None:
         raise ScenarioInvalid("expect: no_confirmed_reservations needs booking null")
+    reasons = v.get("allowed_handoff_reasons", [])
+    if not isinstance(reasons, list):
+        raise ScenarioInvalid("expect.allowed_handoff_reasons: expected a list")
+    for r in reasons:
+        _one_of(r, "expect.allowed_handoff_reasons", ALLOWABLE_HANDOFF_REASONS)
+    verified = v.get("verified")
+    if verified is not None and not isinstance(verified, bool):
+        raise ScenarioInvalid("expect.verified: expected true, false or null")
+    no_proposal = v.get("no_proposal", False)
+    if not isinstance(no_proposal, bool):
+        raise ScenarioInvalid("expect.no_proposal: expected true or false")
     return Expectation(
         no_confirmed_reservations=no_confirmed,
+        allowed_handoff_reasons=tuple(reasons),
+        required_tool_calls=_required_tool_calls(v.get("required_tool_calls", [])),
+        verified=verified, no_proposal=no_proposal,
         outcomes=outcomes, booking=_booking(v["booking"]), handoff=handoff,
         cancelled_code=_str(cancelled, "expect.cancelled_code")
         if cancelled is not None else None,

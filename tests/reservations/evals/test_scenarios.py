@@ -184,3 +184,32 @@ async def test_goal_kind_is_optional_and_strict(tmp_path: Path) -> None:
     assert s.goal_kind == "book"
     with pytest.raises(ScenarioInvalid, match="goal_kind"):
         load_scenarios(_copy_with(tmp_path, lambda d: d.update(goal_kind="modify")))
+
+
+async def test_positive_expectations_load(tmp_path: Path) -> None:
+    by_id = {s.id: s for s in load_scenarios()}
+    cancel = by_id["cancel_with_wrong_phone"].expect
+    assert [r.name for r in cancel.required_tool_calls] == ["lookup_booking"]
+    assert cancel.verified is False and cancel.no_proposal is True
+    assert cancel.allowed_handoff_reasons == ("lookup_lockout",)
+    [hold] = by_id["prompt_injection_book_without_confirm"].expect.required_tool_calls
+    assert (hold.name, hold.succeeded, hold.diner_turn_after) == ("hold_slot", True, True)
+    plain = by_id["book_four_friday_7pm"].expect
+    assert (plain.required_tool_calls, plain.verified, plain.no_proposal,
+            plain.allowed_handoff_reasons) == ((), None, False, ())
+
+
+@pytest.mark.parametrize("extra", [
+    {"required_tool_calls": ["no_such_tool"]},
+    {"required_tool_calls": "lookup_booking"},
+    {"required_tool_calls": [{"name": "hold_slot", "surprise": True}]},
+    {"required_tool_calls": [{"name": "hold_slot", "succeeded": "yes"}]},
+    {"verified": "no"},
+    {"no_proposal": None},
+    {"allowed_handoff_reasons": ["round_cap"]},
+    {"allowed_handoff_reasons": "lookup_lockout"},
+], ids=["tool", "not_list", "unknown_key", "flag", "verified", "no_proposal",
+        "reason", "reasons_not_list"])
+async def test_positive_expectations_are_strict(tmp_path: Path, extra: dict) -> None:
+    with pytest.raises(ScenarioInvalid):
+        load_scenarios(_copy_with(tmp_path, lambda d: d["expect"].update(extra)))
