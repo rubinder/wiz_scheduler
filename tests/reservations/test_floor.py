@@ -136,3 +136,58 @@ async def test_foreign_ids_raise_unknown_id_and_change_nothing(db_session, seed_
     assert floor.tables == [] and floor.sections == [] and floor.combinations == []
     await db_session.refresh(tbl)
     assert tbl.label == "X1" and tbl.archived_at is None
+
+
+async def test_duplicate_ids_in_payload_raise_duplicate_id(db_session, seed_location):
+    out = await save_floor(db_session, COMPANY_ID, LOCATION_ID, _floor())
+    for field in ("sections", "tables", "combinations"):
+        p = out.model_dump()
+        p[field] = p[field] + [dict(p[field][0])]
+        if field == "tables":
+            p[field][-1]["label"] = "UNIQUE"
+        with pytest.raises(FloorInvalid) as ei:
+            await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn.model_validate(p))
+        assert ei.value.code == "duplicate_id"
+
+
+async def test_update_delete_section_and_reuse_archived_label(db_session, seed_location):
+    out = await save_floor(db_session, COMPANY_ID, LOCATION_ID, _floor())
+    main = next(s for s in out.sections if s.name == "Main")
+    patio = next(s for s in out.sections if s.name == "Patio")
+    t1, t2, t3 = (next(t for t in out.tables if t.label == n) for n in ("T1", "T2", "T3"))
+    assert t3.section_key == patio.key
+    payload = dict(
+        sections=[dict(main.model_dump(), name="Dining Room", sort_order=5)],  # Patio omitted
+        tables=[
+            dict(t1.model_dump(), label="T1x", w=9.0, section_key=main.key),
+            dict(t2.model_dump(), section_key=main.key),
+            # T3 omitted -> archived; new table reuses its label in the same save
+            dict(id=None, label="T3", section_key=None, min_seats=2, max_seats=2,
+                 combinable=False, x=0, y=0, w=1, h=1, rotation=0),
+        ],
+        combinations=[],
+    )
+    res = await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn.model_validate(payload))
+    assert [(s.id, s.name, s.sort_order) for s in res.sections] == [(main.id, "Dining Room", 5)]
+    by_label = {t.label: t for t in res.tables}
+    assert set(by_label) == {"T1x", "T2", "T3"}
+    assert by_label["T1x"].id == t1.id and by_label["T1x"].w == 9.0
+    assert by_label["T3"].id != t3.id and by_label["T3"].section_key is None
+    old_t3 = await db_session.get(DiningTable, t3.id)
+    await db_session.refresh(old_t3)
+    assert old_t3.archived_at is not None and old_t3.section_id is None
+    assert res.combinations == []
+
+
+async def test_swapping_labels_raises_floor_invalid(db_session, seed_location):
+    out = await save_floor(db_session, COMPANY_ID, LOCATION_ID, _floor(combos=[]))
+    t1, t2 = (next(t for t in out.tables if t.label == n) for n in ("T1", "T2"))
+    p = out.model_dump()
+    for t in p["tables"]:
+        if t["id"] == t1.id:
+            t["label"] = "T2"
+        elif t["id"] == t2.id:
+            t["label"] = "T1"
+    with pytest.raises(FloorInvalid) as ei:
+        await save_floor(db_session, COMPANY_ID, LOCATION_ID, FloorIn.model_validate(p))
+    assert ei.value.code == "duplicate_label"

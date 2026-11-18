@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.services.archive import archive_dining_table
@@ -118,6 +119,14 @@ def _validate(floor: FloorIn) -> None:
     labels = [t.label for t in floor.tables]
     if len(set(labels)) != len(labels):
         raise FloorInvalid("duplicate_label", "table labels must be unique")
+    for kind, ids in (
+        ("section", [s.id for s in floor.sections]),
+        ("table", [t.id for t in floor.tables]),
+        ("combination", [c.id for c in floor.combinations]),
+    ):
+        given = [i for i in ids if i]
+        if len(set(given)) != len(given):
+            raise FloorInvalid("duplicate_id", f"duplicate {kind} id in payload")
     keys = [s.key for s in floor.sections]
     if len(set(keys)) != len(keys):
         raise FloorInvalid("duplicate_section_key", "section keys must be unique")
@@ -236,7 +245,15 @@ async def save_floor(
         row.combinable = t.combinable
         row.x, row.y, row.w, row.h, row.rotation = t.x, t.y, t.w, t.h, t.rotation
         table_by_label[t.label] = row
-    await db.flush()
+    try:
+        # Savepoint so the caller's session stays usable after the error.
+        async with db.begin_nested():
+            await db.flush()
+    except IntegrityError as exc:
+        raise FloorInvalid(
+            "duplicate_label", "table labels must be unique (swapping labels "
+            "between existing tables is not supported; use a temporary label)"
+        ) from exc
 
     # Combinations.
     kept_combos: set[str] = set()
