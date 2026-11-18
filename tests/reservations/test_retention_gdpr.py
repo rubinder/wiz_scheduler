@@ -107,6 +107,32 @@ async def test_retention_purges_old_screened_calls(db_session: AsyncSession, see
     assert await db_session.get(ScreenedCall, new_id) is not None
 
 
+async def test_retention_purges_long_expired_number_rules(db_session: AsyncSession,
+                                                          seed_location):
+    from backend.config import settings
+    from backend.reservations.screening_models import NumberRule
+
+    now = datetime.now(timezone.utc)
+    window = timedelta(days=settings.RETENTION_RESERVATIONS_DAYS)
+    old = NumberRule(company_id=COMPANY_ID, location_id=LOCATION_ID, e164="+13475550101",
+                     action="block", expires_at=now - window - timedelta(days=1))
+    recent = NumberRule(company_id=COMPANY_ID, location_id=None, e164="+13475550102",
+                        action="block", expires_at=now - timedelta(days=10))
+    permanent = NumberRule(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                           e164="+13475550103", action="allow", expires_at=None,
+                           created_at=now - window - timedelta(days=30))
+    db_session.add_all([old, recent, permanent])
+    await db_session.commit()
+    ids = old.id, recent.id, permanent.id
+
+    summary = await run_data_retention(db_session)
+    assert summary["old_number_rules_deleted"] == 1
+    db_session.expire_all()
+    assert await db_session.get(NumberRule, ids[0]) is None
+    assert await db_session.get(NumberRule, ids[1]) is not None
+    assert await db_session.get(NumberRule, ids[2]) is not None
+
+
 async def test_gdpr_user_export_carries_no_diner_data(
     client, manager_token, seed_location, db_session: AsyncSession
 ):
