@@ -200,31 +200,43 @@ def send_agent_duplicate_subscription_alert(
     kept_subscription_id: str | None,
     payment_intent_id: str | None,
     amount_usd: float,
-    refunded: bool,
+    *,
+    cancelled: bool,
+    refund: str,
+    errors: list[str],
 ) -> bool:
     """A second live AI host subscription (#259 step 5) arrived for a group
-    that already has one. It was cancelled in Stripe and its latest paid
-    invoice refunded (or the refund failed and needs doing by hand). Never
-    raises."""
+    that already has one. States what actually happened: whether the
+    duplicate was cancelled, and whether its latest invoice was refunded
+    (`refund`: "refunded", "none" = nothing paid, "failed", or "unknown" =
+    the invoice could not be read). Never raises."""
     logger.warning(
         "[OPERATOR] agent_duplicate_subscription og=%s duplicate=%s kept=%s pi=%s "
-        "amount=%.2f refunded=%s",
+        "amount=%.2f cancelled=%s refund=%s errors=%s",
         og_id, duplicate_subscription_id, kept_subscription_id, payment_intent_id,
-        amount_usd, refunded,
+        amount_usd, cancelled, refund, errors,
     )
-    if amount_usd <= 0:
-        outcome = "had no paid invoice to refund"
-    elif refunded:
-        outcome = f"was refunded automatically (${amount_usd:.2f})"
+    if cancelled:
+        cancel_text = "was cancelled"
     else:
-        outcome = (f"<strong>could NOT be refunded automatically (${amount_usd:.2f}): "
-                   f"refund it in Stripe</strong>")
+        cancel_text = ("<strong>could NOT be cancelled: cancel FAILED, it is still "
+                       "billing. Cancel it in Stripe</strong>")
+    refund_text = {
+        "refunded": f"its latest invoice was refunded (${amount_usd:.2f})",
+        "none": "its latest invoice had nothing paid to refund",
+        "failed": (f"<strong>the refund of its latest invoice (${amount_usd:.2f}) "
+                   f"FAILED: refund it in Stripe</strong>"),
+    }.get(refund, ("<strong>refund status unknown (its invoice could not be read): "
+                   "check Stripe</strong>"))
+    detail = "".join(f"<li><code>{html.escape(e[:300])}</code></li>" for e in errors)
     return _send_operator_email(
         f"[WizScheduler] Duplicate AI host subscription for og={og_id}",
         f"<p>og={html.escape(og_id)} already has the AI host subscription "
-        f"<code>{html.escape(kept_subscription_id or '?')}</code>, so the second "
-        f"one, <code>{html.escape(duplicate_subscription_id)}</code>, was "
-        f"cancelled. Its latest invoice (payment "
-        f"<code>{html.escape(payment_intent_id or '?')}</code>) {outcome}.</p>",
+        f"<code>{html.escape(kept_subscription_id or '?')}</code>. The second "
+        f"one, <code>{html.escape(duplicate_subscription_id)}</code>, "
+        f"{cancel_text}, and {refund_text} (payment "
+        f"<code>{html.escape(payment_intent_id or '?')}</code>).</p>"
+        + (f"<ul>{detail}</ul>" if detail else "")
+        + "<p>The app retries on the subscription's next Stripe event.</p>",
         "agent_duplicate_subscription",
     )

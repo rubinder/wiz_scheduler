@@ -132,6 +132,14 @@ Decisions made while building without stopping to ask (owner instruction,
     forces `RLS_ENFORCE` off for its duration (isolation is the schema, not
     row-level security) and restores it after. Cost if wrong: run history
     lives on one developer's disk, not in a shared table.
+39. **The AI host subscription lives and dies with the account.** It is
+    separate from the scheduling subscription and keeps running (and
+    billing) through the scheduling subscription's cancellation grace
+    period; deleting the account (day 90) cancels it in Stripe first. The
+    billing card (step 5, Task 4) must warn about this when the scheduling
+    subscription is cancelled. Cost if wrong: a customer who cancels
+    scheduling expects the AI host to stop too and is billed for it until
+    the account is deleted.
 
 ## Before switching reservations on (owner checklist)
 

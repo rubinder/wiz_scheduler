@@ -336,7 +336,13 @@ async def get_billing_charges(
 
     result = await db.execute(
         select(BillingCharge)
-        .where(BillingCharge.ownership_group_id == og_id)
+        .where(
+            BillingCharge.ownership_group_id == og_id,
+            # An operator record of a duplicate AI host subscription that was
+            # cancelled and refunded (#259): its amount is money returned, not
+            # charged, and the page has no label for it yet. Hidden for now.
+            BillingCharge.kind != "agent_duplicate_refund",
+        )
         .order_by(BillingCharge.created_at.desc())
         .limit(clamp_limit(limit, default=50, max=200))
     )

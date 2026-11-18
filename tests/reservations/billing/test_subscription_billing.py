@@ -107,10 +107,13 @@ def _session(sub_id=AGENT_SUB, *, customer=CUSTOMER, mode="subscription",
 def _invoice(sub_id=AGENT_SUB, *, new_api=True) -> dict:
     inv = {"id": "in_1", "object": "invoice", "customer": CUSTOMER,
            "lines": {"data": []}}
+    # Stripe copies the subscription's metadata onto its invoices.
+    md = {} if sub_id == SCHED_SUB else {"product": "reservation_agent", "og_id": OG_ID}
     if new_api:
-        inv["parent"] = {"subscription_details": {"subscription": sub_id, "metadata": {}}}
+        inv["parent"] = {"subscription_details": {"subscription": sub_id, "metadata": md}}
     else:
         inv["subscription"] = sub_id
+        inv["subscription_details"] = {"metadata": md}
     return inv
 
 
@@ -134,10 +137,12 @@ def fake(monkeypatch):
                    "cancelled": [], "expired": [], "invoices": {}, "refunds": [],
                    "listed_subs": None}
 
-    def retrieve(sub_id):
+    def retrieve(sub_id, **kw):
         state["calls"].append(sub_id)
+        state["retrieve_kw"] = kw
         if sub_id not in state["subs"]:
-            raise stripe.InvalidRequestError(f"No such subscription: {sub_id}", "id")
+            raise stripe.InvalidRequestError(f"No such subscription: {sub_id}", "id",
+                                             code="resource_missing")
         return state["subs"][sub_id]
 
     def sub_list(**kw):
@@ -673,7 +678,7 @@ def _paid_duplicate(fake, sub_id="sub_dup", *, new_api=True) -> dict:
 def alerts(monkeypatch):
     sent = []
     monkeypatch.setattr("backend.services.operator_alerts.send_agent_duplicate_subscription_alert",
-                        lambda *a: sent.append(a) or True)
+                        lambda *a, **kw: sent.append((a, kw)) or True)
     return sent
 
 
@@ -688,7 +693,8 @@ async def test_a_second_live_subscription_is_cancelled_refunded_and_alerted(
     await _add_row(db_session, "active")
     sub = _paid_duplicate(fake, new_api=new_api)
     r = await _post(client, monkeypatch, event_type, dict(sub))
-    assert r.json()["reservation_agent"]["duplicate"]["outcome"] == "refunded"
+    dup = r.json()["reservation_agent"]["duplicate"]
+    assert (dup["outcome"], dup["cancelled"], dup["refund"]) == ("handled", True, "refunded")
     assert fake["cancelled"] == ["sub_dup"]
     assert fake["refunds"] == [{"payment_intent": "pi_dup",
                                 "idempotency_key": "agent-dup-refund-sub_dup"}]
@@ -697,7 +703,8 @@ async def test_a_second_live_subscription_is_cancelled_refunded_and_alerted(
     [charge] = (await db_session.execute(select(BillingCharge).where(
         BillingCharge.kind == "agent_duplicate_refund"))).scalars().all()
     assert (charge.stripe_object_id, charge.status, float(charge.amount_usd)) == ("sub_dup", "succeeded", 10.0)
-    assert len(alerts) == 1 and alerts[0][:3] == (OG_ID, "sub_dup", AGENT_SUB)
+    assert len(alerts) == 1 and alerts[0][0][:3] == (OG_ID, "sub_dup", AGENT_SUB)
+    assert alerts[0][1] == {"cancelled": True, "refund": "refunded", "errors": []}
     await _assert_scheduling_untouched(db_session)
 
     # Replays: Stripe now says canceled, so nothing happens again.
@@ -709,20 +716,97 @@ async def test_a_second_live_subscription_is_cancelled_refunded_and_alerted(
     assert (await _row(db_session)).stripe_subscription_id == AGENT_SUB
 
 
-async def test_a_duplicate_whose_cancel_did_not_stick_is_not_refunded_twice(
+async def test_a_failed_cancel_is_retried_on_later_events(
     client, og, db_session, monkeypatch, fake, alerts,
 ):
+    from backend.models.billing_charge import BillingCharge
+
     await _add_row(db_session, "active")
     sub = _paid_duplicate(fake)
+    real_cancel = stripe.Subscription.cancel
     monkeypatch.setattr(stripe.Subscription, "cancel",
                         lambda sid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
     await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
     await _post(client, monkeypatch, "customer.subscription.updated", dict(sub))
-    assert len(fake["refunds"]) == 1 and len(alerts) == 1
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "failed" and "cancel failed" in charge.error_message
+    # Same outcome twice: one alert, which says the cancel failed.
+    assert len(alerts) == 1 and alerts[0][1]["cancelled"] is False
+    # Every refund attempt carries the one idempotency key: Stripe refunds once.
+    assert {r["idempotency_key"] for r in fake["refunds"]} == {"agent-dup-refund-sub_dup"}
+
+    monkeypatch.setattr(stripe.Subscription, "cancel", real_cancel)
+    await _post(client, monkeypatch, "invoice.payment_succeeded", _invoice("sub_dup"))
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "succeeded" and charge.error_message is None
+    assert fake["cancelled"] == ["sub_dup"]
+    assert len(alerts) == 2 and alerts[1][1]["cancelled"] is True
+    assert (await _row(db_session)).stripe_subscription_id == AGENT_SUB
+
+
+async def test_a_failed_refund_is_retried_after_the_cancel(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
     from backend.models.billing_charge import BillingCharge
-    [charge] = (await db_session.execute(select(BillingCharge).where(
-        BillingCharge.kind == "agent_duplicate_refund"))).scalars().all()
-    assert charge.status == "failed" and "cancel" in charge.error_message
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    real_refund = stripe.Refund.create
+    monkeypatch.setattr(stripe.Refund, "create",
+                        lambda **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    assert fake["cancelled"] == ["sub_dup"]
+    assert alerts[0][1]["refund"] == "failed"
+    # The cancelled duplicate's next event: Stripe says canceled, but the
+    # failed record sends it back to the backstop for the refund.
+    monkeypatch.setattr(stripe.Refund, "create", real_refund)
+    await _post(client, monkeypatch, "customer.subscription.deleted", dict(sub))
+    db_session.expire_all()
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "succeeded"
+    assert len(fake["refunds"]) == 1 and fake["cancelled"] == ["sub_dup"]
+    assert alerts[-1][1] == {"cancelled": True, "refund": "refunded", "errors": []}
+
+
+async def test_an_unreadable_invoice_is_refund_unknown_not_nothing_to_refund(
+    client, og, db_session, monkeypatch, fake, alerts,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    await _add_row(db_session, "active")
+    sub = _paid_duplicate(fake)
+    monkeypatch.setattr(stripe.Invoice, "retrieve",
+                        lambda iid, **kw: (_ for _ in ()).throw(stripe.APIConnectionError("down")))
+    r = await _post(client, monkeypatch, "customer.subscription.created", dict(sub))
+    dup = r.json()["reservation_agent"]["duplicate"]
+    assert (dup["refund"], dup["outcome"]) == ("unknown", "needs_attention")
+    assert alerts[0][1]["refund"] == "unknown"
+    charge = (await db_session.execute(select(BillingCharge).where(
+        BillingCharge.kind == "agent_duplicate_refund"))).scalar_one()
+    assert charge.status == "failed" and "not read" in charge.error_message
+
+
+async def test_duplicate_alert_states_the_outcomes(monkeypatch):
+    from backend.services import operator_alerts
+
+    sent = []
+    monkeypatch.setattr(operator_alerts, "_send_operator_email",
+                        lambda subject, body, label: sent.append(body) or True)
+    operator_alerts.send_agent_duplicate_subscription_alert(
+        OG_ID, "sub_dup", AGENT_SUB, None, 10.0, cancelled=False, refund="unknown",
+        errors=["cancel failed: down"])
+    operator_alerts.send_agent_duplicate_subscription_alert(
+        OG_ID, "sub_dup", AGENT_SUB, "pi", 10.0, cancelled=True, refund="failed", errors=[])
+    operator_alerts.send_agent_duplicate_subscription_alert(
+        OG_ID, "sub_dup", AGENT_SUB, "pi", 10.0, cancelled=True, refund="refunded", errors=[])
+    assert "cancel FAILED" in sent[0] and "still billing" in sent[0]
+    assert "refund status unknown" in sent[0] and "check Stripe" in sent[0]
+    assert "FAILED: refund it in Stripe" in sent[1] and "was cancelled" in sent[1]
+    assert "was refunded ($10.00)" in sent[2]
 
 
 async def test_a_duplicate_paid_through_checkout_is_backstopped_and_confirm_is_409(
@@ -804,3 +888,91 @@ async def test_scheduling_subscription_updated_is_not_routed(client, og, db_sess
     assert "reservation_agent" not in r.json()
     assert fake["calls"] == []
     await _assert_scheduling_untouched(db_session)
+
+
+# Review 2: missing subscriptions, leftovers, locked reads, timeouts, charges --
+
+
+async def test_a_subscription_stripe_does_not_have_is_acknowledged_unhandled(
+    client, og, db_session, monkeypatch, fake,
+):
+    sub = _subscription("sub_ghost")
+    r = await _post(client, monkeypatch, "customer.subscription.updated", sub)
+    assert r.status_code == 200
+    assert r.json()["reservation_agent"]["handled"] is False
+    assert await _row(db_session) is None
+
+
+async def test_checkout_cancels_leftover_unpaid_and_paused_agent_subscriptions(
+    client, manager_token, og, db_session, monkeypatch, fake,
+):
+    fake["listed_subs"] = [_subscription("sub_unpaid", status="unpaid"),
+                           _subscription("sub_paused", status="paused"),
+                           _subscription("sub_sched_unpaid", status="unpaid", metadata={})]
+    monkeypatch.setattr(stripe.checkout.Session, "create", lambda **kw: SimpleNamespace(url="u"))
+    r = await client.post(f"{BASE}/checkout", headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert fake["cancelled"] == ["sub_unpaid", "sub_paused"]
+
+
+async def test_locked_reads_see_another_writers_commit(og, db_session):
+    """The A->B replacement race: a session that loaded the row before
+    another writer committed must not act on its stale copy under the lock."""
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from backend.reservations.subscription import for_group
+    from backend.services import billing_reservations as br
+
+    await _add_row(db_session, "active", sub_id="sub_a")
+    stale = await for_group(db_session, OG_ID)
+    stale_og = await db_session.get(OwnershipGroup, OG_ID)
+    await db_session.commit()
+    async with AsyncSession(db_session.bind) as other:
+        row = await for_group(other, OG_ID)
+        row.stripe_subscription_id, row.status = "sub_b", "trialing"
+        (await other.get(OwnershipGroup, OG_ID)).stripe_customer_id = "cus_moved"
+        await other.commit()
+    assert stale.stripe_subscription_id == "sub_a"  # the identity map's copy
+    og_now = await br._lock_group(db_session, OG_ID)
+    fresh = await br._locked_row(db_session, OG_ID)
+    assert og_now is stale_og and og_now.stripe_customer_id == "cus_moved"
+    assert fresh is stale and (fresh.stripe_subscription_id, fresh.status) == ("sub_b", "trialing")
+    await db_session.rollback()
+
+
+async def test_stripe_calls_under_the_lock_use_one_retry_and_a_short_timeout(
+    client, og, db_session, monkeypatch, fake,
+):
+    from backend.services import billing_reservations as br
+
+    seen = {}
+    real = fake["subs"][AGENT_SUB]
+
+    def retrieve(sub_id, **kw):
+        seen["kw"] = kw
+        seen["client"] = stripe.default_http_client
+        return real
+    monkeypatch.setattr(stripe.Subscription, "retrieve", retrieve)
+    before = stripe.default_http_client
+    await _add_row(db_session, "active")
+    await _post(client, monkeypatch, "customer.subscription.updated", _subscription())
+    assert seen["kw"] == {"max_network_retries": 1}
+    assert seen["client"] is br._locked_http_client
+    assert seen["client"]._timeout == br.LOCKED_STRIPE_TIMEOUT_S
+    assert stripe.default_http_client is before
+
+
+async def test_duplicate_refund_records_are_not_listed_as_charges(
+    client, manager_token, og, db_session,
+):
+    from backend.models.billing_charge import BillingCharge
+
+    db_session.add_all([
+        BillingCharge(ownership_group_id=OG_ID, kind="agent_duplicate_refund", amount_usd=10,
+                      stripe_object_id="sub_dup", status="succeeded"),
+        BillingCharge(ownership_group_id=OG_ID, kind="purchase", amount_usd=25,
+                      stripe_object_id="pi_1", status="succeeded"),
+    ])
+    await db_session.commit()
+    r = await client.get("/api/v1/billing/charges", headers=_auth(manager_token))
+    assert [c["kind"] for c in r.json()["charges"]] == ["purchase"]
