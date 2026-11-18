@@ -1,5 +1,14 @@
 /** Helpers for the reservations manager UI. Times are the restaurant's local time. */
-import type { DateOverride, Persona, RulesSchema, ServicePeriod } from "../types/reservations";
+import type {
+  DateOverride,
+  FloorIn,
+  FloorOut,
+  Persona,
+  RulesSchema,
+  SectionIO,
+  ServicePeriod,
+  TableIO,
+} from "../types/reservations";
 
 
 /** Hour:minute of an instant, in the restaurant's zone (never the browser's). */
@@ -130,5 +139,138 @@ export function rulesFormToPayload(f: RulesForm): RulesSchema {
     pending_hold_hours: num(f.pending_hold_hours),
     persona: { ...f.persona, facts: [...f.persona.facts] },
     staff_transfer_number: f.staff_transfer_number.trim() === "" ? null : f.staff_transfer_number.trim(),
+  };
+}
+
+// ── Floor plan editor ──
+
+/** The floor canvas in floor units (a 2-top is about 2 x 2). */
+export const CANVAS = { width: 40, height: 25 } as const;
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation?: number;
+}
+
+/** Rounds to the nearest `step`; -0 becomes 0. */
+export function snap(value: number, step = 0.5): number {
+  return Math.round(value / step) * step + 0;
+}
+
+const quarterTurned = (rotation: number | undefined): boolean =>
+  Math.abs(Math.round((rotation ?? 0) / 90)) % 2 === 1;
+
+/** The drawn rectangle: the table is rotated about its centre. */
+function footprint(t: Box): { x: number; y: number; w: number; h: number } {
+  if (!quarterTurned(t.rotation)) return { x: t.x, y: t.y, w: t.w, h: t.h };
+  return { x: t.x + (t.w - t.h) / 2, y: t.y + (t.h - t.w) / 2, w: t.h, h: t.w };
+}
+
+const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
+/** Position that keeps the whole drawn table inside CANVAS. */
+export function clampTable(t: Box): { x: number; y: number } {
+  const f = footprint(t);
+  const ox = f.x - t.x;
+  const oy = f.y - t.y;
+  return {
+    x: clamp(f.x, 0, CANVAS.width - f.w) - ox + 0,
+    y: clamp(f.y, 0, CANVAS.height - f.h) - oy + 0,
+  };
+}
+
+/** Position after moving by (dx, dy) floor units: snapped, then clamped. */
+export function moveTable(t: Box, dx: number, dy: number): { x: number; y: number } {
+  return clampTable({ ...t, x: snap(t.x + dx), y: snap(t.y + dy) });
+}
+
+const overlaps = (a: Box, b: Box): boolean => {
+  const p = footprint(a);
+  const q = footprint(b);
+  return p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+};
+
+/** Top-left of the first whole-unit grid spot (row by row) where a w x h table overlaps nothing. */
+export function firstFreeSpot(tables: Box[], w = 2, h = 2): { x: number; y: number } {
+  for (let y = 0; y + h <= CANVAS.height; y += 1) {
+    for (let x = 0; x + w <= CANVAS.width; x += 1) {
+      const box = { x, y, w, h };
+      if (!tables.some((t) => overlaps(box, t))) return { x, y };
+    }
+  }
+  return { x: 0, y: 0 };
+}
+
+/** "T1", "T2", ...: the first one not in `existing`. */
+export function nextLabel(existing: string[]): string {
+  const used = new Set(existing);
+  let n = 1;
+  while (used.has(`T${n}`)) n += 1;
+  return `T${n}`;
+}
+
+/** Client-side key for a new section ("new-1", ...); saved sections use their id as key. */
+export function nextSectionKey(existing: string[]): string {
+  const used = new Set(existing);
+  let n = 1;
+  while (used.has(`new-${n}`)) n += 1;
+  return `new-${n}`;
+}
+
+/** Labels for server table ids (table_has_bookings); an id we do not know is shown as is. */
+export function labelsForIds(ids: string[], tables: Pick<TableIO, "id" | "label">[]): string[] {
+  return ids.map((id) => tables.find((t) => t.id === id)?.label ?? id);
+}
+
+/** A table in the editor; `uid` is stable while the label is being edited. */
+export interface EditorTable extends TableIO {
+  uid: string;
+}
+
+/** Combinations point at tables by uid so a rename does not break them. */
+export interface EditorCombination {
+  id: string | null;
+  name: string;
+  uids: string[];
+  /** The server's computed range as of the last load or save; null once members change. */
+  seats: { min: number; max: number } | null;
+}
+
+export interface EditorFloor {
+  sections: SectionIO[];
+  tables: EditorTable[];
+  combinations: EditorCombination[];
+}
+
+export function floorToEditor(out: FloorOut): EditorFloor {
+  const tables = out.tables.map((t, i) => ({ ...t, uid: t.id ?? `loaded-${i}` }));
+  const uidByLabel = new Map(tables.map((t) => [t.label, t.uid]));
+  return {
+    sections: out.sections.map((s) => ({ ...s })),
+    tables,
+    combinations: out.combinations.map((c) => ({
+      id: c.id,
+      name: c.name,
+      uids: c.table_labels.flatMap((l) => uidByLabel.get(l) ?? []),
+      seats: { min: c.min_seats, max: c.max_seats },
+    })),
+  };
+}
+
+/** The whole floor for PUT: sections in display order, combinations by current label. */
+export function editorToFloorIn(ed: EditorFloor): FloorIn {
+  const labelByUid = new Map(ed.tables.map((t) => [t.uid, t.label]));
+  return {
+    sections: ed.sections.map((s, i) => ({ id: s.id, key: s.key, name: s.name, sort_order: i })),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    tables: ed.tables.map(({ uid, ...t }) => t),
+    combinations: ed.combinations.map((c) => ({
+      id: c.id,
+      name: c.name,
+      table_labels: c.uids.flatMap((u) => labelByUid.get(u) ?? []),
+    })),
   };
 }

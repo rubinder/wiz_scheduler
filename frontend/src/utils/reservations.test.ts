@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
-import type { RulesSchema } from "../types/reservations";
-import { errorKey, formatLocalTime, localDateString, payloadToRulesForm, rulesFormToPayload } from "./reservations";
+import type { FloorOut, RulesSchema, TableIO } from "../types/reservations";
+import {
+  CANVAS,
+  clampTable,
+  editorToFloorIn,
+  errorKey,
+  firstFreeSpot,
+  floorToEditor,
+  formatLocalTime,
+  labelsForIds,
+  localDateString,
+  moveTable,
+  nextLabel,
+  nextSectionKey,
+  payloadToRulesForm,
+  rulesFormToPayload,
+  snap,
+} from "./reservations";
 
 describe("reservations helpers", () => {
   it("formats time in the restaurant zone, not the process zone", () => {
@@ -72,5 +88,106 @@ describe("rules form conversion", () => {
     expect(out.slot_interval_minutes).toBe(15);
     expect(out.durations[0].minutes).toBe(90);
     expect(out.max_concurrent_covers).toBe(40);
+  });
+});
+
+describe("floor plan geometry", () => {
+  it("has a 40 x 25 canvas", () => {
+    expect(CANVAS).toEqual({ width: 40, height: 25 });
+  });
+
+  it("snaps to half units by default", () => {
+    expect(snap(1.26)).toBe(1.5);
+    expect(snap(1.24)).toBe(1);
+    expect(snap(3.3, 1)).toBe(3);
+    expect(snap(-0.2)).toBe(0);
+  });
+
+  it("keeps the whole table inside the canvas", () => {
+    expect(clampTable({ x: 39, y: -1, w: 2, h: 2 })).toEqual({ x: 38, y: 0 });
+    expect(clampTable({ x: 5, y: 30, w: 4, h: 2 })).toEqual({ x: 5, y: 23 });
+    expect(clampTable({ x: 3, y: 4, w: 2, h: 2 })).toEqual({ x: 3, y: 4 });
+  });
+
+  it("clamps a quarter-turned table by its drawn footprint", () => {
+    // A 4 x 2 table turned 90 degrees draws 2 wide and 4 tall around its centre.
+    expect(clampTable({ x: 0, y: 0, w: 4, h: 2, rotation: 90 })).toEqual({ x: 0, y: 1 });
+    expect(clampTable({ x: -5, y: 5, w: 4, h: 2, rotation: 90 })).toEqual({ x: -1, y: 5 });
+    expect(clampTable({ x: 0, y: 30, w: 4, h: 2, rotation: 270 })).toEqual({ x: 0, y: 22 });
+    expect(clampTable({ x: 0, y: 0, w: 4, h: 2, rotation: 180 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it("moves by a snapped delta and clamps", () => {
+    expect(moveTable({ x: 1, y: 1, w: 2, h: 2 }, 0.3, 30)).toEqual({ x: 1.5, y: 23 });
+    expect(moveTable({ x: 1, y: 1, w: 2, h: 2 }, -5, 0)).toEqual({ x: 0, y: 1 });
+  });
+
+  it("finds the first free 2 x 2 spot", () => {
+    expect(firstFreeSpot([])).toEqual({ x: 0, y: 0 });
+    const t = (x: number, y: number, w = 2, h = 2) => ({ x, y, w, h, rotation: 0 });
+    expect(firstFreeSpot([t(0, 0)])).toEqual({ x: 2, y: 0 });
+    expect(firstFreeSpot([t(0, 0), t(3, 0)])).toEqual({ x: 5, y: 0 });
+    expect(firstFreeSpot([t(0, 0, 40, 2)])).toEqual({ x: 0, y: 2 });
+  });
+
+  it("falls back to the origin when the canvas is full", () => {
+    expect(firstFreeSpot([{ x: 0, y: 0, w: 40, h: 25, rotation: 0 }])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("floor plan labels and keys", () => {
+  it("gives the first unused T label", () => {
+    expect(nextLabel(["T1", "T3"])).toBe("T2");
+    expect(nextLabel([])).toBe("T1");
+    expect(nextLabel(["T1", "T2", "Bar"])).toBe("T3");
+  });
+
+  it("gives the first unused new section key", () => {
+    expect(nextSectionKey([])).toBe("new-1");
+    expect(nextSectionKey(["abc12345", "new-1"])).toBe("new-2");
+  });
+
+  it("maps table ids to labels, keeping unknown ids", () => {
+    const tables = [{ id: "a", label: "T1" }, { id: "b", label: "Patio 2" }] as TableIO[];
+    expect(labelsForIds(["b", "zz", "a"], tables)).toEqual(["Patio 2", "zz", "T1"]);
+  });
+});
+
+describe("floor editor conversion", () => {
+  const table = (id: string, label: string, combinable = true): TableIO => ({
+    id, label, section_key: "s1", min_seats: 2, max_seats: 4, combinable,
+    x: 0, y: 0, w: 2, h: 2, rotation: 0,
+  });
+  const out: FloorOut = {
+    sections: [{ id: "s1", key: "s1", name: "Main", sort_order: 0 }],
+    tables: [table("a", "T1"), table("b", "T2")],
+    combinations: [{ id: "c1", name: "T1+T2", table_labels: ["T1", "T2"], min_seats: 2, max_seats: 8 }],
+  };
+
+  it("round-trips a server floor, dropping the computed seat range", () => {
+    const ed = floorToEditor(out);
+    expect(ed.combinations[0].uids).toEqual(["a", "b"]);
+    expect(ed.combinations[0].seats).toEqual({ min: 2, max: 8 });
+    expect(editorToFloorIn(ed)).toEqual({
+      sections: out.sections,
+      tables: out.tables,
+      combinations: [{ id: "c1", name: "T1+T2", table_labels: ["T1", "T2"] }],
+    });
+  });
+
+  it("follows a renamed table and renumbers section order", () => {
+    const ed = floorToEditor(out);
+    ed.tables[0] = { ...ed.tables[0], label: "Window" };
+    ed.sections = [{ id: null, key: "new-1", name: "Bar", sort_order: 9 }, ...ed.sections];
+    const p = editorToFloorIn(ed);
+    expect(p.combinations[0].table_labels).toEqual(["Window", "T2"]);
+    expect(p.sections.map((s) => [s.key, s.sort_order])).toEqual([["new-1", 0], ["s1", 1]]);
+    expect(p.tables[0]).not.toHaveProperty("uid");
+  });
+
+  it("drops members that no longer exist", () => {
+    const ed = floorToEditor(out);
+    ed.tables = ed.tables.filter((t) => t.uid !== "b");
+    expect(editorToFloorIn(ed).combinations[0].table_labels).toEqual(["T1"]);
   });
 });
