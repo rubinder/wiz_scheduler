@@ -1,0 +1,433 @@
+"""Manager reservations API."""
+
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
+from sqlalchemy import select
+
+from backend.config import settings
+from backend.models import Company, Location, Region
+from tests.conftest import COMPANY2_ID, LOCATION_ID, OTHER_LOCATION_ID
+
+NY = ZoneInfo("America/New_York")
+BASE = "/api/v1/reservations"
+PHONE = "+12125550100"
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+
+
+@pytest.fixture(autouse=True)
+def _enabled(monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
+
+
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _day():
+    return datetime.now(timezone.utc).astimezone(NY).date() + timedelta(days=7)
+
+
+def _at(hh: int, mm: int = 0) -> str:
+    return datetime.combine(_day(), time(hh, mm), tzinfo=NY).isoformat()
+
+
+def _booking(party: int = 3, hh: int = 18) -> dict:
+    return {"party_size": party, "start": _at(hh),
+            "diner": {"name": "Ada", "phone": PHONE}, "notes": "window"}
+
+
+async def _book(client, token, party: int = 3, hh: int = 18):
+    return await client.post(
+        f"{BASE}/locations/{LOCATION_ID}/reservations",
+        json=_booking(party, hh), headers=_auth(token))
+
+
+_ROUTES = [
+    ("get", f"/locations/{LOCATION_ID}/floor"),
+    ("put", f"/locations/{LOCATION_ID}/floor"),
+    ("get", f"/locations/{LOCATION_ID}/rules"),
+    ("put", f"/locations/{LOCATION_ID}/rules"),
+    ("get", f"/locations/{LOCATION_ID}/slots?party_size=2&date=2030-01-01"),
+    ("get", f"/locations/{LOCATION_ID}/reservations?date=2030-01-01"),
+    ("post", f"/locations/{LOCATION_ID}/reservations"),
+    ("patch", "/abcd1234"),
+    ("post", "/abcd1234/status"),
+    ("post", "/abcd1234/approve"),
+    ("post", "/abcd1234/decline"),
+]
+
+
+@pytest.mark.parametrize("method,path", _ROUTES)
+async def test_routes_404_when_flag_off(
+    client, manager_token, seed_location, monkeypatch, method, path
+):
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
+    r = await client.request(method, BASE + path, json={}, headers=_auth(manager_token))
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Not found"
+
+
+async def test_floor_and_rules_round_trip(client, manager_token, seed_location):
+    h = _auth(manager_token)
+    floor = {
+        "sections": [{"key": "main", "name": "Main"}],
+        "tables": [{"label": "T1", "section_key": "main", "min_seats": 2, "max_seats": 4}],
+    }
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/floor", json=floor, headers=h)
+    assert r.status_code == 200, r.text
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/floor", headers=h)
+    assert [t["label"] for t in r.json()["tables"]] == ["T1"]
+
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)
+    assert r.json()["version"] == 0
+    rules = r.json()["rules"]
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200 and r.json()["version"] == 1
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)
+    assert r.json()["version"] == 1
+
+
+async def test_invalid_floor_is_422(client, manager_token, seed_location):
+    floor = {"tables": [
+        {"label": "T1", "min_seats": 2, "max_seats": 4},
+        {"label": "T1", "min_seats": 2, "max_seats": 4}]}
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/floor", json=floor,
+                         headers=_auth(manager_token))
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "duplicate_label"
+
+
+async def test_staff_booking_then_slot_disappears(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    q = {"party_size": 3, "date": _day().isoformat()}
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/slots", params=q, headers=h)
+    assert r.status_code == 200
+    starts = [s["start"] for s in r.json()]
+    assert starts
+    r = await _book(client, manager_token)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "booked" and body["tables"] == ["T2"]
+    assert body["confirmation_code"] and body["diner_name"] == "Ada"
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/slots", params=q, headers=h)
+    wanted = datetime.fromisoformat(_at(18))
+    still = [s for s in r.json() if datetime.fromisoformat(s["start"]) == wanted]
+    assert still == []
+
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/reservations",
+                         params={"date": _day().isoformat()}, headers=h)
+    assert [x["id"] for x in r.json()] == [body["id"]]
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/reservations",
+                         params={"date": (_day() + timedelta(days=1)).isoformat()}, headers=h)
+    assert r.json() == []
+
+
+async def test_double_booking_answers_409(client, manager_token, seeded_floor):
+    assert (await _book(client, manager_token)).status_code == 201
+    r = await _book(client, manager_token)
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "slot_unavailable"
+
+
+async def test_party_size_zero_is_422(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/slots",
+                         params={"party_size": 0, "date": _day().isoformat()}, headers=h)
+    assert r.status_code == 422
+    r = await _book(client, manager_token, party=0)
+    assert r.status_code == 422
+
+
+async def test_bad_phone_is_422(client, manager_token, seeded_floor):
+    body = _booking()
+    body["diner"]["phone"] = "555"
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/reservations", json=body,
+                          headers=_auth(manager_token))
+    assert r.status_code == 422
+
+
+async def test_archiving_table_with_booking_is_409(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    assert (await _book(client, manager_token)).status_code == 201
+    floor = (await client.get(f"{BASE}/locations/{LOCATION_ID}/floor", headers=h)).json()
+    floor["tables"] = [t for t in floor["tables"] if t["label"] != "T2"]
+    floor["combinations"] = []
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/floor", json=floor, headers=h)
+    assert r.status_code == 409
+    d = r.json()["detail"]
+    assert d["code"] == "table_has_bookings" and d["table_ids"] == [seeded_floor.t2]
+
+
+async def test_regular_manager_outside_scope_gets_404(
+    client, regular_token, other_location
+):
+    h = _auth(regular_token)
+    for method, path in [
+        ("get", f"{BASE}/locations/{OTHER_LOCATION_ID}/floor"),
+        ("get", f"{BASE}/locations/{OTHER_LOCATION_ID}/rules"),
+        ("get", f"{BASE}/locations/{OTHER_LOCATION_ID}/reservations?date=2030-01-01"),
+    ]:
+        assert (await getattr(client, method)(path, headers=h)).status_code == 404
+    r = await client.post(f"{BASE}/locations/{OTHER_LOCATION_ID}/reservations",
+                          json=_booking(), headers=h)
+    assert r.status_code == 404
+
+
+async def test_reservation_in_other_scope_is_404(
+    client, manager_token, regular_token, seeded_floor, other_location, db_session
+):
+    from backend.reservations.models import Reservation
+    r = await _book(client, manager_token)
+    rid = r.json()["id"]
+    # Move it to the location the regular manager cannot see.
+    res = await db_session.get(Reservation, rid)
+    res.location_id = OTHER_LOCATION_ID
+    await db_session.commit()
+    h = _auth(regular_token)
+    assert (await client.patch(f"{BASE}/{rid}", json={"notes": "x"}, headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/status", json={"status": "cancelled"},
+                              headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/approve", headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/decline", headers=h)).status_code == 404
+
+
+async def test_other_company_location_is_404(client, manager_token, db_session):
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/New_York"))
+    await db_session.commit()
+    h = _auth(manager_token)
+    assert (await client.get(f"{BASE}/locations/loc2xxxx/floor", headers=h)).status_code == 404
+    r = await client.post(f"{BASE}/locations/loc2xxxx/reservations", json=_booking(), headers=h)
+    assert r.status_code == 404
+
+
+async def test_modify_and_status_flow(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.patch(f"{BASE}/{rid}", json={"notes": "birthday", "party_size": 2},
+                           headers=h)
+    assert r.status_code == 200 and r.json()["notes"] == "birthday"
+    assert r.json()["party_size"] == 2
+    r = await client.patch(f"{BASE}/{rid}", json={"party_size": 0}, headers=h)
+    assert r.status_code == 422
+    r = await client.post(f"{BASE}/{rid}/status", json={"status": "completed"}, headers=h)
+    assert r.status_code == 409
+    for s in ("seated", "completed"):
+        r = await client.post(f"{BASE}/{rid}/status", json={"status": s}, headers=h)
+        assert r.status_code == 200 and r.json()["status"] == s
+    r = await client.post(f"{BASE}/{rid}/status", json={"status": "bogus"}, headers=h)
+    assert r.status_code == 422
+    r = await client.post(f"{BASE}/nope1234/status", json={"status": "seated"}, headers=h)
+    assert r.status_code == 404
+
+
+async def test_cancel_and_approve_decline(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.post(f"{BASE}/{rid}/status", json={"status": "cancelled"}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    # A booked (not pending) row cannot be approved or declined.
+    rid2 = (await _book(client, manager_token)).json()["id"]
+    assert (await client.post(f"{BASE}/{rid2}/approve", headers=h)).status_code == 409
+    assert (await client.post(f"{BASE}/{rid2}/decline", headers=h)).status_code == 409
+
+
+async def _list(client, token, day, location_id=LOCATION_ID):
+    r = await client.get(f"{BASE}/locations/{location_id}/reservations",
+                         params={"date": day.isoformat()}, headers=_auth(token))
+    assert r.status_code == 200
+    return r.json()
+
+
+async def test_failed_modify_rolls_back(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    # Party 3 fits only T2; two parties at 18:00 and 19:30 (default turn 90+
+    # min) - move the second onto the first's time.
+    first = (await _book(client, manager_token, party=3, hh=18)).json()
+    second = (await _book(client, manager_token, party=3, hh=20)).json()
+    before = {r["id"]: r for r in await _list(client, manager_token, _day())}
+    r = await client.patch(f"{BASE}/{second['id']}", json={"start": _at(18)}, headers=h)
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "slot_unavailable"
+    after = {r["id"]: r for r in await _list(client, manager_token, _day())}
+    assert after[second["id"]]["start"] == before[second["id"]]["start"]
+    assert after[second["id"]]["party_size"] == 3
+    assert after[second["id"]]["tables"] == ["T2"]
+    assert after[first["id"]] == before[first["id"]]
+
+
+async def test_failed_modify_keeps_table_row_active(
+    client, manager_token, seeded_floor, db_session
+):
+    from sqlalchemy import select
+    from backend.reservations.models import ReservationTable
+    await _book(client, manager_token, party=3, hh=18)
+    second = (await _book(client, manager_token, party=3, hh=20)).json()
+    r = await client.patch(f"{BASE}/{second['id']}", json={"start": _at(18)},
+                           headers=_auth(manager_token))
+    assert r.status_code == 409
+    rows = (await db_session.execute(
+        select(ReservationTable).where(
+            ReservationTable.reservation_id == second["id"]))).scalars().all()
+    assert len(rows) == 1 and rows[0].active is True
+
+
+async def test_regular_manager_in_scope_can_read_and_book(
+    client, regular_token, seeded_floor, other_location
+):
+    h = _auth(regular_token)
+    r = await client.get(f"{BASE}/locations/{LOCATION_ID}/floor", headers=h)
+    assert r.status_code == 200
+    r = await _book(client, regular_token)
+    assert r.status_code == 201, r.text
+
+
+async def test_other_company_reservation_id_is_404(
+    client, manager_token, db_session
+):
+    from backend.models import Company, Location, Region
+    from backend.reservations.models import Reservation
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/New_York"))
+    await db_session.flush()
+    start = datetime.now(timezone.utc) + timedelta(days=3)
+    res = Reservation(
+        company_id=COMPANY2_ID, location_id="loc2xxxx", party_size=2,
+        start_at=start, end_at=start + timedelta(hours=1), status="booked",
+        source="staff")
+    db_session.add(res)
+    await db_session.commit()
+    h = _auth(manager_token)
+    rid = res.id
+    assert (await client.patch(f"{BASE}/{rid}", json={"notes": "x"}, headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/status", json={"status": "seated"},
+                              headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/approve", headers=h)).status_code == 404
+    assert (await client.post(f"{BASE}/{rid}/decline", headers=h)).status_code == 404
+
+
+async def test_listing_uses_the_local_day_on_a_dst_day(
+    client, manager_token, seeded_floor, db_session
+):
+    from datetime import date
+    from backend.reservations.models import Reservation
+    # 2027-03-14 is the US spring-forward day: the local day is 23 hours.
+    day = date(2027, 3, 14)
+    def mk(local: datetime) -> Reservation:
+        return Reservation(
+            company_id=seeded_floor.location.company_id, location_id=LOCATION_ID,
+            party_size=2, start_at=local, end_at=local + timedelta(hours=1),
+            status="booked", source="staff")
+    late = datetime.combine(day, time(23, 30), tzinfo=NY)
+    next_day = datetime.combine(day + timedelta(days=1), time(0, 30), tzinfo=NY)
+    early = datetime.combine(day, time(0, 30), tzinfo=NY)
+    rows = [mk(late), mk(next_day), mk(early)]
+    db_session.add_all(rows)
+    await db_session.commit()
+    got = await _list(client, manager_token, day)
+    assert {x["id"] for x in got} == {rows[0].id, rows[2].id}
+
+
+# --- final review fixes -----------------------------------------------------
+
+async def test_naive_start_is_422(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    body = _booking()
+    body["start"] = datetime.combine(_day(), time(18)).isoformat()  # no offset
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/reservations", json=body,
+                          headers=h)
+    assert r.status_code == 422
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.patch(f"{BASE}/{rid}", json={"start": body["start"]}, headers=h)
+    assert r.status_code == 422
+
+
+async def test_walk_in_is_seated_without_a_phone(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    url = f"{BASE}/locations/{LOCATION_ID}/walk-ins"
+    r = await client.post(url, json={"party_size": 3, "name": "Bo"}, headers=h)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "seated" and body["source"] == "staff"
+    assert body["tables"] == ["T2"] and body["diner_phone"] is None
+    r = await client.post(url, json={"party_size": 3}, headers=h)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "slot_unavailable"
+    r = await client.post(url, json={"party_size": 2, "phone": "555"}, headers=h)
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_phone"
+    r = await client.post(url, json={"party_size": 0}, headers=h)
+    assert r.status_code == 422
+
+
+async def test_staff_booking_without_phone_is_201(client, manager_token, seeded_floor):
+    body = _booking()
+    del body["diner"]["phone"]
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/reservations", json=body,
+                          headers=_auth(manager_token))
+    assert r.status_code == 201, r.text
+    assert r.json()["diner_phone"] is None
+
+
+async def test_slots_can_preview_the_diner_cutoff(client, manager_token, seeded_floor):
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()
+    rules = rules["rules"]
+    rules["service_periods"] = [{"name": "all day", "weekdays": list(range(7)),
+                                 "first_seating": "00:00", "last_seating": "23:45"}]
+    rules["cutoff_minutes"] = 1440
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+    now = datetime.now(timezone.utc)
+    tomorrow = (now.astimezone(NY) + timedelta(days=1)).date().isoformat()
+    url = f"{BASE}/locations/{LOCATION_ID}/slots"
+    staff = (await client.get(url, params={"party_size": 2, "date": tomorrow},
+                              headers=h)).json()
+    diner = (await client.get(url, params={"party_size": 2, "date": tomorrow,
+                                           "apply_cutoff": "true"}, headers=h)).json()
+    assert len(diner) < len(staff)
+    assert all(datetime.fromisoformat(s["start"]) >= now + timedelta(minutes=1440)
+               for s in diner)
+
+
+async def test_day_listing_reports_a_lapsed_hold_as_expired(
+    client, manager_token, seeded_floor, db_session
+):
+    from backend.reservations import booking
+    from backend.reservations.models import HELD, SOURCE_WEB_AGENT, Reservation
+    from tests.conftest import COMPANY_ID
+    then = datetime.now(timezone.utc) - timedelta(minutes=10)
+    res = await booking.hold(db_session, COMPANY_ID, LOCATION_ID, 2,
+                             datetime.fromisoformat(_at(19)), source=SOURCE_WEB_AGENT,
+                             now=then)
+    rid = res.id
+    await db_session.commit()
+    got = await _list(client, manager_token, _day())
+    assert [(x["id"], x["status"]) for x in got] == [(rid, "expired")]
+    # Reported, not written.
+    status = (await db_session.execute(
+        select(Reservation.status).where(Reservation.id == rid))).scalar_one()
+    assert status == HELD
+
+
+async def test_archiving_a_location_with_upcoming_reservations_is_409(
+    client, manager_token, seeded_floor
+):
+    h = _auth(manager_token)
+    rid = (await _book(client, manager_token)).json()["id"]
+    r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "location_has_reservations"
+    assert (await client.post(f"{BASE}/{rid}/status", json={"status": "cancelled"},
+                              headers=h)).status_code == 200
+    r = await client.delete(f"/api/v1/locations/{LOCATION_ID}", headers=h)
+    assert r.status_code == 204

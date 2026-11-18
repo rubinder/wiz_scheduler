@@ -18,7 +18,7 @@ import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -376,6 +376,8 @@ async def test_prune_delete_order_satisfies_foreign_keys():
 
     try:
         async with engine.begin() as conn:
+            # reservation_tables has a GiST exclusion constraint over varchar.
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             await conn.run_sync(Base.metadata.create_all)
 
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -445,11 +447,52 @@ async def test_prune_delete_order_satisfies_foreign_keys():
                 start_time=datetime(2026, 8, 10, 9, tzinfo=timezone.utc),
                 end_time=datetime(2026, 8, 10, 17, tzinfo=timezone.utc),
             ))
+            await db.flush()
+
+            # Reservations on the doomed location: all six tables hold NO
+            # ACTION FKs to locations (#254).
+            from sqlalchemy.dialects.postgresql import Range
+            from backend.reservations.models import (
+                DiningTable, FloorSection, Reservation, ReservationRules,
+                ReservationTable, TableCombination,
+            )
+            doomed = LEGACY_LOCATION_IDS[0]
+            db.add(FloorSection(id="fsec0001", company_id=COMPANY_ID,
+                                location_id=doomed, name="Main"))
+            await db.flush()
+            for tid in ("dtab0001", "dtab0002"):
+                db.add(DiningTable(id=tid, company_id=COMPANY_ID, location_id=doomed,
+                                   section_id="fsec0001", label=tid, min_seats=1,
+                                   max_seats=2, combinable=True))
+            await db.flush()
+            r_start = datetime(2026, 8, 10, 23, tzinfo=timezone.utc)
+            db.add_all([
+                TableCombination(id="tcmb0001", company_id=COMPANY_ID,
+                                 location_id=doomed, name="pair",
+                                 table_ids=["dtab0001", "dtab0002"],
+                                 min_seats=1, max_seats=4),
+                ReservationRules(id="rrul0001", company_id=COMPANY_ID,
+                                 location_id=doomed, rules={}),
+                Reservation(id="resv0001", company_id=COMPANY_ID, location_id=doomed,
+                            party_size=2, start_at=r_start,
+                            end_at=r_start + timedelta(minutes=90),
+                            status="booked", source="staff"),
+            ])
+            await db.flush()
+            db.add(ReservationTable(
+                id="rtab0001", company_id=COMPANY_ID, reservation_id="resv0001",
+                table_id="dtab0001",
+                during=Range(r_start, r_start + timedelta(minutes=100), bounds="[)")))
             await db.commit()
 
             # The assertion is that this does not raise an IntegrityError.
             await _prune_over_limit_demo_data(db)
             await db.commit()
+
+            for model in (ReservationTable, Reservation, TableCombination,
+                          DiningTable, FloorSection, ReservationRules):
+                assert (await db.execute(select(model.id))).scalars().all() == [], \
+                    model.__tablename__
 
             kept = (await db.execute(
                 select(Employee.id).where(Employee.company_id == COMPANY_ID)

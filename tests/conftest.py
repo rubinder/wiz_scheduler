@@ -196,6 +196,7 @@ async def setup_database(monkeypatch):
     """Create all tables before each test, drop after."""
     engine = _get_test_engine()
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
         await conn.run_sync(Base.metadata.create_all)
         if RLS_TEST:
             await _apply_rls_policies(conn)

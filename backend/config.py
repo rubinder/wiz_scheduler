@@ -257,6 +257,9 @@ class Settings(BaseSettings):
 
     # Auto-reload (real-time billing for AI + schedules)
     AUTORELOAD_DEFAULT_ENABLED: bool = True
+
+    # Reservations (#254): off until the feature is ready to ship.
+    RESERVATIONS_ENABLED: bool = False
     AUTORELOAD_DEFAULT_THRESHOLD_USD: float = 2.0
     AUTORELOAD_DEFAULT_AMOUNT_USD: float = 10.0
 

@@ -36,6 +36,7 @@ from backend.routers import (
     payroll_archive,
     public,
     regions,
+    reservations,
     roles,
     schedules,
     scheduling_preferences,
@@ -142,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(affinities.router, prefix=api_prefix)
     app.include_router(shift_templates.router, prefix=api_prefix)
     app.include_router(special_hours.router, prefix=api_prefix)
+    app.include_router(reservations.router, prefix=api_prefix)
     app.include_router(check_ins.router, prefix=api_prefix)
     app.include_router(payroll.router, prefix=api_prefix)
     # Before schedules.router: its /{schedule_id} routes must not swallow

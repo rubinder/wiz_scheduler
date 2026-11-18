@@ -10,7 +10,9 @@ from backend.dependencies import get_db, get_location_scope, require_admin, requ
 from backend.models import Location, Region, User
 from backend.schemas.location import LocationBulkUploadResponse, LocationCreate, LocationResponse, LocationUpdate
 from backend.services.billing import utc_month_start
-from backend.services.archive import active, archive_location, restore_location
+from backend.services.archive import (
+    LocationHasReservations, active, archive_location, restore_location,
+)
 from backend.services.location_scope import LocationScope
 from backend.services.ownership import assert_owned
 from backend.services.plan import assert_can_add, assert_paid_plan
@@ -313,7 +315,12 @@ async def delete_location(
     if location is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
-    await archive_location(db, current_user.company_id, location)
+    try:
+        await archive_location(db, current_user.company_id, location)
+    except LocationHasReservations as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": e.code, "message": str(e)})
     await db.commit()
 
 

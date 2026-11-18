@@ -20,11 +20,24 @@ from backend.models import (
     TimeEntry,
 )
 from backend.models.preference_submission import EmployeePreferenceSubmission
+from backend.reservations.models import DiningTable
+from backend.reservations.queries import count_upcoming
 from backend.services.check_in import local_date_for
 
 
 class EmployeeErased(Exception):
     """GDPR-erased employees are archived for good."""
+
+
+class LocationHasReservations(Exception):
+    """The location has upcoming reservations; cancel or move them first
+    (reservations decision 13). Routers answer 409 location_has_reservations."""
+
+    code = "location_has_reservations"
+
+    def __init__(self, count: int) -> None:
+        super().__init__(f"location has {count} upcoming reservation(s)")
+        self.count = count
 
 
 # Terminal status for a draft whose location was archived (#126). Counted
@@ -205,6 +218,11 @@ async def archive_location(db: AsyncSession, company_id: str, location: Location
     if location.archived_at is not None:
         return ArchiveCounts()
     now = _now(now)
+    # Diners must not arrive at a closed restaurant. Read under the location
+    # lock, which every reservation write also takes first.
+    upcoming = await count_upcoming(db, company_id, location.id, now)
+    if upcoming:
+        raise LocationHasReservations(upcoming)
     # The location is closing: its future work is cancelled, not refilled.
     future = await db.execute(
         delete(Shift).where(*_future_approved(company_id, now), Shift.location_id == location.id)
@@ -242,3 +260,9 @@ async def restore_location(db: AsyncSession, company_id: str, location: Location
 
 async def restore_role(db: AsyncSession, company_id: str, role: Role) -> None:
     role.archived_at = None
+
+
+def archive_dining_table(table: DiningTable, *, now: datetime | None = None) -> None:
+    """Archive a floor-plan table; callers check for upcoming bookings first."""
+    if table.archived_at is None:
+        table.archived_at = _now(now)

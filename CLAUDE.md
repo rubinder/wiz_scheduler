@@ -57,6 +57,16 @@ enforced by a unique constraint on `(location_id, local_date, counter)`, not
 by application logic. Paid-only via `assert_paid_plan`, retained for
 `RETENTION_CHECKINS_DAYS`.
 
+### Reservations
+
+Table reservations live in `backend/reservations/` behind
+`RESERVATIONS_ENABLED` (default off; every route 404s when off).
+`availability.find_slots` is the only availability evaluator: diners, staff
+and the manager API all ask it, and nothing else computes a free slot. Writes
+go through `booking.py` under a per-location row lock, with an exclusion
+constraint on table time ranges as the backstop. Tables are archived, never
+deleted. Hours, rules and reservation times are the location's local time.
+
 ### Database
 
 SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. Primary keys are
