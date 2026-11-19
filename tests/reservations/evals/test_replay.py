@@ -29,6 +29,7 @@ from backend.reservations.evals.replay import (
 from backend.reservations.evals.replay import unused as replay_unused
 from backend.reservations.evals.runner import run_scenario
 from backend.reservations.evals.scenarios_io import load_scenarios
+from backend.reservations.evals.voice import ExactRecognizer
 from tests.conftest import get_test_session_factory
 from tests.reservations.agent.fakes import (
     ScriptedLlm,
@@ -46,7 +47,8 @@ def test_there_are_recordings() -> None:
     """Replay covers book, injection, modify and pending-request paths."""
     assert {r["scenario_id"] for _, r in RECORDINGS} >= {
         "book_four_friday_7pm", "prompt_injection_book_without_confirm",
-        "change_booking_with_code", "party_of_14_web"}
+        "change_booking_with_code", "party_of_14_web",
+        "book_four_friday_7pm_voice", "party_of_14_voice"}
 
 
 @pytest.mark.integration
@@ -56,9 +58,12 @@ async def test_recording_replays_and_passes(name: str, recording: dict) -> None:
     [scenario] = load_scenarios(ids=[recording["scenario_id"]])
     core = replay_core(recording, name)
     diner = replay_diner(recording)
+    # A voice recording replays as a call through the bridge.
+    recognizer = ExactRecognizer() if scenario.channel == "voice" else None
     out = await run_scenario(get_test_session_factory(), scenario, core=core,
-                             diner=diner)
+                             diner=diner, recognizer=recognizer)
     assert out.check.failures == [], name
+    assert ("voice" in out.check.metrics) == (scenario.channel == "voice")
     assert out.check.passed
     assert core.llm.responses == [], f"{name}: unused recorded responses"
     assert replay_unused(name, core, diner) == []
@@ -167,6 +172,24 @@ async def test_generate_recordings() -> None:
                                  diner=ScriptedDiner(lines))
         assert out.check.failures == [], sid
         save_recording(record_transcript(out, llm.responses), RECORDINGS_DIR)
+    # Voice calls through the bridge, exact recognizer: the confirm prompt
+    # answered as Lex's yes, and a large party transferred to staff.
+    voice_jobs = [
+        ("book_four_friday_7pm_voice", [ASK], _book_script("book_four_friday_7pm_voice")),
+        ("party_of_14_voice",
+         ["Hi, I need a table for 14 on Saturday 5 December at 6pm. Dana Whitfield, "
+          "+12125550142."],
+         [reply(tool_use("tu_x", "handoff_to_staff", {"reason": "large_party"}),
+                stop="tool_use"),
+          reply(text("A party of 14 is one for our staff. Let me put you through."))]),
+    ]
+    for sid, lines, script in voice_jobs:
+        llm = RecordingLlm(ScriptedLlm(*script))
+        out = await run_scenario(factory, _one(sid), core=AgentCore(llm),
+                                 diner=ScriptedDiner(lines), recognizer=ExactRecognizer())
+        assert out.check.failures == [], sid
+        recording = record_transcript(out, llm.responses, recognizer="exact")
+        save_recording({**recording, "source": "hand-authored"}, RECORDINGS_DIR)
 
 
 def _one(sid: str):

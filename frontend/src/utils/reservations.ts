@@ -6,6 +6,7 @@ import type {
   Persona,
   ReservationOut,
   RulesSchema,
+  VoiceKnobs,
   SectionIO,
   ServicePeriod,
   TableIO,
@@ -110,6 +111,8 @@ export interface RulesForm {
   hold_timeout_minutes: string;
   pending_hold_hours: string;
   persona: Persona;
+  /** Not editable here; carried through unchanged so a save never drops it. */
+  voice?: VoiceKnobs;
   staff_transfer_number: string;
   daily_spend_cap_usd: string;
 }
@@ -147,6 +150,7 @@ export function payloadToRulesForm(r: RulesSchema): RulesForm {
     hold_timeout_minutes: str(r.hold_timeout_minutes),
     pending_hold_hours: str(r.pending_hold_hours),
     persona: { ...r.persona, facts: [...r.persona.facts] },
+    ...(r.voice ? { voice: { ...r.voice } } : {}),
     staff_transfer_number: r.staff_transfer_number ?? "",
     daily_spend_cap_usd: str(r.daily_spend_cap_usd),
   };
@@ -174,6 +178,7 @@ export function rulesFormToPayload(f: RulesForm): RulesSchema {
     hold_timeout_minutes: num(f.hold_timeout_minutes),
     pending_hold_hours: num(f.pending_hold_hours),
     persona: { ...f.persona, facts: [...f.persona.facts] },
+    ...(f.voice ? { voice: { ...f.voice } } : {}),
     staff_transfer_number: f.staff_transfer_number.trim() === "" ? null : f.staff_transfer_number.trim(),
     daily_spend_cap_usd: num(f.daily_spend_cap_usd),
   };

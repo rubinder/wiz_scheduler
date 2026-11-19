@@ -1,0 +1,46 @@
+{
+  "diner_lines": [
+    "Hi, I need a table for 14 on Saturday 5 December at 6pm. Dana Whitfield, +12125550142."
+  ],
+  "recognizer": "exact",
+  "responses": [
+    {
+      "content": [
+        {
+          "id": "tu_x",
+          "input": {
+            "reason": "large_party"
+          },
+          "name": "handoff_to_staff",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "text": "A party of 14 is one for our staff. Let me put you through.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    }
+  ],
+  "scenario_id": "party_of_14_voice",
+  "seed": null,
+  "source": "hand-authored",
+  "version": 1
+}

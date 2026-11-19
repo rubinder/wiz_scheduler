@@ -179,3 +179,95 @@ async def test_replay_with_leftover_responses_fails(monkeypatch, capsys,
     [result] = json.loads(saved.read_text())["results"]
     assert f"recording {name} has 1 unused responses" in result["failures"]
     assert f"recording {name} has 1 unused diner lines" in result["failures"]
+
+
+def _boom(service: str):
+    raise AssertionError(f"AWS client created: {service}")
+
+
+@pytest.mark.asyncio
+async def test_lex_refused_without_live(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", "bot")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", "alias")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAFAKE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    code = await run.amain(["--recognizer", "lex"], database_url=_url(),
+                           lex_client_factory=_boom)
+    assert code == 2 and "--live" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bot,alias", [("", "a"), ("b", ""), ("", "")])
+async def test_lex_refused_without_config(monkeypatch, capsys, bot, alias) -> None:
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", bot)
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", alias)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAFAKE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    code = await run.amain(["--recognizer", "lex", "--live", "--yes"],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "EVAL_LEX_BOT_ID" in capsys.readouterr().err
+
+
+def test_cost_estimate_adds_polly_and_lex_only_for_lex(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "EVAL_POLLY_USD_PER_MILLION_CHARS", 16.0)
+    monkeypatch.setattr(settings, "EVAL_LEX_USD_PER_SPEECH_REQUEST", 0.004)
+    base = run.cost_estimate(2, 1)
+    assert run.cost_estimate(2, 1, 0) == base
+    turns = 2 * run.MAX_DINER_TURNS
+    want = turns * run.AVG_LINE_CHARS * 16.0 / 1e6 + turns * 0.004
+    assert run.cost_estimate(2, 1, 2) == pytest.approx(base + want)
+
+
+def test_recognizer_flags() -> None:
+    args = run._parser().parse_args([])
+    assert args.recognizer == "exact" and args.seed == 259
+    args = run._parser().parse_args(["--recognizer", "noisy", "--seed", "7"])
+    assert args.recognizer == "noisy" and args.seed == 7
+    with pytest.raises(SystemExit):
+        run._parser().parse_args(["--recognizer", "whisper"])
+
+
+@pytest.mark.asyncio
+async def test_noisy_replay_of_an_exact_voice_recording_is_refused(capsys) -> None:
+    """Replay cannot show noise: a voice recording made with exact refuses a
+    noisy replay, before any schema is made or call placed."""
+    code = await run.amain(["--recognizer", "noisy"], database_url=_url(),
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "party_of_14_voice.json" in err or "book_four_friday_7pm_voice.json" in err
+    assert "exact" in err and "--live" in err
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_noisy_replay_of_web_scenarios_runs_offline(capsys, tmp_path: Path) -> None:
+    code = await run.amain(["--recognizer", "noisy", "--scenarios", "book_four_friday_7pm"],
+                           database_url=_url(), diner_client=_NoCalls(), llm=_NoCalls(),
+                           runs_dir=tmp_path)
+    assert code == 0, capsys.readouterr()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recognizer", ["noisy", "lex"])
+async def test_record_needs_the_exact_recognizer(capsys, recognizer) -> None:
+    code = await run.amain(["--live", "--record", "--recognizer", recognizer],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "exact" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_lex_refused_without_an_aws_region(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", "bot")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", "alias")
+    for var in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE", "AWS_CONFIG_FILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AWS_CONFIG_FILE", "/nonexistent/aws-config")
+    code = await run.amain(["--recognizer", "lex", "--live", "--yes"],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "region" in capsys.readouterr().err

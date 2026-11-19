@@ -19,6 +19,17 @@ and the database end state is graded by `checker.check`. A run that stopped
 because the diner went silent, a turn was not claimed or the runner errored
 (FAILED_STOPS) fails whatever the end state.
 
+Voice: with a recognizer set, a `voice` scenario runs through
+`evals.voice.VoiceChannel` instead: the real voice bridge turn
+(`agent.voice_turn.handle`) in process, every diner line first heard by the
+recognizer, a confirm prompt answered by the same policy as a press (the
+action the Lambda maps Lex's yes / no to). The call opens with the bridge's
+greeting turn. Every reply's SSML must parse (`ssml_invalid` otherwise),
+and `metrics["voice"]["repeats"]` lists, per bridge request after the
+greeting, its kind (`text`, a diner line; `action`, a confirmation answer)
+and whether the agent asked again (`voice.is_repeat`). Without a recognizer, or on the web channel, nothing
+changes.
+
 Turn latency: each diner turn (a typed line or a button press) times
 `core.handle_turn` on the wall clock, the wait a diner sees, as `turn_ms`;
 the metrics carry the list and its p50 / p95.
@@ -41,6 +52,7 @@ from backend.reservations.evals.checker import CheckResult, check, percentile
 from backend.reservations.evals.diner import DONE, Diner, Transcript
 from backend.reservations.evals.scenarios_io import Scenario
 from backend.reservations.evals.seed import SeededScenario, seed_scenario
+from backend.reservations.evals.voice import Recognizer, VoiceChannel, is_repeat, open_call
 
 logger = logging.getLogger(__name__)
 
@@ -216,27 +228,113 @@ def _press_succeeded(t: _Turn) -> bool:
         t.reservation_after is not None and t.reservation_after != t.reservation_before)
 
 
+@dataclass(frozen=True)
+class _Step:
+    """One request on either channel, as the loop needs it."""
+
+    host: str                # what the diner sees or hears
+    out: TurnOutput | None   # for the policy
+    ended: bool
+    confirmable: bool        # the policy may answer (web: a button; voice: a prompt)
+    press_ok: bool
+    turn_ms: float
+    repeat: bool = False
+    ssml_error: str | None = None
+    heard: str | None = None
+    heard_error: str | None = None
+    asr_ms: int | None = None
+    tts_ms: int | None = None
+
+
+class _WebChannel:
+    def __init__(self, db_factory: DbFactory, seeded: SeededScenario, conv_id: str,
+                 core: AgentCore) -> None:
+        self.db_factory, self.seeded, self.conv_id, self.core = (
+            db_factory, seeded, conv_id, core)
+
+    async def send(self, turn: TurnInput, now: datetime) -> _Step | None:
+        t = await _turn(self.db_factory, self.seeded, self.conv_id, self.core, turn, now)
+        if t is None:
+            return None
+        return _Step(host=visible_text(t.out), out=t.out, ended=t.out.ended,
+                     confirmable=True, press_ok=_press_succeeded(t), turn_ms=t.turn_ms)
+
+
+class _VoiceAdapter:
+    def __init__(self, channel: VoiceChannel) -> None:
+        self.channel = channel
+        self.previous: dict[str, Any] | None = None
+
+    async def open(self, now: datetime) -> _Step:
+        return self._step(await self.channel.turn(now=now))
+
+    async def send(self, turn: TurnInput, now: datetime) -> _Step:
+        return self._step(await self.channel.turn(now=now, text=turn.text,
+                                                  action=turn.action))
+
+    def _step(self, v: Any) -> _Step:
+        repeat = is_repeat(self.previous, v.reply, v.heard)
+        self.previous = v.reply
+        ok = v.ended or not v.open_after or (
+            v.reservation_after is not None and v.reservation_after != v.reservation_before)
+        return _Step(host=v.spoken(), out=v.out, ended=v.ended,
+                     confirmable=v.confirm_asked, press_ok=ok, turn_ms=v.turn_ms,
+                     repeat=repeat, ssml_error=v.ssml_error,
+                     heard=v.heard.text if v.heard else None,
+                     heard_error=v.heard.error if v.heard else None,
+                     asr_ms=v.heard.asr_ms if v.heard else None,
+                     tts_ms=v.heard.tts_ms if v.heard else None)
+
+
 async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: AgentCore,
-                       diner: Diner, now_override: datetime | None = None
-                       ) -> ScenarioOutcome:
+                       diner: Diner, now_override: datetime | None = None,
+                       recognizer: Recognizer | None = None,
+                       voice_knobs: dict[str, Any] | None = None) -> ScenarioOutcome:
     if now_override is not None:
         scenario = replace(scenario, now=now_override)
     async with db_factory() as db:
-        seeded = await seed_scenario(db, scenario)
-    async with db_factory() as db:
-        db.info[RLS_COMPANY_IDS] = [seeded.company_id]
-        conv = await recording.start_conversation(
-            db, seeded.company_id, seeded.location_id, scenario.channel)
-        conv_id = conv.id
-        await db.commit()
+        seeded = await seed_scenario(db, scenario, voice_knobs)
 
     transcript: Transcript = []
     presses: list[tuple[str, str]] = []
     turn_ms: list[float] = []
+    repeats: list[dict[str, Any]] = []
+    heard: list[str | None] = []
+    asr_ms: list[int] = []
+    tts_ms: list[int] = []
+    ssml_errors: list[str] = []
+    rec_errors: list[str] = []
     state = PolicyState()
     diner_turns = empties = 0
     now = scenario.now
     stop = "turn_cap"
+
+    channel: _WebChannel | _VoiceAdapter
+    if recognizer is not None and scenario.channel == "voice":
+        call = await open_call(db_factory, seeded, scenario, core, recognizer)
+        channel = _VoiceAdapter(call)
+        opening = await channel.open(now)
+        if opening.ssml_error:
+            ssml_errors.append(opening.ssml_error)
+        if call.conversation_id is None:
+            raise RuntimeError(f"the voice line did not answer: {opening.host!r}")
+        conv_id = call.conversation_id
+        transcript.append(("host", opening.host))
+    else:
+        async with db_factory() as db:
+            db.info[RLS_COMPANY_IDS] = [seeded.company_id]
+            conv = await recording.start_conversation(
+                db, seeded.company_id, seeded.location_id, scenario.channel)
+            conv_id = conv.id
+            await db.commit()
+        channel = _WebChannel(db_factory, seeded, conv_id, core)
+
+    def note(t: _Step, kind: str) -> None:
+        turn_ms.append(round(t.turn_ms, 1))
+        transcript.append(("host", t.host))
+        repeats.append({"kind": kind, "repeat": t.repeat})
+        if t.ssml_error:
+            ssml_errors.append(t.ssml_error)
     while diner_turns < MAX_DINER_TURNS:
         said = (await diner.reply(scenario, list(transcript))).strip()
         last = DONE in said
@@ -254,40 +352,44 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         now = scenario.now + TURN_STEP * diner_turns
         diner_turns += 1
         transcript.append(("diner", said))
-        t = await _turn(db_factory, seeded, conv_id, core,
-                        TurnInput(text=said, action=None), now)
+        t = await channel.send(TurnInput(text=said, action=None), now)
         if t is None:
             stop = "not_claimed"
             break
-        turn_ms.append(round(t.turn_ms, 1))
-        transcript.append(("host", visible_text(t.out)))
+        heard.append(t.heard)
+        if t.heard_error:
+            rec_errors.append(t.heard_error)
+        if t.asr_ms is not None:
+            asr_ms.append(t.asr_ms)
+        if t.tts_ms is not None:
+            tts_ms.append(t.tts_ms)
+        note(t, "text")
         if last:
             stop = "done"
             break
-        if t.out.ended:
+        if t.ended:
             stop = "ended"
             break
-        action = choose_action(scenario, t.out, state)
+        action = (choose_action(scenario, t.out, state)
+                  if t.confirmable and t.out is not None else None)
         if action is None:
             continue
         transcript.append(("diner", f"[pressed {_PRESSED[action]}]"))
         now = now + ACTION_STEP
-        t = await _turn(db_factory, seeded, conv_id, core,
-                        TurnInput(text=None, action=action), now)
+        t = await channel.send(TurnInput(text=None, action=action), now)
         if t is None:
             stop = "not_claimed"
             break
-        turn_ms.append(round(t.turn_ms, 1))
-        transcript.append(("host", visible_text(t.out)))
+        note(t, "action")
         if action in _CONFIRMS:
-            ok = _press_succeeded(t)
+            ok = t.press_ok
             presses.append((action, "action" if ok else "action_failed"))
             if ok:
                 stop = "action"
                 break
         else:
             presses.append((action, "declined"))
-        if t.out.ended:
+        if t.ended:
             stop = "ended"
             break
 
@@ -300,9 +402,17 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         )).scalar_one()
         await core.close_conversation(db, conv, now=now)
         result = await check(db, seeded, conv, scenario)
-    result = replace(result, metrics={
+    metrics = {
         **result.metrics, "book_goal": scenario.book_goal, "turn_ms": turn_ms,
-        "turn_p50_ms": percentile(turn_ms, 50), "turn_p95_ms": percentile(turn_ms, 95)})
+        "turn_p50_ms": percentile(turn_ms, 50), "turn_p95_ms": percentile(turn_ms, 95)}
+    if isinstance(channel, _VoiceAdapter):
+        metrics["voice"] = {"recognizer": channel.channel.recognizer.name,
+                            "repeats": repeats, "heard": heard,
+                            "asr_ms": asr_ms, "tts_ms": tts_ms,
+                            "ssml_errors": ssml_errors,
+                            "errors": rec_errors}
+    failures = [*result.failures, *(f"ssml_invalid: {e}" for e in ssml_errors)]
+    result = CheckResult(passed=not failures, failures=failures, metrics=metrics)
     if stop in FAILED_STOPS:
         result = CheckResult(passed=False,
                              failures=[*result.failures, f"run stopped: {stop}"],
@@ -314,7 +424,8 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
 
 async def run_suite(db_factory: DbFactory, scenarios: list[Scenario], *,
                     core: AgentCore, diner_factory: Callable[[Scenario], Diner],
-                    repeat: int = 1) -> SuiteResult:
+                    repeat: int = 1, recognizer: Recognizer | None = None,
+                    voice_knobs: dict[str, Any] | None = None) -> SuiteResult:
     """Every scenario `repeat` times, serially. A run that raises is recorded
     as a failed outcome and the suite goes on."""
     outcomes: list[ScenarioOutcome] = []
@@ -323,7 +434,9 @@ async def run_suite(db_factory: DbFactory, scenarios: list[Scenario], *,
         for _ in range(repeat):
             try:
                 outcome = await run_scenario(db_factory, scenario, core=core,
-                                             diner=diner_factory(scenario))
+                                             diner=diner_factory(scenario),
+                                             recognizer=recognizer,
+                                             voice_knobs=voice_knobs)
             except Exception as exc:
                 logger.exception("eval run failed (scenario %s)", scenario.id)
                 outcome = ScenarioOutcome(

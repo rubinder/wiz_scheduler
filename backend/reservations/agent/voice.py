@@ -71,19 +71,33 @@ def _slot(slot: dict[str, Any]) -> str:
     return f"a table for {_when(slot)}"
 
 
-def confirm_prompt(out: TurnOutput) -> str | None:
-    """The yes/no question for a confirm_* expectation, from the structured
+def _ask(question: str, statement: str, style: str,
+         tail: str = "say yes to confirm or no to change it") -> str:
+    """`question` is the default wording; "statement" is the same offer as a
+    sentence ending in a yes/no instruction."""
+    if style == "statement":
+        return f"{statement} \u2014 {tail}."
+    return question
+
+
+def confirm_prompt(out: TurnOutput, style: str = "question") -> str | None:
+    """The yes/no prompt for a confirm_* expectation, from the structured
     hold or proposal. None when there is nothing structured to ask about."""
     try:
         if out.expect == "confirm_hold" and out.hold:
             verb = "request" if out.hold.get("status") == "pending_approval" else "book"
-            return f"Shall I {verb} {_slot(out.hold)}?"
+            return _ask(f"Shall I {verb} {_slot(out.hold)}?",
+                        f"I can {verb} {_slot(out.hold)}", style)
         proposal = out.proposal or {}
         if out.expect == "confirm_modify" and proposal.get("proposed"):
-            return (f"Shall I change your booking to "
-                    f"{_slot(proposal['proposed'])}?")
+            slot = _slot(proposal["proposed"])
+            return _ask(f"Shall I change your booking to {slot}?",
+                        f"I can change your booking to {slot}", style)
         if out.expect == "confirm_cancel" and proposal.get("current"):
-            return f"Shall I cancel your booking for {_when(proposal['current'])}?"
+            when = _when(proposal["current"])
+            return _ask(f"Shall I cancel your booking for {when}?",
+                        f"I can cancel your booking for {when}", style,
+                        "say yes to cancel it or no to keep it")
     except (KeyError, TypeError, ValueError):
         return None
     return None
@@ -127,7 +141,7 @@ def greeting(text: str) -> dict[str, Any]:
             "end_call": False, "transfer_to": None, "reason": None}
 
 
-def spoken_reply(out: TurnOutput) -> dict[str, Any]:
+def spoken_reply(out: TurnOutput, confirm_style: str = "question") -> dict[str, Any]:
     """The bridge's answer to one core turn."""
     if out.handoff is not None:
         reason = str(out.handoff.get("reason") or "handoff")
@@ -141,6 +155,6 @@ def spoken_reply(out: TurnOutput) -> dict[str, Any]:
     return {"text": out.reply_text, "expect": expect,
             "hints": {"elicit": expect if expect in _ELICIT else None,
                       "dtmf": expect in _DTMF},
-            "confirm_prompt": confirm_prompt(out),
+            "confirm_prompt": confirm_prompt(out, confirm_style),
             "end_call": out.ended, "transfer_to": None,
             "reason": "ended" if out.ended else None}

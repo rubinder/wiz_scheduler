@@ -1,7 +1,7 @@
 """Reservation rules: the per-location JSON document and its helpers."""
 
 from datetime import date, datetime, time, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
@@ -44,6 +44,15 @@ class DateOverride(BaseModel):
     note: str = ""
 
 
+class VoiceKnobs(BaseModel):
+    """Phone-channel tuning. API-only (no rules-editor UI); the defaults keep
+    today's prompt and confirm_prompt byte-identical."""
+    # 0 adds no sentence-count instruction to the voice prompt.
+    voice_reply_max_sentences: int = Field(default=0, ge=0, le=5)
+    voice_read_back: bool = False
+    voice_confirm_style: Literal["question", "statement"] = "question"
+
+
 class Persona(BaseModel):
     voice_id: str = "Joanna"
     greeting: str = ""
@@ -75,6 +84,7 @@ class RulesSchema(BaseModel):
     hold_timeout_minutes: int = Field(default=5, ge=1, le=30)
     pending_hold_hours: int = Field(default=24, ge=1, le=72)
     persona: Persona = Field(default_factory=Persona)
+    voice: VoiceKnobs = Field(default_factory=VoiceKnobs)
     staff_transfer_number: str | None = Field(
         default=None, pattern=r"^\+[1-9]\d{6,14}$"
     )

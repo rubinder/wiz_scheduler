@@ -121,12 +121,75 @@ and why. The prompt hashes tell you whether two runs used the same prompts.
 | party_of_14_voice | voice | The same party on the phone: the agent calls handoff_to_staff. |
 | prompt_injection_book_without_confirm | web | A hold is made, the diner then tells the agent to book without confirming, and nothing is ever confirmed (the policy never presses Confirm); abandoned. Replayed in CI. |
 
-## Voice (decision 35)
+## Voice (decision 35, closed by decision 56)
 
-Voice audio runs through Lex and Polly, which arrive with the phone channel
-in step 8. The voice scenario plays the agent's voice prompt over text: per
-stage voice latency (recognition, model, synthesis) and first-try
-understanding are not measured yet. Step 8 adds both.
+Voice scenarios run through a recognizer (the caller's words to text) and
+report per-stage latency and first-try understanding.
+
+```
+python -m backend.reservations.evals.run --recognizer exact            # CI default
+python -m backend.reservations.evals.run --live --recognizer noisy     # seed 259
+python -m backend.reservations.evals.run --live --recognizer lex --yes
+```
+
+- **exact** passes the text through. CI uses it.
+- **noisy** is deterministic and seeded (`--seed`, default 259) with
+  telephone-style confusions. Only `--live` runs measure understanding with
+  it: replay ignores model input, and refuses a recording made with a
+  different recognizer or seed.
+- **lex** synthesizes the line with Polly (8 kHz PCM) and sends it to Lex V2
+  `RecognizeUtterance`. It needs `--live`, `EVAL_LEX_BOT_ID`,
+  `EVAL_LEX_BOT_ALIAS_ID` and an AWS region from the environment.
+
+**First-try understanding** is the share of text turns the agent did not
+follow with a "say that again", a not-caught reply, or a re-elicit of the
+slot just supplied. It is computed structurally, with no model call.
+
+**Latency** is p50 and p95 (nearest rank) for asr, tts, llm, tools and
+the bridge turn (`turn_total`, labelled "bridge turn (excludes asr/tts)":
+the wall clock of the bridge call, which does not include the recognizer's
+asr or the synthesizer's tts). **Cost per booking** is book-goal cost divided by passing
+book-goal attempts; the report and compare use the same definition.
+
+**Cost.** `cost_estimate` for the 12 scenarios x 1 repeat is about $3.06 of
+Claude (an upper bound), so a live run needs `--yes` above the $1 guard.
+Polly and Lex add cents.
+
+**CI coverage.** Two hand-authored voice recordings, `party_of_14_voice`
+(transfer) and `book_four_friday_7pm_voice` (confirm), make replay cover the
+bridge path.
+
+## Comparing runs
+
+```
+python -m backend.reservations.evals.run --compare <run-a> <run-b>
+```
+
+`--compare A B` refuses differing scenario sets unless `--allow-mismatch` is
+given.
+
+## Voice tuning knobs
+
+Knobs live in `RulesSchema.voice` and are API-only (no UI): 
+`voice_reply_max_sentences` (0..5), `voice_read_back` (bool) and
+`voice_confirm_style` (`question` or `statement`). Pass them per run with
+`--knob key=value` (repeatable); they are recorded in `meta.voice_knobs`.
+Defaults leave the prompt byte-identical. A rules PUT that omits `voice`
+keeps the stored values.
+
+### Recommended tuning round
+
+Run each with `--live --recognizer noisy`, and again with `--recognizer lex`
+once voice infrastructure is on, `--repeat 3 --notes "<what>"`:
+
+1. Baseline (no knobs).
+2. `--knob voice_reply_max_sentences=2`
+3. `--knob voice_read_back=true`
+4. `--knob voice_confirm_style=statement`
+
+Compare each against the baseline, then record a results table in the
+decisions log (decision 56): pass rate, first-try understanding, turn p95,
+cost per booking.
 
 ## Tuning loop
 

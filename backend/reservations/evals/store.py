@@ -11,7 +11,7 @@ import json
 import os
 import statistics
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -23,6 +23,8 @@ from backend.reservations.agent.prompt import build_system_prompt
 from backend.reservations.evals.checker import percentile
 from backend.reservations.evals.models import EvalResult, EvalRun
 from backend.reservations.evals.runner import SuiteResult
+from backend.reservations.evals.stats import (
+    book_goal_attempts, cost_per_booking, voice_section)
 from backend.reservations.rules import RulesSchema
 
 REFERENCE_LOCATION = "Reference Bistro"
@@ -39,19 +41,24 @@ class RunMeta:
     prompt_hash_web: str
     prompt_hash_voice: str
     mode: str  # "live" | "replay"
+    prompt_version: str  # sha256[:12] of the rendered reference voice prompt
     repeat: int = 1
     notes: str | None = None
+    recognizer: str = "exact"
+    seed: int | None = None
+    lex: dict[str, str] | None = None  # {bot_id, alias_id, locale}; lex runs only
+    voice_knobs: dict[str, Any] = field(default_factory=dict)
 
 
-def prompt_hash(channel: str) -> str:
-    prompt = build_system_prompt(REFERENCE_LOCATION, REFERENCE_TIMEZONE,
-                                 RulesSchema(), channel)
+def prompt_hash(channel: str, voice_knobs: dict[str, Any] | None = None) -> str:
+    rules = RulesSchema.model_validate({"voice": voice_knobs or {}})
+    prompt = build_system_prompt(REFERENCE_LOCATION, REFERENCE_TIMEZONE, rules, channel)
     return hashlib.sha256(prompt.encode()).hexdigest()
 
 
-def prompt_hashes() -> tuple[str, str]:
+def prompt_hashes(voice_knobs: dict[str, Any] | None = None) -> tuple[str, str]:
     """(web, voice)."""
-    return prompt_hash("web"), prompt_hash("voice")
+    return prompt_hash("web", voice_knobs), prompt_hash("voice", voice_knobs)
 
 
 def git_sha() -> str:
@@ -157,10 +164,10 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
     passed = sum(1 for r in results if r.passed)
     pct = round(100 * passed / total) if total else 0
     cost = sum(_nums(results, "total_cost_usd"))
-    book = [r for r in results if r.metrics.get("book_goal") is True]
+    book = book_goal_attempts(results)
     booked = sum(1 for r in book if r.passed)
-    per_booking = (f"${sum(_nums(book, 'total_cost_usd')) / booked:.4f}"
-                   if booked else "n/a")
+    cpb = cost_per_booking(results)
+    per_booking = f"${cpb:.4f}" if cpb is not None else "n/a"
     per_conversation = f"${cost / total:.4f}" if total else "n/a"
     turns = _pooled(results, "turn_ms")
     lines += ["",
@@ -172,6 +179,8 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
               f"cost per booking {per_booking} "
               f"({booked} passing of {len(book)} book-goal attempts)",
               f"cost per conversation {per_conversation}"]
+    lines += voice_section([dict(r.metrics) for r in results],
+                           [r.scenario_id for r in results])
     return "\n".join(lines)
 
 
@@ -190,7 +199,8 @@ def write_run_file(run: EvalRun, results: Sequence[EvalResult], meta: RunMeta,
     doc = {
         "id": run.id,
         "created_at": run.created_at.isoformat() if run.created_at else None,
-        "meta": asdict(meta),
+        "meta": {k: v for k, v in asdict(meta).items()
+                 if not (k == "lex" and v is None)},
         "results": [{"scenario_id": r.scenario_id, "attempt": r.attempt,
                      "passed": r.passed, "failures": list(r.failures),
                      "metrics": dict(r.metrics),

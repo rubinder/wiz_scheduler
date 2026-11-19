@@ -131,6 +131,15 @@ class Settings(BaseSettings):
     # INCLUDED_LLM_USD survives as a knob so a demo environment can grant
     # some spend; production leaves it at zero.
     INCLUDED_LLM_USD: float = 0.00
+
+    # Live voice evals (#259): Polly speaks the diner, Lex hears it. Used only
+    # by `evals.run --recognizer lex --live`.
+    EVAL_LEX_BOT_ID: str = ""
+    EVAL_LEX_BOT_ALIAS_ID: str = ""
+    EVAL_LEX_LOCALE: str = "en_US"
+    EVAL_POLLY_VOICE: str = "Joanna"
+    EVAL_POLLY_USD_PER_MILLION_CHARS: float = 16.00
+    EVAL_LEX_USD_PER_SPEECH_REQUEST: float = 0.004
     LLM_OVERAGE_MARKUP: float = 1.30         # 130% of token cost
     LLM_INPUT_COST_PER_M: float = 2.00       # $ per 1M input tokens (Claude Sonnet 5)
     LLM_OUTPUT_COST_PER_M: float = 10.00     # $ per 1M output tokens (Claude Sonnet 5)

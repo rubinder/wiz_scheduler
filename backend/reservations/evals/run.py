@@ -2,6 +2,17 @@
 
     python -m backend.reservations.evals.run                 # replay (CI, offline)
     python -m backend.reservations.evals.run --live          # real models
+    python -m backend.reservations.evals.run --recognizer noisy --seed 259
+
+Voice scenarios run through the voice bridge in process with a speech
+recognizer: `exact` (default) hears every word, `noisy` makes deterministic
+phone-line confusions (seeded by --seed, default 259). `lex` (real Polly to
+Lex audio) needs --live and EVAL_LEX_BOT_ID / EVAL_LEX_BOT_ALIAS_ID.
+
+Noisy understanding is a --live signal. A replay serves recorded model
+responses whatever text the model is sent, so it cannot show how the agent
+copes with noise: a voice recording replays only with the recognizer and
+seed it was made with, and any other is refused (exit 2).
 
 Replay runs every recording in `recordings/` against the real core, tools and
 database with the recorded model responses. Live needs ANTHROPIC_API_KEY,
@@ -20,8 +31,9 @@ Each run (meta, results, report) is written to `evals-runs/<run-id>.json` at
 the repo root before the scratch schema is dropped (decision 36): there are
 no eval tables in any real database.
 
-Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key,
-3 cost guard refused, 4 remote database refused.
+Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key / a
+voice recording made with another recognizer, 3 cost guard refused, 4 remote
+database refused.
 """
 
 import argparse
@@ -41,6 +53,7 @@ from sqlalchemy.pool import NullPool
 
 from backend.config import settings
 from backend.reservations.evals.diner import DINER_MAX_TOKENS, DINER_MODEL
+from backend.reservations.evals.voice import DEFAULT_SEED, make_recognizer
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +66,19 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "host.docker.internal", "postgre
 _SCHEMA_RE = re.compile(r"^evals_[0-9]{8}t[0-9]{6}z$")
 
 
-def cost_estimate(scenario_count: int, repeat: int) -> float:
+AVG_LINE_CHARS = 60  # a diner line, for the Polly character estimate
+
+
+def voice_cost_estimate(voice_scenario_count: int, repeat: int) -> float:
+    """The Lex recognizer's share: each diner turn is one Polly synthesis
+    (AVG_LINE_CHARS characters) and one Lex speech request."""
+    turns = voice_scenario_count * repeat * MAX_DINER_TURNS
+    polly = turns * AVG_LINE_CHARS * settings.EVAL_POLLY_USD_PER_MILLION_CHARS / 1e6
+    return polly + turns * settings.EVAL_LEX_USD_PER_SPEECH_REQUEST
+
+
+def cost_estimate(scenario_count: int, repeat: int,
+                  lex_voice_scenarios: int = 0) -> float:
     """scenarios x repeat x 20 diner turns x (MAX_TOOL_ROUNDS agent calls +
     1 diner call). Each call is priced at max output tokens plus an input
     estimate that grows with the conversation: 6000 + 800 x the turn index
@@ -69,7 +94,8 @@ def cost_estimate(scenario_count: int, repeat: int) -> float:
         agent_call = (settings.RESERVATION_AGENT_MAX_TOKENS * out + tokens_in * inp) / 1e6
         diner_call = (DINER_MAX_TOKENS * out + tokens_in * inp) / 1e6
         per_scenario += settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS * agent_call + diner_call
-    return scenario_count * repeat * per_scenario
+    return (scenario_count * repeat * per_scenario
+            + voice_cost_estimate(lex_voice_scenarios, repeat))
 
 
 def host_is_local(database_url: str) -> bool:
@@ -83,6 +109,30 @@ def host_is_local(database_url: str) -> bool:
 
 def scratch_schema_name(now: datetime | None = None) -> str:
     return "evals_" + (now or datetime.now(timezone.utc)).strftime("%Y%m%dt%H%M%Sz")
+
+
+def parse_knobs(pairs: list[str]) -> dict[str, Any]:
+    """`key=value` pairs validated against VoiceKnobs. ValueError on an
+    unknown key, a malformed pair or a bad value."""
+    from pydantic import ValidationError
+
+    from backend.reservations.rules import VoiceKnobs
+
+    raw: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise ValueError(f"--knob needs key=value, got {pair!r}")
+        if key not in VoiceKnobs.model_fields:
+            raise ValueError(f"unknown knob {key!r}; known: "
+                             f"{', '.join(VoiceKnobs.model_fields)}")
+        raw[key] = value
+    try:
+        # Strings are coerced by pydantic's lax mode ("2" -> 2, "true" -> True).
+        return VoiceKnobs.model_validate(raw).model_dump(include=set(raw))
+    except ValidationError as exc:
+        raise ValueError(f"bad --knob value: {exc.errors()[0]['loc'][0]}: "
+                         f"{exc.errors()[0]['msg']}") from exc
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -99,6 +149,17 @@ def _parser() -> argparse.ArgumentParser:
                    help="drop every evals_* schema older than 1 hour, then exit")
     p.add_argument("--allow-remote-db", action="store_true",
                    help="allow a DATABASE_URL whose host is not local")
+    p.add_argument("--recognizer", choices=("exact", "noisy", "lex"), default="exact",
+                   help="speech recognition for voice scenarios (default exact)")
+    p.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
+                   help="voice tuning override (repeatable), e.g. "
+                        "voice_reply_max_sentences=2; recorded in the run's meta")
+    p.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                   help=f"the noisy recognizer's seed (default {DEFAULT_SEED})")
+    p.add_argument("--compare", nargs=2, metavar=("A", "B"),
+                   help="compare two run files (ids or paths), offline, then exit")
+    p.add_argument("--allow-mismatch", action="store_true",
+                   help="--compare: allow runs with different scenario sets")
     return p
 
 
@@ -186,25 +247,40 @@ async def _scratch_run(database_url: str, schema: str, body: Any) -> Any:
 
 async def amain(argv: list[str] | None = None, *, database_url: str | None = None,
                 diner_client: Any = None, llm: Any = None,
-                runs_dir: Path | None = None) -> int:
-    """`database_url`, `diner_client`, `llm` and `runs_dir` are test seams.
+                runs_dir: Path | None = None,
+                lex_client_factory: Any = None) -> int:
+    """`database_url`, `diner_client`, `llm`, `runs_dir` and `lex_client_factory` are test seams.
     RLS_ENFORCE is off while it runs (see the module docstring)."""
     saved = settings.RLS_ENFORCE
     settings.RLS_ENFORCE = False
     try:
         return await _amain(argv, database_url=database_url,
-                            diner_client=diner_client, llm=llm, runs_dir=runs_dir)
+                            diner_client=diner_client, llm=llm, runs_dir=runs_dir,
+                            lex_client_factory=lex_client_factory)
     finally:
         settings.RLS_ENFORCE = saved
 
 
 async def _amain(argv: list[str] | None, *, database_url: str | None,
-                 diner_client: Any, llm: Any, runs_dir: Path | None) -> int:
+                 diner_client: Any, llm: Any, runs_dir: Path | None,
+                 lex_client_factory: Any = None) -> int:
     from backend.reservations.evals import replay, store
     from backend.reservations.evals.runner import SuiteResult, run_suite
     from backend.reservations.evals.scenarios_io import load_scenarios
 
     args = _parser().parse_args(argv)
+    if args.compare:
+        # Offline: two run files, no database, no schema.
+        from backend.reservations.evals.compare import compare_main
+
+        return compare_main(args.compare[0], args.compare[1],
+                            allow_mismatch=args.allow_mismatch,
+                            runs_dir=runs_dir or store.RUNS_DIR)
+    try:
+        knobs = parse_knobs(args.knob)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     ids = [s for s in args.scenarios.split(",") if s] or None
     url = database_url or settings.DATABASE_URL
     if args.repeat < 1:
@@ -213,6 +289,38 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     if args.record and not (args.live and args.repeat == 1):
         print("--record needs --live and --repeat 1", file=sys.stderr)
         return 2
+    if args.record and args.recognizer != "exact":
+        print("--record needs --recognizer exact: a recording is only valid "
+              "for the recognizer it was made with, and replay serves exact",
+              file=sys.stderr)
+        return 2
+    recognizer: Any
+    if args.recognizer == "lex":
+        # Refused before any AWS client exists, credentials or not.
+        if not args.live:
+            print("--recognizer lex calls Polly and Lex: it needs --live",
+                  file=sys.stderr)
+            return 2
+        if not (settings.EVAL_LEX_BOT_ID and settings.EVAL_LEX_BOT_ALIAS_ID):
+            print("--recognizer lex needs EVAL_LEX_BOT_ID and "
+                  "EVAL_LEX_BOT_ALIAS_ID", file=sys.stderr)
+            return 2
+        import boto3  # lazy: a refused run never imports it
+
+        if not boto3.session.Session().region_name:
+            print("--recognizer lex needs an AWS region (AWS_REGION or "
+                  "AWS_DEFAULT_REGION)", file=sys.stderr)
+            return 2
+        from backend.reservations.evals.lex_recognizer import (
+            LexRecognizer, default_client_factory)
+
+        recognizer = LexRecognizer(
+            settings.EVAL_LEX_BOT_ID, settings.EVAL_LEX_BOT_ALIAS_ID,
+            settings.EVAL_LEX_LOCALE, settings.EVAL_POLLY_VOICE,
+            run_id=scratch_schema_name(),
+            client_factory=lex_client_factory or default_client_factory)
+    else:
+        recognizer = make_recognizer(args.recognizer, args.seed)
     if not host_is_local(url) and not args.allow_remote_db:
         print(f"refusing to run: database host {make_url(url).host!r} is not local "
               "(pass --allow-remote-db to override)", file=sys.stderr)
@@ -233,7 +341,9 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         if not settings.ANTHROPIC_API_KEY:
             print("--live needs ANTHROPIC_API_KEY", file=sys.stderr)
             return 2
-        estimate = cost_estimate(len(scenarios), args.repeat)
+        lex_voice = (sum(sc.channel == "voice" for sc in scenarios)
+                     if args.recognizer == "lex" else 0)
+        estimate = cost_estimate(len(scenarios), args.repeat, lex_voice)
         print(f"cost estimate: ${estimate:.2f} "
               f"({len(scenarios)} scenarios x {args.repeat} x {MAX_DINER_TURNS} turns)")
         if estimate > COST_LIMIT_USD and not args.yes:
@@ -241,11 +351,28 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                   file=sys.stderr)
             return 3
 
-    web, voice = store.prompt_hashes()
+    if not args.live:
+        by_id = {sc.id: sc for sc in scenarios}
+        for name, rec in replay.load_recordings():
+            sc = by_id.get(rec["scenario_id"])
+            if sc is None or sc.channel != "voice":
+                continue
+            why = replay.recognizer_mismatch(rec, name, args.recognizer, args.seed)
+            if why:
+                print(f"refusing to replay: {why}", file=sys.stderr)
+                return 2
+
+    web, voice = store.prompt_hashes(knobs)
     meta = store.RunMeta(
         git_sha=store.git_sha(), agent_model=settings.RESERVATION_AGENT_MODEL,
         diner_model=DINER_MODEL, prompt_hash_web=web, prompt_hash_voice=voice,
-        mode="live" if args.live else "replay", repeat=args.repeat, notes=args.notes)
+        mode="live" if args.live else "replay", repeat=args.repeat, notes=args.notes,
+        recognizer=args.recognizer, seed=args.seed,
+        lex=({"bot_id": settings.EVAL_LEX_BOT_ID,
+              "alias_id": settings.EVAL_LEX_BOT_ALIAS_ID,
+              "locale": settings.EVAL_LEX_LOCALE}
+             if args.recognizer == "lex" else None),
+        prompt_version=voice[:12], voice_knobs=knobs)
 
     async def body(factory: Any) -> tuple[str, bool, Path]:
         from backend.reservations.agent.core import AgentCore
@@ -254,7 +381,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         from backend.reservations.evals.runner import ScenarioOutcome
 
         outcomes: list[ScenarioOutcome] = []
-        recorded: list[tuple[Any, Any]] = []
+        recorded: list[tuple[Any, Any, Any]] = []
         interrupted = False
         try:
             if args.live:
@@ -267,10 +394,12 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         # run_suite turns a run that raises into a failed outcome.
                         res = await run_suite(
                             factory, [scenario], core=AgentCore(client),
-                            diner_factory=lambda s: sim)
+                            diner_factory=lambda s: sim, recognizer=recognizer,
+                            voice_knobs=knobs)
                         outcomes += res.outcomes
                         if args.record:
-                            recorded += [(o, client.responses) for o in res.outcomes]
+                            recorded += [(o, client.responses, scenario)
+                                         for o in res.outcomes]
             else:
                 by_id = {sc.id: sc for sc in scenarios}
                 for name, rec in replay.load_recordings():
@@ -287,7 +416,8 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         continue
                     diner = replay.replay_diner(rec)
                     res = await run_suite(factory, [scenario], core=core,
-                                          diner_factory=lambda s, d=diner: d)
+                                          diner_factory=lambda s, d=diner: d,
+                                          recognizer=recognizer, voice_knobs=knobs)
                     for o in res.outcomes:
                         left = replay.unused(name, core, diner)
                         if left:
@@ -307,9 +437,12 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
             # Before the scratch schema (and the run with it) is dropped.
             saved_to = store.write_run_file(run, results, meta, report,
                                             runs_dir or store.RUNS_DIR)
-        for o, responses in recorded:
+        for o, responses, sc in recorded:
             if o.check.passed:
-                replay.save_recording(replay.record_transcript(o, responses))
+                voice_run = sc.channel == "voice"
+                replay.save_recording(replay.record_transcript(
+                    o, responses, recognizer=args.recognizer if voice_run else None,
+                    seed=args.seed if voice_run and args.recognizer == "noisy" else None))
         ok = bool(outcomes) and all(o.check.passed for o in outcomes) and not interrupted
         return report, ok, saved_to
 

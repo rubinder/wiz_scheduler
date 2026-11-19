@@ -34,9 +34,16 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "using the confirmation code and phone number.",
         "- Keep replies short and friendly.",
     ]
-    if voice:
+    if voice and not rules.voice.voice_reply_max_sentences:
         lines.append("- This is a phone call: keep every reply under two short "
                      "sentences.")
+    if voice and rules.voice.voice_reply_max_sentences:
+        n = rules.voice.voice_reply_max_sentences
+        lines.append("- On the phone, answer in at most "
+                     f"{n} short sentence{'' if n == 1 else 's'}.")
+    if voice and rules.voice.voice_read_back:
+        lines.append("- Before you hold a table, read back the party size, date, "
+                     "time and the caller's phone number in one sentence.")
     lines.append("- Reply in English only.")
     if voice:
         lines.append(f"- For parties larger than {rules.max_self_book_party}, call "
