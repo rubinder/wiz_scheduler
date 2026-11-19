@@ -126,7 +126,8 @@ async def test_erase_scrubs_and_deletes_only_that_diner(
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
                           json={"phone": ADA}, headers=_auth(manager_token))
     assert r.status_code == 200, r.text
-    assert r.json() == {"reservations_scrubbed": 2, "conversations_deleted": 3,
+    assert r.json() == {"reservations_scrubbed": 2, "external_bookings_deleted": 0,
+                        "conversations_deleted": 3,
                         "conversations_closed_in_flight": 0,
                         "conversations_still_in_flight": 0,
                         "lookup_failures_deleted": 1,

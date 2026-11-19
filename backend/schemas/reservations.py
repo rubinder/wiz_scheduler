@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import Reservation
+from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.rules import RulesSchema
 from backend.reservations.screening import spam_markable
 
@@ -67,6 +68,23 @@ class ReservationOut(BaseModel):
     source: str
     confirmation_code: str | None
     held_until: datetime | None
+    # An external provider's booking (#259 step 9): read-only for staff, no
+    # tables (that system has none of ours). WizScheduler rows are not.
+    external: bool = False
+    provider: str = "wizscheduler"
+
+    @classmethod
+    def external_booking(cls, b: ProviderBooking, location_id: str,
+                         provider: str) -> "ReservationOut":
+        """An external provider's booking, as the host view and diner data
+        export show it. Only the AI host books there, hence `agent`."""
+        return cls(
+            id=b.ref, location_id=location_id, party_size=b.party_size,
+            start=b.start, end=b.end, status=b.status, tables=[],
+            diner_name=b.diner_name, diner_phone=b.diner_phone, diner_email=None,
+            notes=None, source="agent", confirmation_code=b.code,
+            held_until=b.held_until, external=True, provider=provider,
+        )
 
     @classmethod
     def of(cls, res: Reservation, tables: list[str],
@@ -93,6 +111,7 @@ class ConversationOut(BaseModel):
     turn_count: int
     cost_usd: str
     reservation_id: str | None
+    provider: str
 
     @classmethod
     def of(cls, c: AgentConversation) -> "ConversationOut":
@@ -100,6 +119,7 @@ class ConversationOut(BaseModel):
             id=c.id, channel=c.channel, started_at=c.started_at,
             ended_at=c.ended_at, outcome=c.outcome, turn_count=c.turn_count,
             cost_usd=str(c.cost_usd), reservation_id=c.reservation_id,
+            provider=c.provider,
         )
 
 
@@ -236,7 +256,8 @@ class ScreeningStatsOut(BaseModel):
 class DinerDataOut(BaseModel):
     """One diner's data at one location (reservations/diner_data.py),
     including that number's entries here and company-wide (location_id
-    null)."""
+    null). `reservations` includes the diner's mock external bookings here,
+    labelled `external: true`."""
     reservations: list[ReservationOut]
     conversations: list[ConversationDetailOut]
     number_rules: list[NumberRuleOut]
@@ -244,6 +265,8 @@ class DinerDataOut(BaseModel):
 
 class DinerEraseOut(BaseModel):
     reservations_scrubbed: int
+    # Bookings the AI host made in the mock external system here (deleted).
+    external_bookings_deleted: int
     conversations_deleted: int
     # Mid-turn conversations closed rather than deleted; erase again later.
     conversations_closed_in_flight: int
@@ -259,6 +282,8 @@ class DinerEraseOut(BaseModel):
 
 class ReservationsConfigOut(BaseModel):
     enabled: bool
+    # Whether the rules editor may offer the mock external provider.
+    mock_provider_allowed: bool = False
     # Mirrors agent/models.py OUTCOMES; the conversations filter reads it.
     conversation_outcomes: list[str]
 

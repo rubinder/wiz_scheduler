@@ -408,3 +408,37 @@ async def test_proposal_and_handoff_tools_exist() -> None:
 
     names = {t["name"] for t in tools.TOOLS}
     assert set(PROPOSAL_TOOLS) | {HANDOFF_TOOL} <= names
+
+
+async def test_a_mock_conversation_is_graded_from_the_mock_inventory(
+        db_session: AsyncSession) -> None:
+    """The end state is read through the conversation's provider: a mock
+    conversation's booking is the mock's row, and a WizScheduler reservation
+    is never taken for it."""
+    from backend.reservations.mock_external_models import MockExternalBooking
+
+    scenario, seeded, conv = await _setup(db_session, "book_four_friday_7pm")
+    exp = scenario.expect.booking
+    start = _local(scenario, exp.local_date, exp.local_time)
+    conv.provider = "mock_external"
+    # A matching WizScheduler reservation naming the conversation: not graded.
+    await _book(db_session, scenario, seeded, conv, exp.party_size, start)
+    conv.reservation_id = None
+    await _turns(db_session, conv, 3)
+    await recording.finish(db_session, conv, "booked")
+    await db_session.commit()
+    result = await check(db_session, seeded, conv, scenario)
+    assert any("expected booking not found" in f for f in result.failures)
+
+    facts = scenario.diner.facts
+    row = MockExternalBooking(
+        company_id=seeded.company_id, location_id=seeded.location_id, start_at=start,
+        end_at=start + timedelta(minutes=105), party_size=exp.party_size,
+        status="booked", code="MOCK23", diner_name=facts["name"],
+        diner_phone=facts["phone"])
+    db_session.add(row)
+    await db_session.flush()
+    conv.reservation_id = row.id
+    await db_session.commit()
+    result = await check(db_session, seeded, conv, scenario)
+    assert result.failures == []

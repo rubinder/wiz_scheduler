@@ -1,0 +1,69 @@
+{
+  "diner_lines": [
+    "Hi, a table for 4 this Friday 4 December at 7pm please. Dana Whitfield, +12125550142."
+  ],
+  "responses": [
+    {
+      "content": [
+        {
+          "id": "tu_f",
+          "input": {
+            "date": "2026-12-04",
+            "earliest": "19:00",
+            "latest": "19:00",
+            "party_size": 4
+          },
+          "name": "find_slots",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "id": "tu_h",
+          "input": {
+            "name": "Dana Whitfield",
+            "party_size": 4,
+            "phone": "+12125550142",
+            "start_iso": "2026-12-04T19:00:00-05:00"
+          },
+          "name": "hold_slot",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "text": "I'm holding 19:00 for 4. Press Confirm to book it.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    }
+  ],
+  "scenario_id": "book_via_mock_external",
+  "source": "hand-authored",
+  "version": 1
+}

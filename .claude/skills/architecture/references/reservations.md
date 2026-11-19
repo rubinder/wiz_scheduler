@@ -77,3 +77,13 @@ answers 404 while it is off.
 - Manager routes in `backend/routers/reservations.py`: number rules,
   `/conversations/{id}/mark-spam`, `/screening-stats`.
 
+## Booking provider entry points
+
+- `backend/reservations/providers/base.py`: the `BookingProvider` protocol
+  and the `ProviderError` / transient errors the agent sees.
+- `backend/reservations/providers/wizscheduler.py`: the adapter over
+  `find_slots` and `booking.py`.
+- `backend/reservations/providers/mock_external.py`: a stand-in external
+  system with its own `mock_external_*` inventory; never calls `find_slots`.
+- `providers.provider_for(conv)`: picks the provider from
+  `agent_conversations.provider`, fixed at conversation creation.

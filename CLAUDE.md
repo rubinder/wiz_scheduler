@@ -61,11 +61,27 @@ by application logic. Paid-only via `assert_paid_plan`, retained for
 
 Table reservations live in `backend/reservations/` behind
 `RESERVATIONS_ENABLED` (default off; every route 404s when off).
-`availability.find_slots` is the only availability evaluator: diners, staff
-and the manager API all ask it, and nothing else computes a free slot. Writes
+`availability.find_slots` is the only evaluator of WizScheduler's own
+inventory: diners, staff and the manager API all ask it, and nothing else
+computes a free slot of it (an external provider owns its own inventory). Writes
 go through `booking.py` under a per-location row lock, with an exclusion
 constraint on table time ranges as the backstop. Tables are archived, never
 deleted. Hours, rules and reservation times are the location's local time.
+The AI host agent books only through a `BookingProvider`
+(`backend/reservations/providers/`), fixed per conversation when it starts
+(`agent_conversations.provider`); the WizScheduler adapter wraps
+`find_slots` and `booking.py`. Staff and manager routes call `booking.*`
+directly. The single-evaluator rule covers WizScheduler's own inventory
+only: the mock external provider (`providers/mock_external.py`) stands in
+for someone else's system, owns its inventory in `mock_external_*` tables
+and computes its own slots from the rules' periods, never calling
+`find_slots` or touching `reservations`. A conversation's booking refs
+(`held_reservation_id`, ...) are provider-scoped, so they carry no foreign
+key to `reservations`, and any reader of them (diner data, evals) matches
+them against `conv.provider`'s inventory only. The provider is chosen in the
+rules (`rules.provider`, `rules.mock_external`), admin-only (403
+`admin_only`); the host day list shows the mock's live bookings read-only
+(`external: true`, no tables).
 
 ### Database
 

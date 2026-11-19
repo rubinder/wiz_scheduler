@@ -30,6 +30,9 @@ EVENT_TYPES = ("user_turn", "assistant_turn", "tool_call", "tool_result",
                "error", "handoff", "action")
 OUTCOMES = ("booked", "modified", "cancelled", "handed_off", "abandoned",
             "failed", "blocked")
+# Booking providers (reservations/providers): fixed per conversation at start.
+PROVIDERS = ("wizscheduler", "mock_external")
+DEFAULT_PROVIDER = "wizscheduler"
 
 
 def new_public_token() -> str:
@@ -37,11 +40,11 @@ def new_public_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _reservation_fk() -> Mapped[str | None]:
-    return mapped_column(
-        String(8), ForeignKey("reservations.id", ondelete="SET NULL"),
-        nullable=True,
-    )
+def _booking_ref() -> Mapped[str | None]:
+    """A booking ref of the conversation's provider: a reservation id for
+    WizScheduler, a mock_external_bookings id for the mock. No foreign key
+    (0065 dropped 0058's), since a ref is provider-scoped."""
+    return mapped_column(String(8), nullable=True)
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -56,6 +59,8 @@ class AgentConversation(Base):
                         name="ck_agent_conversations_status"),
         CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
                         name="ck_agent_conversations_outcome"),
+        CheckConstraint(_in("provider", PROVIDERS),
+                        name="ck_agent_conversations_provider"),
         # One conversation per external contact (the Amazon Connect contact
         # id for a call) at a location.
         Index("uq_agent_conversations_location_external_ref", "location_id",
@@ -79,13 +84,18 @@ class AgentConversation(Base):
     source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="open", server_default=text("'open'"))
+    # The booking provider this conversation books through, set from the
+    # location's rules when it starts and never changed (providers.provider_for).
+    provider: Mapped[str] = mapped_column(
+        String, nullable=False, default=DEFAULT_PROVIDER,
+        server_default=text("'wizscheduler'"))
     outcome: Mapped[str | None] = mapped_column(String, nullable=True)
-    reservation_id: Mapped[str | None] = _reservation_fk()
-    held_reservation_id: Mapped[str | None] = _reservation_fk()
-    verified_reservation_id: Mapped[str | None] = _reservation_fk()
+    reservation_id: Mapped[str | None] = _booking_ref()
+    held_reservation_id: Mapped[str | None] = _booking_ref()
+    verified_reservation_id: Mapped[str | None] = _booking_ref()
     # Set only by the cancel_booking tool (to the verified id); the
     # confirm_cancel action requires it and clears it.
-    pending_cancel_id: Mapped[str | None] = _reservation_fk()
+    pending_cancel_id: Mapped[str | None] = _booking_ref()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
     # Set when a turn is claimed (recording.claim_turn), refreshed at each

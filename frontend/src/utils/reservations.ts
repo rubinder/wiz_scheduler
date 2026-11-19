@@ -1,5 +1,6 @@
 /** Helpers for the reservations manager UI. Times are the restaurant's local time. */
 import type {
+  BookingProviderName,
   DateOverride,
   FloorIn,
   FloorOut,
@@ -115,7 +116,13 @@ export interface RulesForm {
   voice?: VoiceKnobs;
   staff_transfer_number: string;
   daily_spend_cap_usd: string;
+  /** Admin-only: sent on save only when the editor may choose the provider. */
+  provider: BookingProviderName;
+  mock_external: { max_covers_per_slot: string; latency_ms: string; failure_rate: string };
 }
+
+/** The server's defaults (rules.py), for rules saved before step 9. */
+const MOCK_DEFAULTS = { max_covers_per_slot: 40, latency_ms: 0, failure_rate: 0 };
 
 const hm = (t: string): string => t.slice(0, 5);
 const str = (n: number | null): string => (n === null ? "" : String(n));
@@ -153,11 +160,22 @@ export function payloadToRulesForm(r: RulesSchema): RulesForm {
     ...(r.voice ? { voice: { ...r.voice } } : {}),
     staff_transfer_number: r.staff_transfer_number ?? "",
     daily_spend_cap_usd: str(r.daily_spend_cap_usd),
+    provider: r.provider ?? "wizscheduler",
+    mock_external: {
+      max_covers_per_slot: str((r.mock_external ?? MOCK_DEFAULTS).max_covers_per_slot),
+      latency_ms: str((r.mock_external ?? MOCK_DEFAULTS).latency_ms),
+      failure_rate: str((r.mock_external ?? MOCK_DEFAULTS).failure_rate),
+    },
   };
 }
 
-/** Times stay "HH:MM" (the server accepts it); blank capacity, pacing and transfer number become null. */
-export function rulesFormToPayload(f: RulesForm): RulesSchema {
+/**
+ * Times stay "HH:MM" (the server accepts it); blank capacity, pacing and
+ * transfer number become null. `withProvider` (admins only) sends the booking
+ * provider and the mock's knobs; otherwise they are omitted and the server
+ * keeps what is stored, so a regular manager's save never touches them.
+ */
+export function rulesFormToPayload(f: RulesForm, withProvider = false): RulesSchema {
   return {
     service_periods: f.service_periods.map(periodToForm),
     slot_interval_minutes: num(f.slot_interval_minutes),
@@ -181,6 +199,16 @@ export function rulesFormToPayload(f: RulesForm): RulesSchema {
     ...(f.voice ? { voice: { ...f.voice } } : {}),
     staff_transfer_number: f.staff_transfer_number.trim() === "" ? null : f.staff_transfer_number.trim(),
     daily_spend_cap_usd: num(f.daily_spend_cap_usd),
+    ...(withProvider
+      ? {
+          provider: f.provider,
+          mock_external: {
+            max_covers_per_slot: num(f.mock_external.max_covers_per_slot),
+            latency_ms: num(f.mock_external.latency_ms),
+            failure_rate: num(f.mock_external.failure_rate),
+          },
+        }
+      : {}),
   };
 }
 
@@ -369,6 +397,14 @@ export function groupBySeating(
   return groups;
 }
 
+/**
+ * Whether staff may act on a booking (seat, no-show, cancel, approve...). An
+ * external provider's booking is read-only here: that system owns it.
+ */
+export function staffCanAct(res: Pick<ReservationOut, "external">): boolean {
+  return !res.external;
+}
+
 export type TableState = "free" | "seated" | "upcoming";
 
 const UPCOMING_MS = 60 * 60 * 1000;
@@ -389,6 +425,7 @@ export function tableStates(
   for (const t of tables) out[t.label] = "free";
   const at = now.getTime();
   for (const r of reservations) {
+    if (r.external) continue; // never on our tables
     if (r.status === "booked") {
       const start = Date.parse(r.start);
       if (start - at > UPCOMING_MS || Date.parse(r.end) <= at) continue;
@@ -398,4 +435,13 @@ export function tableStates(
     }
   }
   return out;
+}
+
+/**
+ * Whether the rules editor lists the mock external provider: when the server
+ * allows it (config.mock_provider_allowed), or the stored value is already
+ * mock, so an existing demo still renders its selection.
+ */
+export function mockProviderOffered(allowed: boolean, stored: string | undefined): boolean {
+  return allowed || stored === "mock_external";
 }

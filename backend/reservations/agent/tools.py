@@ -1,5 +1,6 @@
 """The host agent's tools (#259): Anthropic tool definitions and the executor
-that maps a tool call onto the reservation services.
+that maps a tool call onto the conversation's booking provider
+(`providers.provider_for`), never onto `booking` or `availability` directly.
 
 Guards, so the model cannot state or book what the evaluator never produced:
 
@@ -17,12 +18,22 @@ Guards, so the model cannot state or book what the evaluator never produced:
 Each tool runs in a savepoint, so a failed write leaves the session usable
 and the conversation unchanged. `execute_tool` never raises. Flush only;
 callers commit.
+
+`Transient` (the provider could not be reached) is retried once, here in
+`execute_tool`, within the same tool call: the handler reruns from the
+start in a fresh savepoint with `ProviderContext.attempt = 1` (handlers
+change `conv` only after their last write, so a rerun is safe). A success
+after the retry is marked `retried`, and the core prefixes the diner's reply
+with its retry sentence; a second `Transient` returns
+`{"error": "provider_unavailable", "handoff": True}` and the core hands the
+diner to staff.
 """
 
 import logging
 import math
 import re
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
@@ -32,20 +43,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import Location
-from backend.reservations import booking
 from backend.reservations.agent import recording
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
-from backend.reservations.availability import find_slots
-from backend.reservations.booking import DinerContact, ReservationError
-from backend.reservations.models import (
+from backend.reservations.providers import (
     BOOKED,
     HELD,
     PENDING,
-    SOURCE_VOICE_AGENT,
-    SOURCE_WEB_AGENT,
-    Reservation,
+    BookingProvider,
+    InvalidTransition,
+    PartyTooLarge,
+    PhoneRequired,
+    ProviderBooking,
+    ProviderContext,
+    ProviderError,
+    ProviderSlot,
+    SlotUnavailable,
+    Transient,
+    provider_for,
 )
-from backend.reservations.rules import get_rules
+from backend.reservations.rules import RulesSchema, get_rules
 from backend.services.archive import active
 
 logger = logging.getLogger(__name__)
@@ -147,6 +163,7 @@ class ToolOutcome:
     result: dict[str, Any]
     is_error: bool = False
     expect: str | None = None
+    retried: bool = False  # succeeded on the retry after a Transient
 
 
 class _ToolError(Exception):
@@ -209,6 +226,36 @@ async def _location(db: AsyncSession, conv: AgentConversation) -> Location:
     return loc
 
 
+# The attempt of the tool call being run: 1 on execute_tool's retry after a
+# Transient. A context variable, so the handlers keep one signature.
+_ATTEMPT: ContextVar[int] = ContextVar("provider_attempt", default=0)
+
+
+def _ctx(conv: AgentConversation, loc: Location, rules: RulesSchema,
+         now: datetime) -> ProviderContext:
+    return ProviderContext(company_id=conv.company_id, location_id=conv.location_id,
+                           timezone=loc.timezone, rules=rules, now=now,
+                           conversation_id=conv.id, seq=conv.turn_count or 0,
+                           attempt=_ATTEMPT.get())
+
+
+async def _provider(db: AsyncSession, conv: AgentConversation, now: datetime
+                    ) -> tuple[BookingProvider, ProviderContext, Location]:
+    """The conversation's provider and its context (the location must be active)."""
+    loc = await _location(db, conv)
+    rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+    return provider_for(conv), _ctx(conv, loc, rules, now), loc
+
+
+async def find_slots(db: AsyncSession, conv: AgentConversation, ctx: ProviderContext,
+                     party_size: int, window_start: datetime, window_end: datetime,
+                     *, exclude_ref: str | None) -> list[ProviderSlot]:
+    """The agent's one availability question, asked of the conversation's
+    provider (for WizScheduler, `availability.find_slots` with the cutoff)."""
+    return await provider_for(conv).find_slots(
+        db, ctx, party_size, window_start, window_end, exclude_ref=exclude_ref)
+
+
 def _local(dt: datetime, zone: ZoneInfo) -> dict[str, str]:
     local = dt.astimezone(zone)
     return {"start_iso": local.isoformat(), "local_time": local.strftime("%H:%M"),
@@ -222,21 +269,18 @@ def _spread(items: list[Any], k: int) -> list[Any]:
     return [items[round(i * step)] for i in range(k)]
 
 
-def _summary(res: Reservation, zone: ZoneInfo) -> dict[str, Any]:
-    when = _local(res.start_at, zone)
-    return {"confirmation_code": res.confirmation_code, "name": res.diner_name,
+def _summary(res: ProviderBooking, zone: ZoneInfo) -> dict[str, Any]:
+    when = _local(res.start, zone)
+    return {"confirmation_code": res.code, "name": res.diner_name,
             "party_size": res.party_size, "status": res.status,
             "local_time": when["local_time"], "local_date": when["local_date"]}
 
 
-async def _verified(db: AsyncSession, conv: AgentConversation) -> Reservation:
+async def _verified(db: AsyncSession, conv: AgentConversation,
+                    provider: BookingProvider, ctx: ProviderContext) -> ProviderBooking:
     if conv.verified_reservation_id is None:
         raise _ToolError("not_verified")
-    res = (await db.execute(
-        select(Reservation).where(Reservation.id == conv.verified_reservation_id,
-                                  Reservation.company_id == conv.company_id,
-                                  Reservation.location_id == conv.location_id)
-    )).scalar_one_or_none()
+    res = await provider.lookup(db, ctx, ref=conv.verified_reservation_id)
     if res is None:
         raise _ToolError("not_verified")
     return res
@@ -254,6 +298,7 @@ async def _find_slots(db: AsyncSession, conv: AgentConversation,
     rules, _ = await get_rules(db, conv.company_id, conv.location_id)
     if party_size > rules.max_party_size:
         raise _ToolError("party_too_large")
+    ctx = _ctx(conv, loc, rules, now)
     zone = ZoneInfo(loc.timezone)
     window_start = datetime.combine(day, earliest or time(0, 0), tzinfo=zone)
     window_end = (datetime.combine(day, latest, tzinfo=zone) + timedelta(minutes=1)
@@ -262,10 +307,8 @@ async def _find_slots(db: AsyncSession, conv: AgentConversation,
     if window_end <= window_start:
         raise _ToolError("invalid_input")
     # A verified booking being moved must not block its own new time.
-    slots = await find_slots(
-        db, conv.company_id, conv.location_id, party_size, window_start, window_end,
-        now=now, exclude_reservation_id=conv.verified_reservation_id, apply_cutoff=True,
-    )
+    slots = await find_slots(db, conv, ctx, party_size, window_start, window_end,
+                             exclude_ref=conv.verified_reservation_id)
     options = [_local(s.start, zone) for s in _spread(slots, MAX_OPTIONS)]
     fresh = [{"start_iso": o["start_iso"], "party_size": party_size} for o in options]
     instants = {_instant(o["start_iso"]) for o in fresh}
@@ -294,36 +337,28 @@ async def _hold_slot(db: AsyncSession, conv: AgentConversation,
     if not isinstance(name, str) or not name.strip():
         raise _ToolError("invalid_input")
     phone = inp.get("phone")
-    diner = DinerContact(name=name.strip(), phone=phone.strip()
-                         if isinstance(phone, str) else None)
-    if diner.phone is None:
-        raise booking.PhoneRequired()
-    loc = await _location(db, conv)
+    if not isinstance(phone, str):
+        raise PhoneRequired()
+    provider, ctx, loc = await _provider(db, conv, now)
     # One unconfirmed hold per conversation: release the earlier one first,
     # so a re-hold may reuse its tables. A failed new hold rolls the savepoint
     # back, which restores it. A confirmed row (a submitted pending request
     # has a code) is never released here.
     if conv.held_reservation_id is not None:
-        old = (await db.execute(
-            select(Reservation).where(Reservation.id == conv.held_reservation_id,
-                                      Reservation.company_id == conv.company_id)
-            .execution_options(populate_existing=True)
-        )).scalar_one_or_none()
-        if old is not None and old.status in (HELD, PENDING) \
-                and old.confirmation_code is None:
+        old = await provider.lookup(db, ctx, ref=conv.held_reservation_id)
+        if old is not None and old.status in (HELD, PENDING) and old.code is None:
             try:
-                await booking.cancel(db, conv.company_id, old.id, now=now)
-            except booking.InvalidTransition:
+                await provider.cancel(db, ctx, old.ref)
+            except InvalidTransition:
                 pass  # it lapsed to expired under the lock: nothing to release
-    source = SOURCE_VOICE_AGENT if conv.channel == "voice" else SOURCE_WEB_AGENT
-    res = await booking.hold(db, conv.company_id, conv.location_id, party_size, start,
-                             source=source, conversation_id=conv.id, now=now,
-                             diner=diner)
-    conv.held_reservation_id = res.id
-    when = _local(res.start_at, ZoneInfo(loc.timezone))
+    res = await provider.hold(db, ctx, party_size, start, name=name.strip(),
+                              phone=phone.strip(), channel=conv.channel,
+                              conversation_id=conv.id)
+    conv.held_reservation_id = res.ref
+    when = _local(res.start, ZoneInfo(loc.timezone))
     held_until = res.held_until or now
     return ToolOutcome({
-        "hold_id": res.id, "local_time": when["local_time"],
+        "hold_id": res.ref, "local_time": when["local_time"],
         "local_date": when["local_date"], "party_size": res.party_size,
         "status": "pending_approval" if res.status == PENDING else "held",
         "expires_in_minutes": max(0, math.ceil((held_until - now).total_seconds() / 60)),
@@ -367,8 +402,10 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
                 >= settings.RESERVATION_AGENT_LOOKUP_LOCKOUT_FAILURES:
             raise _ToolError("too_many_attempts")
     res = None
+    loc = None
     if isinstance(code, str) and phone:
-        res = await booking.lookup(db, conv.company_id, conv.location_id, code, phone)
+        provider, ctx, loc = await _provider(db, conv, now)
+        res = await provider.lookup(db, ctx, code=code, phone=phone)
     # A new lookup drops anything staged against the previous verification.
     if res is None:
         if phone:
@@ -380,8 +417,8 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
         conv.pending_cancel_id = None
         conv.pending_modify = None
         return ToolOutcome({"found": False})
-    loc = await _location(db, conv)
-    conv.verified_reservation_id = res.id
+    assert loc is not None  # a found booking came from a provider call
+    conv.verified_reservation_id = res.ref
     conv.pending_cancel_id = None
     conv.pending_modify = None
     return ToolOutcome({"found": True, **_summary(res, ZoneInfo(loc.timezone))})
@@ -390,9 +427,10 @@ async def _lookup_booking(db: AsyncSession, conv: AgentConversation,
 async def _modify_booking(db: AsyncSession, conv: AgentConversation,
                           inp: dict[str, Any], now: datetime) -> ToolOutcome:
     """Validate a change and stage it; the confirm_modify action applies it."""
-    res = await _verified(db, conv)
+    provider, ctx, loc = await _provider(db, conv, now)
+    res = await _verified(db, conv, provider, ctx)
     if res.status not in (BOOKED, PENDING):
-        raise booking.InvalidTransition()
+        raise InvalidTransition()
     raw_party, raw_start = inp.get("party_size"), inp.get("start_iso")
     if raw_party is None and raw_start is None:
         raise _ToolError("invalid_input")
@@ -401,23 +439,19 @@ async def _modify_booking(db: AsyncSession, conv: AgentConversation,
     new_party = party_size or res.party_size
     if start is not None and not _was_offered(conv, start, new_party):
         raise _ToolError("not_offered")
-    loc = await _location(db, conv)
-    rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+    rules = ctx.rules
     if new_party > rules.max_party_size:
-        raise booking.PartyTooLarge()
+        raise PartyTooLarge()
     # Same rule booking.modify(by_staff=False) applies: a diner cannot grow a
     # booked party past the self-book limit, which would skip approval.
     if res.status == BOOKED and new_party != res.party_size \
             and new_party > rules.max_self_book_party:
-        raise booking.PartyTooLarge()
-    new_start = start or res.start_at.astimezone(timezone.utc)
-    slots = await find_slots(
-        db, conv.company_id, conv.location_id, new_party, new_start,
-        new_start + timedelta(minutes=1), now=now,
-        exclude_reservation_id=res.id, apply_cutoff=True,
-    )
+        raise PartyTooLarge()
+    new_start = start or res.start.astimezone(timezone.utc)
+    slots = await find_slots(db, conv, ctx, new_party, new_start,
+                             new_start + timedelta(minutes=1), exclude_ref=res.ref)
     if not any(s.start.astimezone(timezone.utc) == new_start for s in slots):
-        raise booking.SlotUnavailable()
+        raise SlotUnavailable()
     zone = ZoneInfo(loc.timezone)
     conv.pending_modify = {"start_iso": start.astimezone(zone).isoformat()
                            if start is not None else None,
@@ -433,11 +467,11 @@ async def _modify_booking(db: AsyncSession, conv: AgentConversation,
 
 async def _cancel_booking(db: AsyncSession, conv: AgentConversation,
                           inp: dict[str, Any], now: datetime) -> ToolOutcome:
-    res = await _verified(db, conv)
+    provider, ctx, loc = await _provider(db, conv, now)
+    res = await _verified(db, conv, provider, ctx)
     if res.status not in (HELD, PENDING, BOOKED):
-        raise booking.InvalidTransition()
-    loc = await _location(db, conv)
-    conv.pending_cancel_id = res.id
+        raise InvalidTransition()
+    conv.pending_cancel_id = res.ref
     conv.pending_modify = None  # one staged request at a time
     return ToolOutcome({"awaiting_confirmation": True,
                         **_summary(res, ZoneInfo(loc.timezone))},
@@ -499,6 +533,22 @@ async def execute_tool(
     if not isinstance(tool_input, dict):
         return ToolOutcome({"error": "invalid_input"}, is_error=True)
     now = now.astimezone(timezone.utc)
+    for attempt in (0, 1):
+        outcome = await _run_once(db, conv, name, handler, tool_input, now, attempt)
+        if outcome is not None:
+            return replace(outcome, retried=True) if attempt else outcome
+        logger.warning("agent tool %s: provider unavailable (conversation %s, "
+                       "attempt %d)", name, conv.id, attempt)
+    # Two Transients: staff take over.
+    return ToolOutcome({"error": Transient.code, "handoff": True}, is_error=True,
+                       retried=True)
+
+
+async def _run_once(db: AsyncSession, conv: AgentConversation, name: str,
+                    handler: _Handler, tool_input: dict[str, Any], now: datetime,
+                    attempt: int) -> ToolOutcome | None:
+    """One try of a tool; None when the provider raised Transient."""
+    token = _ATTEMPT.set(attempt)
     # Handlers change `conv` only after their last write can fail, so a rolled
     # back savepoint never leaves a half-updated conversation in memory.
     try:
@@ -510,8 +560,12 @@ async def execute_tool(
         # A handoff error (the phone-wide lookup lockout) ends the turn with staff.
         return ToolOutcome({"error": exc.code, "handoff": True} if exc.handoff
                            else {"error": exc.code}, is_error=True)
-    except ReservationError as exc:
+    except Transient:
+        return None  # before ProviderError: Transient is one
+    except ProviderError as exc:
         return ToolOutcome({"error": exc.code}, is_error=True)
     except Exception:
         logger.exception("agent tool %s failed (conversation %s)", name, conv.id)
         return ToolOutcome({"error": "internal"}, is_error=True)
+    finally:
+        _ATTEMPT.reset(token)

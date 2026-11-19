@@ -53,6 +53,7 @@ from backend.reservations.evals.diner import DONE, Diner, Transcript
 from backend.reservations.evals.scenarios_io import Scenario
 from backend.reservations.evals.seed import SeededScenario, seed_scenario
 from backend.reservations.evals.voice import Recognizer, VoiceChannel, is_repeat, open_call
+from backend.reservations.providers.mock_external import FAILURE_SEED
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +290,24 @@ class _VoiceAdapter:
 async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: AgentCore,
                        diner: Diner, now_override: datetime | None = None,
                        recognizer: Recognizer | None = None,
-                       voice_knobs: dict[str, Any] | None = None) -> ScenarioOutcome:
+                       voice_knobs: dict[str, Any] | None = None,
+                       failure_seed: str | None = None) -> ScenarioOutcome:
+    """`failure_seed` seeds the mock external provider's injected failures in
+    place of the (generated) conversation id; default: the scenario id, so a
+    scenario's failures are the same on every run."""
+    token = FAILURE_SEED.set(failure_seed or scenario.id)
+    try:
+        return await _run_scenario(db_factory, scenario, core=core, diner=diner,
+                                   now_override=now_override, recognizer=recognizer,
+                                   voice_knobs=voice_knobs)
+    finally:
+        FAILURE_SEED.reset(token)
+
+
+async def _run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: AgentCore,
+                        diner: Diner, now_override: datetime | None = None,
+                        recognizer: Recognizer | None = None,
+                        voice_knobs: dict[str, Any] | None = None) -> ScenarioOutcome:
     if now_override is not None:
         scenario = replace(scenario, now=now_override)
     async with db_factory() as db:

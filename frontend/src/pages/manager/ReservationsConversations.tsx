@@ -203,7 +203,9 @@ export default function ReservationsConversations() {
           deleted: out.number_rules_deleted,
           remaining: out.company_rules_remaining,
         });
-        setDinerResult([summary, rules, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
+        const external =
+          out.external_bookings_deleted > 0 ? fill(d.externalErased, { count: out.external_bookings_deleted }) : "";
+        setDinerResult([summary, external, rules, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
       }
     } catch (e) {
       setDinerError(errorText(e));
@@ -390,6 +392,11 @@ export default function ReservationsConversations() {
                   <div className={`flex justify-between gap-2 text-xs ${text.muted}`}>
                     <span>
                       {channelName(conv.channel)} · {fill(c.turns, { n: conv.turn_count })}
+                      {conv.provider === "mock_external" && (
+                        <span className="ms-2 rounded bg-gray-100 px-1.5 text-[11px] font-medium dark:bg-gray-700">
+                          {c.external}
+                        </span>
+                      )}
                     </span>
                     <span>{fill(c.cost, { cost: formatUsd(conv.cost_usd) })}</span>
                   </div>

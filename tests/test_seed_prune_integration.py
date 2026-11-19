@@ -499,13 +499,24 @@ async def test_prune_delete_order_satisfies_foreign_keys():
                               ownership_group_id=OWNERSHIP_GROUP_ID,
                               location_id=doomed, conversation_id="conv0001",
                               cost_usd=1, billed_usd=1.5, period_start=r_start))
+            from backend.reservations.mock_external_models import (
+                MockExternalBooking, MockExternalIdempotency,
+            )
+            db.add(MockExternalBooking(
+                id="mock0001", company_id=COMPANY_ID, location_id=doomed,
+                start_at=r_start, end_at=r_start + timedelta(minutes=90),
+                party_size=2, status="booked", code="MOCK23"))
+            db.add(MockExternalIdempotency(company_id=COMPANY_ID, key="c:book:1",
+                                           response={"ref": "mock0001"}))
             await db.commit()
 
             # The assertion is that this does not raise an IntegrityError.
             await _prune_over_limit_demo_data(db)
             await db.commit()
 
-            for model in (AgentUsage, AgentEvent, AgentConversation, ReservationTable,
+            assert (await db.execute(select(MockExternalIdempotency.key))).all() == []
+            for model in (MockExternalBooking, AgentUsage, AgentEvent, AgentConversation,
+                          ReservationTable,
                           Reservation, TableCombination,
                           DiningTable, FloorSection, ReservationRules):
                 assert (await db.execute(select(model.id))).scalars().all() == [], \

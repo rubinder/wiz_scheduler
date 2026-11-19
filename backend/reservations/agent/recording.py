@@ -18,6 +18,7 @@ from backend.reservations.agent.models import (
     AgentConversation,
     AgentEvent,
 )
+from backend.reservations.rules import get_rules
 
 # last_seq of a conversation whose diner data was erased while a turn was
 # in flight (diner_data.erase_diner_data closes it instead of deleting it).
@@ -50,9 +51,13 @@ async def start_conversation(
 ) -> AgentConversation:
     if channel not in CHANNELS:
         raise ValueError(f"invalid channel: {channel!r}")
+    # The provider is fixed here: switching it in the rules later never
+    # moves a conversation (or its bookings) to another provider.
+    rules, _ = await get_rules(db, company_id, location_id)
     conv = AgentConversation(
         company_id=company_id, location_id=location_id, channel=channel,
         caller_number=caller_number, source_key=source_key, status="open",
+        provider=rules.provider,
         started_at=datetime.now(timezone.utc),
     )
     db.add(conv)

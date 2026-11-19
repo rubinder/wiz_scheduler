@@ -79,6 +79,19 @@ export interface VoiceKnobs {
   voice_confirm_style: "question" | "statement";
 }
 
+/** Where the AI host books (#259 step 9). Admin-only in the rules editor. */
+export type BookingProviderName = "wizscheduler" | "mock_external";
+
+/** The mock external provider's knobs (rules.mock_external). Admin-only. */
+export interface MockExternalSettings {
+  /** 1–500 */
+  max_covers_per_slot: number;
+  /** 0–3000 */
+  latency_ms: number;
+  /** 0–0.5 */
+  failure_rate: number;
+}
+
 export interface RulesSchema {
   service_periods: ServicePeriod[];
   slot_interval_minutes: number;
@@ -99,6 +112,9 @@ export interface RulesSchema {
   staff_transfer_number: string | null;
   /** The AI host stops taking new conversations at this location once today's spend reaches it (min 1). */
   daily_spend_cap_usd: number;
+  /** Omitted on save by a regular manager: the server keeps the stored values (403 admin_only on a change). */
+  provider?: BookingProviderName;
+  mock_external?: MockExternalSettings;
 }
 
 export interface RulesOut {
@@ -168,11 +184,16 @@ export interface ReservationOut {
   source: string;
   confirmation_code: string | null;
   held_until: string | null;
+  /** Booked by the AI host in an external provider: read-only for staff, never has tables. */
+  external: boolean;
+  provider: BookingProviderName | string;
 }
 
 /** GET /reservations/config. conversation_outcomes mirrors agent/models.py OUTCOMES (served, so it cannot drift). */
 export interface ReservationsConfig {
   enabled: boolean;
+  /** Whether the rules editor may offer the mock external provider. */
+  mock_provider_allowed?: boolean;
   conversation_outcomes: string[];
 }
 
@@ -186,6 +207,8 @@ export interface ConversationOut {
   turn_count: number;
   cost_usd: string;
   reservation_id: string | null;
+  /** The booking provider the conversation was fixed to; "mock_external" is the test double. */
+  provider?: string;
 }
 
 export interface AgentEventOut {
@@ -266,6 +289,8 @@ export interface DinerDataOut {
 /** What erasing one diner's data did (POST .../diner-data/erase). */
 export interface DinerEraseOut {
   reservations_scrubbed: number;
+  /** The diner's external (mock provider) bookings here, deleted. */
+  external_bookings_deleted: number;
   conversations_deleted: number;
   /** Mid-turn conversations closed rather than deleted. */
   conversations_closed_in_flight: number;

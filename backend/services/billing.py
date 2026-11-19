@@ -1421,6 +1421,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     )
     from backend.reservations.voice_number_models import VoiceNumber, VoiceTransferCount
     from backend.reservations.screening_models import NumberRule, ScreenedCall
+    from backend.reservations.mock_external_models import (
+        MockExternalBooking,
+        MockExternalIdempotency,
+    )
     from backend.reservations.voice_numbers import release_for_deleted_group
 
     company_ids = (await db.execute(
@@ -1450,8 +1454,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     locations with NO ACTION FKs, so they go before locations.
         #     Children first: reservation_tables refs reservations and
         #     dining_tables; dining_tables refs floor_sections.
-        #     agent_events/agent_conversations (#259) ref reservations, so
-        #     they go first (events, then conversations).
+        #     agent_events/agent_conversations (#259) hold provider-scoped
+        #     refs to reservations with no FKs (decision 65); they are
+        #     deleted first (events, then conversations) so no ref outlives
+        #     its reservation.
         #     reservation_lookup_failures ref companies and locations.
         #     agent_usage (#259 step 5) refs companies, locations and
         #     conversations, so it goes first of all.
@@ -1460,9 +1466,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     the deletion), or AWS would keep billing a deleted group.
         #     voice_transfer_counts ref companies and locations.
         #     number_rules and screened_calls (#259 step 7) ref companies
-        #     and locations.
+        #     and locations. mock_external_idempotency (companies) and
+        #     mock_external_bookings (companies, locations), #259 step 9.
         await release_for_deleted_group(db, og.id)
-        for model in (NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
+        for model in (MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
                       ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):

@@ -89,7 +89,7 @@ class _Seating:
         return next(iter(self.sections)) if len(self.sections) == 1 else None
 
 
-def _candidates(
+def candidate_starts(
     rules: RulesSchema, zone: ZoneInfo, window_start: datetime, window_end: datetime
 ) -> list[datetime]:
     first: date = window_start.astimezone(zone).date()
@@ -216,7 +216,7 @@ def compute_slots(
 
     slots: list[Slot] = []
     candidates = ([at.astimezone(zone)] if at is not None
-                  else _candidates(rules, zone, window_start, window_end))
+                  else candidate_starts(rules, zone, window_start, window_end))
     for local_start in candidates:
         start = _utc(local_start)
         if not (w_start <= start < w_end) or start < earliest:

@@ -48,7 +48,8 @@ def test_there_are_recordings() -> None:
     assert {r["scenario_id"] for _, r in RECORDINGS} >= {
         "book_four_friday_7pm", "prompt_injection_book_without_confirm",
         "change_booking_with_code", "party_of_14_web",
-        "book_four_friday_7pm_voice", "party_of_14_voice"}
+        "book_four_friday_7pm_voice", "party_of_14_voice",
+        "book_via_mock_external", "mock_external_transient_retry"}
 
 
 @pytest.mark.integration

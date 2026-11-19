@@ -272,6 +272,10 @@ class Settings(BaseSettings):
 
     # Reservations (#254): off until the feature is ready to ship.
     RESERVATIONS_ENABLED: bool = False
+    # The mock external booking provider (#259 step 9) is a test double: the
+    # rules PUT refuses to switch a location onto it unless this is true
+    # (a location already stored as mock keeps saving).
+    RESERVATIONS_MOCK_PROVIDER_ALLOWED: bool = False
 
     # AI host voice channel (#259 step 6). Amazon Connect numbers are claimed
     # and released only while VOICE_PROVISIONING_ENABLED is true (a claimed

@@ -145,3 +145,23 @@ async def test_gdpr_user_export_carries_no_diner_data(
     assert r.status_code == 200
     assert "reservations" not in r.json() and "agent_conversations" not in r.json()
     assert "Ada Lovelace" not in r.text
+
+
+async def test_retention_purges_mock_external_idempotency_keys_after_a_day(
+        db_session: AsyncSession, seed_location):
+    from backend.reservations.mock_external_models import MockExternalIdempotency
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all([
+        MockExternalIdempotency(key="c:book:1", company_id=COMPANY_ID, response={},
+                                created_at=now - timedelta(hours=25)),
+        MockExternalIdempotency(key="c:book:2", company_id=COMPANY_ID, response={},
+                                created_at=now - timedelta(hours=1)),
+    ])
+    await db_session.commit()
+
+    summary = await run_data_retention(db_session)
+    assert summary["old_mock_external_idempotency_deleted"] == 1
+    db_session.expire_all()
+    assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:1")) is None
+    assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:2")) is not None

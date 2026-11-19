@@ -1,11 +1,16 @@
 """Deterministic, read-only grading of one scenario run's database end state.
 
-What counts as a booking: a reservation at the scenario's location linked to
-the conversation (its `conversation_id`, or the conversation's
-`reservation_id` / `held_reservation_id`; `reservation_id` is how a modify or
-cancel of a seeded booking is linked) whose status is booked or seated, or pending_approval with a
-confirmation code (a submitted request). Live holds and code-less pending
-rows are not bookings: they lapse on their own after hold_timeout_minutes.
+What counts as a booking: a booking linked to the conversation, read through
+the conversation's provider (`providers.provider_for(conv).lookup(ref=...)`
+for its `reservation_id` / `held_reservation_id`; `reservation_id` is how a
+modify or cancel of a seeded booking is linked), plus, for WizScheduler, any
+reservation naming the conversation in its own `conversation_id`. It counts
+when its status is booked or seated, or pending_approval with a confirmation
+code (a submitted request). Live holds and code-less pending rows are not
+bookings: they lapse on their own after hold_timeout_minutes. A mock
+external conversation's bookings are therefore graded from the mock's own
+inventory, never from `reservations`. Seeded bookings (kept / cancelled
+codes) are WizScheduler reservations: the scenario seeds them there.
 
 A model failure is never a correct handoff: a handoff counts only when the
 model called handoff_to_staff, or the core handed off for a reason the
@@ -16,11 +21,12 @@ internal error event fail the run.
 
 import math
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -32,6 +38,8 @@ from backend.reservations.evals.scenarios_io import (
     Scenario,
 )
 from backend.reservations.evals.seed import SeededScenario
+from backend.reservations.providers import ProviderBooking, ProviderContext, provider_for
+from backend.reservations.rules import get_rules
 from backend.reservations.models import (
     BOOKED,
     CANCELLED,
@@ -58,23 +66,74 @@ class CheckResult:
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
-def _is_booking(r: Reservation) -> bool:
+@dataclass(frozen=True)
+class _Booked:
+    """A linked booking, from either provider, in the fields grading reads."""
+
+    ref: str
+    start_at: datetime
+    party_size: int
+    status: str
+    confirmation_code: str | None
+    diner_name: str | None
+    diner_phone: str | None
+
+    @classmethod
+    def of_reservation(cls, r: Reservation) -> "_Booked":
+        return cls(r.id, r.start_at, r.party_size, r.status, r.confirmation_code,
+                   r.diner_name, r.diner_phone)
+
+    @classmethod
+    def of_booking(cls, b: ProviderBooking) -> "_Booked":
+        return cls(b.ref, b.start, b.party_size, b.status, b.code, b.diner_name,
+                   b.diner_phone)
+
+
+async def _linked_bookings(db: AsyncSession, conv: AgentConversation,
+                           scope: tuple[str, str], zone_name: str) -> list[_Booked]:
+    """The conversation's bookings, through its own provider."""
+    provider = provider_for(conv)
+    rules, _ = await get_rules(db, scope[0], scope[1])
+    ctx = ProviderContext(scope[0], scope[1], zone_name, rules, datetime.now(timezone.utc),
+                          conversation_id=conv.id)
+    out: dict[str, _Booked] = {}
+    if provider.name == "wizscheduler":
+        # WizScheduler's own link, which survives a declined, expired or
+        # replaced hold.
+        rows = (await db.execute(
+            select(Reservation)
+            .where(Reservation.company_id == scope[0],
+                   Reservation.location_id == scope[1],
+                   Reservation.conversation_id == conv.id)
+            .order_by(Reservation.created_at, Reservation.id)
+            .execution_options(populate_existing=True)
+        )).scalars().all()
+        out = {r.id: _Booked.of_reservation(r) for r in rows}
+    for ref in (conv.reservation_id, conv.held_reservation_id):
+        if ref is not None and ref not in out:
+            found = await provider.lookup(db, ctx, ref=ref)
+            if found is not None:
+                out[ref] = _Booked.of_booking(found)
+    return list(out.values())
+
+
+def _is_booking(r: _Booked | Reservation) -> bool:
     return r.status in (BOOKED, SEATED) or (
         r.status == PENDING and r.confirmation_code is not None)
 
 
-def _confirmed(r: Reservation) -> bool:
+def _confirmed(r: _Booked | Reservation) -> bool:
     """Ever confirmed: has a code, or reached a post-confirm status."""
     return r.confirmation_code is not None or r.status in (BOOKED, SEATED, COMPLETED)
 
 
-def _describe(r: Reservation, zone: ZoneInfo) -> str:
+def _describe(r: _Booked | Reservation, zone: ZoneInfo) -> str:
     local = r.start_at.astimezone(zone)
     return (f"party {r.party_size} {local:%Y-%m-%d %H:%M} {r.status} "
             f"code={r.confirmation_code} name={r.diner_name!r} phone={r.diner_phone}")
 
 
-def _mismatches(r: Reservation, exp: ExpectedBooking, facts: dict[str, str],
+def _mismatches(r: _Booked, exp: ExpectedBooking, facts: dict[str, str],
                 zone: ZoneInfo) -> list[str]:
     local = r.start_at.astimezone(zone)
     wrong = []
@@ -186,20 +245,11 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
         failures.append(f"outcome {conv.outcome!r}, expected one of {list(exp.outcomes)}")
 
     # Bookings linked to this conversation.
-    linked = or_(Reservation.conversation_id == conv.id,
-                 Reservation.id == conv.reservation_id,
-                 Reservation.id == conv.held_reservation_id)
-    rows = (await db.execute(
-        select(Reservation)
-        .where(Reservation.company_id == scope[0], Reservation.location_id == scope[1],
-               linked)
-        .order_by(Reservation.created_at, Reservation.id)
-        .execution_options(populate_existing=True)
-    )).scalars().all()
+    rows = await _linked_bookings(db, conv, scope, zone_name)
     # Seeded bookings the scenario says to keep are checked below, not here.
     kept = set(exp.kept_codes)
     bookings = [r for r in rows if _is_booking(r) and r.confirmation_code not in kept]
-    matched: Reservation | None = None
+    matched: _Booked | None = None
     if exp.booking is not None:
         for r in bookings:
             if not _mismatches(r, exp.booking, facts, zone):

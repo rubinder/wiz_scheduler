@@ -25,6 +25,7 @@ import {
   groupBySeating,
   localDateString,
   pendingApprovals,
+  staffCanAct,
   tableStates,
   validParty,
 } from "../../utils/reservations";
@@ -426,7 +427,14 @@ export default function ReservationsHost() {
           {withDate && `${formatLocalDateTime(res.start, tz, lang)} · `}
           {res.diner_name || h.noName}
         </span>
-        <span className={`text-xs ${text.muted}`}>{statusName(res.status)}</span>
+        <span className="flex items-center gap-2">
+          {res.external && (
+            <span className="glass-badge text-xs" title={h.externalHint}>
+              {h.external}
+            </span>
+          )}
+          <span className={`text-xs ${text.muted}`}>{statusName(res.status)}</span>
+        </span>
       </div>
       <p className={`text-sm ${text.muted}`}>
         {h.party.replace("{n}", String(res.party_size))}
@@ -435,7 +443,9 @@ export default function ReservationsHost() {
         {res.diner_phone && ` · ${res.diner_phone}`}
       </p>
       {res.notes && <p className="text-sm">{res.notes}</p>}
-      {busyId === res.id ? (
+      {!staffCanAct(res) ? (
+        <p className={`text-xs ${text.placeholder}`}>{h.externalHint}</p>
+      ) : busyId === res.id ? (
         <p className={`text-xs ${text.muted}`}>{r.common.loading}</p>
       ) : (
         <div className="flex flex-wrap gap-2">{actionsFor(res)}</div>
