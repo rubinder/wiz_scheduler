@@ -147,6 +147,28 @@ _SCREENED_CALLS = text("""
 """)
 
 
+# Metrics only, never landed (see COVERS): bookings of either provider that
+# start on `day` in their location's time zone and are still booked (or,
+# for WizScheduler, seated or completed), whenever they were made. The
+# window is widened by a day each side, then cut to the local date.
+_COVERS = text("""
+    SELECT b.provider, b.company_id, b.location_id, b.party_size, b.start_at,
+           l.timezone
+      FROM (SELECT 'wizscheduler' AS provider, company_id, location_id,
+                   party_size, start_at
+              FROM reservations
+             WHERE status IN ('booked', 'seated', 'completed')
+               AND start_at >= :wide_start AND start_at < :wide_end
+            UNION ALL
+            SELECT 'mock_external', company_id, location_id, party_size, start_at
+              FROM mock_external_bookings
+             WHERE status = 'booked'
+               AND start_at >= :wide_start AND start_at < :wide_end) b
+      JOIN locations l ON l.id = b.location_id
+     WHERE (b.start_at AT TIME ZONE COALESCE(l.timezone, 'UTC'))::date = :day
+     ORDER BY b.location_id, b.start_at
+""")
+
 # Codes a diner or the model may quote that day: those of bookings created
 # or changed in the window, from both providers. Never landed; used only to
 # mask them exactly in the strings that do.
@@ -161,6 +183,11 @@ _KNOWN_CODES = text("""
        AND ((created_at >= :start AND created_at < :end)
             OR (updated_at >= :start AND updated_at < :end))
 """)
+
+
+# The key of `day`'s result holding the covers rows the metrics read
+# (_COVERS). Not a lake table: only the keys of schemas.TABLES land.
+COVERS = "covers"
 
 
 def window(day: date) -> tuple[datetime, datetime]:
@@ -178,7 +205,9 @@ def skipped(extracted: dict[str, list[dict[str, Any]]]) -> list[str]:
 async def day(db: AsyncSession, day: date, *,
               runs_dir: Path | None = RUNS_DIR) -> dict[str, list[dict[str, Any]]]:
     """Every lake table's redacted rows for UTC `day`. `eval_results` is
-    absent when `runs_dir` is None or does not exist."""
+    absent when `runs_dir` is None or does not exist. Also, under COVERS
+    (not a lake table), the covers rows the metrics need, read in the same
+    snapshot."""
     start, end = window(day)
     params = {"start": start, "end": end}
     out: dict[str, list[dict[str, Any]]] = {}
@@ -197,6 +226,9 @@ async def day(db: AsyncSession, day: date, *,
             out["reservations"] = await rows(_RESERVATIONS)
             out["agent_usage"] = await rows(_AGENT_USAGE)
             out["screened_calls"] = await rows(_SCREENED_CALLS)
+            out[COVERS] = [dict(r) for r in (await owner.execute(_COVERS, {
+                "wide_start": start - timedelta(days=1), "wide_end": end + timedelta(days=1),
+                "day": day})).mappings()]
         finally:
             await owner.rollback()
     evals = eval_results(day, runs_dir)
