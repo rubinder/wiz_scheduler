@@ -42,7 +42,8 @@ from backend.config import settings
 from backend.database import RLS_COMPANY_IDS
 from backend.models import Company, OwnershipGroup
 from backend.reservations.agent import recording, voice, voice_turn
-from backend.reservations.agent.core import Action, AgentCore, TurnInput, TurnOutput
+from backend.reservations.agent.core import (
+    FALLBACK_TEXT, Action, AgentCore, TurnInput, TurnOutput)
 from backend.reservations.evals.scenarios_io import Scenario
 from backend.reservations.evals.seed import SeededScenario
 from backend.reservations.subscription_models import ReservationSubscription
@@ -240,13 +241,17 @@ def ssml_error(reply: dict[str, Any]) -> str | None:
 
 # -- repeat detection --------------------------------------------------------
 
-def is_repeat(previous: dict[str, Any] | None, reply: dict[str, Any]) -> bool:
+def is_repeat(previous: dict[str, Any] | None, reply: dict[str, Any],
+              heard: "Heard | None" = None) -> bool:
     """The agent asked the diner to repeat or clarify what they just said:
     the reply is `voice.not_caught()` or `voice.inflight()` ("say that
     again") text, or it elicits again the slot the
     previous reply elicited (the one the diner just answered). Structural,
-    never a model's judgement."""
-    if reply.get("text") in (voice.NOT_CAUGHT_TEXT, voice.INFLIGHT_TEXT):
+    never a model's judgement. The core's `FALLBACK_TEXT` counts, and so does
+    a text turn the recognizer heard nothing of (`heard.text is None`)."""
+    if heard is not None and heard.text is None:
+        return True
+    if reply.get("text") in (voice.NOT_CAUGHT_TEXT, voice.INFLIGHT_TEXT, FALLBACK_TEXT):
         return True
     asked = ((previous or {}).get("hints") or {}).get("elicit")
     again = (reply.get("hints") or {}).get("elicit")

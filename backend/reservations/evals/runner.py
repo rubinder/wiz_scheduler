@@ -241,6 +241,7 @@ class _Step:
     repeat: bool = False
     ssml_error: str | None = None
     heard: str | None = None
+    heard_error: str | None = None
     asr_ms: int | None = None
     tts_ms: int | None = None
 
@@ -272,7 +273,7 @@ class _VoiceAdapter:
                                                   action=turn.action))
 
     def _step(self, v: Any) -> _Step:
-        repeat = is_repeat(self.previous, v.reply)
+        repeat = is_repeat(self.previous, v.reply, v.heard)
         self.previous = v.reply
         ok = v.ended or not v.open_after or (
             v.reservation_after is not None and v.reservation_after != v.reservation_before)
@@ -280,6 +281,7 @@ class _VoiceAdapter:
                      confirmable=v.confirm_asked, press_ok=ok, turn_ms=v.turn_ms,
                      repeat=repeat, ssml_error=v.ssml_error,
                      heard=v.heard.text if v.heard else None,
+                     heard_error=v.heard.error if v.heard else None,
                      asr_ms=v.heard.asr_ms if v.heard else None,
                      tts_ms=v.heard.tts_ms if v.heard else None)
 
@@ -301,6 +303,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
     asr_ms: list[int] = []
     tts_ms: list[int] = []
     ssml_errors: list[str] = []
+    rec_errors: list[str] = []
     state = PolicyState()
     diner_turns = empties = 0
     now = scenario.now
@@ -354,6 +357,8 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
             stop = "not_claimed"
             break
         heard.append(t.heard)
+        if t.heard_error:
+            rec_errors.append(t.heard_error)
         if t.asr_ms is not None:
             asr_ms.append(t.asr_ms)
         if t.tts_ms is not None:
@@ -404,7 +409,8 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         metrics["voice"] = {"recognizer": channel.channel.recognizer.name,
                             "repeats": repeats, "heard": heard,
                             "asr_ms": asr_ms, "tts_ms": tts_ms,
-                            "ssml_errors": ssml_errors}
+                            "ssml_errors": ssml_errors,
+                            "errors": rec_errors}
     failures = [*result.failures, *(f"ssml_invalid: {e}" for e in ssml_errors)]
     result = CheckResult(passed=not failures, failures=failures, metrics=metrics)
     if stop in FAILED_STOPS:

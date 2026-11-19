@@ -110,6 +110,50 @@ def test_repeat_detection() -> None:
     assert not is_repeat(None, _reply())
 
 
+def test_fallback_and_unheard_text_are_repeats() -> None:
+    from backend.reservations.agent.core import FALLBACK_TEXT
+    assert is_repeat(_reply(), _reply(text_=FALLBACK_TEXT))
+    assert is_repeat(_reply(), _reply(), Heard(text=None))
+    assert not is_repeat(_reply(), _reply(), Heard(text="four"))
+
+
+class _Deaf:
+    name = "deaf"
+
+    def for_scenario(self, scenario_id: str) -> "_Deaf":
+        return self
+
+    async def hear(self, text_: str) -> Heard:
+        return Heard(text=None)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_recognizer_that_hears_nothing_counts_a_repeat() -> None:
+    scenario = _voice(_scenario("book_four_friday_7pm"))
+    llm = ScriptedLlm(reply(text("How many people?")), reply(text("Thanks.")))
+    out = await run_scenario(get_test_session_factory(), scenario,
+                             core=AgentCore(llm),  # type: ignore[arg-type]
+                             diner=ScriptedDiner(["Hi", DONE]), recognizer=_Deaf())  # type: ignore[arg-type]
+    assert out.check.metrics["voice"]["repeats"][0] == {"kind": "text", "repeat": True}
+
+
+class _Failing(_Deaf):
+    async def hear(self, text_: str) -> Heard:
+        return Heard(text=None, error="ThrottlingException")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_recognizer_errors_are_recorded_by_class_name() -> None:
+    scenario = _voice(_scenario("book_four_friday_7pm"))
+    llm = ScriptedLlm(reply(text("How many people?")), reply(text("Thanks.")))
+    out = await run_scenario(get_test_session_factory(), scenario,
+                             core=AgentCore(llm),  # type: ignore[arg-type]
+                             diner=ScriptedDiner(["Hi", DONE]), recognizer=_Failing())  # type: ignore[arg-type]
+    assert out.check.metrics["voice"]["errors"] == ["ThrottlingException"]
+
+
 def test_ssml_of_a_reply() -> None:
     held = {**_reply(), "text": "I have 7:00 PM on 2026-12-04, code EVCHG2 & more <b>.",
             "expect": "confirm_hold", "confirm_prompt": "Shall I book it?"}
