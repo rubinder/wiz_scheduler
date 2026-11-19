@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from sqlalchemy import select
 
+from backend.config import settings
 from backend.reservations.agent import voice
 from backend.reservations.agent.core import AgentCore, TurnInput, TurnOutput
 from backend.reservations.evals import voice as evals_voice
@@ -30,8 +31,8 @@ from tests.conftest import get_test_session_factory
 from tests.reservations.agent.fakes import ScriptedLlm, reply, text
 from tests.reservations.evals.test_runner import ASK, _hold_script, _scenario
 
-RECORDINGS = load_recordings()
-integration = [pytest.mark.integration, pytest.mark.asyncio]
+# The web recordings: each also replays as a voice call below.
+RECORDINGS = [(n, r) for n, r in load_recordings() if "recognizer" not in r]
 
 
 # -- the noisy recognizer ------------------------------------------------------
@@ -71,11 +72,16 @@ def test_noisy_confusions() -> None:
     phone = r.garble("+12125550142", random.Random(1))
     assert phone.startswith("+") and len(phone) == len("+12125550142") - 1
     assert r.garble("123", random.Random(1)) == "123"
-    # Code letters: B/D/E/P/V, M/N, S/F; other characters stay.
-    code = r.garble("EVCHG2", random.Random(1))
-    assert code[0] in "BDPV" and code[1] in "BDEP" and code[2:] == "CHG2"
-    assert r.garble("MS", random.Random(1)) == "MS"  # not a 6-character code
-    assert r.garble("MSHJK2", random.Random(1))[:2] == "NF"
+    # Only stand-alone numbers flip: "7pm", "4th" and "x4" are kept.
+    assert r.garble("at 7pm on the 4th, room x4", random.Random(1)) == \
+        "at 7pm on the 4th, room x4"
+    # Code letters (B/D/E/P/V, M/N, S/F) only right after "code" / "code is".
+    for said in ("code EVCHG2", "Confirmation code: EVCHG2", "my code is EVCHG2"):
+        code = r.garble(said, random.Random(1)).split()[-1]
+        assert code[0] in "BDPV" and code[1] in "BDEP" and code[2:] == "CHG2", said
+    assert r.garble("code MSHJK2", random.Random(1)) == "code NFHJK2"
+    assert r.garble("booking EVCHG2", random.Random(1)) == "booking EVCHG2"
+    assert r.garble("code MS", random.Random(1)) == "code MS"  # not 6 characters
     # Rate 0 hears every word.
     assert NoisyRecognizer(259, rate=0.0).garble(LINE, random.Random(1)) == LINE
 
@@ -97,6 +103,7 @@ def _reply(elicit: str | None = None, text_: str = "Okay.") -> dict[str, Any]:
 def test_repeat_detection() -> None:
     assert is_repeat(_reply(), voice.not_caught(_reply()))
     assert is_repeat(None, voice.not_caught(None))
+    assert is_repeat(_reply(), voice.inflight())  # "could you say that again?"
     assert is_repeat(_reply("party_size"), _reply("party_size"))
     assert not is_repeat(_reply("party_size"), _reply("phone_number"))
     assert not is_repeat(_reply(), _reply("party_size"))
@@ -200,7 +207,8 @@ async def test_confirm_prompt_is_answered_as_lex_would() -> None:
     # The caller heard the structured question, then answered it.
     assert "Shall I book a table for 4" in out.transcript[2][1]
     assert out.transcript[3] == ("diner", "[pressed Confirm]")
-    assert out.check.metrics["voice"]["repeats"] == [False, False]
+    assert out.check.metrics["voice"]["repeats"] == [
+        {"kind": "text", "repeat": False}, {"kind": "action", "repeat": False}]
 
 
 class _ForFour:
@@ -267,7 +275,9 @@ async def test_a_re_elicited_slot_is_a_repeat() -> None:
                              diner=ScriptedDiner(["Hi", "four", "four", DONE]),
                              recognizer=ExactRecognizer())
     # The first ask is not a repeat; asking again for the same slot is.
-    assert out.check.metrics["voice"]["repeats"] == [False, True, True]
+    assert out.check.metrics["voice"]["repeats"] == [
+        {"kind": "text", "repeat": False}, {"kind": "text", "repeat": True},
+        {"kind": "text", "repeat": True}]
 
 
 @pytest.mark.integration
@@ -306,3 +316,77 @@ async def test_an_ssml_failure_is_a_scenario_error(monkeypatch) -> None:
     assert out.check.passed is False
     assert any(f.startswith("ssml_invalid") for f in out.check.failures)
     assert len(out.check.metrics["voice"]["ssml_errors"]) == 3  # the greeting, the reply, the confirmation
+
+
+class _Long:
+    name = "long"
+
+    def for_scenario(self, scenario_id: str) -> "_Long":
+        return self
+
+    async def hear(self, text_: str) -> Heard:
+        return Heard(text="  " + "x" * 5000 + "  ")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_long_transcript_is_cut_as_the_lambda_cuts_it() -> None:
+    factory = get_test_session_factory()
+    scenario = _voice(_scenario("book_four_friday_7pm"))
+    async with factory() as db:
+        seeded = await seed_scenario(db, scenario)
+    llm = ScriptedLlm(reply(text("Sorry?")))
+    call = await open_call(factory, seeded, scenario, AgentCore(llm), _Long())
+    await call.turn(now=scenario.now)
+    t = await call.turn(now=scenario.now, text="anything")
+    assert t.reply["text"] == "Sorry?"
+    [sent] = [m for m in llm.requests[0]["messages"] if m["role"] == "user"]
+    body = sent["content"] if isinstance(sent["content"], str) else \
+        "".join(b.get("text", "") for b in sent["content"])
+    assert "x" * settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS in body
+    assert "x" * (settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS + 1) not in body
+
+
+def test_the_call_limiter_is_above_any_call() -> None:
+    from backend.reservations.evals import runner
+
+    assert evals_voice.CALL_REQUEST_LIMIT > 1 + 2 * runner.MAX_DINER_TURNS
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_voice_recording_replays_only_with_its_recognizer() -> None:
+    from backend.reservations.evals.replay import recognizer_mismatch
+
+    exact = {"recognizer": "exact", "seed": None}
+    noisy = {"recognizer": "noisy", "seed": 259}
+    assert recognizer_mismatch(exact, "a.json", "exact", 7) is None
+    assert recognizer_mismatch({}, "old.json", "exact", 259) is None  # exact by default
+    why = recognizer_mismatch(exact, "a.json", "noisy", 259)
+    assert why and "a.json" in why and "--live" in why
+    assert recognizer_mismatch(noisy, "n.json", "noisy", 259) is None
+    assert "seed 259" in recognizer_mismatch(noisy, "n.json", "noisy", 1)
+    assert recognizer_mismatch(noisy, "n.json", "exact", 259)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_the_voice_recordings_cover_confirm_and_transfer() -> None:
+    """The hand-authored voice recordings drive the bridge's confirm mapping
+    and its transfer screening in CI replay."""
+    recs = {r["scenario_id"]: (n, r) for n, r in load_recordings() if "recognizer" in r}
+    assert all(r["source"] == "hand-authored" and r["recognizer"] == "exact"
+               for _, r in recs.values())
+    outs = {}
+    for sid in ("book_four_friday_7pm_voice", "party_of_14_voice"):
+        name, rec = recs[sid]
+        outs[sid] = await run_scenario(
+            get_test_session_factory(), _scenario(sid), core=replay_core(rec, name),
+            diner=replay_diner(rec), recognizer=ExactRecognizer())
+        assert outs[sid].check.failures == [], sid
+    assert outs["book_four_friday_7pm_voice"].presses == [("confirm_hold", "action")]
+    handoff = outs["party_of_14_voice"]
+    assert handoff.stop == "ended" and handoff.check.metrics["outcome"] == "handed_off"
+    # Transferred (screening passed), not closed with the no-transfer line.
+    assert "put you through" in handoff.transcript[-1][1]
+    assert handoff.transcript[-1][1] != voice.NO_TRANSFER_TEXT

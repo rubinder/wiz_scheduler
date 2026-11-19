@@ -38,8 +38,6 @@ REPLY_WAIT_SECONDS = 3.0
 _sleep = asyncio.sleep  # replaced in tests
 
 
-
-
 def _limited(body: VoiceTurnIn, limiter: SlidingWindowLimiter) -> bool:
     keys = [f"contact:{body.contact_id}",
             f"caller:{body.caller}" if body.caller else None]
@@ -58,7 +56,8 @@ async def handle(db: AsyncSession, core: AgentCore, body: VoiceTurnIn, *,
     flag checks. `now` (default: the wall clock) is the gate's clock and,
     when given, the core's; `limiter` defaults to the process-wide
     `voice_caller_limiter`. The eval suite passes both."""
-    limiter = limiter or voice_caller_limiter
+    if limiter is None:
+        limiter = voice_caller_limiter
     found = await voice_numbers.location_for_number(db, body.dialed)
     if found is None:
         if _limited(body, limiter):

@@ -9,6 +9,11 @@ recognizer: `exact` (default) hears every word, `noisy` makes deterministic
 phone-line confusions (seeded by --seed, default 259). `lex` (real Polly to
 Lex audio) is not available yet.
 
+Noisy understanding is a --live signal. A replay serves recorded model
+responses whatever text the model is sent, so it cannot show how the agent
+copes with noise: a voice recording replays only with the recognizer and
+seed it was made with, and any other is refused (exit 2).
+
 Replay runs every recording in `recordings/` against the real core, tools and
 database with the recorded model responses. Live needs ANTHROPIC_API_KEY,
 prints a cost estimate first and refuses above $1.00 without --yes.
@@ -26,8 +31,9 @@ Each run (meta, results, report) is written to `evals-runs/<run-id>.json` at
 the repo root before the scratch schema is dropped (decision 36): there are
 no eval tables in any real database.
 
-Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key,
-3 cost guard refused, 4 remote database refused.
+Exit codes: 0 all passed, 1 a scenario failed, 2 usage / missing key / a
+voice recording made with another recognizer, 3 cost guard refused, 4 remote
+database refused.
 """
 
 import argparse
@@ -256,6 +262,17 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                   file=sys.stderr)
             return 3
 
+    if not args.live:
+        by_id = {sc.id: sc for sc in scenarios}
+        for name, rec in replay.load_recordings():
+            sc = by_id.get(rec["scenario_id"])
+            if sc is None or sc.channel != "voice":
+                continue
+            why = replay.recognizer_mismatch(rec, name, args.recognizer, args.seed)
+            if why:
+                print(f"refusing to replay: {why}", file=sys.stderr)
+                return 2
+
     web, voice = store.prompt_hashes()
     meta = store.RunMeta(
         git_sha=store.git_sha(), agent_model=settings.RESERVATION_AGENT_MODEL,
@@ -269,7 +286,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         from backend.reservations.evals.runner import ScenarioOutcome
 
         outcomes: list[ScenarioOutcome] = []
-        recorded: list[tuple[Any, Any]] = []
+        recorded: list[tuple[Any, Any, Any]] = []
         interrupted = False
         try:
             if args.live:
@@ -285,7 +302,8 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                             diner_factory=lambda s: sim, recognizer=recognizer)
                         outcomes += res.outcomes
                         if args.record:
-                            recorded += [(o, client.responses) for o in res.outcomes]
+                            recorded += [(o, client.responses, scenario)
+                                         for o in res.outcomes]
             else:
                 by_id = {sc.id: sc for sc in scenarios}
                 for name, rec in replay.load_recordings():
@@ -323,9 +341,12 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
             # Before the scratch schema (and the run with it) is dropped.
             saved_to = store.write_run_file(run, results, meta, report,
                                             runs_dir or store.RUNS_DIR)
-        for o, responses in recorded:
+        for o, responses, sc in recorded:
             if o.check.passed:
-                replay.save_recording(replay.record_transcript(o, responses))
+                voice_run = sc.channel == "voice"
+                replay.save_recording(replay.record_transcript(
+                    o, responses, recognizer=args.recognizer if voice_run else None,
+                    seed=args.seed if voice_run and args.recognizer == "noisy" else None))
         ok = bool(outcomes) and all(o.check.passed for o in outcomes) and not interrupted
         return report, ok, saved_to
 

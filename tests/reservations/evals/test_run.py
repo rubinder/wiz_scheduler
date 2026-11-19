@@ -195,11 +195,22 @@ def test_recognizer_flags() -> None:
         run._parser().parse_args(["--recognizer", "whisper"])
 
 
+@pytest.mark.asyncio
+async def test_noisy_replay_of_an_exact_voice_recording_is_refused(capsys) -> None:
+    """Replay cannot show noise: a voice recording made with exact refuses a
+    noisy replay, before any schema is made or call placed."""
+    code = await run.amain(["--recognizer", "noisy"], database_url=_url(),
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "party_of_14_voice.json" in err or "book_four_friday_7pm_voice.json" in err
+    assert "exact" in err and "--live" in err
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_noisy_replay_runs_offline(capsys, tmp_path: Path) -> None:
-    """A noisy replay makes no calls; the recordings are web scenarios, so
-    it grades the same as exact."""
-    code = await run.amain(["--recognizer", "noisy"], database_url=_url(),
-                           diner_client=_NoCalls(), llm=_NoCalls(), runs_dir=tmp_path)
+async def test_noisy_replay_of_web_scenarios_runs_offline(capsys, tmp_path: Path) -> None:
+    code = await run.amain(["--recognizer", "noisy", "--scenarios", "book_four_friday_7pm"],
+                           database_url=_url(), diner_client=_NoCalls(), llm=_NoCalls(),
+                           runs_dir=tmp_path)
     assert code == 0, capsys.readouterr()

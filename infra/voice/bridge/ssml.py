@@ -13,7 +13,9 @@ only tags in the result are the ones these rules insert. The rules:
   by letter, only right after "code" or "confirmation code", so ordinary
   uppercase words are never spelled.
 
-Stdlib only: this ships in the Lambda zip.
+Stdlib only: this ships in the Lambda zip. The eval suite
+(backend/reservations/evals/voice.py) loads this file by path, so evals
+must run from a repo checkout.
 """
 
 import re

@@ -25,8 +25,9 @@ Voice: with a recognizer set, a `voice` scenario runs through
 recognizer, a confirm prompt answered by the same policy as a press (the
 action the Lambda maps Lex's yes / no to). The call opens with the bridge's
 greeting turn. Every reply's SSML must parse (`ssml_invalid` otherwise),
-and `metrics["voice"]` lists, per diner turn, whether the agent asked again
-(`voice.is_repeat`). Without a recognizer, or on the web channel, nothing
+and `metrics["voice"]["repeats"]` lists, per bridge request after the
+greeting, its kind (`text`, a diner line; `action`, a confirmation answer)
+and whether the agent asked again (`voice.is_repeat`). Without a recognizer, or on the web channel, nothing
 changes.
 
 Turn latency: each diner turn (a typed line or a button press) times
@@ -290,7 +291,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
     transcript: Transcript = []
     presses: list[tuple[str, str]] = []
     turn_ms: list[float] = []
-    repeats: list[bool] = []
+    repeats: list[dict[str, Any]] = []
     heard: list[str | None] = []
     ssml_errors: list[str] = []
     state = PolicyState()
@@ -318,10 +319,10 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
             await db.commit()
         channel = _WebChannel(db_factory, seeded, conv_id, core)
 
-    def note(t: _Step) -> None:
+    def note(t: _Step, kind: str) -> None:
         turn_ms.append(round(t.turn_ms, 1))
         transcript.append(("host", t.host))
-        repeats.append(t.repeat)
+        repeats.append({"kind": kind, "repeat": t.repeat})
         if t.ssml_error:
             ssml_errors.append(t.ssml_error)
     while diner_turns < MAX_DINER_TURNS:
@@ -346,7 +347,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
             stop = "not_claimed"
             break
         heard.append(t.heard)
-        note(t)
+        note(t, "text")
         if last:
             stop = "done"
             break
@@ -363,7 +364,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
         if t is None:
             stop = "not_claimed"
             break
-        note(t)
+        note(t, "action")
         if action in _CONFIRMS:
             ok = t.press_ok
             presses.append((action, "action" if ok else "action_failed"))

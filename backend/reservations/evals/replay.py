@@ -3,7 +3,14 @@
 A recording is JSON: {"version": 1, "scenario_id", "diner_lines", "responses"}
 where `responses` are the agent model's `LlmResponse`s in call order and
 `diner_lines` the diner's typed lines (button presses are the scenario
-policy's, not recorded). Replaying runs the real core, tools and database
+policy's, not recorded). A voice scenario's recording also names the
+`recognizer` and `seed` it was made with (additive; a voice recording
+without them was made with `exact`), and `source` may say how it was made
+("hand-authored": scripted model responses, no live call). The model's
+responses follow the text it was sent, so a voice recording replays only
+with its own recognizer and seed (`recognizer_mismatch`): a noisy replay
+of an exact recording would pretend the agent coped with noise it never
+saw. Replaying runs the real core, tools and database
 against those responses, so the checker grades the same end state; it also
 catches a recording gone stale against `tools.TOOLS`.
 
@@ -63,11 +70,17 @@ class ReplayLlm:
         return self.responses.pop(0)
 
 
-def record_transcript(outcome: ScenarioOutcome, responses: list[LlmResponse]
+def record_transcript(outcome: ScenarioOutcome, responses: list[LlmResponse], *,
+                      recognizer: str | None = None, seed: int | None = None
                       ) -> dict[str, Any]:
     """The recording of a finished run: the agent's responses (from the
-    `RecordingLlm` / `ScriptedLlm` that served it) and the diner's lines."""
+    `RecordingLlm` / `ScriptedLlm` that served it) and the diner's lines.
+    A voice run passes the `recognizer` (and noisy `seed`) it heard with."""
+    extra: dict[str, Any] = {}
+    if recognizer is not None:
+        extra = {"recognizer": recognizer, "seed": seed}
     return {
+        **extra,
         "version": VERSION,
         "scenario_id": outcome.scenario_id,
         "diner_lines": [text for who, text in outcome.transcript
@@ -81,6 +94,21 @@ def save_recording(recording: dict[str, Any], directory: Path = RECORDINGS_DIR) 
     path = directory / f"{recording['scenario_id']}.json"
     path.write_text(json.dumps(recording, indent=2, sort_keys=True) + "\n")
     return path
+
+
+def recognizer_mismatch(recording: dict[str, Any], name: str, recognizer: str,
+                        seed: int | None) -> str | None:
+    """Why a voice recording cannot be replayed with `recognizer` / `seed`,
+    or None. A noisy recording needs the same seed; an exact one ignores it."""
+    made_with = recording.get("recognizer") or "exact"
+    made_seed = recording.get("seed")
+    if made_with != recognizer or (made_with == "noisy" and made_seed != seed):
+        made = made_with + (f" seed {made_seed}" if made_with == "noisy" else "")
+        asked = recognizer + (f" seed {seed}" if recognizer == "noisy" else "")
+        return (f"recording {name} was made with the {made} recognizer and cannot "
+                f"replay with {asked}: its model responses follow the text the "
+                "model was sent. Measure noisy understanding with --live.")
+    return None
 
 
 def load_recordings(directory: Path = RECORDINGS_DIR) -> list[tuple[str, dict[str, Any]]]:

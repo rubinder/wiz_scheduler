@@ -51,8 +51,13 @@ from backend.schemas.voice import VoiceTurnIn
 from backend.services.rate_limit import SlidingWindowLimiter
 
 DEFAULT_SEED = 259
+# Above the most requests one eval call makes: the greeting plus a line and a
+# confirmation answer for each of runner.MAX_DINER_TURNS (20) diner turns.
+CALL_REQUEST_LIMIT = 64
 DEFAULT_RATE = 0.15
 CONFIRM_EXPECTS = ("confirm_hold", "confirm_cancel", "confirm_modify")
+# The Lambda's renderer, loaded by path (it is not in the backend package and
+# the Lambda zip stays stdlib-only): evals must run from a repo checkout.
 SSML_PATH = Path(__file__).resolve().parents[3] / "infra" / "voice" / "bridge" / "ssml.py"
 _E164 = re.compile(r"^\+[1-9][0-9]{1,14}$")
 
@@ -117,8 +122,9 @@ WORD_CONFUSIONS: dict[str, tuple[str, ...]] = {
 LETTER_CONFUSIONS: dict[str, tuple[str, ...]] = _pairs(
     ("B", "D", "E", "P", "V"), ("M", "N"), ("S", "F"))
 LONG_DIGITS = 7  # a run this long (a phone number) may lose one digit
-_TOKEN = re.compile(r"\b[A-HJ-NP-Z2-9]{6}\b|[A-Za-z]+|[0-9]+")
-_CODE = re.compile(r"^(?=.*[A-Z])[A-HJ-NP-Z2-9]{6}$")  # reservations/codes.ALPHABET
+# Whole alphanumeric runs: "7pm" or "4th" is one token and never flips.
+_TOKEN = re.compile(r"[A-Za-z0-9]+")
+_CODE = re.compile(r"^[A-HJ-NP-Z2-9]{6}$")  # reservations/codes.ALPHABET
 
 
 def _cased(word: str, like: str) -> str:
@@ -145,24 +151,41 @@ class NoisyRecognizer:
     def for_scenario(self, scenario_id: str) -> "NoisyRecognizer":
         return NoisyRecognizer(self.seed, self.rate, scenario_id)
 
-    def garble(self, text: str, rng: random.Random) -> str:
-        def flip(m: re.Match[str]) -> str:
-            token = m.group(0)
-            if _CODE.match(token):
-                return "".join(
-                    rng.choice(LETTER_CONFUSIONS[c])
-                    if c in LETTER_CONFUSIONS and rng.random() < self.rate else c
-                    for c in token)
-            if token.isdigit() and len(token) >= LONG_DIGITS:
-                if rng.random() < self.rate:
-                    i = rng.randrange(len(token))
-                    return token[:i] + token[i + 1:]
-                return token
-            alternatives = WORD_CONFUSIONS.get(token.lower())
-            if alternatives and rng.random() < self.rate:
-                return _cased(rng.choice(alternatives), token)
+    def _code_letters(self, token: str, rng: random.Random) -> str:
+        return "".join(
+            rng.choice(LETTER_CONFUSIONS[c])
+            if c in LETTER_CONFUSIONS and rng.random() < self.rate else c
+            for c in token)
+
+    def _flip(self, token: str, after_code: bool, rng: random.Random) -> str:
+        if after_code and _CODE.match(token):
+            return self._code_letters(token, rng)
+        if token.isdigit() and len(token) >= LONG_DIGITS:
+            if rng.random() < self.rate:
+                i = rng.randrange(len(token))
+                return token[:i] + token[i + 1:]
             return token
-        return _TOKEN.sub(flip, text)
+        alternatives = WORD_CONFUSIONS.get(token.lower())
+        if alternatives and rng.random() < self.rate:
+            return _cased(rng.choice(alternatives), token)
+        return token
+
+    def garble(self, text: str, rng: random.Random) -> str:
+        """Tokens are whole alphanumeric runs, so only a stand-alone number
+        flips. A token is a confirmation code only right after "code" (or
+        "code is"), as the SSML renderer spells one."""
+        out: list[str] = []
+        end = 0
+        words: list[str] = []  # the lowercased tokens so far
+        for m in _TOKEN.finditer(text):
+            token = m.group(0)
+            after_code = bool(words) and (
+                words[-1] == "code" or (words[-1] == "is" and words[-2:-1] == ["code"]))
+            out += [text[end:m.start()], self._flip(token, after_code, rng)]
+            end = m.end()
+            words.append(token.lower())
+        out.append(text[end:])
+        return "".join(out)
 
     async def hear(self, text: str) -> Heard:
         rng = random.Random(f"{self.seed}:{self.scenario_id}:{self.turn}")
@@ -219,10 +242,11 @@ def ssml_error(reply: dict[str, Any]) -> str | None:
 
 def is_repeat(previous: dict[str, Any] | None, reply: dict[str, Any]) -> bool:
     """The agent asked the diner to repeat or clarify what they just said:
-    the reply is `voice.not_caught()` text, or it elicits again the slot the
+    the reply is `voice.not_caught()` or `voice.inflight()` ("say that
+    again") text, or it elicits again the slot the
     previous reply elicited (the one the diner just answered). Structural,
     never a model's judgement."""
-    if reply.get("text") == voice.NOT_CAUGHT_TEXT:
+    if reply.get("text") in (voice.NOT_CAUGHT_TEXT, voice.INFLIGHT_TEXT):
         return True
     asked = ((previous or {}).get("hints") or {}).get("elicit")
     again = (reply.get("hints") or {}).get("elicit")
@@ -318,9 +342,10 @@ class VoiceChannel:
     dialed: str
     contact_id: str = field(default_factory=lambda: f"eval-{secrets.token_hex(8)}")
     seq: int = 0
-    # Per call: the eval's turns are not the process-wide limiter's business.
+    # Per call, and above any call's request count: the eval's turns are not
+    # the process-wide limiter's business, and a fast replay must not trip it.
     limiter: SlidingWindowLimiter = field(default_factory=lambda: SlidingWindowLimiter(
-        max_requests=settings.VOICE_CALLER_TURNS_PER_MINUTE, window_seconds=60))
+        max_requests=CALL_REQUEST_LIMIT, window_seconds=60))
     conversation_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -345,10 +370,14 @@ class VoiceChannel:
         line (heard through the recognizer first) or a confirmation
         answer. The next seq each time."""
         heard = await self.recognizer.hear(text) if text is not None else None
+        # As the Lambda sends a transcript: stripped, cut to the bridge's
+        # limit, empty as no input.
+        sent = ((heard.text or "").strip()[:settings.RESERVATION_AGENT_MAX_MESSAGE_CHARS]
+                or None) if heard else None
         body = VoiceTurnIn.model_validate({
             "contact_id": self.contact_id, "dialed": self.dialed,
             "caller": self.caller, "seq": self.seq,
-            "text": heard.text if heard else None, "action": action,
+            "text": sent, "action": action,
             "timings": {"asr_ms": heard.asr_ms if heard else None,
                         "tts_ms": heard.tts_ms if heard else None}})
         self.seq += 1
