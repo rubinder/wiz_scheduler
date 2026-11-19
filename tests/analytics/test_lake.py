@@ -144,7 +144,8 @@ EXPECTED = {
         "decision:string reason:string created_at:timestamp[us, tz=UTC]",
     "eval_results": "run_id:string run_created_at:timestamp[us, tz=UTC] git_sha:string "
         "agent_model:string mode:string recognizer:string prompt_version:string "
-        "scenario_id:string attempt:int32 passed:bool failures:string metrics:string",
+        "scenario_id:string attempt:int32 passed:bool failures:string failure_count:int32 "
+        "metrics:string",
 }
 
 

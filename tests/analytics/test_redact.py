@@ -50,9 +50,11 @@ def test_all_letter_codes_are_masked_in_context_or_uppercase(raw: str, want: str
 
 
 def test_known_codes_are_replaced_exactly_in_any_case() -> None:
-    out = redact.text("it was hjkmnp, or Hjkmnp, not hjkmnpq", known_codes=["HJKMNP"])
+    known = redact.known_pattern(["HJKMNP", None, ""])
+    out = redact.text("it was hjkmnp, or Hjkmnp, not hjkmnpq", known)
     assert out == "it was [code], or [code], not hjkmnpq"
-    assert redact.payload({"error": "no hjkmnp"}, known_codes=["HJKMNP"])["error"] == "no [code]"
+    assert redact.payload({"error": "no hjkmnp"}, known=known)["error"] == "no [code]"
+    assert redact.known_pattern([]) is None
 
 
 def test_none_and_empty() -> None:
@@ -66,8 +68,8 @@ def test_payload_keeps_only_the_allowlist() -> None:
         "name": "Jane Doe", "phone": "+14155550100", "email": "j@example.com",
         "confirmation_code": "ABC234", "notes": "allergic", "error": "not_found",
         "outcome": "ok",
-    }, tool="hold_table")
-    assert out == {"name": "hold_table", "party_size": 4,
+    }, tool="hold_slot")
+    assert out == {"name": "hold_slot", "party_size": 4,
                    "start": "2026-11-20T19:00:00-05:00", "code_present": True,
                    "error": "not_found", "outcome": "ok"}
 
@@ -96,3 +98,38 @@ def test_iso_dates_are_not_phone_numbers() -> None:
     assert redact.text("on 2026-11-20 415 555 0100") == "on 2026-11-20 [phone]"
     # Not a date (month 55), so all eleven digits are one phone number.
     assert redact.text("+1 4155-55-0100") == "[phone]"
+
+
+@pytest.mark.parametrize("raw,want", [
+    ("2026-11-20T19:00:00-05:00", "2026-11-20T19:00:00-05:00"),
+    ("2026-11-20 19:00", "2026-11-20T19:00:00"),
+    ("Jane Doe 415 555 0100", None),
+    ("tomorrow", None),
+    (1900, None),
+    ({"x": 1}, None),
+])
+def test_payload_start_must_be_an_iso_datetime(raw, want) -> None:
+    assert redact.payload({"start_iso": raw})["start"] == want
+
+
+def test_payload_window_takes_iso_times_only() -> None:
+    out = redact.payload({"earliest": "18:00", "latest": "after 8 call Jane"})
+    assert out["start"] == "18:00" and out["end"] is None
+
+
+@pytest.mark.parametrize("raw,want", [(4, 4), ("4", None), (True, None), (4.5, None),
+                                      ("Jane", None)])
+def test_payload_party_size_must_be_an_int(raw, want) -> None:
+    assert redact.payload({"party_size": raw})["party_size"] == want
+
+
+def test_payload_tool_names_are_allowlisted() -> None:
+    assert redact.payload({}, tool="find_slots")["name"] == "find_slots"
+    assert redact.payload({}, tool="Jane Doe 4155550100")["name"] == "unknown"
+    assert redact.payload({}, tool="drop_tables")["name"] == "unknown"
+
+
+def test_tool_allowlist_matches_the_agent_tools() -> None:
+    from backend.reservations.agent import tools
+    assert redact.TOOL_NAMES == set(tools._HANDLERS)
+    assert redact.TOOL_NAMES == {t["name"] for t in tools.TOOLS}

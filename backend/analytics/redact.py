@@ -16,6 +16,8 @@ backstop for those.
 
 import re
 from collections.abc import Iterable
+from datetime import datetime
+from datetime import time as dt_time
 from typing import Any
 
 # Same alphabet as backend/reservations/codes.py (no 0, 1, I, O). Kept as a
@@ -47,6 +49,10 @@ _CODE_AFTER_WORD = re.compile(
 # only ever set from the `tool` argument: inside tool inputs and results a
 # `name` key is the diner's (or the location's) name.
 ALLOWED_KEYS = ("name", "party_size", "start", "end", "outcome", "code_present", "error")
+# The agent's tools (reservations/agent/tools.py _HANDLERS; a test pins the
+# two together). A tool_use naming anything else lands as "unknown".
+TOOL_NAMES = frozenset({"find_slots", "hold_slot", "lookup_booking", "modify_booking",
+                        "cancel_booking", "handoff_to_staff", "restaurant_info"})
 # Source keys renamed onto an allowed key (the first one present wins).
 _RENAMED = {"start": ("start", "start_iso", "earliest"), "end": ("end", "end_iso", "latest")}
 _CODE_KEYS = ("code_present", "confirmation_code", "code")
@@ -72,21 +78,22 @@ def _phone(m: re.Match[str]) -> str:
     return "".join(out)
 
 
-def _known(codes: Iterable[str]) -> re.Pattern[str] | None:
+def known_pattern(codes: Iterable[str]) -> re.Pattern[str] | None:
+    """One compiled pattern matching any of `codes` exactly, in any case, as
+    a whole token; None for no codes. Built once per extracted day."""
     alts = sorted({re.escape(c) for c in codes if c}, key=len, reverse=True)
     if not alts:
         return None
     return re.compile(rf"(?i){_B}(?:{'|'.join(alts)}){_E}")
 
 
-def text(s: str | None, known_codes: Iterable[str] = ()) -> str | None:
+def text(s: str | None, known: re.Pattern[str] | None = None) -> str | None:
     """`s` with emails, phone-like digit runs and confirmation codes masked
-    as [email], [phone] and [code]. `known_codes` (the day's real codes)
-    are replaced exactly, in any case, before the generic code patterns."""
+    as [email], [phone] and [code]. `known` (known_pattern of the day's
+    real codes) is applied first, before the generic code patterns."""
     if not s:
         return s
     s = _EMAIL.sub("[email]", s)
-    known = _known(known_codes)
     if known is not None:
         s = known.sub("[code]", s)
     s = _DIGIT_RUN.sub(_phone, s)
@@ -95,12 +102,22 @@ def text(s: str | None, known_codes: Iterable[str] = ()) -> str | None:
     return _CODE_UPPER.sub("[code]", s)
 
 
-def _scalar(v: Any, known_codes: Iterable[str]) -> Any:
-    if isinstance(v, str):
-        return text(v, known_codes)
-    if isinstance(v, (bool, int, float)) or v is None:
-        return v
-    return None  # nested values never pass
+def _iso(v: Any, *, allow_time: bool) -> str | None:
+    """`v` as a canonical ISO datetime (or, for a search window's
+    earliest/latest, an ISO time), else None. Re-serialised, so no text
+    rides along."""
+    if not isinstance(v, str) or not v or len(v) > 40:
+        return None
+    try:
+        return datetime.fromisoformat(v).isoformat()
+    except ValueError:
+        pass
+    if allow_time:
+        try:
+            return dt_time.fromisoformat(v).isoformat(timespec="minutes")
+        except ValueError:
+            pass
+    return None
 
 
 def _has_code(d: dict[str, Any]) -> bool:
@@ -112,20 +129,29 @@ def _has_code(d: dict[str, Any]) -> bool:
 
 
 def payload(d: dict[str, Any], *, tool: str | None = None,
-            known_codes: Iterable[str] = ()) -> dict[str, Any]:
-    """The allowlisted view of one tool input or result: `name` (= `tool`),
-    party_size, start, end, outcome, error (strings redacted), and
-    `code_present`, whether a confirmation code was given or returned.
+            known: re.Pattern[str] | None = None) -> dict[str, Any]:
+    """The allowlisted view of one tool input or result:
+    - `name`: `tool` when it is one of TOOL_NAMES, else "unknown";
+    - `party_size`: an int, else null;
+    - `start` / `end`: a canonical ISO datetime (an ISO time for find_slots'
+      earliest/latest), else null;
+    - `outcome`, `error`: strings, redacted;
+    - `code_present`: whether a confirmation code was given or returned.
     Every other key, and every nested value, is dropped."""
     d = d if isinstance(d, dict) else {}
-    known_codes = tuple(known_codes)
     out: dict[str, Any] = {}
     if tool is not None:
-        out["name"] = tool
-    for key in ("party_size", "start", "end", "outcome", "error"):
-        for src in _RENAMED.get(key, (key,)):
-            if src in d and _scalar(d[src], known_codes) is not None:
-                out[key] = _scalar(d[src], known_codes)
+        out["name"] = tool if tool in TOOL_NAMES else "unknown"
+    if "party_size" in d:
+        ps = d["party_size"]
+        out["party_size"] = ps if isinstance(ps, int) and not isinstance(ps, bool) else None
+    for key in ("start", "end"):
+        for src in _RENAMED[key]:
+            if src in d:
+                out[key] = _iso(d[src], allow_time=src in ("earliest", "latest"))
                 break
+    for key in ("outcome", "error"):
+        if isinstance(d.get(key), str):
+            out[key] = text(d[key], known)
     out["code_present"] = _has_code(d)
     return out

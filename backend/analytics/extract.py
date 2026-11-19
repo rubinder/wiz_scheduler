@@ -82,8 +82,11 @@ EVAL_METRIC_KEYS = ("turns", "diner_turns", "model_calls", "total_cost_usd", "ll
                     "book_goal")
 EVAL_VOICE_COUNTS = {"heard": "heard_count", "errors": "error_count",
                      "ssml_errors": "ssml_error_count", "repeats": "repeat_count"}
-# checker._describe's `name='...'` and `phone=...` fragments.
-_FAILURE_FIELD = re.compile(r"""\b(name|phone)=(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\S+)""")
+# An eval failure lands only as its category: the leading words of the text
+# before its first ":" (see failure_category).
+_FAILURE_WORD = re.compile(r"[a-z_]+")
+_NUMBER = re.compile(r"\d+")
+FAILURE_CATEGORY_WORDS = 6
 
 _CONVERSATIONS = text("""
     SELECT c.id AS conversation_id, c.company_id, c.location_id, c.channel,
@@ -188,9 +191,9 @@ async def day(db: AsyncSession, day: date, *,
             async def rows(query: Any) -> list[dict[str, Any]]:
                 return [dict(r) for r in (await owner.execute(query, params)).mappings()]
 
-            codes = tuple(r["code"] for r in await rows(_KNOWN_CODES))
+            known = redact.known_pattern(r["code"] for r in await rows(_KNOWN_CODES))
             out["conversations"] = await rows(_CONVERSATIONS)
-            out["events"] = _events(await rows(_EVENTS), codes)
+            out["events"] = _events(await rows(_EVENTS), known)
             out["reservations"] = await rows(_RESERVATIONS)
             out["agent_usage"] = await rows(_AGENT_USAGE)
             out["screened_calls"] = await rows(_SCREENED_CALLS)
@@ -236,7 +239,7 @@ def _ms(latency: Any, key: str) -> int | None:
 
 
 def _tool_results(payload: dict[str, Any], tool_names: dict[str, str],
-                  codes: tuple[str, ...]) -> list[dict[str, Any]]:
+                  known: re.Pattern[str] | None) -> list[dict[str, Any]]:
     out = []
     for block in payload.get("content") or []:
         if not isinstance(block, dict):
@@ -247,18 +250,20 @@ def _tool_results(payload: dict[str, Any], tool_names: dict[str, str],
             result = {}
         red = redact.payload(result if isinstance(result, dict) else {},
                              tool=tool_names.get(str(block.get("tool_use_id"))),
-                             known_codes=codes)
+                             known=known)
         red.setdefault("outcome", "error" if block.get("is_error") else "ok")
         out.append(red)
     return out
 
 
-def _events(rows: list[dict[str, Any]], codes: tuple[str, ...]) -> list[dict[str, Any]]:
+def _events(rows: list[dict[str, Any]],
+            known: re.Pattern[str] | None) -> list[dict[str, Any]]:
     tool_names: dict[str, str] = {}  # tool_use_id -> tool name, from tool_calls
     for r in rows:
         p = r["payload"] if isinstance(r["payload"], dict) else {}
         if r["type"] == "tool_call" and p.get("tool_use_id"):
-            tool_names[str(p["tool_use_id"])] = _label(p.get("name"), "unknown")
+            name = p.get("name")
+            tool_names[str(p["tool_use_id"])] = name if isinstance(name, str) else "unknown"
 
     out = []
     for r in rows:
@@ -279,11 +284,12 @@ def _events(rows: list[dict[str, Any]], codes: tuple[str, ...]) -> list[dict[str
             body = {"outcome": _label(p.get("stop_reason"), "other")}
         elif kind == "tool_call":
             body = redact.payload(p.get("input") if isinstance(p.get("input"), dict) else {},
-                                  tool=_label(p.get("name"), "unknown"), known_codes=codes)
+                                  tool=p.get("name") if isinstance(p.get("name"), str)
+                                  else "unknown", known=known)
         elif kind == "tool_result":
-            body = _tool_results(p, tool_names, codes)
+            body = _tool_results(p, tool_names, known)
         elif kind == "error":
-            body = redact.payload(p, known_codes=codes)
+            body = redact.payload(p, known=known)
         elif kind == "handoff":
             reason = p.get("reason")
             if isinstance(reason, str) and reason in KNOWN_HANDOFF_REASONS:
@@ -313,8 +319,8 @@ def _parse_ts(v: Any) -> datetime | None:
 
 def eval_results(day: date, runs_dir: Path | None = RUNS_DIR) -> list[dict[str, Any]] | None:
     """Rows of the eval run files whose run date (created_at, UTC) is `day`,
-    or None when there is no runs directory. Scenario snapshots are left
-    out; failure strings are redacted."""
+    or None when there is no runs directory. Scenario snapshots and the
+    report are left out; failures land as categories, metrics allowlisted."""
     if runs_dir is None or not runs_dir.is_dir():
         return None
     out: list[dict[str, Any]] = []
@@ -331,8 +337,8 @@ def eval_results(day: date, runs_dir: Path | None = RUNS_DIR) -> list[dict[str, 
         for res in doc.get("results") or []:
             if not isinstance(res, dict) or not res.get("scenario_id"):
                 continue
-            failures = [redact.text(_FAILURE_FIELD.sub(r"\1=[redacted]", str(f)))
-                        for f in res.get("failures") or []]
+            raw = res.get("failures") if isinstance(res.get("failures"), list) else []
+            failures = [failure_category(f) for f in raw]
             out.append({
                 "run_id": str(doc.get("id") or path.stem),
                 "run_created_at": created,
@@ -345,9 +351,38 @@ def eval_results(day: date, runs_dir: Path | None = RUNS_DIR) -> list[dict[str, 
                 "attempt": int(res.get("attempt") or 0),
                 "passed": bool(res.get("passed")),
                 "failures": json.dumps(failures),
+                "failure_count": len(failures),
                 "metrics": json.dumps(eval_metrics(res.get("metrics")), sort_keys=True),
             })
     return out
+
+
+def failure_category(failure: Any) -> str:
+    """A stable category for one eval failure string, with no free text:
+    the part before the first ":", lowercased, from its leading run of
+    plain lowercase words (leading counts skipped; the run stops at the
+    first word with a digit, capital, quote or bracket, or after a word
+    ending in punctuation), joined by underscores, at most
+    FAILURE_CATEGORY_WORDS words and 40 characters. "unexpected booking:
+    party 2 ..." -> "unexpected_booking"; "12 turns, more than max_turns 10"
+    -> "turns"; "kept booking QX7K9P is missing" -> "kept_booking".
+    Anything that yields no word is "other"."""
+    if not isinstance(failure, str):
+        return "other"
+    tokens = failure.split(":", 1)[0].split()
+    while tokens and _NUMBER.fullmatch(tokens[0]):
+        tokens.pop(0)
+    words: list[str] = []
+    for tok in tokens[:FAILURE_CATEGORY_WORDS]:
+        word = tok.rstrip(",.;")
+        if not _FAILURE_WORD.fullmatch(word):
+            break
+        if len("_".join([*words, word])) > 40:
+            break
+        words.append(word)
+        if word != tok:
+            break
+    return _label("_".join(words), "other")
 
 
 def _metric(v: Any) -> Any:

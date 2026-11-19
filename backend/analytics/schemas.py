@@ -118,7 +118,10 @@ EVAL_RESULTS = pa.schema([
     _f("scenario_id", pa.string(), False),
     _f("attempt", pa.int32(), False),
     _f("passed", pa.bool_(), False),
-    _f("failures", pa.string()),  # JSON list of redacted strings
+    # JSON list of failure categories (extract.failure_category), never the
+    # failure text, which can quote the diner's name and phone.
+    _f("failures", pa.string()),
+    _f("failure_count", pa.int32(), False),
     _f("metrics", pa.string()),  # JSON object of extract.EVAL_METRIC_KEYS only
 ])
 

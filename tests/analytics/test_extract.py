@@ -67,12 +67,12 @@ async def seeded(db_session: AsyncSession, seed_location: Location) -> dict[str,
                                "raw": json.dumps([ctx, words])}, at(DAY, 15, 0))
     ev(today, 2, "assistant_turn",
        {"content": [{"type": "text", "text": f"Booking for {PHONE}"},
-                    {"type": "tool_use", "id": "tu1", "name": "hold_table",
+                    {"type": "tool_use", "id": "tu1", "name": "hold_slot",
                      "input": {"name": NAME, "phone": PHONE}}],
         "raw": NAME, "stop_reason": "tool_use"},
        at(DAY, 15, 1), latency_ms={"llm": 812.4}, input_tokens=100, output_tokens=20,
        cost_usd=Decimal("0.001234"))
-    ev(today, 3, "tool_call", {"tool_use_id": "tu1", "name": "hold_table",
+    ev(today, 3, "tool_call", {"tool_use_id": "tu1", "name": "hold_slot",
                                "input": {"start_iso": "2026-11-20T19:00:00-05:00",
                                          "party_size": 2, "name": NAME, "phone": PHONE}},
        at(DAY, 15, 1))
@@ -170,9 +170,9 @@ async def test_event_redaction(db_session, seeded) -> None:
     assert json.loads(ev[2]["payload"]) == {"outcome": "tool_use"}
     assert ev[2]["llm_latency_ms"] == 812 and ev[2]["tools_latency_ms"] is None
     assert json.loads(ev[3]["payload"]) == {
-        "name": "hold_table", "party_size": 2, "start": "2026-11-20T19:00:00-05:00",
+        "name": "hold_slot", "party_size": 2, "start": "2026-11-20T19:00:00-05:00",
         "code_present": False}
-    assert json.loads(ev[4]["payload"]) == [{"name": "hold_table", "party_size": 2,
+    assert json.loads(ev[4]["payload"]) == [{"name": "hold_slot", "party_size": 2,
                                              "code_present": True, "outcome": "ok"}]
     assert ev[4]["tools_latency_ms"] == 45
     # The result carried the code ("booked QX7K9P"): only its label lands.
@@ -247,7 +247,8 @@ def test_eval_results_by_run_date(tmp_path: Path) -> None:
     (tmp_path / "junk.json").write_text("{not json")
     rows = extract.eval_results(DAY, tmp_path)
     assert [r["run_id"] for r in rows] == ["r1", "v1"]
-    assert json.loads(rows[0]["failures"]) == ["expected code [code] for [phone]"]
+    assert json.loads(rows[0]["failures"]) == ["expected_code"]
+    assert rows[0]["failure_count"] == 1 and rows[1]["failure_count"] == 0
     assert json.loads(rows[1]["metrics"]) == {
         "turns": 4, "outcome": "booked", "handoff": False, "total_cost_usd": 0.02,
         "error_count": 1,
@@ -256,17 +257,40 @@ def test_eval_results_by_run_date(tmp_path: Path) -> None:
     assert [r["run_id"] for r in extract.eval_results(DAY + timedelta(days=1), tmp_path)] == ["r2"]
 
 
-def test_eval_failures_lose_name_and_phone_fragments(tmp_path: Path) -> None:
+# checker.py's own formats, verbatim shapes (expected booking not found
+# quotes the scenario diner's name and phone after "for").
+CHECKER_FAILURES = [
+    (f"expected booking not found: party 2 2026-11-20 19:00 booked for {NAME} {PHONE} "
+     f"code {CODE}; found party 2 2026-11-20 19:00 booked code={CODE} name='{NAME}' "
+     f"phone={PHONE} (wrong: phone)", "expected_booking_not_found"),
+    (f"unexpected booking: party 2 2026-11-20 19:00 booked code=None name='{NAME}' "
+     f"phone={PHONE}", "unexpected_booking"),
+    ("outcome 'abandoned', expected one of ['booked']", "outcome"),
+    (f"kept booking {CODE} is missing", "kept_booking"),
+    ("12 turns, more than max_turns 10", "turns"),
+    ("handoff without handoff_to_staff (reason Jane wanted out)",
+     "handoff_without_handoff_to_staff"),
+    ("error event: llm_error", "error_event"),
+    ("conversation is not at the scenario's location", "conversation_is_not_at_the"),
+    (f"ssml_invalid: <say>{NAME}</say>", "ssml_invalid"),
+    (f"{NAME}: {PHONE}", "other"),
+    ("", "other"),
+]
+
+
+@pytest.mark.parametrize("failure,category", CHECKER_FAILURES)
+def test_eval_failures_land_as_categories(failure: str, category: str) -> None:
+    assert extract.failure_category(failure) == category
+
+
+def test_eval_failures_drop_their_text(tmp_path: Path) -> None:
     (tmp_path / "r.json").write_text(json.dumps({
         "id": "r", "created_at": "2026-11-18T01:00:00+00:00",
-        "results": [{"scenario_id": "s", "attempt": 0, "passed": False, "failures": [
-            f"unexpected booking: party 2 2026-11-20 19:00 booked code=None "
-            f"name='{NAME}' phone={PHONE}"]}]}))
+        "results": [{"scenario_id": "s", "attempt": 0, "passed": False,
+                     "failures": [f for f, _ in CHECKER_FAILURES]}]}))
     rows = extract.eval_results(DAY, tmp_path)
-    assert json.loads(rows[0]["failures"]) == [
-        "unexpected booking: party 2 2026-11-20 19:00 booked code=None "
-        "name=[redacted] phone=[redacted]"]
-    assert extract.eval_results(DAY, tmp_path / "nope") is None
+    assert json.loads(rows[0]["failures"]) == [c for _, c in CHECKER_FAILURES]
+    assert rows[0]["failure_count"] == len(CHECKER_FAILURES)
 
 
 def _strings(value) -> list[str]:
@@ -289,7 +313,7 @@ async def test_no_identifier_reaches_the_parquet_files(db_session, seeded, tmp_p
         "id": "r1", "created_at": "2026-11-18T12:00:00+00:00", "meta": {},
         "results": [{"scenario_id": "s1", "attempt": 0, "passed": False,
                      "failures": [f"{PHONE} {EMAIL}",
-                                  f"booked code=None name='{NAME}' phone={PHONE}"],
+                                  *(f for f, _ in CHECKER_FAILURES)],
                      "metrics": {"voice": {"recognizer": "noisy",
                                            "heard": [f"I'm {NAME}", PHONE],
                                            "errors": [f"misheard {NAME}"]}},
