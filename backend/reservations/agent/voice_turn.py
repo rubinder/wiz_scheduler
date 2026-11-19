@@ -167,7 +167,10 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
                                                  ("transport", timings.transport_ms))
                       if ms is not None}
             await recording.add_latency(db, conv, before, stages)
-            reply = await _screen_transfer(db, location, voice.spoken_reply(out), now)
+            rules, _ = await get_rules(db, company_id, location_id)
+            reply = await _screen_transfer(
+                db, location,
+                voice.spoken_reply(out, rules.voice.voice_confirm_style), now)
     except BaseException:
         # handle_turn never raises an Exception: the call went away mid-turn.
         await gate.clear_mark_after_cancel(db, conv_id, company_id)

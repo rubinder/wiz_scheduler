@@ -92,6 +92,22 @@ async def test_floor_and_rules_round_trip(client, manager_token, seed_location):
     assert r.json()["version"] == 1
 
 
+async def test_voice_knobs_round_trip_through_rules(client, manager_token, seed_location):
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert rules["voice"] == {"voice_reply_max_sentences": 0, "voice_read_back": False,
+                              "voice_confirm_style": "question"}
+    rules["voice"] = {"voice_reply_max_sentences": 2, "voice_read_back": True,
+                      "voice_confirm_style": "statement"}
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+    got = await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)
+    assert got.json()["rules"]["voice"] == rules["voice"]
+    rules["voice"]["voice_reply_max_sentences"] = 9
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 422
+
+
 async def test_invalid_floor_is_422(client, manager_token, seed_location):
     floor = {"tables": [
         {"label": "T1", "min_seats": 2, "max_seats": 4},

@@ -286,11 +286,12 @@ class _VoiceAdapter:
 
 async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: AgentCore,
                        diner: Diner, now_override: datetime | None = None,
-                       recognizer: Recognizer | None = None) -> ScenarioOutcome:
+                       recognizer: Recognizer | None = None,
+                       voice_knobs: dict[str, Any] | None = None) -> ScenarioOutcome:
     if now_override is not None:
         scenario = replace(scenario, now=now_override)
     async with db_factory() as db:
-        seeded = await seed_scenario(db, scenario)
+        seeded = await seed_scenario(db, scenario, voice_knobs)
 
     transcript: Transcript = []
     presses: list[tuple[str, str]] = []
@@ -417,8 +418,8 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
 
 async def run_suite(db_factory: DbFactory, scenarios: list[Scenario], *,
                     core: AgentCore, diner_factory: Callable[[Scenario], Diner],
-                    repeat: int = 1, recognizer: Recognizer | None = None
-                    ) -> SuiteResult:
+                    repeat: int = 1, recognizer: Recognizer | None = None,
+                    voice_knobs: dict[str, Any] | None = None) -> SuiteResult:
     """Every scenario `repeat` times, serially. A run that raises is recorded
     as a failed outcome and the suite goes on."""
     outcomes: list[ScenarioOutcome] = []
@@ -428,7 +429,8 @@ async def run_suite(db_factory: DbFactory, scenarios: list[Scenario], *,
             try:
                 outcome = await run_scenario(db_factory, scenario, core=core,
                                              diner=diner_factory(scenario),
-                                             recognizer=recognizer)
+                                             recognizer=recognizer,
+                                             voice_knobs=voice_knobs)
             except Exception as exc:
                 logger.exception("eval run failed (scenario %s)", scenario.id)
                 outcome = ScenarioOutcome(

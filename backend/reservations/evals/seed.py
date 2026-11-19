@@ -7,6 +7,7 @@ have produced. The only shortcut is `_set_fixed_code` below.
 """
 
 from dataclasses import dataclass
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
@@ -70,7 +71,8 @@ async def _seed_existing(db: AsyncSession, scenario: Scenario, seeded: SeededSce
     return res
 
 
-async def seed_scenario(db: AsyncSession, scenario: Scenario) -> SeededScenario:
+async def seed_scenario(db: AsyncSession, scenario: Scenario,
+                        voice_knobs: dict[str, Any] | None = None) -> SeededScenario:
     """Create the scenario's company/region/location (unique slug), floor,
     rules and existing reservations, and commit."""
     company_id, region_id, location_id = (
@@ -86,7 +88,7 @@ async def seed_scenario(db: AsyncSession, scenario: Scenario) -> SeededScenario:
     seeded = SeededScenario(company_id=company_id, location_id=location_id, slug=slug)
 
     await save_floor(db, company_id, location_id, scenario.floor_in(), now=scenario.now)
-    await save_rules(db, company_id, location_id, scenario.rules_schema())
+    await save_rules(db, company_id, location_id, scenario.rules_schema(voice_knobs))
     for item in scenario.existing:
         await _seed_existing(db, scenario, seeded, item)
     await db.commit()

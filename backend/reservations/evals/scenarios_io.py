@@ -141,8 +141,13 @@ class Scenario:
     def floor_in(self) -> FloorIn:
         return FloorIn.model_validate(self.floor)
 
-    def rules_schema(self) -> RulesSchema:
-        return RulesSchema.model_validate(self.rules)
+    def rules_schema(self, voice_knobs: dict[str, Any] | None = None) -> RulesSchema:
+        """The scenario's rules, with `voice_knobs` (validated) laid over its
+        `voice` block."""
+        rules = dict(self.rules)
+        if voice_knobs:
+            rules["voice"] = {**(rules.get("voice") or {}), **voice_knobs}
+        return RulesSchema.model_validate(rules)
 
 
 # -- strict helpers ------------------------------------------------------

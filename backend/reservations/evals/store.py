@@ -50,15 +50,15 @@ class RunMeta:
     voice_knobs: dict[str, Any] = field(default_factory=dict)
 
 
-def prompt_hash(channel: str) -> str:
-    prompt = build_system_prompt(REFERENCE_LOCATION, REFERENCE_TIMEZONE,
-                                 RulesSchema(), channel)
+def prompt_hash(channel: str, voice_knobs: dict[str, Any] | None = None) -> str:
+    rules = RulesSchema.model_validate({"voice": voice_knobs or {}})
+    prompt = build_system_prompt(REFERENCE_LOCATION, REFERENCE_TIMEZONE, rules, channel)
     return hashlib.sha256(prompt.encode()).hexdigest()
 
 
-def prompt_hashes() -> tuple[str, str]:
+def prompt_hashes(voice_knobs: dict[str, Any] | None = None) -> tuple[str, str]:
     """(web, voice)."""
-    return prompt_hash("web"), prompt_hash("voice")
+    return prompt_hash("web", voice_knobs), prompt_hash("voice", voice_knobs)
 
 
 def git_sha() -> str:

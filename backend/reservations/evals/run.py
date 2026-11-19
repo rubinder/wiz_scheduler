@@ -111,6 +111,30 @@ def scratch_schema_name(now: datetime | None = None) -> str:
     return "evals_" + (now or datetime.now(timezone.utc)).strftime("%Y%m%dt%H%M%Sz")
 
 
+def parse_knobs(pairs: list[str]) -> dict[str, Any]:
+    """`key=value` pairs validated against VoiceKnobs. ValueError on an
+    unknown key, a malformed pair or a bad value."""
+    from pydantic import ValidationError
+
+    from backend.reservations.rules import VoiceKnobs
+
+    raw: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise ValueError(f"--knob needs key=value, got {pair!r}")
+        if key not in VoiceKnobs.model_fields:
+            raise ValueError(f"unknown knob {key!r}; known: "
+                             f"{', '.join(VoiceKnobs.model_fields)}")
+        raw[key] = value
+    try:
+        # Strings are coerced by pydantic's lax mode ("2" -> 2, "true" -> True).
+        return VoiceKnobs.model_validate(raw).model_dump(include=set(raw))
+    except ValidationError as exc:
+        raise ValueError(f"bad --knob value: {exc.errors()[0]['loc'][0]}: "
+                         f"{exc.errors()[0]['msg']}") from exc
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m backend.reservations.evals.run",
                                 description=__doc__.split("\n\n")[0])
@@ -127,6 +151,9 @@ def _parser() -> argparse.ArgumentParser:
                    help="allow a DATABASE_URL whose host is not local")
     p.add_argument("--recognizer", choices=("exact", "noisy", "lex"), default="exact",
                    help="speech recognition for voice scenarios (default exact)")
+    p.add_argument("--knob", action="append", default=[], metavar="KEY=VALUE",
+                   help="voice tuning override (repeatable), e.g. "
+                        "voice_reply_max_sentences=2; recorded in the run's meta")
     p.add_argument("--seed", type=int, default=DEFAULT_SEED,
                    help=f"the noisy recognizer's seed (default {DEFAULT_SEED})")
     p.add_argument("--compare", nargs=2, metavar=("A", "B"),
@@ -249,6 +276,11 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         return compare_main(args.compare[0], args.compare[1],
                             allow_mismatch=args.allow_mismatch,
                             runs_dir=runs_dir or store.RUNS_DIR)
+    try:
+        knobs = parse_knobs(args.knob)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     ids = [s for s in args.scenarios.split(",") if s] or None
     url = database_url or settings.DATABASE_URL
     if args.repeat < 1:
@@ -319,7 +351,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                 print(f"refusing to replay: {why}", file=sys.stderr)
                 return 2
 
-    web, voice = store.prompt_hashes()
+    web, voice = store.prompt_hashes(knobs)
     meta = store.RunMeta(
         git_sha=store.git_sha(), agent_model=settings.RESERVATION_AGENT_MODEL,
         diner_model=DINER_MODEL, prompt_hash_web=web, prompt_hash_voice=voice,
@@ -329,7 +361,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
               "alias_id": settings.EVAL_LEX_BOT_ALIAS_ID,
               "locale": settings.EVAL_LEX_LOCALE}
              if args.recognizer == "lex" else None),
-        prompt_version=voice[:12])
+        prompt_version=voice[:12], voice_knobs=knobs)
 
     async def body(factory: Any) -> tuple[str, bool, Path]:
         from backend.reservations.agent.core import AgentCore
@@ -351,7 +383,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         # run_suite turns a run that raises into a failed outcome.
                         res = await run_suite(
                             factory, [scenario], core=AgentCore(client),
-                            diner_factory=lambda s: sim, recognizer=recognizer)
+                            diner_factory=lambda s: sim, recognizer=recognizer, voice_knobs=knobs)
                         outcomes += res.outcomes
                         if args.record:
                             recorded += [(o, client.responses, scenario)
@@ -373,7 +405,7 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                     diner = replay.replay_diner(rec)
                     res = await run_suite(factory, [scenario], core=core,
                                           diner_factory=lambda s, d=diner: d,
-                                          recognizer=recognizer)
+                                          recognizer=recognizer, voice_knobs=knobs)
                     for o in res.outcomes:
                         left = replay.unused(name, core, diner)
                         if left:
