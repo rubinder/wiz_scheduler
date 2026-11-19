@@ -1,8 +1,14 @@
 """Land rows as one Parquet file per table per UTC day (#259 step 10):
 `<table>/dt=YYYY-MM-DD/part-0.parquet`, replacing whatever that partition
-held, so rerunning a day is idempotent."""
+held, so rerunning a day is idempotent.
+
+A sink reports the row count of what it actually wrote, read back from the
+stored file's Parquet footer, so the landed-count quality check compares
+the extract against storage, not against itself. UNREADABLE (-1) means the
+stored object could not be parsed (a truncated write)."""
 
 import io
+import logging
 import shutil
 from datetime import date
 from pathlib import Path
@@ -12,6 +18,18 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 PART = "part-0.parquet"
+UNREADABLE = -1
+
+logger = logging.getLogger(__name__)
+
+
+def num_rows(source: Any) -> int:
+    """Rows in the Parquet file at `source` (a path or a file-like), from its
+    footer; UNREADABLE if it does not parse."""
+    try:
+        return pq.read_metadata(source).num_rows
+    except (pa.ArrowException, OSError, ValueError):
+        return UNREADABLE
 
 
 def partition(table: str, day: date) -> str:
@@ -20,9 +38,10 @@ def partition(table: str, day: date) -> str:
 
 
 class Sink(Protocol):
-    def replace(self, partition: str, data: bytes) -> str:
+    def replace(self, partition: str, data: bytes) -> int:
         """Delete everything under `partition`, then write `data` as its one
-        part file. Returns where it was written."""
+        part file. Returns the row count read back from what was stored
+        (UNREADABLE if it does not parse)."""
         ...
 
 
@@ -32,14 +51,18 @@ class LocalSink:
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
 
-    def replace(self, partition: str, data: bytes) -> str:
+    def _write(self, path: Path, data: bytes) -> None:
+        path.write_bytes(data)
+
+    def replace(self, partition: str, data: bytes) -> int:
+        """Returns the rows in the file's footer, read back from disk."""
         directory = self.root / partition
         if directory.exists():
             shutil.rmtree(directory)
         directory.mkdir(parents=True)
         path = directory / PART
-        path.write_bytes(data)
-        return str(path)
+        self._write(path, data)
+        return num_rows(path)
 
 
 class S3DeleteError(RuntimeError):
@@ -59,13 +82,26 @@ class S3Sink:
     def _key(self, *parts: str) -> str:
         return "/".join(p for p in (self.prefix, *parts) if p)
 
-    def replace(self, partition: str, data: bytes) -> str:
+    def replace(self, partition: str, data: bytes) -> int:
         """Put the part file (S3 overwrites a key atomically, so readers
         never see the partition empty), then delete every other object
-        under the partition. Raises S3DeleteError if a delete fails."""
+        under the partition. Raises S3DeleteError if a delete fails.
+
+        Returns the row count from the footer of the bytes put, once
+        head_object confirms the stored object has exactly their size. If it
+        does not, the object is fetched back and its own footer read
+        (UNREADABLE when it does not parse)."""
         directory = self._key(partition) + "/"
         key = directory + PART
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
+        stored = self.client.head_object(Bucket=self.bucket, Key=key).get("ContentLength")
+        if stored == len(data):
+            rows = num_rows(io.BytesIO(data))
+        else:
+            logger.error("analytics: s3://%s/%s stored %s bytes of %d", self.bucket, key,
+                         stored, len(data))
+            body = self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+            rows = num_rows(io.BytesIO(body))
         stale: list[str] = []
         token: str | None = None
         while True:
@@ -85,7 +121,7 @@ class S3Sink:
                 raise S3DeleteError(
                     f"could not delete {len(errors)} object(s) under {directory}: "
                     + ", ".join(f"{e.get('Key')} ({e.get('Code')})" for e in errors[:5]))
-        return f"s3://{self.bucket}/{key}"
+        return rows
 
 
 def to_parquet(rows: list[dict[str, Any]], schema: pa.Schema) -> bytes:
@@ -106,6 +142,7 @@ def write_partition(table: str, day: date, rows: list[dict[str, Any]],
                     schema: pa.Schema, *, sink: Sink) -> int:
     """Replace `table`'s partition for `day` with `rows`. An empty day still
     writes a (zero-row) file, so a rerun clears what an earlier one landed.
-    Returns the number of rows written."""
-    sink.replace(partition(table, day), to_parquet(rows, schema))
-    return len(rows)
+    Returns the row count read back from what the sink stored (UNREADABLE
+    if it does not parse), for the landed-count check to compare with
+    len(rows)."""
+    return sink.replace(partition(table, day), to_parquet(rows, schema))

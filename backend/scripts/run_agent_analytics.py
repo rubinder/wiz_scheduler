@@ -96,7 +96,8 @@ async def main(argv: list[str] | None = None) -> int:
             async with async_session_factory() as db:
                 summary = await analytics_run.run(d, sink, db)
         except Exception as exc:
-            logger.exception("analytics %s raised", d)
+            # The type only: a database error's message can quote row values.
+            logger.error("analytics %s raised %s", d, type(exc).__name__)
             send_analytics_run_failed_alert(d.isoformat(), type(exc).__name__)
             summary = {"day": d.isoformat(), "ok": False, "error": type(exc).__name__}
         print(json.dumps(summary, default=str))

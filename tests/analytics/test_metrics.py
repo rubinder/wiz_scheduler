@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from backend.analytics import metrics
-from backend.analytics.extract import COVERS
+from backend.analytics.extract import COVERS, INTENT
 from backend.reservations.rules import RulesSchema, ServicePeriod
 
 DAY = date(2026, 11, 18)  # a Wednesday
@@ -54,7 +54,6 @@ def _seeded() -> dict:
         _ev("c4", 1, "user_turn"),
         _ev("c4", 2, "assistant_turn", {"outcome": "end_turn"}, llm=400),
         _ev("c4", 3, "handoff", {"reason": "large_party"}),
-        _ev("c5", 1, "tool_call", {"name": "find_slots"}),
         _ev("c6", 1, "handoff", {"reason": "other"}),
         _ev("c2", 1, "handoff", {"reason": "large_party"}),
     ]
@@ -71,8 +70,17 @@ def _seeded() -> dict:
         {"provider": "wizscheduler", "company_id": "co1", "location_id": "loc1",
          "party_size": 5, "start_at": datetime(2026, 11, 18, 20, 30, tzinfo=timezone.utc)},
     ]
+    for r in covers:
+        r["timezone"] = "America/New_York"
+    # Starts at 03:00Z on the 18th: 22:00 the 17th in New York, not this day.
+    covers.append({"provider": "wizscheduler", "company_id": "co1", "location_id": "loc1",
+                   "party_size": 9, "timezone": "America/New_York",
+                   "start_at": datetime(2026, 11, 18, 3, 0, tzinfo=timezone.utc)})
+    # c1 called find_slots this day; c5's call is on another day's events
+    # but INTENT covers all of a conversation's events.
+    intent = [{"conversation_id": "c1"}, {"conversation_id": "c5"}]
     return {"conversations": convs, "events": events, "screened_calls": screened,
-            COVERS: covers, "reservations": [], "agent_usage": []}
+            COVERS: covers, INTENT: intent, "reservations": [], "agent_usage": []}
 
 
 def test_each_metric_on_a_seeded_day() -> None:
@@ -83,7 +91,7 @@ def test_each_metric_on_a_seeded_day() -> None:
     assert r["conversations"] == 7
     assert r["resolved"] == 3  # booked + modified + cancelled
     assert (r["booked"], r["handed_off"], r["abandoned"], r["failed"]) == (1, 1, 1, 1)
-    assert r["booking_intent"] == 2  # c1 and c5 called find_slots
+    assert r["booking_intent"] == 2  # c1 and c5 called find_slots (extract.INTENT)
     assert r["handoff_reasons"] == {"large_party": 2, "other": 1}
     # llm latencies 100, 300, 200, 400: nearest rank p50 = 2nd, p95 = 4th.
     assert (r["llm_p50_ms"], r["llm_p95_ms"]) == (200, 400)
@@ -118,3 +126,14 @@ def test_a_location_without_rules_counts_covers_as_other() -> None:
     day = _seeded()
     rows = metrics.compute(day, {}, day=DAY)
     assert rows[0]["covers_by_period"] == {"other": 14}
+
+
+def test_an_invalid_zone_falls_back_to_utc() -> None:
+    assert metrics.local_zone("Not/AZone") == ZoneInfo("UTC")
+    assert metrics.local_zone(None) == ZoneInfo("UTC")
+    day = _seeded()
+    for r in day[COVERS]:
+        r["timezone"] = "Not/AZone"
+    # In UTC only the starts on the 18th count: 17:30, 20:30 and 03:00.
+    rows = metrics.compute(day, {}, day=DAY)
+    assert rows[0]["covers_by_period"] == {"other": 2 + 5 + 9}

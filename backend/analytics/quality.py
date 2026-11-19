@@ -7,18 +7,26 @@ ids (never diner data), fit for the operator alert.
 3. booked_ref: every conversation with outcome `booked` has a reservation
    ref that resolves through its own provider (reservations for
    wizscheduler, mock_external_bookings for the mock).
-4. billed: billed amounts reconcile on matching rows. For the day's
-   conversations that had been billed at the snapshot, each one's
-   billed_usd equals agent_usage.billed_usd for that conversation_id, read
-   now (agent_usage may have been written after midnight, on another day's
-   extract, so day sums of the two tables are never compared). The day's
-   total over those conversations is reported. A conversation billed after
-   the snapshot is not a defect: the next night's re-run picks it up. This
-   is an internal reconciliation; comparing against Stripe stays in the
-   step 5 reconcile job (scripts/run_agent_overage_reconcile.py).
+4. billing, per conversation, on matching rows from independent sources,
+   all in the extract's snapshot (extract.RECONCILE), for the day's
+   conversations and the day's agent_usage rows whatever day their
+   counterpart was written (usage is written when a conversation is
+   metered, possibly after midnight, so day sums are never compared):
+   a. usage_cost: agent_usage.cost_usd equals the conversation's own
+      agent_conversations.cost_usd;
+   b. usage_billed: agent_usage.billed_usd equals
+      subscription.billed_amount(agent_usage.cost_usd), the billing
+      formula; usage_unexpected: a blocked conversation, or one whose cost
+      bills to 0.00, has no usage row (subscription.meter never writes one);
+   c. usage_orphan: every landed agent_usage row references a conversation
+      that exists.
+   A conversation with cost and no usage row is not a defect (metering
+   skips a company without an ownership group). This is an internal
+   reconciliation; comparing against Stripe stays in the step 5 reconcile
+   job (scripts/run_agent_overage_reconcile.py).
 
-Checks 3 and 4 read the source DB (as the table owner) after the extract's
-snapshot closed; they only look up rows by id.
+Check 3 reads the source DB (as the table owner) after the extract's
+snapshot closed; it only looks up rows by id.
 """
 
 from datetime import date
@@ -28,8 +36,10 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.analytics.extract import RECONCILE
 from backend.analytics.schemas import TABLES
 from backend.database import cross_tenant_session
+from backend.reservations.subscription import billed_amount
 
 MAX_IDS = 20
 
@@ -50,8 +60,9 @@ def landed_counts(extracted: dict[str, list[dict[str, Any]]],
             continue
         n, got = len(extracted[t]), landed.get(t)
         if got != n:
-            out.append(f"landed_count: {t} landed {got if got is not None else 'nothing'} "
-                       f"of {n} extracted rows")
+            shown = ("nothing" if got is None else "an unreadable file" if got < 0
+                     else str(got))
+            out.append(f"landed_count: {t} landed {shown} of {n} extracted rows")
     return out
 
 
@@ -88,34 +99,55 @@ async def booked_refs(extracted: dict[str, list[dict[str, Any]]],
             f"reservation that resolves through their provider: {_ids(unresolved)}"]
 
 
-async def billed(extracted: dict[str, list[dict[str, Any]]],
-                 owner: AsyncSession) -> list[str]:
-    convs = {c["conversation_id"]: Decimal(c["billed_usd"])
-             for c in extracted.get("conversations", []) if c.get("billed_usd") is not None}
-    if not convs:
-        return []
-    rows = await owner.execute(text(
-        "SELECT conversation_id, sum(billed_usd) FROM agent_usage "
-        "WHERE conversation_id = ANY(:ids) GROUP BY conversation_id"), {"ids": sorted(convs)})
-    usage = {r[0]: Decimal(r[1]) for r in rows}
-    mismatched = [cid for cid, amount in convs.items() if usage.get(cid) != amount]
-    if not mismatched:
-        return []
-    conv_total = sum(convs.values(), Decimal("0"))
-    usage_total = sum(usage.values(), Decimal("0"))
-    return [f"billed: {len(mismatched)} of {len(convs)} billed conversation(s) disagree with "
-            f"agent_usage (conversations ${conv_total:.2f}, agent_usage ${usage_total:.2f}): "
-            f"{_ids(mismatched)}"]
+def billing(extracted: dict[str, list[dict[str, Any]]]) -> list[str]:
+    """Checks 4a-4c over extract.RECONCILE (one snapshot, independent
+    sources): the usage row's cost against the conversation's own cost, its
+    billed amount against the billing formula, no usage for a blocked or
+    zero-billed conversation, and no landed usage row without its
+    conversation."""
+    pairs = extracted.get(RECONCILE, [])
+    cost_off, billed_off, unexpected = [], [], []
+    orphans = 0
+    for p in pairs:
+        if not p["has_usage"]:
+            continue
+        if not p["conversation_exists"]:
+            orphans += bool(p["usage_landed"])
+            continue
+        cid = p["conversation_id"]
+        conv_cost = Decimal(p["conversation_cost_usd"] or 0)
+        usage_cost = Decimal(p["usage_cost_usd"])
+        if p["outcome"] == "blocked" or conv_cost <= 0 or billed_amount(conv_cost) <= 0:
+            unexpected.append(cid)
+            continue
+        if usage_cost != conv_cost:
+            cost_off.append(cid)
+        if Decimal(p["usage_billed_usd"]) != billed_amount(usage_cost):
+            billed_off.append(cid)
+    usage_rows = sum(1 for p in pairs if p["has_usage"])
+    out = []
+    if cost_off:
+        out.append(f"usage_cost: {len(cost_off)} of {usage_rows} usage row(s) disagree with "
+                   f"their conversation's cost: {_ids(cost_off)}")
+    if billed_off:
+        out.append(f"usage_billed: {len(billed_off)} of {usage_rows} usage row(s) are not "
+                   f"billed_amount(cost): {_ids(billed_off)}")
+    if unexpected:
+        out.append(f"usage_unexpected: {len(unexpected)} blocked or zero-cost conversation(s) "
+                   f"have a usage row: {_ids(unexpected)}")
+    if orphans:
+        out.append(f"usage_orphan: {orphans} landed usage row(s) reference no conversation")
+    return out
 
 
 async def check(day: date, extracted: dict[str, list[dict[str, Any]]],
                 landed: dict[str, int], db: AsyncSession) -> list[str]:
     """Every failure for `day`; empty when the day passes."""
-    failures = landed_counts(extracted, landed) + negative_latencies(extracted)
+    failures = (landed_counts(extracted, landed) + negative_latencies(extracted)
+                + billing(extracted))
     async with cross_tenant_session(db) as owner:
         try:
             failures += await booked_refs(extracted, owner)
-            failures += await billed(extracted, owner)
         finally:
             await owner.rollback()
     return failures

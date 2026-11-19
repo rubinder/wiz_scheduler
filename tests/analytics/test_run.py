@@ -1,6 +1,6 @@
 """run.run, quality.check and the nightly script (#259 step 10)."""
 
-import json
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -8,7 +8,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.analytics import extract, lake, quality, run
@@ -18,6 +18,7 @@ from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.mock_external_models import MockExternalBooking
 from backend.reservations.models import Reservation, ReservationRules
 from backend.reservations.screening_models import ScreenedCall
+from backend.reservations.subscription import billed_amount
 from backend.reservations.subscription_models import AgentUsage
 from tests.conftest import COMPANY_ID, LOCATION_ID
 
@@ -98,12 +99,12 @@ async def seeded(db_session: AsyncSession, seed_location: Location) -> dict[str,
     ev(handed, 3, "handoff", {"reason": "large_party"}, at(DAY, 17, 1))
     db.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id="ogalyt02",
                       location_id=LOCATION_ID, conversation_id=booked.id,
-                      cost_usd=Decimal("0.030000"), billed_usd=Decimal("0.25"),
+                      cost_usd=Decimal("0.030000"), billed_usd=billed_amount(Decimal("0.03")),
                       period_start=at(DAY, 0), created_at=at(DAY, 15, 6)))
     # The mock conversation is billed after midnight: another day's usage.
     db.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id="ogalyt02",
                       location_id=LOCATION_ID, conversation_id=mock.id,
-                      cost_usd=Decimal("0.010000"), billed_usd=Decimal("0.10"),
+                      cost_usd=Decimal("0.010000"), billed_usd=billed_amount(Decimal("0.01")),
                       period_start=at(DAY, 0), created_at=at(DAY + timedelta(days=1), 0, 5)))
     for decision in ("answer", "block", "block"):
         db.add(ScreenedCall(company_id=COMPANY_ID, location_id=LOCATION_ID, caller_key=None,
@@ -134,7 +135,7 @@ async def test_run_lands_checks_and_writes_metrics(db_session, seeded, alerts,
     assert (m.turn_p50_ms, m.turn_p95_ms) == (500, 700)
     assert m.cost_usd == Decimal("0.045000")
     # Billed on matching rows, including the usage written after midnight.
-    assert m.billed_usd == Decimal("0.35")
+    assert m.billed_usd == billed_amount(Decimal("0.03")) + billed_amount(Decimal("0.01"))
     assert (m.screened, m.blocked) == (3, 2)
     assert m.covers_by_period == {"Dinner": 2, "Lunch": 4}
 
@@ -174,19 +175,6 @@ async def _fails_and_alerts(db_session, alerts, tmp_path: Path, needle: str) -> 
     assert (tmp_path / "conversations" / "dt=2026-11-18" / "part-0.parquet").exists()
 
 
-async def test_landed_count_mismatch_fails(db_session, seeded, alerts, tmp_path,
-                                           monkeypatch) -> None:
-    real = lake.write_partition
-
-    def short(table, day, rows, schema, *, sink):
-        n = real(table, day, rows, schema, sink=sink)
-        return n - 1 if table == "events" else n
-
-    monkeypatch.setattr(lake, "write_partition", short)
-    await _fails_and_alerts(db_session, alerts, tmp_path, "landed_count: events landed 5 of 6")
-    assert await _metrics(db_session) == []
-
-
 async def test_negative_latency_fails(db_session, seeded, alerts, tmp_path) -> None:
     db_session.add(AgentEvent(company_id=COMPANY_ID, conversation_id=seeded["handed"], seq=4,
                               type="assistant_turn", payload={"content": []},
@@ -218,28 +206,100 @@ async def test_a_metrics_day_is_not_touched_by_a_failing_rerun(db_session, seede
     assert m.booked == 2
 
 
-async def test_billed_mismatch_fails(db_session, seeded, alerts, tmp_path,
-                                     monkeypatch) -> None:
-    real = extract.day
+async def test_a_truncated_lake_write_fails(db_session, seeded, alerts, tmp_path,
+                                            monkeypatch) -> None:
+    real = lake.LocalSink._write
 
-    async def skewed(db, day, *, runs_dir=extract.RUNS_DIR):
-        out = await real(db, day, runs_dir=runs_dir)
-        for c in out["conversations"]:
-            if c["conversation_id"] == seeded["booked"]:
-                c["billed_usd"] = Decimal("0.30")
-        return out
+    def truncating(self, path, data):
+        real(self, path, data[:-10] if "events" in str(path) else data)
 
-    monkeypatch.setattr(extract, "day", skewed)
+    monkeypatch.setattr(lake.LocalSink, "_write", truncating)
     await _fails_and_alerts(db_session, alerts, tmp_path,
-                            "billed: 1 of 2 billed conversation(s)")
-    assert "conversations $0.40, agent_usage $0.35" in alerts[0][1][0]
+                            "landed_count: events landed an unreadable file of 6")
+    assert await _metrics(db_session) == []
 
 
-async def test_a_conversation_billed_after_the_snapshot_passes(db_session, seeded) -> None:
-    out = await extract.day(db_session, DAY, runs_dir=None)
-    for c in out["conversations"]:
-        c["billed_usd"] = None if c["conversation_id"] == seeded["mock"] else c["billed_usd"]
-    assert await quality.billed(out, db_session) == []
+async def _usage(db: AsyncSession, conv_id: str) -> AgentUsage:
+    return (await db.execute(select(AgentUsage).where(
+        AgentUsage.conversation_id == conv_id))).scalar_one()
+
+
+async def test_usage_cost_disagreeing_with_its_conversation_fails(db_session, seeded, alerts,
+                                                                  tmp_path) -> None:
+    u = await _usage(db_session, seeded["booked"])
+    u.cost_usd = Decimal("0.031000")  # metered before the last turn's cost
+    u.billed_usd = billed_amount(Decimal("0.031"))
+    await db_session.commit()
+    await _fails_and_alerts(db_session, alerts, tmp_path, "usage_cost: 1 of 2 usage row(s)")
+    assert seeded["booked"] in alerts[0][1][0]
+    assert not any(f.startswith("usage_billed") for f in alerts[0][1])
+
+
+async def test_usage_billed_off_the_formula_fails(db_session, seeded, alerts,
+                                                  tmp_path) -> None:
+    u = await _usage(db_session, seeded["mock"])  # its usage landed the next day
+    u.billed_usd = billed_amount(u.cost_usd) + Decimal("0.01")
+    await db_session.commit()
+    await _fails_and_alerts(db_session, alerts, tmp_path, "usage_billed: 1 of 2 usage row(s)")
+    assert seeded["mock"] in alerts[0][1][0]
+
+
+async def test_usage_on_a_blocked_or_zero_cost_conversation_fails(db_session, seeded, alerts,
+                                                                  tmp_path) -> None:
+    ids = []
+    for outcome, cost in (("blocked", Decimal("0.010000")), ("abandoned", Decimal("0"))):
+        c = AgentConversation(company_id=COMPANY_ID, location_id=LOCATION_ID, channel="voice",
+                              source_key="s" * 64, started_at=at(DAY, 18), outcome=outcome,
+                              status="closed", cost_usd=cost)
+        db_session.add(c)
+        await db_session.flush()
+        db_session.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id="ogalyt02",
+                                  location_id=LOCATION_ID, conversation_id=c.id,
+                                  cost_usd=Decimal("0.010000"),
+                                  billed_usd=billed_amount(Decimal("0.01")),
+                                  period_start=at(DAY, 0), created_at=at(DAY, 18, 1)))
+        ids.append(c.id)
+    await db_session.commit()
+    await _fails_and_alerts(db_session, alerts, tmp_path,
+                            "usage_unexpected: 2 blocked or zero-cost conversation(s)")
+    assert all(i in alerts[0][1][0] for i in ids)
+
+
+async def test_a_landed_usage_row_without_its_conversation_fails(db_session, seeded, alerts,
+                                                                 tmp_path) -> None:
+    # A conversation from the week before, metered today, then deleted:
+    # agent_usage.conversation_id is SET NULL.
+    gone = AgentConversation(company_id=COMPANY_ID, location_id=LOCATION_ID, channel="web",
+                             source_key="s" * 64, started_at=at(DAY - timedelta(days=7), 9),
+                             outcome="booked", status="closed", cost_usd=Decimal("0.02"))
+    db_session.add(gone)
+    await db_session.flush()
+    db_session.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id="ogalyt02",
+                              location_id=LOCATION_ID, conversation_id=gone.id,
+                              cost_usd=Decimal("0.020000"),
+                              billed_usd=billed_amount(Decimal("0.02")),
+                              period_start=at(DAY, 0), created_at=at(DAY, 9)))
+    await db_session.commit()
+    await db_session.execute(delete(AgentConversation).where(AgentConversation.id == gone.id))
+    await db_session.commit()
+    await _fails_and_alerts(db_session, alerts, tmp_path,
+                            "usage_orphan: 1 landed usage row(s) reference no conversation")
+
+
+async def test_runs_of_the_same_day_are_serialised(db_session, seeded, alerts,
+                                                   tmp_path) -> None:
+    params = {"key": run.LOCK_KEY, "day": DAY.toordinal()}
+    async with db_session.bind.connect() as other:
+        await other.execute(text("SELECT pg_advisory_lock(hashtext(:key), :day)"), params)
+        task = asyncio.create_task(
+            run.run(DAY, lake.LocalSink(tmp_path), db_session, runs_dir=None))
+        await asyncio.sleep(0.5)
+        assert not task.done()
+        assert not (tmp_path / "conversations").exists()  # not even the lake
+        await other.execute(text("SELECT pg_advisory_unlock(hashtext(:key), :day)"), params)
+        await other.commit()
+    summary = await asyncio.wait_for(task, 30)
+    assert summary["ok"]
 
 
 # --- retention ---------------------------------------------------------------

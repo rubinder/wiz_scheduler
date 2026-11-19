@@ -1,5 +1,6 @@
 """lake.write_partition and the schemas (#259 step 10)."""
 
+import io
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -64,6 +65,7 @@ class FakeS3:
         self.page_size = 2
         self.deleted: list[str] = []
         self.fail_keys: set[str] = set()
+        self.truncate = 0  # bytes the store drops off the end of a put
 
     def list_objects_v2(self, Bucket: str, Prefix: str, ContinuationToken: str | None = None):
         keys = sorted(k for b, k in self.objects if b == Bucket and k.startswith(Prefix))
@@ -86,7 +88,13 @@ class FakeS3:
         return {"Errors": errors} if errors else {}
 
     def put_object(self, Bucket: str, Key: str, Body: bytes) -> None:
-        self.objects[(Bucket, Key)] = Body
+        self.objects[(Bucket, Key)] = Body[:len(Body) - self.truncate]
+
+    def head_object(self, Bucket: str, Key: str) -> dict:
+        return {"ContentLength": len(self.objects[(Bucket, Key)])}
+
+    def get_object(self, Bucket: str, Key: str) -> dict:
+        return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
 
 
 def test_s3_sink_deletes_the_partition_then_puts() -> None:
@@ -96,8 +104,8 @@ def test_s3_sink_deletes_the_partition_then_puts() -> None:
         s3.objects[("lake", f"agent/agent_usage/dt=2026-11-18/{k}.parquet")] = b"old"
     s3.objects[("lake", "agent/agent_usage/dt=2026-11-17/part-0.parquet")] = b"keep"
     s3.objects[("lake", "agent/agent_usage/dt=2026-11-180/x")] = b"keep"
-    lake.write_partition("agent_usage", DAY, [_usage(1)], schemas.AGENT_USAGE,
-                         sink=lake.S3Sink("lake", "agent/", s3))
+    assert lake.write_partition("agent_usage", DAY, [_usage(1)], schemas.AGENT_USAGE,
+                                sink=lake.S3Sink("lake", "agent/", s3)) == 1
     assert sorted(k for _, k in s3.objects) == [
         "agent/agent_usage/dt=2026-11-17/part-0.parquet",
         "agent/agent_usage/dt=2026-11-18/part-0.parquet",
@@ -117,6 +125,27 @@ def test_s3_sink_raises_when_a_delete_fails() -> None:
     with pytest.raises(lake.S3DeleteError, match="AccessDenied"):
         lake.write_partition("agent_usage", DAY, [_usage(1)], schemas.AGENT_USAGE,
                              sink=lake.S3Sink("lake", "agent", s3))
+
+
+def test_s3_sink_detects_a_truncated_write() -> None:
+    s3 = FakeS3()
+    s3.truncate = 10
+    n = lake.write_partition("agent_usage", DAY, [_usage(1), _usage(2)], schemas.AGENT_USAGE,
+                             sink=lake.S3Sink("lake", "agent", s3))
+    assert n == lake.UNREADABLE
+
+
+class TruncatingSink(lake.LocalSink):
+    def _write(self, path: Path, data: bytes) -> None:
+        path.write_bytes(data[:-10])
+
+
+def test_local_sink_reads_the_count_back_and_detects_a_truncated_write(tmp_path: Path) -> None:
+    rows = [_usage(1), _usage(2), _usage(3)]
+    assert lake.write_partition("agent_usage", DAY, rows, schemas.AGENT_USAGE,
+                                sink=lake.LocalSink(tmp_path)) == 3
+    assert lake.write_partition("agent_usage", DAY, rows, schemas.AGENT_USAGE,
+                                sink=TruncatingSink(tmp_path)) == lake.UNREADABLE
 
 
 # Frozen column lists: a change here is a lake schema change, which the Glue

@@ -9,9 +9,9 @@ Which rows feed what:
   the snapshot; the job re-runs each day once more the next night, so a
   conversation open at midnight gets its final state). billed_usd is the
   conversation's agent_usage billed amount, whenever it was billed.
-- booking_intent: those of them with a find_slots tool_call among the
-  day's events (a call made after midnight is on the next day's events and
-  not counted).
+- booking_intent: those of them with a find_slots tool_call in any of
+  their events, whatever day it was written (extract.INTENT), so booking
+  conversion never exceeds 1.
 - handoff_reasons and latencies: the events created that UTC day.
   turn latency is the model plus tool time of one diner turn: the
   llm and tools latencies of the events from a user_turn up to the next
@@ -19,8 +19,11 @@ Which rows feed what:
   (as the eval runner's turn_ms) is not recorded in production.
 - screened, blocked: the screened calls of that UTC day.
 - covers_by_period: extract.COVERS, booked reservations of either provider
-  that start that day in the location's time zone, by the rules' service
-  period whose seating window holds the start time ("other" if none does).
+  whose start falls on `day` as a local service day (the location's time
+  zone, not UTC), by the rules' service period whose seating window holds
+  the start time ("other" if none does). A local day ends up to a day after
+  the UTC one, and bookings keep changing until it starts, so the figure
+  is final only on the D-2 pass of the nightly job.
 
 Derived rates are not stored: resolution rate = resolved / conversations,
 booking conversion = booked / booking_intent, spam-blocked share =
@@ -36,12 +39,11 @@ from decimal import Decimal
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
-from backend.analytics.extract import COVERS
+from backend.analytics.extract import COVERS, INTENT
 from backend.reservations.rules import RulesSchema
 
 RESOLVED_OUTCOMES = ("booked", "modified", "cancelled")
 COUNTED_OUTCOMES = ("booked", "handed_off", "abandoned", "failed")
-BOOKING_INTENT_TOOL = "find_slots"
 OTHER_PERIOD = "other"
 TURN_STARTS = ("user_turn", "action")
 
@@ -51,6 +53,14 @@ class LocationRules:
     """What compute needs of a location: its rules and its time zone."""
     rules: RulesSchema
     tz: ZoneInfo
+
+
+def local_zone(name: str | None) -> ZoneInfo:
+    """The location's zone, UTC when the name is missing or unknown."""
+    try:
+        return ZoneInfo(name or "UTC")
+    except (KeyError, ValueError):
+        return ZoneInfo("UTC")
 
 
 def percentile(values: Iterable[float], p: float) -> int | None:
@@ -113,13 +123,21 @@ def compute(extracted: dict[str, list[dict[str, Any]]],
     convs = extracted.get("conversations", [])
     events = extracted.get("events", [])
     screened = extracted.get("screened_calls", [])
-    covers = extracted.get(COVERS, [])
+    intent = {r["conversation_id"] for r in extracted.get(INTENT, [])}
+    covers = []
+    for r in extracted.get(COVERS, []):
+        lr = rules_by_location.get(r["location_id"])
+        start: datetime = r["start_at"]
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        local = start.astimezone(lr.tz if lr else local_zone(r.get("timezone")))
+        if local.date() == day:
+            covers.append({**r, "local_start": local})
 
     company: dict[str, str] = {}
     for r in (*convs, *events, *screened, *covers):
         company.setdefault(r["location_id"], r["company_id"])
 
-    intent: set[str] = set()
     handoffs: dict[str, Counter[str]] = defaultdict(Counter)
     llm: dict[str, list[int]] = defaultdict(list)
     events_by_loc: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -129,10 +147,7 @@ def compute(extracted: dict[str, list[dict[str, Any]]],
         if e.get("llm_latency_ms") is not None:
             llm[loc].append(e["llm_latency_ms"])
         body = _payload(e.get("payload"))
-        if e["type"] == "tool_call" and isinstance(body, dict) \
-                and body.get("name") == BOOKING_INTENT_TOOL:
-            intent.add(e["conversation_id"])
-        elif e["type"] == "handoff":
+        if e["type"] == "handoff":
             reason = body.get("reason") if isinstance(body, dict) else None
             handoffs[loc][reason if isinstance(reason, str) else "other"] += 1
 
@@ -146,11 +161,7 @@ def compute(extracted: dict[str, list[dict[str, Any]]],
         for r in covers:
             if r["location_id"] != loc:
                 continue
-            start: datetime = r["start_at"]
-            if start.tzinfo is None:
-                start = start.replace(tzinfo=timezone.utc)
-            tz = lr.tz if lr else ZoneInfo(r.get("timezone") or "UTC")
-            cover_counts[period_name(lr.rules if lr else None, start.astimezone(tz))] \
+            cover_counts[period_name(lr.rules if lr else None, r["local_start"])] \
                 += int(r["party_size"])
         sc = [s for s in screened if s["location_id"] == loc]
         rows.append({

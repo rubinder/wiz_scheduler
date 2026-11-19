@@ -148,9 +148,11 @@ _SCREENED_CALLS = text("""
 
 
 # Metrics only, never landed (see COVERS): bookings of either provider that
-# start on `day` in their location's time zone and are still booked (or,
-# for WizScheduler, seated or completed), whenever they were made. The
-# window is widened by a day each side, then cut to the local date.
+# are still booked (or, for WizScheduler, seated or completed), whenever
+# they were made, starting within a day either side of the UTC window. The
+# metrics keep those starting on `day` in the location's time zone,
+# resolved in Python (metrics.local_zone), so a bad zone name cannot fail
+# the query.
 _COVERS = text("""
     SELECT b.provider, b.company_id, b.location_id, b.party_size, b.start_at,
            l.timezone
@@ -158,15 +160,42 @@ _COVERS = text("""
                    party_size, start_at
               FROM reservations
              WHERE status IN ('booked', 'seated', 'completed')
-               AND start_at >= :wide_start AND start_at < :wide_end
+               AND start_at >= :start AND start_at < :end
             UNION ALL
             SELECT 'mock_external', company_id, location_id, party_size, start_at
               FROM mock_external_bookings
              WHERE status = 'booked'
-               AND start_at >= :wide_start AND start_at < :wide_end) b
+               AND start_at >= :start AND start_at < :end) b
       JOIN locations l ON l.id = b.location_id
-     WHERE (b.start_at AT TIME ZONE COALESCE(l.timezone, 'UTC'))::date = :day
      ORDER BY b.location_id, b.start_at
+""")
+
+# Metrics only (see INTENT): the day's conversations that called find_slots
+# in any of their events, whatever day the event was written.
+_INTENT = text("""
+    SELECT c.id AS conversation_id
+      FROM agent_conversations c
+     WHERE c.started_at >= :start AND c.started_at < :end
+       AND EXISTS (SELECT 1 FROM agent_events e
+                    WHERE e.conversation_id = c.id AND e.type = 'tool_call'
+                      AND e.payload->>'name' = 'find_slots')
+     ORDER BY c.id
+""")
+
+# Quality only (see RECONCILE): the day's conversations and the day's
+# agent_usage rows, each paired with its counterpart whatever day that was
+# written. conversation_exists is false for a usage row whose conversation
+# is gone (agent_usage.conversation_id is SET NULL on delete).
+_RECONCILE = text("""
+    SELECT c.id AS conversation_id, c.outcome, c.cost_usd AS conversation_cost_usd,
+           u.id IS NOT NULL AS has_usage, u.cost_usd AS usage_cost_usd,
+           u.billed_usd AS usage_billed_usd, c.id IS NOT NULL AS conversation_exists,
+           (u.created_at >= :start AND u.created_at < :end) AS usage_landed
+      FROM agent_conversations c
+      FULL JOIN agent_usage u ON u.conversation_id = c.id
+     WHERE (c.started_at >= :start AND c.started_at < :end)
+        OR (u.created_at >= :start AND u.created_at < :end)
+     ORDER BY c.id, u.id
 """)
 
 # Codes a diner or the model may quote that day: those of bookings created
@@ -185,9 +214,13 @@ _KNOWN_CODES = text("""
 """)
 
 
-# The key of `day`'s result holding the covers rows the metrics read
-# (_COVERS). Not a lake table: only the keys of schemas.TABLES land.
+# Keys of `day`'s result that are not lake tables (only the keys of
+# schemas.TABLES land): the covers rows and booking-intent conversations
+# the metrics read, and the billing pairs the quality checks read. All come
+# from the same snapshot as the lake tables.
 COVERS = "covers"
+INTENT = "booking_intent"
+RECONCILE = "reconcile"
 
 
 def window(day: date) -> tuple[datetime, datetime]:
@@ -205,9 +238,9 @@ def skipped(extracted: dict[str, list[dict[str, Any]]]) -> list[str]:
 async def day(db: AsyncSession, day: date, *,
               runs_dir: Path | None = RUNS_DIR) -> dict[str, list[dict[str, Any]]]:
     """Every lake table's redacted rows for UTC `day`. `eval_results` is
-    absent when `runs_dir` is None or does not exist. Also, under COVERS
-    (not a lake table), the covers rows the metrics need, read in the same
-    snapshot."""
+    absent when `runs_dir` is None or does not exist. Also, under COVERS,
+    INTENT and RECONCILE (not lake tables), the rows the metrics and the
+    quality checks need, read in the same snapshot."""
     start, end = window(day)
     params = {"start": start, "end": end}
     out: dict[str, list[dict[str, Any]]] = {}
@@ -227,8 +260,9 @@ async def day(db: AsyncSession, day: date, *,
             out["agent_usage"] = await rows(_AGENT_USAGE)
             out["screened_calls"] = await rows(_SCREENED_CALLS)
             out[COVERS] = [dict(r) for r in (await owner.execute(_COVERS, {
-                "wide_start": start - timedelta(days=1), "wide_end": end + timedelta(days=1),
-                "day": day})).mappings()]
+                "start": start - timedelta(days=1), "end": end + timedelta(days=1)})).mappings()]
+            out[INTENT] = await rows(_INTENT)
+            out[RECONCILE] = await rows(_RECONCILE)
         finally:
             await owner.rollback()
     evals = eval_results(day, runs_dir)
