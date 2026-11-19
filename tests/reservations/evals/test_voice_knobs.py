@@ -44,6 +44,7 @@ def test_stored_rules_without_voice_load_with_defaults() -> None:
 def test_reply_max_sentences_adds_its_line_on_voice_only() -> None:
     text = _prompt("voice", voice_reply_max_sentences=2)
     assert "On the phone, answer in at most 2 short sentences." in text
+    assert "answer in at most 1 short sentence." in _prompt("voice", voice_reply_max_sentences=1)
     assert "On the phone, answer in at most" not in _prompt("web", voice_reply_max_sentences=2)
 
 

@@ -38,8 +38,9 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         lines.append("- This is a phone call: keep every reply under two short "
                      "sentences.")
     if voice and rules.voice.voice_reply_max_sentences:
+        n = rules.voice.voice_reply_max_sentences
         lines.append("- On the phone, answer in at most "
-                     f"{rules.voice.voice_reply_max_sentences} short sentences.")
+                     f"{n} short sentence{'' if n == 1 else 's'}.")
     if voice and rules.voice.voice_read_back:
         lines.append("- Before you hold a table, read back the party size, date, "
                      "time and the caller's phone number in one sentence.")
