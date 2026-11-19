@@ -146,6 +146,11 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
                          )[0].voice.voice_confirm_style
     except Exception:
         logger.exception("voice_bridge.rules_read_failed location=%s", location_id)
+        # A failed statement aborts the transaction; the conversation commit
+        # already happened, so nothing is lost. Reload what the claim reads.
+        await db.rollback()
+        await db.refresh(conv)
+        await db.refresh(location)
         confirm_style = "question"
 
     claim = await recording.claim_turn_at_location(db, conv, seq=body.seq,

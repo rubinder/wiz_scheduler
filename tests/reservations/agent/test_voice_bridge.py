@@ -524,3 +524,27 @@ async def test_a_disallowed_stored_transfer_number_is_never_dialled(
         out = (await _post(client, _body(1, text_="hi", contact=contact))).json()
         assert out["transfer_to"] is None and out["end_call"] is True, number
         assert out["reason"] == "transfer_refused"
+
+
+async def test_failed_confirm_style_read_falls_back_and_the_turn_still_works(
+        client, db_session, line, llm, monkeypatch):
+    from backend.reservations.agent import voice_turn
+
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    rules.voice.voice_confirm_style = "statement"
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    await db_session.commit()
+
+    async def _broken(db, company_id, location_id):
+        await db.execute(sql("select * from no_such_table_259"))  # aborts the txn
+
+    now = datetime.now(timezone.utc)
+    await _post(client, _body(0))
+    monkeypatch.setattr(voice_turn, "get_rules", _broken)
+    llm.push(*_hold_script(now))
+    r = await _post(client, _body(1, text_="table for two next week"))
+    assert r.status_code == 200
+    out = r.json()
+    assert out["expect"] == "confirm_hold"
+    assert out["confirm_prompt"].startswith("Shall I book a table for 2")  # "question"
+    assert (await _conv(db_session)).last_seq == 1
