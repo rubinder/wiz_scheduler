@@ -4,9 +4,13 @@ definitions are generated from it, so change a column here and nowhere
 else. The partition column `dt` lives in the path, not in these schemas.
 
 Timestamps are UTC microseconds, money is decimal(12, 6), and JSON-ish
-values are strings holding JSON. No column holds a diner's name, phone
-number or email: phones appear only as `diner_key` / `source_key` /
-`caller_key`, the HMAC of `services.rate_limit.source_key_for`.
+values are strings holding JSON.
+
+The lake is anonymous: no column holds a diner's name, phone number, email,
+confirmation code or free text, and none holds a pseudonymous diner key
+(the HMAC source_key / caller_key, or one derived from a phone). No metric
+needs diner identity, and with no key in the lake a GDPR erasure needs no
+lake rewrite.
 """
 
 import pyarrow as pa
@@ -28,11 +32,12 @@ CONVERSATIONS = pa.schema([
     _f("status", pa.string(), False),
     _f("outcome", pa.string()),
     _f("reservation_id", pa.string()),
-    _f("source_key", pa.string()),
     _f("turn_count", pa.int32(), False),
     _f("failed_lookups", pa.int32(), False),
     _f("cost_usd", MONEY, False),
     # agent_usage.billed_usd for this conversation; NULL until it is billed.
+    # The source is numeric(12, 2), which fits decimal(12, 6) up to
+    # $999,999.99 (plenty for one conversation).
     _f("billed_usd", MONEY),
     _f("started_at", TS, False),
     _f("ended_at", TS),
@@ -45,11 +50,14 @@ EVENTS = pa.schema([
     _f("location_id", pa.string(), False),
     _f("seq", pa.int32(), False),
     _f("type", pa.string(), False),
-    # Redacted free text: the diner's or assistant's words, an action's
-    # reply, a handoff's reason.
-    _f("text", pa.string()),
+    # Length of the free text the event carried (a turn's words, an action's
+    # reply, a handoff reason that is not a known code). The text itself
+    # never lands.
+    _f("text_chars", pa.int32()),
     # JSON: the allowlisted tool payload (redact.payload); a list of them
-    # for a tool_result; {"name", "outcome"} for an action.
+    # for a tool_result; {"name", "outcome"} for an action (known labels
+    # only); {"reason"} for a handoff (a known code or "other");
+    # {"outcome": stop_reason} for an assistant turn.
     _f("payload", pa.string()),
     _f("llm_latency_ms", pa.int64()),
     _f("tools_latency_ms", pa.int64()),
@@ -73,7 +81,6 @@ RESERVATIONS = pa.schema([
     # WizScheduler's source (staff, web_agent, voice_agent); NULL for the mock.
     _f("source", pa.string()),
     _f("conversation_id", pa.string()),
-    _f("diner_key", pa.string()),
     _f("created_at", TS, False),
     _f("updated_at", TS, False),
 ])
@@ -86,7 +93,7 @@ AGENT_USAGE = pa.schema([
     _f("conversation_id", pa.string()),
     _f("product", pa.string(), False),
     _f("cost_usd", MONEY, False),
-    _f("billed_usd", MONEY, False),
+    _f("billed_usd", MONEY, False),  # numeric(12, 2) at the source; fits
     _f("period_start", TS, False),
     _f("created_at", TS, False),
 ])
@@ -95,7 +102,6 @@ SCREENED_CALLS = pa.schema([
     _f("screened_call_id", pa.string(), False),
     _f("company_id", pa.string(), False),
     _f("location_id", pa.string(), False),
-    _f("caller_key", pa.string()),
     _f("decision", pa.string(), False),
     _f("reason", pa.string(), False),
     _f("created_at", TS, False),
@@ -113,7 +119,7 @@ EVAL_RESULTS = pa.schema([
     _f("attempt", pa.int32(), False),
     _f("passed", pa.bool_(), False),
     _f("failures", pa.string()),  # JSON list of redacted strings
-    _f("metrics", pa.string()),  # JSON object
+    _f("metrics", pa.string()),  # JSON object of extract.EVAL_METRIC_KEYS only
 ])
 
 TABLES: dict[str, pa.Schema] = {

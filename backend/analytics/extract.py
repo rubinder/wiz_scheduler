@@ -16,13 +16,28 @@ row comes back already redacted:
   eval runs and is not in the ECS image, so there the table is skipped
   (absent from the result; see `skipped`).
 
-Names, emails, notes and caller numbers are dropped; diner phones become
-`diner_key = source_key_for(phone)`; text goes through redact.text and tool
-payloads through redact.payload.
+The lake is anonymous (see schemas.py). Names, emails, notes, phones,
+caller numbers and the pseudonymous HMAC keys (source_key, caller_key) are
+never selected, so a GDPR erasure needs no lake rewrite. Free text never
+lands: turns, action replies and free-form handoff reasons become a
+character count. Tool payloads go through redact.payload; the remaining
+machine strings (error codes, labels) through redact.text, which first
+replaces the day's known confirmation codes exactly.
+
+Snapshot semantics: a day is read once. A conversation still open when its
+start day is extracted lands with its status, outcome, cost and ended_at as
+of that moment, and is not revisited unless that day is rerun.
+
+Note for the metrics (task 2): agent_usage rows and conversations can land
+on different days (usage is written when a conversation is billed, possibly
+after midnight), so reconcile billed amounts on matching rows
+(agent_usage.conversation_id = conversations.conversation_id), not on day
+sums.
 """
 
 import json
 import logging
+import re
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -34,7 +49,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.analytics import redact
 from backend.analytics.schemas import TABLES
 from backend.database import cross_tenant_session
-from backend.services.rate_limit import source_key_for
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +59,35 @@ RUNS_DIR = Path(__file__).resolve().parents[2] / "evals-runs"
 
 # The context line core.py puts before the diner's words in a user_turn.
 _CONTEXT_PREFIX = "[Now:"
-_LABEL_MAX = 64
+STATEMENT_TIMEOUT = "120s"
+
+# The structured actions core.Agent._action handles; anything else the
+# client sent lands as "unknown".
+KNOWN_ACTIONS = frozenset({"confirm_hold", "decline_hold", "confirm_cancel", "confirm_modify"})
+# Handoff reasons that are fixed codes (core.py, tools.py, the model's stop
+# reasons); a free-form reason from handoff_to_staff lands as "other".
+KNOWN_HANDOFF_REASONS = frozenset({
+    "error", "llm_error", "round_cap", "lookup_lockout", "provider_unavailable",
+    "large_party", "max_tokens", "stop_sequence", "pause_turn", "refusal",
+    "model_context_window_exceeded", "tool_use", "end_turn",
+})
+# A machine label: lowercase words joined by underscores.
+_LABEL = re.compile(r"[a-z][a-z0-9_]{0,39}")
+
+# eval_results.metrics keeps only these scalars (the runner's lists, what a
+# voice recognizer heard and its error strings never land; voice lists are
+# reduced to counts).
+EVAL_METRIC_KEYS = ("turns", "diner_turns", "model_calls", "total_cost_usd", "llm_p50_ms",
+                    "llm_p95_ms", "turn_p50_ms", "turn_p95_ms", "handoff", "outcome",
+                    "book_goal")
+EVAL_VOICE_COUNTS = {"heard": "heard_count", "errors": "error_count",
+                     "ssml_errors": "ssml_error_count", "repeats": "repeat_count"}
+# checker._describe's `name='...'` and `phone=...` fragments.
+_FAILURE_FIELD = re.compile(r"""\b(name|phone)=(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|\S+)""")
 
 _CONVERSATIONS = text("""
     SELECT c.id AS conversation_id, c.company_id, c.location_id, c.channel,
-           c.provider, c.status, c.outcome, c.reservation_id, c.source_key,
+           c.provider, c.status, c.outcome, c.reservation_id,
            c.turn_count, c.failed_lookups, c.cost_usd, u.billed_usd,
            c.started_at, c.ended_at
       FROM agent_conversations c
@@ -69,16 +107,20 @@ _EVENTS = text("""
      ORDER BY e.conversation_id, e.seq
 """)
 
+# A mock hold past its held_until (or with none) reads back as expired, as
+# providers/mock_external._status has it; now() is the transaction's start.
 _RESERVATIONS = text("""
     SELECT id AS reservation_id, provider, company_id, location_id, party_size,
-           start_at, end_at, status, source, conversation_id, diner_phone,
+           start_at, end_at, status, source, conversation_id,
            created_at, updated_at
       FROM reservations
      WHERE created_at >= :start AND created_at < :end
     UNION ALL
     SELECT id, 'mock_external', company_id, location_id, party_size,
-           start_at, end_at, status, NULL, NULL, diner_phone,
-           created_at, updated_at
+           start_at, end_at,
+           CASE WHEN status = 'held' AND (held_until IS NULL OR held_until <= now())
+                THEN 'expired' ELSE status END,
+           NULL, NULL, created_at, updated_at
       FROM mock_external_bookings
      WHERE created_at >= :start AND created_at < :end
      ORDER BY created_at, reservation_id
@@ -94,11 +136,27 @@ _AGENT_USAGE = text("""
 """)
 
 _SCREENED_CALLS = text("""
-    SELECT id AS screened_call_id, company_id, location_id, caller_key,
+    SELECT id AS screened_call_id, company_id, location_id,
            decision, reason, created_at
       FROM screened_calls
      WHERE created_at >= :start AND created_at < :end
      ORDER BY created_at, id
+""")
+
+
+# Codes a diner or the model may quote that day: those of bookings created
+# or changed in the window, from both providers. Never landed; used only to
+# mask them exactly in the strings that do.
+_KNOWN_CODES = text("""
+    SELECT confirmation_code AS code FROM reservations
+     WHERE confirmation_code IS NOT NULL
+       AND ((created_at >= :start AND created_at < :end)
+            OR (updated_at >= :start AND updated_at < :end))
+    UNION
+    SELECT code FROM mock_external_bookings
+     WHERE code IS NOT NULL
+       AND ((created_at >= :start AND created_at < :end)
+            OR (updated_at >= :start AND updated_at < :end))
 """)
 
 
@@ -122,14 +180,18 @@ async def day(db: AsyncSession, day: date, *,
     params = {"start": start, "end": end}
     out: dict[str, list[dict[str, Any]]] = {}
     async with cross_tenant_session(db) as owner:
-        await owner.execute(text("SET TRANSACTION READ ONLY"))
+        # One snapshot for every table, so counts agree across them.
+        await owner.execute(text(
+            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        await owner.execute(text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'"))
         try:
             async def rows(query: Any) -> list[dict[str, Any]]:
                 return [dict(r) for r in (await owner.execute(query, params)).mappings()]
 
+            codes = tuple(r["code"] for r in await rows(_KNOWN_CODES))
             out["conversations"] = await rows(_CONVERSATIONS)
-            out["events"] = _events(await rows(_EVENTS))
-            out["reservations"] = [_reservation(r) for r in await rows(_RESERVATIONS)]
+            out["events"] = _events(await rows(_EVENTS), codes)
+            out["reservations"] = await rows(_RESERVATIONS)
             out["agent_usage"] = await rows(_AGENT_USAGE)
             out["screened_calls"] = await rows(_SCREENED_CALLS)
         finally:
@@ -142,29 +204,28 @@ async def day(db: AsyncSession, day: date, *,
     return out
 
 
-def _reservation(r: dict[str, Any]) -> dict[str, Any]:
-    phone = r.pop("diner_phone")
-    r["diner_key"] = source_key_for(phone) if phone else None
-    return r
+def _label(v: Any, fallback: str) -> str:
+    """A machine label (a stop reason, an action result's leading word):
+    kept when it looks like one, else `fallback`. An action result can
+    carry a code ("booked QX7K9P"), so only its first word is read."""
+    word = v.split(maxsplit=1)[0] if isinstance(v, str) and v.strip() else ""
+    return word if _LABEL.fullmatch(word) else fallback
 
 
-def _label(v: Any) -> str | None:
-    """An app-defined label (an action name, its result), redacted and
-    capped: the action name comes from the client."""
-    if not isinstance(v, str):
-        return None
-    return redact.text(v[:_LABEL_MAX])
+def _chars(v: Any) -> int | None:
+    return len(v) if isinstance(v, str) else None
 
 
-def _texts(content: Any, *, skip_context: bool = False) -> str | None:
+def _text_chars(content: Any, *, skip_context: bool = False) -> int | None:
+    """How many characters of text a turn's content blocks carried."""
     if not isinstance(content, list):
         return None
-    parts = [b.get("text", "") for b in content
+    parts = [b["text"] for b in content
              if isinstance(b, dict) and b.get("type") == "text"
              and isinstance(b.get("text"), str) and b.get("text")]
     if skip_context:
         parts = [p for p in parts if not p.startswith(_CONTEXT_PREFIX)]
-    return redact.text("\n".join(parts)) if parts else None
+    return sum(len(p) for p in parts) if parts else None
 
 
 def _ms(latency: Any, key: str) -> int | None:
@@ -174,7 +235,8 @@ def _ms(latency: Any, key: str) -> int | None:
     return int(round(v))
 
 
-def _tool_results(payload: dict[str, Any], tool_names: dict[str, str]) -> list[dict[str, Any]]:
+def _tool_results(payload: dict[str, Any], tool_names: dict[str, str],
+                  codes: tuple[str, ...]) -> list[dict[str, Any]]:
     out = []
     for block in payload.get("content") or []:
         if not isinstance(block, dict):
@@ -184,18 +246,19 @@ def _tool_results(payload: dict[str, Any], tool_names: dict[str, str]) -> list[d
         except (TypeError, ValueError):
             result = {}
         red = redact.payload(result if isinstance(result, dict) else {},
-                             tool=tool_names.get(str(block.get("tool_use_id"))))
+                             tool=tool_names.get(str(block.get("tool_use_id"))),
+                             known_codes=codes)
         red.setdefault("outcome", "error" if block.get("is_error") else "ok")
         out.append(red)
     return out
 
 
-def _events(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _events(rows: list[dict[str, Any]], codes: tuple[str, ...]) -> list[dict[str, Any]]:
     tool_names: dict[str, str] = {}  # tool_use_id -> tool name, from tool_calls
     for r in rows:
         p = r["payload"] if isinstance(r["payload"], dict) else {}
-        if r["type"] == "tool_call" and p.get("tool_use_id") and isinstance(p.get("name"), str):
-            tool_names[str(p["tool_use_id"])] = p["name"]
+        if r["type"] == "tool_call" and p.get("tool_use_id"):
+            tool_names[str(p["tool_use_id"])] = _label(p.get("name"), "unknown")
 
     out = []
     for r in rows:
@@ -205,29 +268,34 @@ def _events(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         r["llm_latency_ms"] = _ms(latency, "llm")
         r["tools_latency_ms"] = _ms(latency, "tools")
         body: Any = None
-        words: str | None = None
+        chars: int | None = None
         kind = r["type"]
         if p.get("erased"):
             pass  # erased mid-turn: the event keeps its cost, never its words
         elif kind == "user_turn":
-            words = _texts(p.get("content"), skip_context=True)
+            chars = _text_chars(p.get("content"), skip_context=True)
         elif kind == "assistant_turn":
-            words = _texts(p.get("content"))
-            body = {"outcome": _label(p.get("stop_reason"))}
+            chars = _text_chars(p.get("content"))
+            body = {"outcome": _label(p.get("stop_reason"), "other")}
         elif kind == "tool_call":
-            name = p.get("name") if isinstance(p.get("name"), str) else None
             body = redact.payload(p.get("input") if isinstance(p.get("input"), dict) else {},
-                                  tool=name)
+                                  tool=_label(p.get("name"), "unknown"), known_codes=codes)
         elif kind == "tool_result":
-            body = _tool_results(p, tool_names)
+            body = _tool_results(p, tool_names, codes)
         elif kind == "error":
-            body = redact.payload(p)
+            body = redact.payload(p, known_codes=codes)
         elif kind == "handoff":
-            words = redact.text(p.get("reason")) if isinstance(p.get("reason"), str) else None
+            reason = p.get("reason")
+            if isinstance(reason, str) and reason in KNOWN_HANDOFF_REASONS:
+                body = {"reason": reason}
+            else:
+                body, chars = {"reason": "other"}, _chars(reason)
         elif kind == "action":
-            words = redact.text(p.get("reply")) if isinstance(p.get("reply"), str) else None
-            body = {"name": _label(p.get("action")), "outcome": _label(p.get("result"))}
-        r["text"] = words
+            chars = _chars(p.get("reply"))
+            action = p.get("action")
+            body = {"name": action if action in KNOWN_ACTIONS else "unknown",
+                    "outcome": _label(p.get("result"), "other")}
+        r["text_chars"] = chars
         r["payload"] = json.dumps(body, sort_keys=True) if body is not None else None
         out.append(r)
     return out
@@ -263,7 +331,8 @@ def eval_results(day: date, runs_dir: Path | None = RUNS_DIR) -> list[dict[str, 
         for res in doc.get("results") or []:
             if not isinstance(res, dict) or not res.get("scenario_id"):
                 continue
-            failures = [redact.text(str(f)) for f in res.get("failures") or []]
+            failures = [redact.text(_FAILURE_FIELD.sub(r"\1=[redacted]", str(f)))
+                        for f in res.get("failures") or []]
             out.append({
                 "run_id": str(doc.get("id") or path.stem),
                 "run_created_at": created,
@@ -276,13 +345,36 @@ def eval_results(day: date, runs_dir: Path | None = RUNS_DIR) -> list[dict[str, 
                 "attempt": int(res.get("attempt") or 0),
                 "passed": bool(res.get("passed")),
                 "failures": json.dumps(failures),
-                "metrics": json.dumps(res.get("metrics") or {}, sort_keys=True,
-                                      default=_json_default),
+                "metrics": json.dumps(eval_metrics(res.get("metrics")), sort_keys=True),
             })
     return out
 
 
-def _json_default(v: Any) -> Any:
-    if isinstance(v, Decimal):
-        return float(v)
-    return str(v)
+def _metric(v: Any) -> Any:
+    if isinstance(v, bool) or v is None:
+        return v
+    if isinstance(v, (int, float, Decimal)):
+        return float(v) if isinstance(v, Decimal) else v
+    if isinstance(v, str):
+        return _label(v, "other")
+    return None
+
+
+def eval_metrics(metrics: Any) -> dict[str, Any]:
+    """The allowlisted metrics of one eval result: EVAL_METRIC_KEYS as
+    scalars, `error_count` for the checker's error list, and under `voice`
+    only the recognizer and counts (EVAL_VOICE_COUNTS)."""
+    m = metrics if isinstance(metrics, dict) else {}
+    out: dict[str, Any] = {k: _metric(m[k]) for k in EVAL_METRIC_KEYS if k in m}
+    if isinstance(m.get("errors"), list):
+        out["error_count"] = len(m["errors"])
+    voice = m.get("voice")
+    if isinstance(voice, dict):
+        v: dict[str, Any] = {}
+        if "recognizer" in voice:
+            v["recognizer"] = _metric(voice["recognizer"])
+        for key, count in EVAL_VOICE_COUNTS.items():
+            if isinstance(voice.get(key), list):
+                v[count] = len(voice[key])
+        out["voice"] = v
+    return out

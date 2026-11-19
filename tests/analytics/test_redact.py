@@ -7,7 +7,9 @@ from backend.analytics import redact
 
 @pytest.mark.parametrize("raw", [
     "415 555 0100", "(415) 555-0100", "+14155550100", "415.555.0100",
-    "4155550100", "555-0100 ext", "+1 (415) 555 0100",
+    "4155550100", "555-0100 ext", "+1 (415) 555 0100", "(+1 415) 555 0100",
+    "+1 +1 415 555 0100", "++1 (415)(555) 0100", "4 1 5 5 5 5 0 1 0 0",
+    "415  -  555  -  0100", "(((415))) 555 0100",
 ])
 def test_phone_like_runs_are_masked(raw: str) -> None:
     out = redact.text(f"call me at {raw} please")
@@ -18,6 +20,7 @@ def test_phone_like_runs_are_masked(raw: str) -> None:
 def test_short_digit_runs_survive() -> None:
     assert redact.text("table for 4 at 7 30") == "table for 4 at 7 30"
     assert redact.text("party of 12") == "party of 12"
+    assert redact.text("19:00:00-05:00") == "19:00:00-05:00"
 
 
 def test_emails_are_masked() -> None:
@@ -30,9 +33,26 @@ def test_codes_are_masked(code: str) -> None:
     assert redact.text(f"my code is {code}.") == "my code is [code]."
 
 
-def test_six_letter_words_and_off_alphabet_tokens_survive() -> None:
-    # No digit, or a character outside the code alphabet (0, 1, O, I).
-    assert redact.text("PLEASE dinner ABC012 ABCD1O") == "PLEASE dinner ABC012 ABCD1O"
+def test_lowercase_words_and_off_alphabet_tokens_survive() -> None:
+    # Lowercase without a digit, or a character outside the alphabet (0, 1, O, I).
+    assert redact.text("please dinner ABC012 ABCD1O") == "please dinner ABC012 ABCD1O"
+
+
+@pytest.mark.parametrize("raw,want", [
+    ("QWERTZ", "[code]"),
+    ("my code is qwertz", "my code is [code]"),
+    ("Confirmation: QwErTz.", "Confirmation: [code]."),
+    ("confirmation code was abcdef", "confirmation code was [code]"),
+    ("code=bcdfgh", "code=[code]"),
+])
+def test_all_letter_codes_are_masked_in_context_or_uppercase(raw: str, want: str) -> None:
+    assert redact.text(raw) == want
+
+
+def test_known_codes_are_replaced_exactly_in_any_case() -> None:
+    out = redact.text("it was hjkmnp, or Hjkmnp, not hjkmnpq", known_codes=["HJKMNP"])
+    assert out == "it was [code], or [code], not hjkmnpq"
+    assert redact.payload({"error": "no hjkmnp"}, known_codes=["HJKMNP"])["error"] == "no [code]"
 
 
 def test_none_and_empty() -> None:
@@ -72,3 +92,7 @@ def test_payload_redacts_string_values() -> None:
 def test_iso_dates_are_not_phone_numbers() -> None:
     assert redact.text("on 2026-11-20 at 19:00") == "on 2026-11-20 at 19:00"
     assert redact.text("2026-11-20T19:00:00-05:00") == "2026-11-20T19:00:00-05:00"
+    assert redact.text("party 2 2026-11-20 19:00") == "party 2 2026-11-20 19:00"
+    assert redact.text("on 2026-11-20 415 555 0100") == "on 2026-11-20 [phone]"
+    # Not a date (month 55), so all eleven digits are one phone number.
+    assert redact.text("+1 4155-55-0100") == "[phone]"

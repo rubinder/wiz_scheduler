@@ -42,6 +42,11 @@ class LocalSink:
         return str(path)
 
 
+class S3DeleteError(RuntimeError):
+    """delete_objects reported per-key errors: the partition may still hold
+    stale objects next to the new part file."""
+
+
 class S3Sink:
     """An S3 prefix. `client` is a boto3 S3 client (or anything with its
     list_objects_v2 / delete_objects / put_object)."""
@@ -55,23 +60,31 @@ class S3Sink:
         return "/".join(p for p in (self.prefix, *parts) if p)
 
     def replace(self, partition: str, data: bytes) -> str:
+        """Put the part file (S3 overwrites a key atomically, so readers
+        never see the partition empty), then delete every other object
+        under the partition. Raises S3DeleteError if a delete fails."""
         directory = self._key(partition) + "/"
-        keys: list[str] = []
+        key = directory + PART
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
+        stale: list[str] = []
         token: str | None = None
         while True:
             kwargs: dict[str, Any] = {"Bucket": self.bucket, "Prefix": directory}
             if token:
                 kwargs["ContinuationToken"] = token
             page = self.client.list_objects_v2(**kwargs)
-            keys += [o["Key"] for o in page.get("Contents", [])]
+            stale += [o["Key"] for o in page.get("Contents", []) if o["Key"] != key]
             if not page.get("IsTruncated"):
                 break
             token = page.get("NextContinuationToken")
-        for i in range(0, len(keys), 1000):
-            self.client.delete_objects(Bucket=self.bucket, Delete={
-                "Objects": [{"Key": k} for k in keys[i:i + 1000]], "Quiet": True})
-        key = directory + PART
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
+        for i in range(0, len(stale), 1000):
+            resp = self.client.delete_objects(Bucket=self.bucket, Delete={
+                "Objects": [{"Key": k} for k in stale[i:i + 1000]], "Quiet": True})
+            errors = (resp or {}).get("Errors") or []
+            if errors:
+                raise S3DeleteError(
+                    f"could not delete {len(errors)} object(s) under {directory}: "
+                    + ", ".join(f"{e.get('Key')} ({e.get('Code')})" for e in errors[:5]))
         return f"s3://{self.bucket}/{key}"
 
 

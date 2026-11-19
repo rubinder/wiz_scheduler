@@ -81,11 +81,17 @@ async def seeded(db_session: AsyncSession, seed_location: Location) -> dict[str,
        {"content": [{"type": "tool_result", "tool_use_id": "tu1",
                      "content": json.dumps(result)}],
         "raw": json.dumps(result)}, at(DAY, 15, 2), latency_ms={"tools": 45})
-    ev(today, 5, "action", {"action": "confirm_hold", "result": "booked",
+    ev(today, 5, "action", {"action": "confirm_hold", "result": f"booked {CODE}",
                             "reply": f"Booked, {NAME}! Code {CODE}, we'll text {PHONE}."},
        at(DAY, 15, 3))
     ev(today, 6, "handoff", {"reason": f"caller {EMAIL} asked for a manager"}, at(DAY, 15, 4))
     ev(today, 7, "error", {"error": "llm_error", "detail": f"{NAME} {PHONE}"}, at(DAY, 15, 4))
+    ev(today, 8, "handoff", {"reason": "lookup_lockout"}, at(DAY, 15, 4))
+    ev(today, 9, "action", {"action": f"call {NAME}", "result": f"{NAME} said hi",
+                            "reply": "ok"}, at(DAY, 15, 4))
+    ev(today, 10, "error", {"error": f"no booking {CODE.lower()} for {EMAIL}"}, at(DAY, 15, 4))
+    ev(today, 11, "tool_call", {"tool_use_id": "tu2", "name": f"{NAME} {PHONE}",
+                                "input": {"confirmation_code": CODE}}, at(DAY, 15, 4))
     ev(spanning, 1, "user_turn", {"content": [{"type": "text", "text": "late one"}]},
        at(before, 23, 55))
     ev(spanning, 2, "assistant_turn", {"content": [], "stop_reason": "end_turn"},
@@ -111,6 +117,12 @@ async def seeded(db_session: AsyncSession, seed_location: Location) -> dict[str,
     db.add(MockExternalBooking(company_id=COMPANY_ID, location_id=LOCATION_ID,
                                start_at=at(after, 18), end_at=at(after, 20), party_size=4,
                                status="held", created_at=at(after, 9), updated_at=at(after, 9)))
+    # A hold that lapsed: lands as expired.
+    db.add(MockExternalBooking(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                               start_at=at(after, 18), end_at=at(after, 20), party_size=3,
+                               status="held", held_until=at(DAY, 10, 10), diner_name=NAME,
+                               diner_phone=PHONE, created_at=at(DAY, 10),
+                               updated_at=at(DAY, 10)))
     db.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id="ogalyt01",
                       location_id=LOCATION_ID, conversation_id=today.id,
                       cost_usd=Decimal("0.031000"), billed_usd=Decimal("0.25"),
@@ -131,8 +143,7 @@ async def test_conversations_land_on_their_start_day(db_session, seeded) -> None
     assert ids == [seeded["today"], seeded["late"]]
     today = out["conversations"][0]
     assert today["billed_usd"] == Decimal("0.25")
-    assert today["source_key"] == source_key_for(PHONE)
-    assert "caller_number" not in today
+    assert set(today) == set(schemas.CONVERSATIONS.names)
     prev = await extract.day(db_session, DAY - timedelta(days=1), runs_dir=None)
     assert [c["conversation_id"] for c in prev["conversations"]] == [seeded["spanning"]]
 
@@ -143,16 +154,20 @@ async def test_events_land_on_their_own_day(db_session, seeded) -> None:
     keys = [(e["conversation_id"], e["seq"]) for e in out["events"]]
     assert (seeded["spanning"], 2) in keys and (seeded["spanning"], 1) not in keys
     assert (seeded["late"], 1) in keys and (seeded["late"], 2) not in keys
-    assert len(out["events"]) == 7 + 1 + 1
+    assert len(out["events"]) == 11 + 1 + 1
 
 
 @pytest.mark.asyncio
 async def test_event_redaction(db_session, seeded) -> None:
     out = await extract.day(db_session, DAY, runs_dir=None)
     ev = {e["seq"]: e for e in out["events"] if e["conversation_id"] == seeded["today"]}
-    # redact.text cannot recognise a name the diner types; see extract's docstring.
-    assert ev[1]["text"] == f"Hi I'm {NAME}, call [phone] or [phone], mail [email], code [code]"
-    assert ev[2]["text"] == "Booking for [phone]"
+    for e in out["events"]:
+        assert set(e) == set(schemas.EVENTS.names)
+    # Free text never lands, only its length (the [Now: ...] block excluded).
+    words = f"Hi I'm {NAME}, call {PHONE} or (415) 555-0123, mail {EMAIL}, code {CODE}"
+    assert ev[1]["text_chars"] == len(words) and ev[1]["payload"] is None
+    assert ev[2]["text_chars"] == len(f"Booking for {PHONE}")
+    assert json.loads(ev[2]["payload"]) == {"outcome": "tool_use"}
     assert ev[2]["llm_latency_ms"] == 812 and ev[2]["tools_latency_ms"] is None
     assert json.loads(ev[3]["payload"]) == {
         "name": "hold_table", "party_size": 2, "start": "2026-11-20T19:00:00-05:00",
@@ -160,23 +175,34 @@ async def test_event_redaction(db_session, seeded) -> None:
     assert json.loads(ev[4]["payload"]) == [{"name": "hold_table", "party_size": 2,
                                              "code_present": True, "outcome": "ok"}]
     assert ev[4]["tools_latency_ms"] == 45
+    # The result carried the code ("booked QX7K9P"): only its label lands.
     assert json.loads(ev[5]["payload"]) == {"name": "confirm_hold", "outcome": "booked"}
+    assert ev[5]["text_chars"] > 0
+    # A free-form handoff reason is "other"; a fixed code is kept.
+    assert json.loads(ev[6]["payload"]) == {"reason": "other"}
+    assert ev[6]["text_chars"] == len(f"caller {EMAIL} asked for a manager")
+    assert json.loads(ev[8]["payload"]) == {"reason": "lookup_lockout"}
+    assert ev[8]["text_chars"] is None
     assert json.loads(ev[7]["payload"]) == {"error": "llm_error", "code_present": False}
+    assert json.loads(ev[9]["payload"]) == {"name": "unknown", "outcome": "other"}
+    # The day's known code is masked exactly, whatever its case.
+    assert json.loads(ev[10]["payload"])["error"] == "no booking [code] for [email]"
+    assert json.loads(ev[11]["payload"]) == {"name": "unknown", "code_present": True}
     erased = next(e for e in out["events"] if e["conversation_id"] == seeded["late"])
-    assert erased["text"] is None and erased["payload"] is None
+    assert erased["text_chars"] is None and erased["payload"] is None
 
 
 @pytest.mark.asyncio
 async def test_reservations_from_both_providers(db_session, seeded) -> None:
     out = await extract.day(db_session, DAY, runs_dir=None)
     rows = out["reservations"]
-    assert sorted(r["provider"] for r in rows) == ["mock_external", "wizscheduler"]
+    assert sorted((r["provider"], r["status"]) for r in rows) == [
+        ("mock_external", "booked"), ("mock_external", "expired"), ("wizscheduler", "booked")]
     wiz = next(r for r in rows if r["provider"] == "wizscheduler")
-    mock = next(r for r in rows if r["provider"] == "mock_external")
+    mock = next(r for r in rows if r["provider"] == "mock_external" and r["status"] == "booked")
     assert wiz["reservation_id"] == seeded["booked"]
     assert wiz["conversation_id"] == seeded["today"] and wiz["source"] == "voice_agent"
     assert mock["source"] is None and mock["party_size"] == 4
-    assert wiz["diner_key"] == mock["diner_key"] == source_key_for(PHONE)
     for r in rows:
         assert set(r) == set(schemas.RESERVATIONS.names)
 
@@ -208,12 +234,38 @@ def test_eval_results_by_run_date(tmp_path: Path) -> None:
             "report": NAME}))
 
     run("r1", "2026-11-18T23:30:00+00:00")
+    (tmp_path / "v1.json").write_text(json.dumps({
+        "id": "v1", "created_at": "2026-11-18T10:00:00Z", "meta": {"recognizer": "noisy"},
+        "results": [{"scenario_id": "s2", "attempt": 1, "passed": True, "failures": [],
+                     "metrics": {"turns": 4, "outcome": "booked", "llm_ms": [1, 2],
+                                 "errors": ["llm_error"], "handoff": False,
+                                 "total_cost_usd": 0.02, "surprise": NAME,
+                                 "voice": {"recognizer": "noisy", "heard": [NAME, PHONE],
+                                           "errors": [f"misheard {NAME}"], "repeats": [{}],
+                                           "asr_ms": [10], "ssml_errors": []}}}]}))
     run("r2", "2026-11-18T20:00:00-05:00")  # 01:00Z on the 19th
     (tmp_path / "junk.json").write_text("{not json")
     rows = extract.eval_results(DAY, tmp_path)
-    assert [r["run_id"] for r in rows] == ["r1"]
+    assert [r["run_id"] for r in rows] == ["r1", "v1"]
     assert json.loads(rows[0]["failures"]) == ["expected code [code] for [phone]"]
-    assert extract.eval_results(DAY + timedelta(days=1), tmp_path)[0]["run_id"] == "r2"
+    assert json.loads(rows[1]["metrics"]) == {
+        "turns": 4, "outcome": "booked", "handoff": False, "total_cost_usd": 0.02,
+        "error_count": 1,
+        "voice": {"recognizer": "noisy", "heard_count": 2, "error_count": 1,
+                  "repeat_count": 1, "ssml_error_count": 0}}
+    assert [r["run_id"] for r in extract.eval_results(DAY + timedelta(days=1), tmp_path)] == ["r2"]
+
+
+def test_eval_failures_lose_name_and_phone_fragments(tmp_path: Path) -> None:
+    (tmp_path / "r.json").write_text(json.dumps({
+        "id": "r", "created_at": "2026-11-18T01:00:00+00:00",
+        "results": [{"scenario_id": "s", "attempt": 0, "passed": False, "failures": [
+            f"unexpected booking: party 2 2026-11-20 19:00 booked code=None "
+            f"name='{NAME}' phone={PHONE}"]}]}))
+    rows = extract.eval_results(DAY, tmp_path)
+    assert json.loads(rows[0]["failures"]) == [
+        "unexpected booking: party 2 2026-11-20 19:00 booked code=None "
+        "name=[redacted] phone=[redacted]"]
     assert extract.eval_results(DAY, tmp_path / "nope") is None
 
 
@@ -229,37 +281,33 @@ def _strings(value) -> list[str]:
 
 @pytest.mark.asyncio
 async def test_no_identifier_reaches_the_parquet_files(db_session, seeded, tmp_path: Path) -> None:
-    """Every table, landed and read back: no seeded phone, email or code in
-    any string value, and no seeded name outside free text the diner typed
-    (redact.text cannot recognise names; see the module docstring)."""
+    """Every table, landed and read back: no seeded name, phone, email or
+    code in any string value, nor in the file bytes."""
     runs = tmp_path / "runs"
     runs.mkdir()
     (runs / "r1.json").write_text(json.dumps({
         "id": "r1", "created_at": "2026-11-18T12:00:00+00:00", "meta": {},
-        "results": [{"scenario_id": "s1", "attempt": 0, "passed": True,
-                     "failures": [f"{PHONE} {EMAIL}"], "metrics": {},
+        "results": [{"scenario_id": "s1", "attempt": 0, "passed": False,
+                     "failures": [f"{PHONE} {EMAIL}",
+                                  f"booked code=None name='{NAME}' phone={PHONE}"],
+                     "metrics": {"voice": {"recognizer": "noisy",
+                                           "heard": [f"I'm {NAME}", PHONE],
+                                           "errors": [f"misheard {NAME}"]}},
                      "conversation_snapshot": {"diner_name": NAME}}]}))
     out = await extract.day(db_session, DAY, runs_dir=runs)
     sink = lake.LocalSink(tmp_path / "lake")
     for table, schema in schemas.TABLES.items():
+        assert out[table], table  # every table has rows to scan
         assert lake.write_partition(table, DAY, out[table], schema, sink=sink) == len(out[table])
 
     files = sorted((tmp_path / "lake").rglob("*.parquet"))
     assert len(files) == len(schemas.TABLES)
+    needles = NEEDLES + ["ZZ2345", source_key_for(PHONE)]
     for path in files:
         raw = path.read_bytes()
         for row in pq.read_table(path).to_pylist():
             for s in _strings(row):
-                for needle in [PHONE, "4155550123", "555-0123", EMAIL, "example.org", CODE,
-                               "ZZ2345"]:
-                    assert needle not in s, (path, s)
-                if path.parts[-3] != "events":
-                    assert "Zelda" not in s and "Quixotic" not in s, (path, s)
-        for needle in (PHONE, EMAIL, CODE):
+                for needle in needles:
+                    assert needle.lower() not in s.lower(), (path, s)
+        for needle in needles:
             assert needle.encode() not in raw, path
-    # The only name left is the diner's own free text, never a tool payload,
-    # a reply or a column.
-    events = pq.read_table(tmp_path / "lake" / "events").to_pylist()
-    with_name = [e for e in events if any("Zelda" in s for s in _strings(e))]
-    assert [(e["type"], "Zelda" in (e["payload"] or "")) for e in with_name] == [
-        ("user_turn", False), ("action", False)]

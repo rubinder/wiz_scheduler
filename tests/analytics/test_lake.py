@@ -62,6 +62,8 @@ class FakeS3:
     def __init__(self) -> None:
         self.objects: dict[tuple[str, str], bytes] = {}
         self.page_size = 2
+        self.deleted: list[str] = []
+        self.fail_keys: set[str] = set()
 
     def list_objects_v2(self, Bucket: str, Prefix: str, ContinuationToken: str | None = None):
         keys = sorted(k for b, k in self.objects if b == Bucket and k.startswith(Prefix))
@@ -73,9 +75,15 @@ class FakeS3:
             out["NextContinuationToken"] = str(start + self.page_size)
         return out
 
-    def delete_objects(self, Bucket: str, Delete: dict) -> None:
+    def delete_objects(self, Bucket: str, Delete: dict) -> dict:
+        errors = []
         for o in Delete["Objects"]:
-            self.objects.pop((Bucket, o["Key"]), None)
+            self.deleted.append(o["Key"])
+            if o["Key"] in self.fail_keys:
+                errors.append({"Key": o["Key"], "Code": "AccessDenied", "Message": "no"})
+            else:
+                self.objects.pop((Bucket, o["Key"]), None)
+        return {"Errors": errors} if errors else {}
 
     def put_object(self, Bucket: str, Key: str, Body: bytes) -> None:
         self.objects[(Bucket, Key)] = Body
@@ -83,6 +91,7 @@ class FakeS3:
 
 def test_s3_sink_deletes_the_partition_then_puts() -> None:
     s3 = FakeS3()
+    s3.objects[("lake", "agent/agent_usage/dt=2026-11-18/part-0.parquet")] = b"old"
     for k in ("a", "b", "c"):  # more than one list page
         s3.objects[("lake", f"agent/agent_usage/dt=2026-11-18/{k}.parquet")] = b"old"
     s3.objects[("lake", "agent/agent_usage/dt=2026-11-17/part-0.parquet")] = b"keep"
@@ -95,7 +104,19 @@ def test_s3_sink_deletes_the_partition_then_puts() -> None:
         "agent/agent_usage/dt=2026-11-180/x",
     ]
     body = s3.objects[("lake", "agent/agent_usage/dt=2026-11-18/part-0.parquet")]
-    assert pa.BufferReader(body) and pq.read_table(pa.BufferReader(body)).num_rows == 1
+    assert pq.read_table(pa.BufferReader(body)).num_rows == 1
+    # The key being written is overwritten in place, never deleted.
+    assert "agent/agent_usage/dt=2026-11-18/part-0.parquet" not in s3.deleted
+
+
+def test_s3_sink_raises_when_a_delete_fails() -> None:
+    s3 = FakeS3()
+    stale = "agent/agent_usage/dt=2026-11-18/part-1.parquet"
+    s3.objects[("lake", stale)] = b"old"
+    s3.fail_keys.add(stale)
+    with pytest.raises(lake.S3DeleteError, match="AccessDenied"):
+        lake.write_partition("agent_usage", DAY, [_usage(1)], schemas.AGENT_USAGE,
+                             sink=lake.S3Sink("lake", "agent", s3))
 
 
 # Frozen column lists: a change here is a lake schema change, which the Glue
@@ -103,24 +124,24 @@ def test_s3_sink_deletes_the_partition_then_puts() -> None:
 EXPECTED = {
     "conversations": "conversation_id:string company_id:string location_id:string "
         "channel:string provider:string status:string outcome:string reservation_id:string "
-        "source_key:string turn_count:int32 failed_lookups:int32 cost_usd:decimal128(12, 6) "
+        "turn_count:int32 failed_lookups:int32 cost_usd:decimal128(12, 6) "
         "billed_usd:decimal128(12, 6) started_at:timestamp[us, tz=UTC] "
         "ended_at:timestamp[us, tz=UTC]",
     "events": "event_id:string conversation_id:string company_id:string location_id:string "
-        "seq:int32 type:string text:string payload:string llm_latency_ms:int64 "
+        "seq:int32 type:string text_chars:int32 payload:string llm_latency_ms:int64 "
         "tools_latency_ms:int64 input_tokens:int32 output_tokens:int32 "
         "cache_read_tokens:int32 cache_write_tokens:int32 cost_usd:decimal128(12, 6) "
         "created_at:timestamp[us, tz=UTC]",
     "reservations": "reservation_id:string provider:string company_id:string "
         "location_id:string party_size:int32 start_at:timestamp[us, tz=UTC] "
         "end_at:timestamp[us, tz=UTC] status:string source:string conversation_id:string "
-        "diner_key:string created_at:timestamp[us, tz=UTC] updated_at:timestamp[us, tz=UTC]",
+        "created_at:timestamp[us, tz=UTC] updated_at:timestamp[us, tz=UTC]",
     "agent_usage": "usage_id:string company_id:string ownership_group_id:string "
         "location_id:string conversation_id:string product:string cost_usd:decimal128(12, 6) "
         "billed_usd:decimal128(12, 6) period_start:timestamp[us, tz=UTC] "
         "created_at:timestamp[us, tz=UTC]",
     "screened_calls": "screened_call_id:string company_id:string location_id:string "
-        "caller_key:string decision:string reason:string created_at:timestamp[us, tz=UTC]",
+        "decision:string reason:string created_at:timestamp[us, tz=UTC]",
     "eval_results": "run_id:string run_created_at:timestamp[us, tz=UTC] git_sha:string "
         "agent_model:string mode:string recognizer:string prompt_version:string "
         "scenario_id:string attempt:int32 passed:bool failures:string metrics:string",
@@ -137,4 +158,6 @@ def test_schemas_are_stable() -> None:
 def test_no_schema_has_an_identifier_column() -> None:
     for schema in schemas.TABLES.values():
         for f in schema:
-            assert not any(w in f.name for w in ("name", "email", "phone", "number", "notes"))
+            assert not any(w in f.name for w in ("name", "email", "phone", "number", "notes",
+                                                 "_key", "code"))
+            assert f.name != "text"
