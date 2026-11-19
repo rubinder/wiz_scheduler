@@ -123,6 +123,7 @@ Decisions made while building without stopping to ask (owner instruction,
     understanding (how often the agent gets the caller's words right the
     first time) is measured. Step 8 adds both. Cost if wrong: a voice
     regression that lives in the audio path passes the suite.
+    *Closed by decision 56: step 8 measures both.*
 36. **Ruling R: no eval tables in any real database.** The eval run and
     result models are metadata only (there is no migration); the runner
     creates them with the application's tables in its throwaway scratch
@@ -235,6 +236,40 @@ Decisions made while building without stopping to ask (owner instruction,
 55. **`ix_spam_numbers_e164` was dropped** (it duplicated the primary key's
     leading column and slowed ingest writes). Cost if wrong: none, the PK
     serves reads.
+56. **Voice evals measure the audio path (closes decision 35).** Three
+    recognizers: `exact` (CI), `noisy`, `lex` (Polly 8 kHz into Lex V2
+    `RecognizeUtterance`, live only). Cost if wrong: see 57 to 60.
+57. **The noisy recognizer is deterministic and seeded** (default 259) with
+    telephone-style confusions, so a measured change comes from the agent
+    and not from the dice. Only `--live` runs measure understanding with it;
+    replay ignores model input and refuses a recording made with a
+    different recognizer or seed. Cost if wrong: confusions are a model of
+    phone audio, not the real thing; lex is the check.
+58. **First-try understanding is detected structurally**: the share of text
+    turns not followed by a "say that again", a not-caught reply, or a
+    re-elicit of the slot just supplied. No model call, so it is free and
+    repeatable. Cost if wrong: an unusual phrasing of a re-ask is missed.
+59. **Voice replay coverage is two hand-authored recordings**,
+    `party_of_14_voice` (transfer) and `book_four_friday_7pm_voice`
+    (confirm), so CI covers the bridge path without live spend. Cost if
+    wrong: they do not follow live model behaviour until re-recorded.
+60. **Voice knobs default to byte-identical behaviour.** `voice_reply_max_sentences`,
+    `voice_read_back`, `voice_confirm_style` live in `RulesSchema.voice`,
+    are API-only, and are recorded per run in `meta.voice_knobs`. A rules
+    PUT (including a UI save) that omits `voice` keeps the stored values.
+    Cost if wrong: a save would silently reset tuned values.
+61. **The live tuning round is the owner's to run.** Each configuration
+    costs about $3 of Claude for the 12 scenarios x 1 repeat (upper bound
+    per `cost_estimate`) plus cents of Polly/Lex. Procedure: see
+    `docs/reservations-agent-evals.md`. Results table (owner to fill):
+
+    | Config | Recognizer | Pass rate | First-try understanding | Turn p95 (ms) | Cost per booking |
+    | --- | --- | --- | --- | --- | --- |
+    | baseline | noisy | | | | |
+    | reply_max_sentences=2 | noisy | | | | |
+    | read_back=true | noisy | | | | |
+    | confirm_style=statement | noisy | | | | |
+    | (same four) | lex | | | | |
 
 ## Before switching reservations on (owner checklist)
 
@@ -245,6 +280,8 @@ Decisions made while building without stopping to ask (owner instruction,
 - Legal: privacy policy / DPA wording for diner data (spec section 11).
 - Set each location's staff transfer number.
 - Run the evaluation suite (step 4) live once and record the baseline.
+- Run the voice tuning round (decisions 56 to 61, `docs/reservations-agent-evals.md`)
+  and record the results table under decision 61.
 - Stripe: create the AI host product with a licensed $10/month recurring
   price and set `RESERVATIONS_PRICE_ID` to it (empty, the subscribe routes
   answer 503 `not_configured` and the billing card says billing is not
