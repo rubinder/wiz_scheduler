@@ -52,6 +52,7 @@ async def read_config(_: User = Depends(require_manager)) -> ReservationsConfigO
     """Whether reservations are on; the one route that answers when off."""
     return ReservationsConfigOut(
         enabled=settings.RESERVATIONS_ENABLED,
+        mock_provider_allowed=settings.RESERVATIONS_MOCK_PROVIDER_ALLOWED,
         conversation_outcomes=list(OUTCOMES))
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
@@ -208,6 +209,11 @@ async def write_rules(
         raise HTTPException(status_code=403, detail={
             "code": "admin_only",
             "message": "Only an admin can change the booking provider"})
+    if (body.provider == "mock_external" and stored["provider"] != "mock_external"
+            and not settings.RESERVATIONS_MOCK_PROVIDER_ALLOWED):
+        raise HTTPException(status_code=422, detail={
+            "code": "mock_provider_not_allowed",
+            "message": "The mock booking provider is not enabled here"})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

@@ -1697,6 +1697,7 @@ const pcm = {
       none: "No tok-tok for dis day.",
       inProgress: "E still dey go",
       turns: "{n} turn",
+      external: "Outside",
       cost: "Cost {cost}",
       totalCost: "Total money {cost}",
       transcript: "Wetin dem talk",

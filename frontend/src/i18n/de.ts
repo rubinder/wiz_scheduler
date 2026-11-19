@@ -1697,6 +1697,7 @@ const de = {
       none: "Keine Gespräche an diesem Tag.",
       inProgress: "Läuft noch",
       turns: "{n} Runden",
+      external: "Extern",
       cost: "Kosten {cost}",
       totalCost: "Gesamtkosten {cost}",
       transcript: "Verlauf",

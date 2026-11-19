@@ -1697,6 +1697,7 @@ const ind = {
       none: "Tidak ada percakapan pada hari ini.",
       inProgress: "Berlangsung",
       turns: "{n} giliran",
+      external: "Eksternal",
       cost: "Biaya {cost}",
       totalCost: "Total biaya {cost}",
       transcript: "Transkrip",

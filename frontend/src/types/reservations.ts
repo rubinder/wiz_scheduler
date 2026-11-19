@@ -192,6 +192,8 @@ export interface ReservationOut {
 /** GET /reservations/config. conversation_outcomes mirrors agent/models.py OUTCOMES (served, so it cannot drift). */
 export interface ReservationsConfig {
   enabled: boolean;
+  /** Whether the rules editor may offer the mock external provider. */
+  mock_provider_allowed?: boolean;
   conversation_outcomes: string[];
 }
 
@@ -205,6 +207,8 @@ export interface ConversationOut {
   turn_count: number;
   cost_usd: string;
   reservation_id: string | null;
+  /** The booking provider the conversation was fixed to; "mock_external" is the test double. */
+  provider?: string;
 }
 
 export interface AgentEventOut {

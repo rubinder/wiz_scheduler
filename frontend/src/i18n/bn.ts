@@ -1697,6 +1697,7 @@ const bn = {
       none: "এই দিনে কোনো কথোপকথন নেই।",
       inProgress: "চলছে",
       turns: "{n} পালা",
+      external: "বহিরাগত",
       cost: "খরচ {cost}",
       totalCost: "মোট খরচ {cost}",
       transcript: "কথোপকথনের বিবরণ",

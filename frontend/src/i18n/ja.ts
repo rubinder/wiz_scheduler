@@ -1697,6 +1697,7 @@ const ja = {
       none: "この日の会話はありません。",
       inProgress: "進行中",
       turns: "{n} ターン",
+      external: "外部",
       cost: "費用 {cost}",
       totalCost: "合計費用 {cost}",
       transcript: "会話記録",

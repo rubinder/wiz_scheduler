@@ -1697,6 +1697,7 @@ const ru = {
       none: "В этот день разговоров нет.",
       inProgress: "Идёт",
       turns: "{n} ходов",
+      external: "Внешний",
       cost: "Стоимость {cost}",
       totalCost: "Общая стоимость {cost}",
       transcript: "Расшифровка",

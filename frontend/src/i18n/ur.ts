@@ -1697,6 +1697,7 @@ const ur = {
       none: "اس دن کوئی گفتگو نہیں۔",
       inProgress: "جاری ہے",
       turns: "{n} باریاں",
+      external: "بیرونی",
       cost: "لاگت {cost}",
       totalCost: "کل لاگت {cost}",
       transcript: "گفتگو کی تفصیل",

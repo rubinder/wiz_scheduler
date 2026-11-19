@@ -1697,6 +1697,7 @@ const trLang = {
       none: "Bu gün için konuşma yok.",
       inProgress: "Sürüyor",
       turns: "{n} tur",
+      external: "Harici",
       cost: "Maliyet {cost}",
       totalCost: "Toplam maliyet {cost}",
       transcript: "Konuşma dökümü",

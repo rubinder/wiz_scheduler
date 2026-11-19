@@ -111,6 +111,7 @@ class ConversationOut(BaseModel):
     turn_count: int
     cost_usd: str
     reservation_id: str | None
+    provider: str
 
     @classmethod
     def of(cls, c: AgentConversation) -> "ConversationOut":
@@ -118,6 +119,7 @@ class ConversationOut(BaseModel):
             id=c.id, channel=c.channel, started_at=c.started_at,
             ended_at=c.ended_at, outcome=c.outcome, turn_count=c.turn_count,
             cost_usd=str(c.cost_usd), reservation_id=c.reservation_id,
+            provider=c.provider,
         )
 
 
@@ -280,6 +282,8 @@ class DinerEraseOut(BaseModel):
 
 class ReservationsConfigOut(BaseModel):
     enabled: bool
+    # Whether the rules editor may offer the mock external provider.
+    mock_provider_allowed: bool = False
     # Mirrors agent/models.py OUTCOMES; the conversations filter reads it.
     conversation_outcomes: list[str]
 

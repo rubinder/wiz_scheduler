@@ -19,6 +19,7 @@ import {
   payloadToRulesForm,
   pendingApprovals,
   rulesFormToPayload,
+  mockProviderOffered,
   snap,
   staffCanAct,
   tableStates,
@@ -392,5 +393,14 @@ describe("external bookings", () => {
     const groups = groupBySeating([external, res("a", "2026-12-04T18:30:00-05:00", "booked", ["T2"])], NY);
     expect(groups).toHaveLength(1);
     expect(groups[0].items.map((r) => r.id).sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("mockProviderOffered", () => {
+  it("offers the mock only when the server allows it or it is already stored", () => {
+    expect(mockProviderOffered(false, "wizscheduler")).toBe(false);
+    expect(mockProviderOffered(true, "wizscheduler")).toBe(true);
+    expect(mockProviderOffered(false, "mock_external")).toBe(true);
+    expect(mockProviderOffered(false, undefined)).toBe(false);
   });
 });

@@ -1697,6 +1697,7 @@ const hi = {
       none: "इस दिन कोई बातचीत नहीं।",
       inProgress: "जारी है",
       turns: "{n} बारी",
+      external: "बाहरी",
       cost: "लागत {cost}",
       totalCost: "कुल लागत {cost}",
       transcript: "बातचीत का ब्योरा",

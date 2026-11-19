@@ -1697,6 +1697,7 @@ const te = {
       none: "ఈ రోజు సంభాషణలు లేవు.",
       inProgress: "కొనసాగుతోంది",
       turns: "{n} మలుపులు",
+      external: "బాహ్య",
       cost: "ఖర్చు {cost}",
       totalCost: "మొత్తం ఖర్చు {cost}",
       transcript: "సంభాషణ వివరాలు",

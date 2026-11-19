@@ -1697,6 +1697,7 @@ const mr = {
       none: "या दिवशी एकही संभाषण नाही.",
       inProgress: "सुरू आहे",
       turns: "{n} फेऱ्या",
+      external: "बाह्य",
       cost: "खर्च {cost}",
       totalCost: "एकूण खर्च {cost}",
       transcript: "संभाषणाचा तपशील",

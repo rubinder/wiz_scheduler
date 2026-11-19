@@ -1697,6 +1697,7 @@ const zh = {
       none: "这一天没有对话。",
       inProgress: "进行中",
       turns: "{n} 轮",
+      external: "外部",
       cost: "费用 {cost}",
       totalCost: "总费用 {cost}",
       transcript: "对话记录",

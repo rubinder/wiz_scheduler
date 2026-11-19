@@ -1697,6 +1697,7 @@ const ar = {
       none: "لا توجد محادثات في هذا اليوم.",
       inProgress: "جارية",
       turns: "{n} أدوار",
+      external: "خارجي",
       cost: "التكلفة {cost}",
       totalCost: "التكلفة الإجمالية {cost}",
       transcript: "نص المحادثة",

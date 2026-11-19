@@ -1697,6 +1697,7 @@ const es = {
       none: "No hay conversaciones este día.",
       inProgress: "En curso",
       turns: "{n} turnos",
+      external: "Externo",
       cost: "Costo {cost}",
       totalCost: "Costo total {cost}",
       transcript: "Transcripción",

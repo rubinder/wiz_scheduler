@@ -436,3 +436,12 @@ export function tableStates(
   }
   return out;
 }
+
+/**
+ * Whether the rules editor lists the mock external provider: when the server
+ * allows it (config.mock_provider_allowed), or the stored value is already
+ * mock, so an existing demo still renders its selection.
+ */
+export function mockProviderOffered(allowed: boolean, stored: string | undefined): boolean {
+  return allowed || stored === "mock_external";
+}

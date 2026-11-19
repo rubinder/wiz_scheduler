@@ -1697,6 +1697,7 @@ const vi = {
       none: "Không có cuộc trò chuyện nào trong ngày này.",
       inProgress: "Đang diễn ra",
       turns: "{n} lượt",
+      external: "Bên ngoài",
       cost: "Chi phí {cost}",
       totalCost: "Tổng chi phí {cost}",
       transcript: "Bản ghi",

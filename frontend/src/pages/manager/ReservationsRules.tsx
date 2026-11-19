@@ -13,6 +13,7 @@ import {
   localDateString,
   payloadToRulesForm,
   rulesFormToPayload,
+  mockProviderOffered,
   validParty,
 } from "../../utils/reservations";
 import type { RulesForm } from "../../utils/reservations";
@@ -64,6 +65,8 @@ export default function ReservationsRules() {
   const [form, setForm] = useState<RulesForm | null>(null);
   /** JSON of the form as last loaded or saved; a different form has unsaved edits. */
   const [baseline, setBaseline] = useState("");
+  const [mockAllowed, setMockAllowed] = useState(false);
+  const [storedProvider, setStoredProvider] = useState("");
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -99,6 +102,7 @@ export default function ReservationsRules() {
       try {
         const cfg = await getConfig();
         setEnabled(cfg.enabled);
+        setMockAllowed(cfg.mock_provider_allowed ?? false);
         if (!cfg.enabled) return;
         const locs = await listLocations();
         setLocations(locs);
@@ -129,6 +133,7 @@ export default function ReservationsRules() {
         const loaded = payloadToRulesForm(out.rules);
         setForm(loaded);
         setBaseline(JSON.stringify(loaded));
+        setStoredProvider(loaded.provider);
       })
       .catch((e) => {
         if (!cancelled) setLoadError(errorText(e instanceof ApiError ? e.data : null));
@@ -273,6 +278,7 @@ export default function ReservationsRules() {
       const savedForm = payloadToRulesForm(out.rules);
       setForm(savedForm);
       setBaseline(JSON.stringify(savedForm));
+      setStoredProvider(savedForm.provider);
       setSaved(true);
     } catch (e) {
       if (currentLocation.current !== forLocation) return;
@@ -473,7 +479,9 @@ export default function ReservationsRules() {
                 onChange={(e) => patch({ provider: e.target.value as RulesForm["provider"] })}
               >
                 <option value="wizscheduler">{r.rules.providerWizscheduler}</option>
-                <option value="mock_external">{r.rules.providerMock}</option>
+                {mockProviderOffered(mockAllowed, storedProvider) && (
+                  <option value="mock_external">{r.rules.providerMock}</option>
+                )}
               </select>
             </Field>
             {form.provider === "mock_external" && (

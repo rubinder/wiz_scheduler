@@ -32,6 +32,7 @@ BOB = "+12125550199"
 @pytest.fixture(autouse=True)
 def _enabled(monkeypatch):
     monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", True)
+    monkeypatch.setattr(settings, "RESERVATIONS_MOCK_PROVIDER_ALLOWED", True)
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -279,3 +280,42 @@ async def test_group_deletion_deletes_the_mock_rows(db_session: AsyncSession, se
             select(func.count()).select_from(model))).scalar_one()
         assert count == 0, model.__tablename__
     assert await db_session.get(Company, COMPANY_ID) is None
+
+
+async def test_the_mock_provider_is_refused_unless_allowed(
+        client, manager_token, seeded_floor, monkeypatch):
+    url = f"{BASE}/locations/{LOCATION_ID}/rules"
+    h = _auth(manager_token)
+    rules = await _rules(client, manager_token)
+    monkeypatch.setattr(settings, "RESERVATIONS_MOCK_PROVIDER_ALLOWED", False)
+    r = await client.put(url, json={**rules, "provider": "mock_external"}, headers=h)
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "mock_provider_not_allowed"
+    assert (await _rules(client, manager_token))["provider"] == "wizscheduler"
+
+    # Already stored as mock: still accepted, so an existing demo keeps saving.
+    monkeypatch.setattr(settings, "RESERVATIONS_MOCK_PROVIDER_ALLOWED", True)
+    assert (await client.put(url, json={**rules, "provider": "mock_external"},
+                             headers=h)).status_code == 200
+    monkeypatch.setattr(settings, "RESERVATIONS_MOCK_PROVIDER_ALLOWED", False)
+    stored = await _rules(client, manager_token)
+    assert (await client.put(url, json={**stored, "cutoff_minutes": 50},
+                             headers=h)).status_code == 200
+    # Switching away is always allowed.
+    r = await client.put(url, json={**stored, "provider": "wizscheduler"}, headers=h)
+    assert r.status_code == 200
+
+
+async def test_config_exposes_the_mock_provider_flag(client, manager_token, monkeypatch):
+    for value in (True, False):
+        monkeypatch.setattr(settings, "RESERVATIONS_MOCK_PROVIDER_ALLOWED", value)
+        r = await client.get(f"{BASE}/config", headers=_auth(manager_token))
+        assert r.json()["mock_provider_allowed"] is value
+
+
+async def test_the_conversation_list_names_its_provider(
+        client, manager_token, db_session, seeded_floor):
+    conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
+    await db_session.commit()
+    r = await client.get(f"{BASE}/conversations/{conv.id}", headers=_auth(manager_token))
+    assert r.status_code == 200 and r.json()["provider"] == "wizscheduler"

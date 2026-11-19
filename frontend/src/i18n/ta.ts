@@ -1697,6 +1697,7 @@ const ta = {
       none: "இந்த நாளில் உரையாடல்கள் இல்லை.",
       inProgress: "நடைபெறுகிறது",
       turns: "{n} சுற்றுகள்",
+      external: "வெளி",
       cost: "செலவு {cost}",
       totalCost: "மொத்த செலவு {cost}",
       transcript: "உரையாடல் பதிவு",
