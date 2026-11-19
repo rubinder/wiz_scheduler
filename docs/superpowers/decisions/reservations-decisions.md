@@ -271,6 +271,44 @@ Decisions made while building without stopping to ask (owner instruction,
     | confirm_style=statement | noisy | | | | |
     | (same four) | lex | | | | |
 
+### Booking providers (step 9)
+
+62. **The provider seam.** The AI host agent books only through
+    `BookingProvider` (`backend/reservations/providers/`); staff and manager
+    routes stay WizScheduler-native and call `booking.*` directly. Why: the
+    agent can then run against a system that is not ours without touching the
+    staff path. Cost if wrong: an agent path that bypasses the seam books
+    against the wrong inventory.
+63. **The provider is fixed per conversation at creation**
+    (`agent_conversations.provider`). Why: a rules change mid-call must not
+    move a held slot to another system. Cost if wrong: a CLAUDE.md wording
+    change.
+64. **The mock owns its inventory.** `mock_external_*` tables have their own
+    ids and codes; the mock never touches `reservations` or tables and never
+    calls `find_slots`, so the single-evaluator rule covers WizScheduler
+    inventory only. Cost if wrong: the mock would stop proving the seam.
+65. **Conversation ref columns are provider-scoped.** Migration 0065 dropped
+    the 4 foreign keys from conversations to `reservations`. Reservations are
+    hard-deleted only after conversations; any future reservation-delete path
+    must null the refs itself. Why: a ref may point into the mock's tables.
+    Cost if wrong: a dangling ref in a deleted reservation's conversation.
+66. **Idempotency keys.** Format `{conv}:{action}:{seq}`; primary key
+    `(company_id, key)`; kept 24 h; hold releases send no key. Why: a retry
+    after a timeout must not book twice. Cost if wrong: a duplicate booking,
+    or a retry that replays a stale result after 24 h.
+67. **Transient handling.** A transient provider error is retried once with
+    the same key; a second one replies `RETRY_TEXT` plus the handoff with
+    reason `provider_unavailable`. The mock injects failures before writing,
+    seeded by `(conv, seq, action)`; evals use `FAILURE_SEED`. Cost if wrong:
+    a diner hears a retry prompt instead of a person.
+68. **External bookings in the host view** are read-only and carry no tables.
+    Erase deletes mock bookings, whereas WizScheduler bookings are scrubbed
+    and kept. Retention scrubs mock contact details, mirroring 7e. Cost if
+    wrong: mock data outliving an erase request.
+69. **Provider selection is admin-only.** `rules.provider` and
+    `rules.mock_external` change only for an admin (403 `admin_only`). Cost
+    if wrong: a regular manager could point a live location at the mock.
+
 ## Before switching reservations on (owner checklist)
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
@@ -377,3 +415,5 @@ Schedule and Lambda notes are in the call screening section of
   call from an allowed number.
 - Confirm the screening Lambda's cold start stays under 3 s. Calls still
   fail open if it does not (decision 47).
+- A demo location can use `mock_external` (rules `provider`) to show the
+  booking provider seam; keep real locations on `wizscheduler`.
