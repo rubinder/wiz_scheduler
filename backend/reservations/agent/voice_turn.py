@@ -123,7 +123,8 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
     if created:
         if await gate.cap_reached(db, company_id, location, now):
             await recording.finish(db, conv, "blocked")
-            reply = await _busy(db, company_id, location_id)
+            rules, _ = await get_rules(db, company_id, location_id)
+            reply = _busy(location_id, rules.staff_transfer_number)
             await recording.remember_reply(db, conv, body.seq, reply)
             await db.commit()
             return reply
@@ -140,10 +141,12 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
         # A confirmation only answers the question the caller was asked.
         return voice.not_caught(last_reply)
 
-    # Read before the turn commits: nothing after it may raise on a rules read.
+    # Read once, before the claim: nothing after it reads rules or may raise
+    # on a rules read.
     try:
-        confirm_style = (await get_rules(db, company_id, location_id)
-                         )[0].voice.voice_confirm_style
+        rules, _ = await get_rules(db, company_id, location_id)
+        confirm_style = rules.voice.voice_confirm_style
+        staff_transfer_number: str | None = rules.staff_transfer_number
     except Exception:
         logger.exception("voice_bridge.rules_read_failed location=%s", location_id)
         # A failed statement aborts the transaction; the conversation commit
@@ -152,6 +155,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
         await db.refresh(conv)
         await db.refresh(location)
         confirm_style = "question"
+        staff_transfer_number = None
 
     claim = await recording.claim_turn_at_location(db, conv, seq=body.seq,
                                                    seen_seq=seen_seq)
@@ -168,7 +172,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
     try:
         if await gate.cap_reached(db, company_id, location, now,
                                   exclude_conversation_id=conv_id):
-            reply = await _busy(db, company_id, location_id)
+            reply = _busy(location_id, staff_transfer_number)
             await core.close_conversation(db, conv, now=now)
         else:
             before = await recording.last_event_seq(db, conv)
@@ -213,8 +217,7 @@ async def _screen_transfer(db: AsyncSession, location: Location,
     return reply
 
 
-async def _busy(db: AsyncSession, company_id: str, location_id: str) -> dict[str, Any]:
+def _busy(location_id: str, staff_transfer_number: str | None) -> dict[str, Any]:
     logger.info("reservation_agent.spend_cap_reached location=%s channel=voice",
                 location_id)
-    rules, _ = await get_rules(db, company_id, location_id)
-    return voice.close(voice.busy_text(rules.staff_transfer_number), "spend_cap")
+    return voice.close(voice.busy_text(staff_transfer_number), "spend_cap")

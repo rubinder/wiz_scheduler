@@ -7,6 +7,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +27,7 @@ from backend.reservations.queries import (
     conversation_events, get_conversation, list_between, list_conversations,
     list_pending_approvals, table_labels,
 )
-from backend.reservations.rules import RulesSchema, get_rules, save_rules
+from backend.reservations.rules import RulesSchema, VoiceKnobs, get_rules, save_rules
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerEraseOut, DinerPhoneIn, MarkSpamOut, NumberRuleIn, NumberRuleOut, NumberRulePatch,
@@ -192,8 +193,13 @@ async def write_rules(
                 "code": "transfer_number_not_allowed", "message": problem})
     if "voice" not in body.model_fields_set:
         # A client that predates the voice knobs must not reset them.
-        stored, _ = await get_rules(db, str(user.company_id), location_id)
-        body = body.model_copy(update={"voice": stored.voice})
+        try:
+            stored, _ = await get_rules(db, str(user.company_id), location_id)
+            voice_knobs = stored.voice
+        except ValidationError:
+            # Stored rules that no longer validate must not block a save.
+            voice_knobs = VoiceKnobs()
+        body = body.model_copy(update={"voice": voice_knobs})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

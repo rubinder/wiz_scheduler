@@ -607,3 +607,22 @@ async def test_staff_transfer_number_is_screened_for_toll_fraud(
         r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules",
                              json={**rules, "staff_transfer_number": good}, headers=h)
         assert r.status_code == 200, (good, r.text)
+
+
+async def test_rules_put_without_voice_survives_invalid_stored_rules(
+        client, manager_token, seed_location, db_session):
+    from sqlalchemy import update
+
+    from backend.reservations.models import ReservationRules
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert (await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules,
+                             headers=h)).status_code == 200
+    bad = dict(rules, voice={"voice_reply_max_sentences": 99})
+    await db_session.execute(update(ReservationRules).where(
+        ReservationRules.location_id == LOCATION_ID).values(rules=bad))
+    await db_session.commit()
+    del rules["voice"]
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200
+    assert r.json()["rules"]["voice"]["voice_reply_max_sentences"] == 0
