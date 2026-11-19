@@ -71,9 +71,10 @@ class MockExternalIdempotency(Base):
         Index("ix_mock_external_idempotency_created_at", "created_at"),
     )
 
-    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    # Primary key (company_id, key): keys are per tenant.
     company_id: Mapped[str] = mapped_column(
-        String(8), ForeignKey("companies.id"), nullable=False)
+        String(8), ForeignKey("companies.id"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
     response: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())

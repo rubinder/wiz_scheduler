@@ -20,8 +20,8 @@ capacity check and the write, so two holds cannot both take the last covers.
 There is no approval workflow: a party above `max_self_book_party` is
 refused with `PartyTooLarge` (the diner is told to call).
 
-Simulated failure modes, from `MockExternalSettings` (the location's
-`rules.mock_external`):
+Simulated failure modes, from the location's `rules.mock_external`
+(`rules.MockExternalSettings`):
 - `latency_ms`: every call sleeps that long first (`_sleep`, swappable in
   tests).
 - `failure_rate`: find_slots, hold, book, modify and cancel raise `Transient`
@@ -43,8 +43,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.availability import _candidates
@@ -77,20 +76,6 @@ _SLACK = timedelta(days=1)  # longer than any dining duration (max 360 min)
 
 # Swappable in tests, so latency costs no wall time.
 _sleep = asyncio.sleep
-
-
-class MockExternalSettings(BaseModel):
-    """Per-location knobs for the mock. Task 3 moves this onto
-    `RulesSchema.mock_external`; until then the defaults apply."""
-
-    max_covers_per_slot: int = Field(default=40, ge=1, le=500)
-    latency_ms: int = Field(default=0, ge=0, le=3000)
-    failure_rate: float = Field(default=0.0, ge=0.0, le=0.5)
-
-
-def settings_for(rules: RulesSchema) -> MockExternalSettings:
-    found = getattr(rules, "mock_external", None)
-    return found if found is not None else MockExternalSettings()
 
 
 def _utc(dt: datetime) -> datetime:
@@ -170,15 +155,18 @@ def compute_starts(
     return out
 
 
+NAME = "mock_external"
+
+
 class MockExternalProvider:
-    name = "mock_external"
+    name = NAME
 
     # -- the simulated network ----------------------------------------------
 
     async def _call(self, ctx: ProviderContext, action: str | None) -> None:
         """Latency, then (for `action`) a reproducible injected failure,
         always before any write."""
-        knobs = settings_for(ctx.rules)
+        knobs = ctx.rules.mock_external
         if knobs.latency_ms:
             await _sleep(knobs.latency_ms / 1000)
         if action is None or knobs.failure_rate <= 0:
@@ -192,8 +180,7 @@ class MockExternalProvider:
     # -- inventory -------------------------------------------------------------
 
     async def _lock(self, db: AsyncSession, location_id: str) -> None:
-        await db.execute(select(func.pg_advisory_xact_lock(
-            func.hashtextextended("mock_external:" + location_id, 0))))
+        await lock_location(db, location_id)
 
     async def _busy(self, db: AsyncSession, ctx: ProviderContext, window_start: datetime,
                     window_end: datetime, exclude_ref: str | None
@@ -218,7 +205,7 @@ class MockExternalProvider:
         busy = await self._busy(db, ctx, window_start, window_end, exclude_ref)
         return compute_starts(ctx.rules, ctx.timezone, busy, party_size, window_start,
                               window_end, ctx.now,
-                              settings_for(ctx.rules).max_covers_per_slot)
+                              ctx.rules.mock_external.max_covers_per_slot)
 
     async def _exact(self, db: AsyncSession, ctx: ProviderContext, party_size: int,
                      start: datetime, exclude_ref: str | None) -> datetime:
@@ -393,3 +380,66 @@ class MockExternalProvider:
         row = (await db.execute(q.execution_options(populate_existing=True))
                ).scalar_one_or_none()
         return _booking(row, ctx.now) if row is not None else None
+
+
+async def bookings_between(
+    db: AsyncSession, company_id: str, location_id: str,
+    window_start: datetime, window_end: datetime, now: datetime,
+) -> list[ProviderBooking]:
+    """The location's live mock bookings starting in [window_start,
+    window_end), for the host view: booked, and held until the hold lapses
+    (an expired hold is gone, as in WizScheduler's day view it reads as
+    expired and frees its covers). Cancelled rows are left out. Read-only."""
+    rows = (await db.execute(
+        select(MockExternalBooking).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.start_at >= window_start,
+            MockExternalBooking.start_at < window_end,
+            or_(MockExternalBooking.status == BOOKED,
+                (MockExternalBooking.status == HELD)
+                & (MockExternalBooking.held_until > now)),
+        ).order_by(MockExternalBooking.start_at, MockExternalBooking.id)
+    )).scalars().all()
+    return [_booking(r, now) for r in rows]
+
+
+# -- diner data (reservations/diner_data.py) ---------------------------------
+
+
+async def lock_location(db: AsyncSession, location_id: str) -> None:
+    """The lock every mock write takes, so a diner erase and a hold for the
+    same diner cannot interleave."""
+    await db.execute(select(func.pg_advisory_xact_lock(
+        func.hashtextextended("mock_external:" + location_id, 0))))
+
+
+async def bookings_for_phone(
+    db: AsyncSession, company_id: str, location_id: str, phone: str, now: datetime,
+) -> list[ProviderBooking]:
+    """Every mock booking at the location made with `phone`, all statuses."""
+    rows = (await db.execute(
+        select(MockExternalBooking).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.diner_phone == phone,
+        ).order_by(MockExternalBooking.start_at, MockExternalBooking.id)
+    )).scalars().all()
+    return [_booking(r, now) for r in rows]
+
+
+async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
+    """Delete these mock bookings, and the stored idempotent responses that
+    repeat their diner's details. Returns the bookings deleted."""
+    if not refs:
+        return 0
+    await db.execute(
+        delete(MockExternalIdempotency).where(
+            MockExternalIdempotency.company_id == company_id,
+            MockExternalIdempotency.response["ref"].astext.in_(refs))
+        .execution_options(synchronize_session=False))
+    return (await db.execute(
+        delete(MockExternalBooking).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.id.in_(refs))
+        .execution_options(synchronize_session=False))).rowcount

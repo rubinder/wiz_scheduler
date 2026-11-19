@@ -2,7 +2,8 @@
 
 mock_external_bookings: the mock external system's own inventory (holds and
 bookings), never `reservations` or tables. mock_external_idempotency: the
-first response to an idempotent book/modify/cancel, kept 24 hours. Both
+first response to an idempotent book/modify/cancel, keyed (company_id, key)
+and kept 24 hours. Both
 company-keyed, so they get 0058's three policies (app, analytics, admin),
 as number_rules in 0063.
 
@@ -69,12 +70,16 @@ def upgrade() -> None:
 
     op.create_table(
         "mock_external_idempotency",
-        sa.Column("key", sa.String(100), primary_key=True),
         sa.Column("company_id", sa.String(8), sa.ForeignKey("companies.id"),
                   nullable=False),
+        sa.Column("key", sa.String(100), nullable=False),
         sa.Column("response", postgresql.JSONB(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("CURRENT_TIMESTAMP")),
+        # Keyed per company: one tenant's key can never collide with, or
+        # replay, another's.
+        sa.PrimaryKeyConstraint("company_id", "key",
+                                name="mock_external_idempotency_pkey"),
     )
     op.create_index("ix_mock_external_idempotency_company_id",
                     "mock_external_idempotency", ["company_id"])

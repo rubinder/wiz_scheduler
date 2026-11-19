@@ -435,6 +435,21 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
         AgentConversation, AgentEvent, ReservationLookupFailure,
     )
     from backend.reservations.subscription_models import AgentUsage
+    from backend.reservations.mock_external_models import (
+        MockExternalBooking, MockExternalIdempotency,
+    )
+    # The mock external provider's rows (#259 step 9): bookings ref the
+    # location; idempotency rows are company-keyed only (a 24-hour cache).
+    await _run(
+        delete(MockExternalIdempotency).where(
+            MockExternalIdempotency.company_id == COMPANY_ID),
+        "mock_external_idempotency",
+    )
+    await _run(
+        delete(MockExternalBooking).where(
+            MockExternalBooking.location_id.in_(loc_ids)),
+        "mock_external_bookings",
+    )
     # Usage rows point at the location (and the conversation, SET NULL).
     await _run(
         delete(AgentUsage).where(AgentUsage.location_id.in_(loc_ids)),

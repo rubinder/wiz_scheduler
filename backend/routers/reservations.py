@@ -7,7 +7,6 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +17,7 @@ from backend.reservations import (
     booking, diner_data, number_rules, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
+from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
@@ -27,7 +27,7 @@ from backend.reservations.queries import (
     conversation_events, get_conversation, list_between, list_conversations,
     list_pending_approvals, table_labels,
 )
-from backend.reservations.rules import RulesSchema, VoiceKnobs, get_rules, save_rules
+from backend.reservations.rules import RulesSchema, get_rules, save_rules, stored_fields
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerEraseOut, DinerPhoneIn, MarkSpamOut, NumberRuleIn, NumberRuleOut, NumberRulePatch,
@@ -177,6 +177,11 @@ async def read_rules(
     return RulesOut(rules=rules, version=version)
 
 
+# Rules fields only an admin may change (403 admin_only for a regular
+# manager whose save would change them).
+ADMIN_ONLY_RULES = ("provider", "mock_external")
+
+
 @gated.put("/locations/{location_id}/rules", response_model=RulesOut)
 async def write_rules(
     location_id: str,
@@ -191,15 +196,18 @@ async def write_rules(
         if problem:
             raise HTTPException(status_code=422, detail={
                 "code": "transfer_number_not_allowed", "message": problem})
-    if "voice" not in body.model_fields_set:
-        # A client that predates the voice knobs must not reset them.
-        try:
-            stored, _ = await get_rules(db, str(user.company_id), location_id)
-            voice_knobs = stored.voice
-        except ValidationError:
-            # Stored rules that no longer validate must not block a save.
-            voice_knobs = VoiceKnobs()
-        body = body.model_copy(update={"voice": voice_knobs})
+    # Fields a client may omit keep their stored values: the voice knobs (a
+    # client that predates them must not reset them) and the admin-only
+    # booking provider fields (a regular manager's editor does not send them).
+    stored = await stored_fields(db, str(user.company_id), location_id,
+                                 ("voice",) + ADMIN_ONLY_RULES)
+    kept = {k: v for k, v in stored.items() if k not in body.model_fields_set}
+    if kept:
+        body = body.model_copy(update=kept)
+    if scope.restricted and any(getattr(body, k) != stored[k] for k in ADMIN_ONLY_RULES):
+        raise HTTPException(status_code=403, detail={
+            "code": "admin_only",
+            "message": "Only an admin can change the booking provider"})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)
@@ -235,10 +243,18 @@ async def read_reservations(
     db: AsyncSession = Depends(get_db),
     scope: LocationScope = Depends(get_location_scope),
 ) -> list[ReservationOut]:
+    """The day's reservations, merged with the live bookings the AI host made
+    in the mock external system here (read-only, `external: true`)."""
     loc = await _location(db, scope, user, location_id)
     start, end = _day_window(loc, day)
-    rows = await list_between(db, str(user.company_id), location_id, start, end)
-    return [ReservationOut.of(r, labels, status) for r, labels, status in rows]
+    now = datetime.now(timezone.utc)
+    rows = await list_between(db, str(user.company_id), location_id, start, end, now)
+    out = [ReservationOut.of(r, labels, status) for r, labels, status in rows]
+    external = await mock_external.bookings_between(
+        db, str(user.company_id), location_id, start, end, now)
+    out += [ReservationOut.external_booking(b, location_id, mock_external.NAME)
+            for b in external]
+    return sorted(out, key=lambda o: (o.start, o.external, o.id))
 
 
 @gated.get("/locations/{location_id}/approvals",
@@ -420,7 +436,9 @@ async def read_diner_data(
         db, str(user.company_id), [r.id for r in found.reservations])
     return DinerDataOut(
         reservations=[ReservationOut.of(r, labels.get(r.id, []))
-                      for r in found.reservations],
+                      for r in found.reservations]
+        + [ReservationOut.external_booking(b, location_id, mock_external.NAME)
+           for b in found.external_bookings],
         conversations=[ConversationDetailOut.with_events(c, found.events[c.id])
                        for c in found.conversations],
         number_rules=[NumberRuleOut.of(v) for v in found.number_rules],

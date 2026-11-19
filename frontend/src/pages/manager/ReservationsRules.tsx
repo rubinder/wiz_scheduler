@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
 import { getConfig, getRules, getSlots, saveRules } from "../../api/reservations";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { DateOverride, ServicePeriod, SlotOut } from "../../types/reservations";
@@ -54,6 +55,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 export default function ReservationsRules() {
   const { t, lang } = useLanguage();
+  const { isAdmin } = useAuth();
   const r = t.reservations;
 
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -266,7 +268,7 @@ export default function ReservationsRules() {
     setFieldErrors([]);
     const forLocation = locationId;
     try {
-      const out = await saveRules(forLocation, rulesFormToPayload(form));
+      const out = await saveRules(forLocation, rulesFormToPayload(form, isAdmin));
       if (currentLocation.current !== forLocation) return;
       const savedForm = payloadToRulesForm(out.rules);
       setForm(savedForm);
@@ -459,6 +461,43 @@ export default function ReservationsRules() {
                 onChange={(e) => patch({ staff_transfer_number: e.target.value })}
               />
             </Field>
+          </Section>
+
+          <Section title={r.rules.providerTitle}>
+            <p className={`text-xs ${text.muted}`}>{r.rules.providerHint}</p>
+            <Field label={r.rules.provider}>
+              <select
+                className={`${input} block`}
+                disabled={!isAdmin}
+                value={form.provider}
+                onChange={(e) => patch({ provider: e.target.value as RulesForm["provider"] })}
+              >
+                <option value="wizscheduler">{r.rules.providerWizscheduler}</option>
+                <option value="mock_external">{r.rules.providerMock}</option>
+              </select>
+            </Field>
+            {form.provider === "mock_external" && (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {([
+                  ["max_covers_per_slot", r.rules.mockMaxCovers, 1, 500, 1],
+                  ["latency_ms", r.rules.mockLatency, 0, 3000, 1],
+                  ["failure_rate", r.rules.mockFailureRate, 0, 0.5, 0.05],
+                ] as const).map(([k, label, min, max, step]) => (
+                  <Field key={k} label={label}>
+                    <input
+                      type="number"
+                      min={min}
+                      max={max}
+                      step={step}
+                      disabled={!isAdmin}
+                      className={`${input} w-full`}
+                      value={form.mock_external[k]}
+                      onChange={(e) => patch({ mock_external: { ...form.mock_external, [k]: e.target.value } })}
+                    />
+                  </Field>
+                ))}
+              </div>
+            )}
           </Section>
 
           {saveError && (

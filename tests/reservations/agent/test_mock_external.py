@@ -11,8 +11,8 @@ import pytest
 from sqlalchemy import func, select
 
 from backend.reservations import availability
-from backend.reservations.agent import tools
-from backend.reservations.agent.core import RETRY_TEXT, AgentCore, TurnInput
+from backend.reservations.agent import recording, tools
+from backend.reservations.agent.core import RETRY_TEXT, AgentCore, TurnInput, handoff_text
 from backend.reservations.mock_external_models import (
     MockExternalBooking,
     MockExternalIdempotency,
@@ -28,11 +28,9 @@ from backend.reservations.providers import (
     provider_named,
 )
 from backend.reservations.providers import mock_external
-from backend.reservations.providers.mock_external import (
-    MockExternalProvider,
-    MockExternalSettings,
-)
-from backend.reservations.rules import get_rules
+from backend.reservations.providers.mock_external import MockExternalProvider
+from backend.reservations.models import Reservation
+from backend.reservations.rules import MockExternalSettings, get_rules, save_rules
 from tests.conftest import COMPANY_ID, LOCATION_ID, get_test_session_factory
 from tests.reservations.agent.fakes import ScriptedLlm, last_tool_result, reply, text, tool_use
 
@@ -42,13 +40,18 @@ NY = ZoneInfo("America/New_York")
 PHONE = "+12125550100"
 
 
+_KNOBS: dict[str, MockExternalSettings] = {}
+
+
 def _knobs(monkeypatch, **kw) -> None:
-    monkeypatch.setattr(mock_external, "settings_for",
-                        lambda rules: MockExternalSettings(**kw))
+    """The mock's settings for the contexts `_ctx` builds (rules.mock_external)."""
+    monkeypatch.setitem(_KNOBS, "settings", MockExternalSettings(**kw))
 
 
 async def _ctx(db, now=None, conv_id="conv0001", seq=1, attempt=0) -> ProviderContext:
     rules, _ = await get_rules(db, COMPANY_ID, LOCATION_ID)
+    if "settings" in _KNOBS:
+        rules = rules.model_copy(update={"mock_external": _KNOBS["settings"]})
     return ProviderContext(COMPANY_ID, LOCATION_ID, "America/New_York", rules,
                            now or datetime.now(timezone.utc), conversation_id=conv_id,
                            seq=seq, attempt=attempt)
@@ -319,6 +322,7 @@ async def test_a_second_transient_hands_off(db_session, web_conv, monkeypatch):
     _flaky(monkeypatch, "book", 2)
     out = await core.handle_turn(db_session, conv, TurnInput(None, "confirm_hold"), now=now)
     assert out.handoff is not None and out.handoff["reason"] == "provider_unavailable"
+    assert out.reply_text == f"{RETRY_TEXT} {handoff_text(conv.channel, None)}"
     assert conv.outcome == "handed_off"
     row = (await db_session.execute(select(MockExternalBooking))).scalar_one()
     assert row.status == "cancelled"  # the hold is released
@@ -347,6 +351,7 @@ async def test_a_tool_retries_once_then_hands_off(db_session, web_conv, monkeypa
     _flaky(monkeypatch, "find_slots", 99)
     out = await core.handle_turn(db_session, conv, TurnInput("Table for two", None), now=now)
     assert out.handoff is not None and out.handoff["reason"] == "provider_unavailable"
+    assert out.reply_text == f"{RETRY_TEXT} {handoff_text(conv.channel, None)}"
 
 
 async def test_a_retried_tool_prefixes_the_reply(db_session, web_conv, monkeypatch):
@@ -357,3 +362,62 @@ async def test_a_retried_tool_prefixes_the_reply(db_session, web_conv, monkeypat
     out = await core.handle_turn(db_session, conv, TurnInput("Table for two", None), now=now)
     assert out.reply_text == f"{RETRY_TEXT} Holding it. Press Confirm."
     assert out.expect == "confirm_hold"
+
+
+# -- selection: a conversation keeps its provider ----------------------------
+
+
+async def _switch(db, provider: str) -> None:
+    rules, _ = await get_rules(db, COMPANY_ID, LOCATION_ID)
+    await save_rules(db, COMPANY_ID, LOCATION_ID,
+                     rules.model_copy(update={"provider": provider}))
+    await db.flush()
+
+
+async def test_a_provider_switch_mid_conversation_leaves_the_hold_on_wizscheduler(
+        db_session, web_conv):
+    assert web_conv.provider == "wizscheduler"
+    now = _now()
+    core = AgentCore(ScriptedLlm(*_hold_script(now)))
+    out = await core.handle_turn(db_session, web_conv, TurnInput("Table for two", None),
+                                 now=now)
+    assert out.expect == "confirm_hold"
+    held = web_conv.held_reservation_id
+    await _switch(db_session, "mock_external")
+    out = await core.handle_turn(db_session, web_conv, TurnInput(None, "confirm_hold"),
+                                 now=now)
+    assert "You're booked" in out.reply_text
+    assert web_conv.provider == "wizscheduler" and web_conv.reservation_id == held
+    res = await db_session.get(Reservation, held)
+    assert res.status == "booked"
+    assert await _count(db_session) == 0  # nothing went to the mock
+    # A conversation started after the switch books through the mock.
+    later = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
+    assert later.provider == "mock_external"
+
+
+async def test_a_code_is_only_found_through_its_own_provider(db_session, web_conv):
+    """A WizScheduler code looked up by a mock conversation (and the reverse)
+    is not found, even with the right phone."""
+    wiz = provider_named("wizscheduler")
+    mock = provider_named("mock_external")
+    ctx = await _ctx(db_session)
+    wiz_held = await wiz.hold(db_session, ctx, 2, _at(ctx, 19), name="Ada", phone=PHONE,
+                              channel="web", conversation_id=web_conv.id)
+    wiz_code = (await wiz.book(db_session, ctx, wiz_held.ref)).code
+    mock_held = await _hold(db_session, ctx, _at(ctx, 20))
+    mock_code = (await mock.book(db_session, ctx, mock_held.ref)).code
+
+    assert await mock.lookup(db_session, ctx, code=wiz_code, phone=PHONE) is None
+    assert await wiz.lookup(db_session, ctx, code=mock_code, phone=PHONE) is None
+    assert await mock.lookup(db_session, ctx, ref=wiz_held.ref) is None
+    assert await wiz.lookup(db_session, ctx, ref=mock_held.ref) is None
+
+    conv = await _mock_conv(db_session, web_conv)
+    now = _now()
+    out = await tools.execute_tool(db_session, conv, "lookup_booking",
+                                   {"confirmation_code": wiz_code, "phone": PHONE}, now=now)
+    assert out.result == {"found": False} and conv.verified_reservation_id is None
+    out = await tools.execute_tool(db_session, conv, "lookup_booking",
+                                   {"confirmation_code": mock_code, "phone": PHONE}, now=now)
+    assert out.result["found"] is True and conv.verified_reservation_id == mock_held.ref

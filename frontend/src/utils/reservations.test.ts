@@ -20,6 +20,7 @@ import {
   pendingApprovals,
   rulesFormToPayload,
   snap,
+  staffCanAct,
   tableStates,
   validParty,
 } from "./reservations";
@@ -94,6 +95,31 @@ describe("rules form conversion", () => {
 
   it("round-trips a rules object", () => {
     expect(rulesFormToPayload(payloadToRulesForm(rules))).toEqual(rules);
+  });
+
+  it("omits the admin-only provider fields unless asked, so a regular manager's save keeps them", () => {
+    const stored = {
+      ...rules,
+      provider: "mock_external" as const,
+      mock_external: { max_covers_per_slot: 12, latency_ms: 250, failure_rate: 0.1 },
+    };
+    const form = payloadToRulesForm(stored);
+    expect(form.provider).toBe("mock_external");
+    expect(form.mock_external).toEqual({ max_covers_per_slot: "12", latency_ms: "250", failure_rate: "0.1" });
+    const plain = rulesFormToPayload(form);
+    expect(plain).not.toHaveProperty("provider");
+    expect(plain).not.toHaveProperty("mock_external");
+    expect(rulesFormToPayload(form, true)).toEqual(stored);
+  });
+
+  it("defaults the provider fields for rules saved before them", () => {
+    const form = payloadToRulesForm(rules);
+    expect(form.provider).toBe("wizscheduler");
+    expect(rulesFormToPayload(form, true).mock_external).toEqual({
+      max_covers_per_slot: 40,
+      latency_ms: 0,
+      failure_rate: 0,
+    });
   });
 
   it("round-trips the voice knobs, so a UI save never resets them", () => {
@@ -263,6 +289,8 @@ function res(id: string, start: string, status: string, tables: string[] = []): 
     source: "staff",
     confirmation_code: null,
     held_until: null,
+    external: false,
+    provider: "wizscheduler",
   };
 }
 
@@ -346,5 +374,23 @@ describe("tableStates", () => {
       now,
     );
     expect(states).toEqual({ T1: "seated", T2: "free", T3: "free", T4: "free" });
+  });
+});
+
+describe("external bookings", () => {
+  const ext = (r: ReservationOut): ReservationOut => ({ ...r, external: true, provider: "mock_external" });
+
+  it("are read-only for staff", () => {
+    expect(staffCanAct(res("a", "2026-12-04T18:00:00-05:00", "booked"))).toBe(true);
+    expect(staffCanAct(ext(res("b", "2026-12-04T18:00:00-05:00", "booked")))).toBe(false);
+  });
+
+  it("never colour a table, and are listed in the day's seatings", () => {
+    const now = new Date("2026-12-04T18:00:00-05:00");
+    const external = ext(res("b", "2026-12-04T18:30:00-05:00", "booked", ["T1"]));
+    expect(tableStates([{ label: "T1" }], [external], now)).toEqual({ T1: "free" });
+    const groups = groupBySeating([external, res("a", "2026-12-04T18:30:00-05:00", "booked", ["T2"])], NY);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].items.map((r) => r.id).sort()).toEqual(["a", "b"]);
   });
 });

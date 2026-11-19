@@ -203,7 +203,9 @@ export default function ReservationsConversations() {
           deleted: out.number_rules_deleted,
           remaining: out.company_rules_remaining,
         });
-        setDinerResult([summary, rules, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
+        const external =
+          out.external_bookings_deleted > 0 ? fill(d.externalErased, { count: out.external_bookings_deleted }) : "";
+        setDinerResult([summary, external, rules, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
       }
     } catch (e) {
       setDinerError(errorText(e));

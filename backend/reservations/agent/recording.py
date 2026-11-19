@@ -13,7 +13,6 @@ from backend.config import settings
 from backend.reservations import subscription
 from backend.reservations.agent.models import (
     CHANNELS,
-    DEFAULT_PROVIDER,
     EVENT_TYPES,
     OUTCOMES,
     AgentConversation,
@@ -58,7 +57,7 @@ async def start_conversation(
     conv = AgentConversation(
         company_id=company_id, location_id=location_id, channel=channel,
         caller_number=caller_number, source_key=source_key, status="open",
-        provider=getattr(rules, "provider", DEFAULT_PROVIDER),
+        provider=rules.provider,
         started_at=datetime.now(timezone.utc),
     )
     db.add(conv)

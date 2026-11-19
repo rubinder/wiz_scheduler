@@ -19,7 +19,10 @@ from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
-from backend.reservations.mock_external_models import MockExternalIdempotency
+from backend.reservations.mock_external_models import (
+    MockExternalBooking,
+    MockExternalIdempotency,
+)
 from backend.reservations.models import Reservation
 from backend.reservations.screening_models import NumberRule, ScreenedCall
 from backend.services.archive import DISCARDED, delete_past_check_ins
@@ -292,6 +295,22 @@ async def run_data_retention(db: AsyncSession) -> dict:
                     notes=None)
         )
         summary["old_reservation_diners_scrubbed"] = result.rowcount
+
+        # 7e-mock. The mock external provider's bookings (#259 step 9) get
+        #          7e's treatment on 7e's window: contact cleared by end_at,
+        #          the row kept (its covers, like a reservation's).
+        result = await db.execute(
+            update(MockExternalBooking)
+            .where(
+                MockExternalBooking.end_at < cutoff_reservations,
+                or_(
+                    MockExternalBooking.diner_name.isnot(None),
+                    MockExternalBooking.diner_phone.isnot(None),
+                ),
+            )
+            .values(diner_name=None, diner_phone=None)
+        )
+        summary["old_mock_external_diners_scrubbed"] = result.rowcount
 
         # 8. Signup signals past their window. These are observe-only
         #    anti-abuse breadcrumbs (services/signup_signals.py), not account

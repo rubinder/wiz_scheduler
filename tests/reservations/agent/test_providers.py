@@ -4,7 +4,6 @@ BookingProvider, and a conversation's provider is fixed when it starts."""
 import ast
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -23,7 +22,7 @@ from backend.reservations.providers import (
     provider_named,
 )
 from backend.reservations.providers.wizscheduler import WizSchedulerProvider
-from backend.reservations.rules import get_rules
+from backend.reservations.rules import get_rules, save_rules
 from tests.conftest import COMPANY_ID, LOCATION_ID
 
 NY = ZoneInfo("America/New_York")
@@ -72,16 +71,14 @@ def test_provider_errors_keep_their_codes():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_conversations_provider_is_fixed_at_creation(db_session, seeded_floor,
-                                                             monkeypatch):
+async def test_a_conversations_provider_is_fixed_at_creation(db_session, seeded_floor):
     first = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID, "web")
     assert first.provider == "wizscheduler"
     assert isinstance(provider_for(first), WizSchedulerProvider)
 
-    async def mock_rules(db, company_id, location_id):
-        return SimpleNamespace(provider="mock_external"), 1
-
-    monkeypatch.setattr(recording, "get_rules", mock_rules)
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID,
+                     rules.model_copy(update={"provider": "mock_external"}))
     second = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID,
                                                 "web")
     await db_session.flush()

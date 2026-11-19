@@ -163,5 +163,5 @@ async def test_retention_purges_mock_external_idempotency_keys_after_a_day(
     summary = await run_data_retention(db_session)
     assert summary["old_mock_external_idempotency_deleted"] == 1
     db_session.expire_all()
-    assert await db_session.get(MockExternalIdempotency, "c:book:1") is None
-    assert await db_session.get(MockExternalIdempotency, "c:book:2") is not None
+    assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:1")) is None
+    assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:2")) is not None

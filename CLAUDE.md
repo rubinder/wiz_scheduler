@@ -76,7 +76,11 @@ for someone else's system, owns its inventory in `mock_external_*` tables
 and computes its own slots from the rules' periods, never calling
 `find_slots` or touching `reservations`. A conversation's booking refs
 (`held_reservation_id`, ...) are provider-scoped, so they carry no foreign
-key to `reservations`.
+key to `reservations`, and any reader of them (diner data, evals) matches
+them against `conv.provider`'s inventory only. The provider is chosen in the
+rules (`rules.provider`, `rules.mock_external`), admin-only (403
+`admin_only`); the host day list shows the mock's live bookings read-only
+(`external: true`, no tables).
 
 ### Database
 

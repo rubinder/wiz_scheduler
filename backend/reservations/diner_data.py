@@ -10,6 +10,14 @@ the agent's booking-lookup failures for that phone. Erasing clears the
 reservations' contact fields (the rows stay for covers analytics), deletes
 the conversations (their events cascade) and the lookup failures.
 
+Bookings the AI host made in the mock external system (#259 step 9) are
+diner data too: that location's `mock_external_bookings` with that phone.
+Export lists them (labelled external); erase deletes them, with the stored
+idempotent responses that repeat them. A conversation's booking refs belong
+to its provider (`agent_conversations.provider`), so a WizScheduler
+reservation id links only WizScheduler conversations and a mock booking id
+only mock ones: a ref is never matched against the other provider's ids.
+
 Number-list entries for that number (#259 step 7) are diner data too. The
 request is per location and so is the manager's scope: export lists this
 location's entries and the company-wide ones (location_id NULL), and erase
@@ -54,6 +62,8 @@ from backend.reservations import booking, number_rules
 from backend.reservations.agent.recording import ERASED_SEQ, TURN_STALE_SECONDS
 from backend.reservations.booking import E164, InvalidPhone
 from backend.reservations.models import Reservation
+from backend.reservations.providers import mock_external
+from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.queries import conversation_events
 from backend.reservations.screening_models import NumberRule
 
@@ -64,6 +74,7 @@ class DinerData:
     conversations: list[AgentConversation]
     events: dict[str, list[AgentEvent]]
     number_rules: list[number_rules.RuleView]
+    external_bookings: list[ProviderBooking]
 
 
 def _require_phone(phone: str) -> None:
@@ -87,17 +98,27 @@ async def _reservations(
             sorted({r.conversation_id for r in rows if r.conversation_id}))
 
 
+def _refs_in(ids: list[str]):
+    return or_(
+        AgentConversation.reservation_id.in_(ids),
+        AgentConversation.held_reservation_id.in_(ids),
+        AgentConversation.verified_reservation_id.in_(ids),
+        AgentConversation.pending_cancel_id.in_(ids),
+    )
+
+
 def _conversation_filter(
     company_id: str, location_id: str, phone: str, reservation_ids: list[str],
-    conversation_ids: list[str],
+    conversation_ids: list[str], mock_ids: list[str],
 ):
+    """A conversation's refs are matched against its own provider's ids only."""
     linked = [AgentConversation.caller_number == phone]
     if reservation_ids:
-        linked += [
-            AgentConversation.reservation_id.in_(reservation_ids),
-            AgentConversation.held_reservation_id.in_(reservation_ids),
-            AgentConversation.verified_reservation_id.in_(reservation_ids),
-        ]
+        linked.append(and_(AgentConversation.provider == "wizscheduler",
+                           _refs_in(reservation_ids)))
+    if mock_ids:
+        linked.append(and_(AgentConversation.provider == mock_external.NAME,
+                           _refs_in(mock_ids)))
     if conversation_ids:
         linked.append(AgentConversation.id.in_(conversation_ids))
     return (
@@ -111,6 +132,9 @@ async def find_diner_data(
     db: AsyncSession, company_id: str, location_id: str, phone: str
 ) -> DinerData:
     _require_phone(phone)
+    now = datetime.now(timezone.utc)
+    external = await mock_external.bookings_for_phone(
+        db, company_id, location_id, phone, now)
     reservations = list((await db.execute(
         select(Reservation).where(
             Reservation.company_id == company_id,
@@ -122,7 +146,8 @@ async def find_diner_data(
         select(AgentConversation)
         .where(*_conversation_filter(
             company_id, location_id, phone, [r.id for r in reservations],
-            sorted({r.conversation_id for r in reservations if r.conversation_id})))
+            sorted({r.conversation_id for r in reservations if r.conversation_id}),
+            [b.ref for b in external]))
         .order_by(AgentConversation.started_at, AgentConversation.id)
     )).scalars().all())
     events = await conversation_events(db, company_id, [c.id for c in conversations])
@@ -132,8 +157,8 @@ async def find_diner_data(
             or_(NumberRule.location_id == location_id, NumberRule.location_id.is_(None)))
         .order_by(NumberRule.created_at, NumberRule.id)
     )).scalars().all())
-    views = await number_rules.views(db, company_id, rules, datetime.now(timezone.utc))
-    return DinerData(reservations, conversations, events, views)
+    views = await number_rules.views(db, company_id, rules, now)
+    return DinerData(reservations, conversations, events, views, external)
 
 
 def _in_flight():
@@ -158,11 +183,17 @@ async def erase_diner_data(
         if not await booking.lock_location_including_archived(
                 db, company_id, location_id):
             raise booking.ReservationNotFound()
-    # 2. Snapshot under the lock, before the reservations lose their phone.
+    #    Then the mock's own location lock, so no mock hold for the diner
+    #    slips in either (a mock turn takes it after its conversation row,
+    #    and the erase never waits on a conversation row).
+    await mock_external.lock_location(db, location_id)
+    # 2. Snapshot under the locks, before the reservations lose their phone.
     reservation_ids, conversation_ids = await _reservations(
         db, company_id, location_id, phone)
+    mock_ids = [b.ref for b in await mock_external.bookings_for_phone(
+        db, company_id, location_id, phone, now)]
     matched = _conversation_filter(company_id, location_id, phone, reservation_ids,
-                                   conversation_ids)
+                                   conversation_ids, mock_ids)
     total = (await db.execute(
         select(func.count()).select_from(AgentConversation).where(*matched)
     )).scalar_one()
@@ -208,6 +239,7 @@ async def erase_diner_data(
                     notes=None)
             .execution_options(synchronize_session=False)
         )).rowcount
+    external_deleted = await mock_external.erase_bookings(db, company_id, mock_ids)
     lookups = (await db.execute(
         delete(ReservationLookupFailure).where(
             ReservationLookupFailure.company_id == company_id,
@@ -228,6 +260,7 @@ async def erase_diner_data(
     await db.flush()
     return {
         "reservations_scrubbed": scrubbed,
+        "external_bookings_deleted": external_deleted,
         "conversations_deleted": deleted,
         "conversations_closed_in_flight": closed,
         "conversations_still_in_flight": max(0, total - deleted - closed),

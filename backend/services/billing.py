@@ -1421,6 +1421,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     )
     from backend.reservations.voice_number_models import VoiceNumber, VoiceTransferCount
     from backend.reservations.screening_models import NumberRule, ScreenedCall
+    from backend.reservations.mock_external_models import (
+        MockExternalBooking,
+        MockExternalIdempotency,
+    )
     from backend.reservations.voice_numbers import release_for_deleted_group
 
     company_ids = (await db.execute(
@@ -1460,9 +1464,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     the deletion), or AWS would keep billing a deleted group.
         #     voice_transfer_counts ref companies and locations.
         #     number_rules and screened_calls (#259 step 7) ref companies
-        #     and locations.
+        #     and locations. mock_external_idempotency (companies) and
+        #     mock_external_bookings (companies, locations), #259 step 9.
         await release_for_deleted_group(db, og.id)
-        for model in (NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
+        for model in (MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
                       ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):

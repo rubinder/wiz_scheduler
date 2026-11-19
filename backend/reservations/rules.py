@@ -1,9 +1,9 @@
 """Reservation rules: the per-location JSON document and its helpers."""
 
 from datetime import date, datetime, time, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +53,19 @@ class VoiceKnobs(BaseModel):
     voice_confirm_style: Literal["question", "statement"] = "question"
 
 
+class MockExternalSettings(BaseModel):
+    """Per-location knobs for the mock external booking provider (#259 step
+    9, providers/mock_external.py): its capacity, and the latency and failure
+    rate it simulates. Admin-only, like `provider`."""
+
+    max_covers_per_slot: int = Field(default=40, ge=1, le=500)
+    latency_ms: int = Field(default=0, ge=0, le=3000)
+    failure_rate: float = Field(default=0.0, ge=0.0, le=0.5)
+
+
+ProviderName = Literal["wizscheduler", "mock_external"]
+
+
 class Persona(BaseModel):
     voice_id: str = "Joanna"
     greeting: str = ""
@@ -91,6 +104,11 @@ class RulesSchema(BaseModel):
     # Model cost (USD) the AI host may spend at this location per local day;
     # once reached, new and ongoing chats are closed with a call-us reply.
     daily_spend_cap_usd: float = Field(default=20.0, ge=1)
+    # The booking provider new AI host conversations book through (#259 step
+    # 9). A conversation keeps the one it started with. Admin-only, as are
+    # the mock's knobs.
+    provider: ProviderName = "wizscheduler"
+    mock_external: MockExternalSettings = Field(default_factory=MockExternalSettings)
 
     @field_validator("durations")
     @classmethod
@@ -173,3 +191,23 @@ async def save_rules(
         row.updated_at = now
     await db.flush()
     return row.version
+
+
+async def stored_fields(
+    db: AsyncSession, company_id: str, location_id: str, names: tuple[str, ...]
+) -> dict[str, Any]:
+    """The stored value of each named top-level rules field, validated one
+    field at a time: a field missing or invalid in storage reads as its
+    default, and stored rules that no longer validate as a whole still yield
+    their valid fields. Used where a save must keep, or compare against,
+    what is stored (the voice knobs, the admin-only provider fields)."""
+    row = await _row(db, company_id, location_id)
+    raw: dict[str, Any] = row.rules if row is not None and isinstance(row.rules, dict) else {}
+    out: dict[str, Any] = {}
+    for name in names:
+        info = RulesSchema.model_fields[name]
+        try:
+            out[name] = TypeAdapter(info.annotation).validate_python(raw[name])
+        except (KeyError, ValidationError):
+            out[name] = info.get_default(call_default_factory=True)
+    return out

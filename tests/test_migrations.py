@@ -316,6 +316,20 @@ def test_0065_mock_external_tables_are_tenant_isolated(rds_like_postgres):
         INSERT INTO mock_external_idempotency (key, company_id, response) VALUES
             ('k65a', 'co65aaaa', '{}'), ('k65b', 'co65bbbb', '{}') ON CONFLICT DO NOTHING;
     """)
+    # Keys are per company: the primary key is (company_id, key), so two
+    # tenants' identical keys never collide.
+    _psql(pg, """
+        INSERT INTO mock_external_idempotency (key, company_id, response) VALUES
+            ('same65', 'co65aaaa', '{}'), ('same65', 'co65bbbb', '{}')
+            ON CONFLICT DO NOTHING;
+    """)
+    pk = _psql(pg, "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                   "WHERE conrelid = 'mock_external_idempotency'::regclass "
+                   "AND contype = 'p';")
+    assert pk == "PRIMARY KEY (company_id, key)", pk
+    same = _psql(pg, "SELECT count(*) FROM mock_external_idempotency "
+                     "WHERE key = 'same65';").strip()
+    assert same == "2", same
     as_a = """
         BEGIN; SET LOCAL ROLE app_role;
         SELECT set_config('app.company_ids', '{co65aaaa}', true);

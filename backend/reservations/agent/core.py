@@ -445,7 +445,12 @@ class AgentCore:
         await self._release_hold(db, conv, now)
         await recording.finish(db, conv, "handed_off")
         phone = rules.staff_transfer_number
-        return TurnOutput(handoff_text(conv.channel, phone), "text", None, True,
+        text = handoff_text(conv.channel, phone)
+        if reason == PROVIDER_DOWN:
+            # The diner hears the retry sentence the first Transient earned,
+            # then the handoff the second one did.
+            text = f"{RETRY_TEXT} {text}"
+        return TurnOutput(text, "text", None, True,
                           {"reason": reason, "phone": phone})
 
     # -- structured actions ------------------------------------------------
