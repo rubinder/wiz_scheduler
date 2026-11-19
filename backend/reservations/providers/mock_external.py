@@ -17,6 +17,10 @@ expired) and booked rows overlapping that step plus the party stay within
 `max_covers_per_slot`. Writes take a per-location advisory lock around the
 capacity check and the write, so two holds cannot both take the last covers.
 
+Durations that are not multiples of 15 minutes are counted conservatively
+(the covered steps round up). Injected failures are correlated within one
+turn per action: the draw is seeded by (conversation, seq, action).
+
 There is no approval workflow: a party above `max_self_book_party` is
 refused with `PartyTooLarge` (the diner is told to call).
 
@@ -47,7 +51,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.reservations.availability import _candidates
+from backend.reservations.availability import candidate_starts
 from backend.reservations.booking import CodeExhausted, DinerContact, InvalidPartySize
 from backend.reservations.codes import new_code
 from backend.reservations.mock_external_models import (
@@ -147,7 +151,7 @@ def compute_starts(
     grid = rules.model_copy(update={"slot_interval_minutes": 15})
     rows = [(_utc(s), _utc(e), p) for s, e, p in busy]
     out = []
-    for local in _candidates(grid, zone, window_start, window_end):
+    for local in candidate_starts(grid, zone, window_start, window_end):
         start = _utc(local)
         if not (w_start <= start < w_end) or start < earliest or local.date() > last_date:
             continue

@@ -29,10 +29,24 @@ NY = ZoneInfo("America/New_York")
 PHONE = "+12125550100"
 AGENT = Path(__file__).resolve().parents[3] / "backend" / "reservations" / "agent"
 
-# The agent's booking operations go through the provider: tools.py and
-# core.py import nothing from these modules, under any name.
+# The agent's booking operations go through the provider: no file in the
+# agent package imports these modules, under any name (absolute or relative),
+# or the `Reservation` model from `backend.models`.
 _FORBIDDEN = ("backend.reservations.booking", "backend.reservations.availability",
               "backend.reservations.models")
+_PACKAGE = "backend.reservations.agent"
+
+# Agent files exempt from the scan, with the reason. Checked: no file in the
+# package needs the reservation tables (the conversation tables live in
+# agent/models.py and import only backend.database), so none is exempt.
+_EXEMPT: dict[str, str] = {}
+
+
+def _resolve(node: ast.ImportFrom) -> str | None:
+    if node.level == 0:
+        return node.module
+    base = _PACKAGE.split(".")[: len(_PACKAGE.split(".")) - (node.level - 1)]
+    return ".".join(base + ([node.module] if node.module else []))
 
 
 def _violations(path: Path) -> list[str]:
@@ -40,15 +54,26 @@ def _violations(path: Path) -> list[str]:
     for node in ast.walk(ast.parse(path.read_text())):
         if isinstance(node, ast.Import):
             mods = [a.name for a in node.names]
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            mods = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            module = _resolve(node)
+            if module is None:
+                continue
+            mods = [module] + [f"{module}.{a.name}" for a in node.names]
         else:
             continue
-        found += [f"{path.name}:{node.lineno} {m}" for m in mods if m in _FORBIDDEN]
+        found += [f"{path.name}:{node.lineno} {m}" for m in mods
+                  if m in _FORBIDDEN or m == "backend.models.Reservation"]
     return found
 
 
-@pytest.mark.parametrize("name", ["tools.py", "core.py"])
+_AGENT_FILES = sorted(p.name for p in AGENT.glob("*.py") if p.name not in _EXEMPT)
+
+
+def test_the_scan_covers_the_agent_package():
+    assert {"tools.py", "core.py", "recording.py"} <= set(_AGENT_FILES)
+
+
+@pytest.mark.parametrize("name", _AGENT_FILES)
 def test_agent_does_not_reach_past_the_provider(name):
     assert _violations(AGENT / name) == []
 
@@ -57,8 +82,16 @@ def test_the_rule_catches_each_import_form(tmp_path):
     bad = tmp_path / "bad.py"
     bad.write_text("from backend.reservations import booking\n"
                    "import backend.reservations.availability\n"
-                   "from backend.reservations.models import Reservation\n")
-    assert len(_violations(bad)) == 3
+                   "from backend.reservations.models import Reservation\n"
+                   "from backend.models import Reservation\n"
+                   "from .. import booking\n"
+                   "from ..availability import find_slots\n"
+                   "from ..models import Reservation\n")
+    assert len(_violations(bad)) == 7
+    ok = tmp_path / "ok.py"
+    ok.write_text("from .models import AgentConversation\n"
+                  "from backend.models import Location\n")
+    assert _violations(ok) == []
 
 
 def test_provider_errors_keep_their_codes():

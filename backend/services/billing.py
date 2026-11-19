@@ -1454,8 +1454,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     locations with NO ACTION FKs, so they go before locations.
         #     Children first: reservation_tables refs reservations and
         #     dining_tables; dining_tables refs floor_sections.
-        #     agent_events/agent_conversations (#259) ref reservations, so
-        #     they go first (events, then conversations).
+        #     agent_events/agent_conversations (#259) hold provider-scoped
+        #     refs to reservations with no FKs (decision 65); they are
+        #     deleted first (events, then conversations) so no ref outlives
+        #     its reservation.
         #     reservation_lookup_failures ref companies and locations.
         #     agent_usage (#259 step 5) refs companies, locations and
         #     conversations, so it goes first of all.
