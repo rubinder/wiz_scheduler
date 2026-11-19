@@ -11,7 +11,7 @@ import json
 import os
 import statistics
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -23,6 +23,7 @@ from backend.reservations.agent.prompt import build_system_prompt
 from backend.reservations.evals.checker import percentile
 from backend.reservations.evals.models import EvalResult, EvalRun
 from backend.reservations.evals.runner import SuiteResult
+from backend.reservations.evals.stats import voice_section
 from backend.reservations.rules import RulesSchema
 
 REFERENCE_LOCATION = "Reference Bistro"
@@ -41,6 +42,12 @@ class RunMeta:
     mode: str  # "live" | "replay"
     repeat: int = 1
     notes: str | None = None
+    recognizer: str = "exact"
+    seed: int | None = None
+    lex: dict[str, str] | None = None  # {bot_id, alias_id, locale}; lex runs only
+    voice_knobs: dict[str, Any] = field(default_factory=dict)
+    # sha256[:12] of the rendered reference system prompt (voice).
+    prompt_version: str = ""
 
 
 def prompt_hash(channel: str) -> str:
@@ -172,6 +179,8 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
               f"cost per booking {per_booking} "
               f"({booked} passing of {len(book)} book-goal attempts)",
               f"cost per conversation {per_conversation}"]
+    lines += voice_section([dict(r.metrics) for r in results],
+                           [r.scenario_id for r in results])
     return "\n".join(lines)
 
 
@@ -190,7 +199,8 @@ def write_run_file(run: EvalRun, results: Sequence[EvalResult], meta: RunMeta,
     doc = {
         "id": run.id,
         "created_at": run.created_at.isoformat() if run.created_at else None,
-        "meta": asdict(meta),
+        "meta": {k: v for k, v in asdict(meta).items()
+                 if not (k == "lex" and v is None)},
         "results": [{"scenario_id": r.scenario_id, "attempt": r.attempt,
                      "passed": r.passed, "failures": list(r.failures),
                      "metrics": dict(r.metrics),

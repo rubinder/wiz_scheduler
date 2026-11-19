@@ -1,0 +1,21 @@
+{
+ "id": "runoth01",
+ "meta": {},
+ "report": "",
+ "results": [
+  {
+   "attempt": 1,
+   "conversation_snapshot": {},
+   "failures": [],
+   "metrics": {
+    "outcome": "booked",
+    "total_cost_usd": 0.02,
+    "turn_ms": [
+     100
+    ]
+   },
+   "passed": true,
+   "scenario_id": "book"
+  }
+ ]
+}

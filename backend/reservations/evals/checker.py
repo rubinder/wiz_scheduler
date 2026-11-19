@@ -305,11 +305,16 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
     llm_ms = [float(e.latency_ms["llm"]) for e in events
               if isinstance(e.latency_ms, dict)
               and isinstance(e.latency_ms.get("llm"), (int, float))]
+    tools_ms = [float(e.latency_ms["tools"]) for e in events
+                if isinstance(e.latency_ms, dict)
+                and isinstance(e.latency_ms.get("tools"), (int, float))]
     metrics: dict[str, Any] = {
         "turns": turns,
         "diner_turns": sum(1 for e in events if e.type == "user_turn"),
         "model_calls": sum(1 for e in events if e.type == "assistant_turn"),
         "total_cost_usd": float(conv.cost_usd or Decimal(0)),
+        "llm_ms": llm_ms,
+        "tools_ms": tools_ms,
         "llm_p50_ms": percentile(llm_ms, 50),
         "llm_p95_ms": percentile(llm_ms, 95),
         "handoff": handed_off,

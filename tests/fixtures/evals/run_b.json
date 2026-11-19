@@ -1,0 +1,86 @@
+{
+ "id": "runb0001",
+ "meta": {
+  "recognizer": "noisy",
+  "seed": 259
+ },
+ "report": "",
+ "results": [
+  {
+   "attempt": 1,
+   "conversation_snapshot": {},
+   "failures": [],
+   "metrics": {
+    "llm_ms": [
+     100
+    ],
+    "outcome": "booked",
+    "tools_ms": [
+     10
+    ],
+    "total_cost_usd": 0.04,
+    "turn_ms": [
+     100,
+     100
+    ],
+    "voice": {
+     "asr_ms": [],
+     "heard": [],
+     "recognizer": "noisy",
+     "repeats": [
+      {
+       "kind": "text",
+       "repeat": false
+      },
+      {
+       "kind": "text",
+       "repeat": false
+      }
+     ],
+     "ssml_errors": [],
+     "tts_ms": []
+    }
+   },
+   "passed": true,
+   "scenario_id": "book"
+  },
+  {
+   "attempt": 1,
+   "conversation_snapshot": {},
+   "failures": [],
+   "metrics": {
+    "llm_ms": [
+     100
+    ],
+    "outcome": "cancelled",
+    "tools_ms": [
+     10
+    ],
+    "total_cost_usd": 0.01,
+    "turn_ms": [
+     100,
+     150
+    ],
+    "voice": {
+     "asr_ms": [],
+     "heard": [],
+     "recognizer": "noisy",
+     "repeats": [
+      {
+       "kind": "text",
+       "repeat": false
+      },
+      {
+       "kind": "text",
+       "repeat": false
+      }
+     ],
+     "ssml_errors": [],
+     "tts_ms": []
+    }
+   },
+   "passed": true,
+   "scenario_id": "cancel"
+  }
+ ]
+}

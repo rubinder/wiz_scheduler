@@ -129,6 +129,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="speech recognition for voice scenarios (default exact)")
     p.add_argument("--seed", type=int, default=DEFAULT_SEED,
                    help=f"the noisy recognizer's seed (default {DEFAULT_SEED})")
+    p.add_argument("--compare", nargs=2, metavar=("A", "B"),
+                   help="compare two run files (ids or paths), offline, then exit")
+    p.add_argument("--allow-mismatch", action="store_true",
+                   help="--compare: allow runs with different scenario sets")
     return p
 
 
@@ -238,6 +242,13 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     from backend.reservations.evals.scenarios_io import load_scenarios
 
     args = _parser().parse_args(argv)
+    if args.compare:
+        # Offline: two run files, no database, no schema.
+        from backend.reservations.evals.compare import compare_main
+
+        return compare_main(args.compare[0], args.compare[1],
+                            allow_mismatch=args.allow_mismatch,
+                            runs_dir=runs_dir or store.RUNS_DIR)
     ids = [s for s in args.scenarios.split(",") if s] or None
     url = database_url or settings.DATABASE_URL
     if args.repeat < 1:
@@ -312,7 +323,13 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     meta = store.RunMeta(
         git_sha=store.git_sha(), agent_model=settings.RESERVATION_AGENT_MODEL,
         diner_model=DINER_MODEL, prompt_hash_web=web, prompt_hash_voice=voice,
-        mode="live" if args.live else "replay", repeat=args.repeat, notes=args.notes)
+        mode="live" if args.live else "replay", repeat=args.repeat, notes=args.notes,
+        recognizer=args.recognizer, seed=args.seed,
+        lex=({"bot_id": settings.EVAL_LEX_BOT_ID,
+              "alias_id": settings.EVAL_LEX_BOT_ALIAS_ID,
+              "locale": settings.EVAL_LEX_LOCALE}
+             if args.recognizer == "lex" else None),
+        prompt_version=voice[:12])
 
     async def body(factory: Any) -> tuple[str, bool, Path]:
         from backend.reservations.agent.core import AgentCore

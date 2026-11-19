@@ -241,6 +241,8 @@ class _Step:
     repeat: bool = False
     ssml_error: str | None = None
     heard: str | None = None
+    asr_ms: int | None = None
+    tts_ms: int | None = None
 
 
 class _WebChannel:
@@ -277,7 +279,9 @@ class _VoiceAdapter:
         return _Step(host=v.spoken(), out=v.out, ended=v.ended,
                      confirmable=v.confirm_asked, press_ok=ok, turn_ms=v.turn_ms,
                      repeat=repeat, ssml_error=v.ssml_error,
-                     heard=v.heard.text if v.heard else None)
+                     heard=v.heard.text if v.heard else None,
+                     asr_ms=v.heard.asr_ms if v.heard else None,
+                     tts_ms=v.heard.tts_ms if v.heard else None)
 
 
 async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: AgentCore,
@@ -293,6 +297,8 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
     turn_ms: list[float] = []
     repeats: list[dict[str, Any]] = []
     heard: list[str | None] = []
+    asr_ms: list[int] = []
+    tts_ms: list[int] = []
     ssml_errors: list[str] = []
     state = PolicyState()
     diner_turns = empties = 0
@@ -347,6 +353,10 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
             stop = "not_claimed"
             break
         heard.append(t.heard)
+        if t.asr_ms is not None:
+            asr_ms.append(t.asr_ms)
+        if t.tts_ms is not None:
+            tts_ms.append(t.tts_ms)
         note(t, "text")
         if last:
             stop = "done"
@@ -392,6 +402,7 @@ async def run_scenario(db_factory: DbFactory, scenario: Scenario, *, core: Agent
     if isinstance(channel, _VoiceAdapter):
         metrics["voice"] = {"recognizer": channel.channel.recognizer.name,
                             "repeats": repeats, "heard": heard,
+                            "asr_ms": asr_ms, "tts_ms": tts_ms,
                             "ssml_errors": ssml_errors}
     failures = [*result.failures, *(f"ssml_invalid: {e}" for e in ssml_errors)]
     result = CheckResult(passed=not failures, failures=failures, metrics=metrics)
