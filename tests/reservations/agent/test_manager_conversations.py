@@ -72,7 +72,7 @@ async def test_list_by_local_day_newest_first(client, manager_token, seeded_floo
     assert [c["id"] for c in rows] == [late.id, early.id]
     row = rows[1]
     assert set(row) == {"id", "channel", "started_at", "ended_at", "outcome",
-                        "turn_count", "cost_usd", "reservation_id"}
+                        "turn_count", "cost_usd", "reservation_id", "provider"}
     assert row["channel"] == "web" and row["outcome"] == "booked"
     assert isinstance(row["cost_usd"], str) and row["cost_usd"] == "0.000150"
     assert row["ended_at"] is not None
@@ -189,4 +189,5 @@ async def test_config_lists_conversation_outcomes(client, manager_token, seed_lo
     from backend.reservations.agent.models import OUTCOMES
     r = await client.get(f"{BASE}/config", headers=_auth(manager_token))
     assert r.status_code == 200
-    assert r.json() == {"enabled": True, "conversation_outcomes": list(OUTCOMES)}
+    assert r.json() == {"enabled": True, "mock_provider_allowed": False,
+                        "conversation_outcomes": list(OUTCOMES)}
