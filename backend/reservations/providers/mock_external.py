@@ -39,6 +39,7 @@ Simulated failure modes, from the location's `rules.mock_external`
 
 import asyncio
 import random
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -76,6 +77,13 @@ _SLACK = timedelta(days=1)  # longer than any dining duration (max 360 min)
 
 # Swappable in tests, so latency costs no wall time.
 _sleep = asyncio.sleep
+
+# Evals only: replaces the conversation id in the failure draw's seed. The
+# conversation id is generated, so an eval could not otherwise pick a failure
+# rate whose draws are known. `evals.runner.run_scenario` sets it (to the
+# scenario id by default) for the length of a run; in production it is None
+# and the draw is seeded by the conversation id as documented above.
+FAILURE_SEED: ContextVar[str | None] = ContextVar("mock_external_failure_seed", default=None)
 
 
 def _utc(dt: datetime) -> datetime:
@@ -171,7 +179,8 @@ class MockExternalProvider:
             await _sleep(knobs.latency_ms / 1000)
         if action is None or knobs.failure_rate <= 0:
             return
-        rng = random.Random(f"{ctx.conversation_id}:{ctx.seq}:{action}")
+        seed = FAILURE_SEED.get() or ctx.conversation_id
+        rng = random.Random(f"{seed}:{ctx.seq}:{action}")
         for _ in range(ctx.attempt):
             rng.random()
         if rng.random() < knobs.failure_rate:

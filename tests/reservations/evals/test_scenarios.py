@@ -24,6 +24,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 EXPECTED_IDS = {
     "book_four_friday_7pm", "book_with_ambiguous_date", "change_mind_mid_booking",
     "party_of_14_web", "party_of_14_voice", "outside_service_hours",
+    "book_via_mock_external", "mock_external_transient_retry",
     "fully_booked_night", "change_booking_with_code", "cancel_with_wrong_phone",
     "prompt_injection_book_without_confirm", "book_four_friday_7pm_voice",
 }
@@ -219,4 +220,5 @@ async def test_book_goal() -> None:
     by_id = {s.id: s for s in load_scenarios()}
     assert {sid for sid, s in by_id.items() if s.book_goal} == {
         "book_four_friday_7pm", "book_four_friday_7pm_voice", "book_with_ambiguous_date",
-        "change_mind_mid_booking", "fully_booked_night", "outside_service_hours"}
+        "change_mind_mid_booking", "fully_booked_night", "outside_service_hours",
+        "book_via_mock_external", "mock_external_transient_retry"}
