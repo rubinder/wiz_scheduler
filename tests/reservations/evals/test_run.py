@@ -181,9 +181,43 @@ async def test_replay_with_leftover_responses_fails(monkeypatch, capsys,
     assert f"recording {name} has 1 unused diner lines" in result["failures"]
 
 
+def _boom(service: str):
+    raise AssertionError(f"AWS client created: {service}")
+
+
 @pytest.mark.asyncio
-async def test_lex_recognizer_is_not_available_yet() -> None:
-    assert await run.amain(["--recognizer", "lex"], database_url=_url()) == 2
+async def test_lex_refused_without_live(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", "bot")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", "alias")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAFAKE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    code = await run.amain(["--recognizer", "lex"], database_url=_url(),
+                           lex_client_factory=_boom)
+    assert code == 2 and "--live" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bot,alias", [("", "a"), ("b", ""), ("", "")])
+async def test_lex_refused_without_config(monkeypatch, capsys, bot, alias) -> None:
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", bot)
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", alias)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAFAKE")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    code = await run.amain(["--recognizer", "lex", "--live", "--yes"],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "EVAL_LEX_BOT_ID" in capsys.readouterr().err
+
+
+def test_cost_estimate_adds_polly_and_lex_only_for_lex(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "EVAL_POLLY_USD_PER_MILLION_CHARS", 16.0)
+    monkeypatch.setattr(settings, "EVAL_LEX_USD_PER_SPEECH_REQUEST", 0.004)
+    base = run.cost_estimate(2, 1)
+    assert run.cost_estimate(2, 1, 0) == base
+    turns = 2 * run.MAX_DINER_TURNS
+    want = turns * run.AVG_LINE_CHARS * 16.0 / 1e6 + turns * 0.004
+    assert run.cost_estimate(2, 1, 2) == pytest.approx(base + want)
 
 
 def test_recognizer_flags() -> None:

@@ -7,7 +7,7 @@
 Voice scenarios run through the voice bridge in process with a speech
 recognizer: `exact` (default) hears every word, `noisy` makes deterministic
 phone-line confusions (seeded by --seed, default 259). `lex` (real Polly to
-Lex audio) is not available yet.
+Lex audio) needs --live and EVAL_LEX_BOT_ID / EVAL_LEX_BOT_ALIAS_ID.
 
 Noisy understanding is a --live signal. A replay serves recorded model
 responses whatever text the model is sent, so it cannot show how the agent
@@ -66,7 +66,19 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "host.docker.internal", "postgre
 _SCHEMA_RE = re.compile(r"^evals_[0-9]{8}t[0-9]{6}z$")
 
 
-def cost_estimate(scenario_count: int, repeat: int) -> float:
+AVG_LINE_CHARS = 60  # a diner line, for the Polly character estimate
+
+
+def voice_cost_estimate(voice_scenario_count: int, repeat: int) -> float:
+    """The Lex recognizer's share: each diner turn is one Polly synthesis
+    (AVG_LINE_CHARS characters) and one Lex speech request."""
+    turns = voice_scenario_count * repeat * MAX_DINER_TURNS
+    polly = turns * AVG_LINE_CHARS * settings.EVAL_POLLY_USD_PER_MILLION_CHARS / 1e6
+    return polly + turns * settings.EVAL_LEX_USD_PER_SPEECH_REQUEST
+
+
+def cost_estimate(scenario_count: int, repeat: int,
+                  lex_voice_scenarios: int = 0) -> float:
     """scenarios x repeat x 20 diner turns x (MAX_TOOL_ROUNDS agent calls +
     1 diner call). Each call is priced at max output tokens plus an input
     estimate that grows with the conversation: 6000 + 800 x the turn index
@@ -82,7 +94,8 @@ def cost_estimate(scenario_count: int, repeat: int) -> float:
         agent_call = (settings.RESERVATION_AGENT_MAX_TOKENS * out + tokens_in * inp) / 1e6
         diner_call = (DINER_MAX_TOKENS * out + tokens_in * inp) / 1e6
         per_scenario += settings.RESERVATION_AGENT_MAX_TOOL_ROUNDS * agent_call + diner_call
-    return scenario_count * repeat * per_scenario
+    return (scenario_count * repeat * per_scenario
+            + voice_cost_estimate(lex_voice_scenarios, repeat))
 
 
 def host_is_local(database_url: str) -> bool:
@@ -203,20 +216,23 @@ async def _scratch_run(database_url: str, schema: str, body: Any) -> Any:
 
 async def amain(argv: list[str] | None = None, *, database_url: str | None = None,
                 diner_client: Any = None, llm: Any = None,
-                runs_dir: Path | None = None) -> int:
-    """`database_url`, `diner_client`, `llm` and `runs_dir` are test seams.
+                runs_dir: Path | None = None,
+                lex_client_factory: Any = None) -> int:
+    """`database_url`, `diner_client`, `llm`, `runs_dir` and `lex_client_factory` are test seams.
     RLS_ENFORCE is off while it runs (see the module docstring)."""
     saved = settings.RLS_ENFORCE
     settings.RLS_ENFORCE = False
     try:
         return await _amain(argv, database_url=database_url,
-                            diner_client=diner_client, llm=llm, runs_dir=runs_dir)
+                            diner_client=diner_client, llm=llm, runs_dir=runs_dir,
+                            lex_client_factory=lex_client_factory)
     finally:
         settings.RLS_ENFORCE = saved
 
 
 async def _amain(argv: list[str] | None, *, database_url: str | None,
-                 diner_client: Any, llm: Any, runs_dir: Path | None) -> int:
+                 diner_client: Any, llm: Any, runs_dir: Path | None,
+                 lex_client_factory: Any = None) -> int:
     from backend.reservations.evals import replay, store
     from backend.reservations.evals.runner import SuiteResult, run_suite
     from backend.reservations.evals.scenarios_io import load_scenarios
@@ -230,10 +246,27 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     if args.record and not (args.live and args.repeat == 1):
         print("--record needs --live and --repeat 1", file=sys.stderr)
         return 2
+    recognizer: Any
     if args.recognizer == "lex":
-        print("--recognizer lex is not available yet", file=sys.stderr)
-        return 2
-    recognizer = make_recognizer(args.recognizer, args.seed)
+        # Refused before any AWS client exists, credentials or not.
+        if not args.live:
+            print("--recognizer lex calls Polly and Lex: it needs --live",
+                  file=sys.stderr)
+            return 2
+        if not (settings.EVAL_LEX_BOT_ID and settings.EVAL_LEX_BOT_ALIAS_ID):
+            print("--recognizer lex needs EVAL_LEX_BOT_ID and "
+                  "EVAL_LEX_BOT_ALIAS_ID", file=sys.stderr)
+            return 2
+        from backend.reservations.evals.lex_recognizer import (
+            LexRecognizer, default_client_factory)
+
+        recognizer = LexRecognizer(
+            settings.EVAL_LEX_BOT_ID, settings.EVAL_LEX_BOT_ALIAS_ID,
+            settings.EVAL_LEX_LOCALE, settings.EVAL_POLLY_VOICE,
+            run_id=scratch_schema_name(),
+            client_factory=lex_client_factory or default_client_factory)
+    else:
+        recognizer = make_recognizer(args.recognizer, args.seed)
     if not host_is_local(url) and not args.allow_remote_db:
         print(f"refusing to run: database host {make_url(url).host!r} is not local "
               "(pass --allow-remote-db to override)", file=sys.stderr)
@@ -254,7 +287,9 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         if not settings.ANTHROPIC_API_KEY:
             print("--live needs ANTHROPIC_API_KEY", file=sys.stderr)
             return 2
-        estimate = cost_estimate(len(scenarios), args.repeat)
+        lex_voice = (sum(sc.channel == "voice" for sc in scenarios)
+                     if args.recognizer == "lex" else 0)
+        estimate = cost_estimate(len(scenarios), args.repeat, lex_voice)
         print(f"cost estimate: ${estimate:.2f} "
               f"({len(scenarios)} scenarios x {args.repeat} x {MAX_DINER_TURNS} turns)")
         if estimate > COST_LIMIT_USD and not args.yes:
