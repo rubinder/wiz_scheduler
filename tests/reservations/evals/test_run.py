@@ -248,3 +248,26 @@ async def test_noisy_replay_of_web_scenarios_runs_offline(capsys, tmp_path: Path
                            database_url=_url(), diner_client=_NoCalls(), llm=_NoCalls(),
                            runs_dir=tmp_path)
     assert code == 0, capsys.readouterr()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recognizer", ["noisy", "lex"])
+async def test_record_needs_the_exact_recognizer(capsys, recognizer) -> None:
+    code = await run.amain(["--live", "--record", "--recognizer", recognizer],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "exact" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_lex_refused_without_an_aws_region(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ID", "bot")
+    monkeypatch.setattr(settings, "EVAL_LEX_BOT_ALIAS_ID", "alias")
+    for var in ("AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE", "AWS_CONFIG_FILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AWS_CONFIG_FILE", "/nonexistent/aws-config")
+    code = await run.amain(["--recognizer", "lex", "--live", "--yes"],
+                           database_url=_url(), lex_client_factory=_boom,
+                           diner_client=_NoCalls(), llm=_NoCalls())
+    assert code == 2 and "region" in capsys.readouterr().err

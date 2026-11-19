@@ -289,6 +289,11 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
     if args.record and not (args.live and args.repeat == 1):
         print("--record needs --live and --repeat 1", file=sys.stderr)
         return 2
+    if args.record and args.recognizer != "exact":
+        print("--record needs --recognizer exact: a recording is only valid "
+              "for the recognizer it was made with, and replay serves exact",
+              file=sys.stderr)
+        return 2
     recognizer: Any
     if args.recognizer == "lex":
         # Refused before any AWS client exists, credentials or not.
@@ -299,6 +304,12 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
         if not (settings.EVAL_LEX_BOT_ID and settings.EVAL_LEX_BOT_ALIAS_ID):
             print("--recognizer lex needs EVAL_LEX_BOT_ID and "
                   "EVAL_LEX_BOT_ALIAS_ID", file=sys.stderr)
+            return 2
+        import boto3  # lazy: a refused run never imports it
+
+        if not boto3.session.Session().region_name:
+            print("--recognizer lex needs an AWS region (AWS_REGION or "
+                  "AWS_DEFAULT_REGION)", file=sys.stderr)
             return 2
         from backend.reservations.evals.lex_recognizer import (
             LexRecognizer, default_client_factory)
