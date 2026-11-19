@@ -1,7 +1,8 @@
 """The WizScheduler booking provider: a thin adapter over `availability.find_slots`
 (still the single availability evaluator) and `booking.py`. Refs are
 reservation ids. booking.* errors pass through unchanged: they are the
-provider errors (see base.py)."""
+provider errors (see base.py). Idempotency keys are ignored: booking.py's
+own status transitions already refuse a second confirm or cancel."""
 
 from datetime import datetime
 
@@ -52,19 +53,20 @@ class WizSchedulerProvider:
         return _booking(res)
 
     async def book(self, db: AsyncSession, ctx: ProviderContext,
-                   ref: str) -> ProviderBooking:
+                   ref: str, *, idempotency_key: str | None = None) -> ProviderBooking:
         return _booking(await booking.confirm(db, ctx.company_id, ref, now=ctx.now))
 
     async def modify(
         self, db: AsyncSession, ctx: ProviderContext, ref: str, *,
         party_size: int | None, start: datetime | None,
+        idempotency_key: str | None = None,
     ) -> ProviderBooking:
         return _booking(await booking.modify(
             db, ctx.company_id, ref, party_size=party_size, start=start,
             now=ctx.now, by_staff=False))
 
     async def cancel(self, db: AsyncSession, ctx: ProviderContext,
-                     ref: str) -> ProviderBooking:
+                     ref: str, *, idempotency_key: str | None = None) -> ProviderBooking:
         return _booking(await booking.cancel(db, ctx.company_id, ref, now=ctx.now))
 
     async def lookup(

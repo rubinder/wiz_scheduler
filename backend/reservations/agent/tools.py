@@ -18,12 +18,22 @@ Guards, so the model cannot state or book what the evaluator never produced:
 Each tool runs in a savepoint, so a failed write leaves the session usable
 and the conversation unchanged. `execute_tool` never raises. Flush only;
 callers commit.
+
+`Transient` (the provider could not be reached) is retried once, here in
+`execute_tool`, within the same tool call: the handler reruns from the
+start in a fresh savepoint with `ProviderContext.attempt = 1` (handlers
+change `conv` only after their last write, so a rerun is safe). A success
+after the retry is marked `retried`, and the core prefixes the diner's reply
+with its retry sentence; a second `Transient` returns
+`{"error": "provider_unavailable", "handoff": True}` and the core hands the
+diner to staff.
 """
 
 import logging
 import math
 import re
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
@@ -48,6 +58,7 @@ from backend.reservations.providers import (
     ProviderError,
     ProviderSlot,
     SlotUnavailable,
+    Transient,
     provider_for,
 )
 from backend.reservations.rules import RulesSchema, get_rules
@@ -152,6 +163,7 @@ class ToolOutcome:
     result: dict[str, Any]
     is_error: bool = False
     expect: str | None = None
+    retried: bool = False  # succeeded on the retry after a Transient
 
 
 class _ToolError(Exception):
@@ -214,10 +226,17 @@ async def _location(db: AsyncSession, conv: AgentConversation) -> Location:
     return loc
 
 
+# The attempt of the tool call being run: 1 on execute_tool's retry after a
+# Transient. A context variable, so the handlers keep one signature.
+_ATTEMPT: ContextVar[int] = ContextVar("provider_attempt", default=0)
+
+
 def _ctx(conv: AgentConversation, loc: Location, rules: RulesSchema,
          now: datetime) -> ProviderContext:
     return ProviderContext(company_id=conv.company_id, location_id=conv.location_id,
-                           timezone=loc.timezone, rules=rules, now=now)
+                           timezone=loc.timezone, rules=rules, now=now,
+                           conversation_id=conv.id, seq=conv.turn_count or 0,
+                           attempt=_ATTEMPT.get())
 
 
 async def _provider(db: AsyncSession, conv: AgentConversation, now: datetime
@@ -514,6 +533,22 @@ async def execute_tool(
     if not isinstance(tool_input, dict):
         return ToolOutcome({"error": "invalid_input"}, is_error=True)
     now = now.astimezone(timezone.utc)
+    for attempt in (0, 1):
+        outcome = await _run_once(db, conv, name, handler, tool_input, now, attempt)
+        if outcome is not None:
+            return replace(outcome, retried=True) if attempt else outcome
+        logger.warning("agent tool %s: provider unavailable (conversation %s, "
+                       "attempt %d)", name, conv.id, attempt)
+    # Two Transients: staff take over.
+    return ToolOutcome({"error": Transient.code, "handoff": True}, is_error=True,
+                       retried=True)
+
+
+async def _run_once(db: AsyncSession, conv: AgentConversation, name: str,
+                    handler: _Handler, tool_input: dict[str, Any], now: datetime,
+                    attempt: int) -> ToolOutcome | None:
+    """One try of a tool; None when the provider raised Transient."""
+    token = _ATTEMPT.set(attempt)
     # Handlers change `conv` only after their last write can fail, so a rolled
     # back savepoint never leaves a half-updated conversation in memory.
     try:
@@ -525,8 +560,12 @@ async def execute_tool(
         # A handoff error (the phone-wide lookup lockout) ends the turn with staff.
         return ToolOutcome({"error": exc.code, "handoff": True} if exc.handoff
                            else {"error": exc.code}, is_error=True)
+    except Transient:
+        return None  # before ProviderError: Transient is one
     except ProviderError as exc:
         return ToolOutcome({"error": exc.code}, is_error=True)
     except Exception:
         logger.exception("agent tool %s failed (conversation %s)", name, conv.id)
         return ToolOutcome({"error": "internal"}, is_error=True)
+    finally:
+        _ATTEMPT.reset(token)

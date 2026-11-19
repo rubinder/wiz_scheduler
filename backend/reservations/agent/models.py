@@ -40,11 +40,11 @@ def new_public_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _reservation_fk() -> Mapped[str | None]:
-    return mapped_column(
-        String(8), ForeignKey("reservations.id", ondelete="SET NULL"),
-        nullable=True,
-    )
+def _booking_ref() -> Mapped[str | None]:
+    """A booking ref of the conversation's provider: a reservation id for
+    WizScheduler, a mock_external_bookings id for the mock. No foreign key
+    (0065 dropped 0058's), since a ref is provider-scoped."""
+    return mapped_column(String(8), nullable=True)
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -90,12 +90,12 @@ class AgentConversation(Base):
         String, nullable=False, default=DEFAULT_PROVIDER,
         server_default=text("'wizscheduler'"))
     outcome: Mapped[str | None] = mapped_column(String, nullable=True)
-    reservation_id: Mapped[str | None] = _reservation_fk()
-    held_reservation_id: Mapped[str | None] = _reservation_fk()
-    verified_reservation_id: Mapped[str | None] = _reservation_fk()
+    reservation_id: Mapped[str | None] = _booking_ref()
+    held_reservation_id: Mapped[str | None] = _booking_ref()
+    verified_reservation_id: Mapped[str | None] = _booking_ref()
     # Set only by the cancel_booking tool (to the verified id); the
     # confirm_cancel action requires it and clears it.
-    pending_cancel_id: Mapped[str | None] = _reservation_fk()
+    pending_cancel_id: Mapped[str | None] = _booking_ref()
     turn_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"))
     # Set when a turn is claimed (recording.claim_turn), refreshed at each

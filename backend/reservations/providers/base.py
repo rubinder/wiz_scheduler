@@ -53,13 +53,22 @@ class Transient(ProviderError):
 @dataclass(frozen=True)
 class ProviderContext:
     """Who is booking where, and when. `timezone` is the location's zone
-    key; `rules` are its reservation rules; `now` is UTC."""
+    key; `rules` are its reservation rules; `now` is UTC.
+
+    `conversation_id` and `seq` (the conversation's turn count) identify the
+    agent turn making the call, and `attempt` is 0 for the first try and 1
+    for the agent's one retry after `Transient`. An external provider may use
+    them (the mock seeds its injected failures with them); WizScheduler
+    ignores them."""
 
     company_id: str
     location_id: str
     timezone: str
     rules: RulesSchema
     now: datetime
+    conversation_id: str | None = None
+    seq: int | None = None
+    attempt: int = 0
 
 
 @dataclass(frozen=True)
@@ -112,20 +121,25 @@ class BookingProvider(Protocol):
         ...
 
     async def book(self, db: AsyncSession, ctx: ProviderContext,
-                   ref: str) -> ProviderBooking:
-        """Confirm a hold (or submit a pending request)."""
+                   ref: str, *, idempotency_key: str | None = None) -> ProviderBooking:
+        """Confirm a hold (or submit a pending request).
+
+        `idempotency_key` (book, modify, cancel) is
+        `{conversation_id}:{action}:{seq}`: a provider that honours it returns
+        the first result for a replayed key and never acts twice."""
         ...
 
     async def modify(
         self, db: AsyncSession, ctx: ProviderContext, ref: str, *,
         party_size: int | None, start: datetime | None,
+        idempotency_key: str | None = None,
     ) -> ProviderBooking:
         """Change party size and/or time; None leaves a field unchanged.
         Applies the diner's limits, never staff's."""
         ...
 
     async def cancel(self, db: AsyncSession, ctx: ProviderContext,
-                     ref: str) -> ProviderBooking:
+                     ref: str, *, idempotency_key: str | None = None) -> ProviderBooking:
         """Cancel a hold, a pending request or a booking."""
         ...
 

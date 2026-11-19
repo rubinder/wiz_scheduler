@@ -19,6 +19,7 @@ from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
+from backend.reservations.mock_external_models import MockExternalIdempotency
 from backend.reservations.models import Reservation
 from backend.reservations.screening_models import NumberRule, ScreenedCall
 from backend.services.archive import DISCARDED, delete_past_check_ins
@@ -259,6 +260,14 @@ async def run_data_retention(db: AsyncSession) -> dict:
             delete(NumberRule).where(NumberRule.expires_at < cutoff_reservations)
         )
         summary["old_number_rules_deleted"] = result.rowcount
+
+        # 7d-mock. Mock external provider idempotency keys (#259 step 9) are
+        #          kept 24 hours: a replay is a retry within one turn.
+        result = await db.execute(
+            delete(MockExternalIdempotency).where(
+                MockExternalIdempotency.created_at < now - timedelta(hours=24))
+        )
+        summary["old_mock_external_idempotency_deleted"] = result.rowcount
 
         # 7e. Diner contact on reservations that ended before the same window
         #     is cleared; the row stays for covers analytics. Every status,

@@ -295,6 +295,45 @@ def test_0063_spam_numbers_are_read_only_to_app_role(rds_like_postgres):
                           f"BEGIN; SET LOCAL ROLE app_role; {sql}; COMMIT;"])
         assert result.exit_code != 0 and b"permission denied" in result.output, sql
 
+def test_0065_mock_external_tables_are_tenant_isolated(rds_like_postgres):
+    """The mock provider's inventory and idempotency keys are company data:
+    app_role with a request's binding sees only that company's rows."""
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, """
+        INSERT INTO companies (id, name, slug) VALUES ('co65aaaa', 'A', 'co-65-a'),
+            ('co65bbbb', 'B', 'co-65-b') ON CONFLICT DO NOTHING;
+        INSERT INTO regions (id, company_id, name) VALUES ('rg65aaaa', 'co65aaaa', 'R'),
+            ('rg65bbbb', 'co65bbbb', 'R') ON CONFLICT DO NOTHING;
+        INSERT INTO locations (id, company_id, region_id, name, timezone) VALUES
+            ('lo65aaaa', 'co65aaaa', 'rg65aaaa', 'L', 'UTC'),
+            ('lo65bbbb', 'co65bbbb', 'rg65bbbb', 'L', 'UTC') ON CONFLICT DO NOTHING;
+        INSERT INTO mock_external_bookings (id, company_id, location_id, start_at, end_at,
+            party_size, status) VALUES
+            ('mb65aaaa', 'co65aaaa', 'lo65aaaa', now(), now(), 2, 'booked'),
+            ('mb65bbbb', 'co65bbbb', 'lo65bbbb', now(), now(), 2, 'booked')
+            ON CONFLICT DO NOTHING;
+        INSERT INTO mock_external_idempotency (key, company_id, response) VALUES
+            ('k65a', 'co65aaaa', '{}'), ('k65b', 'co65bbbb', '{}') ON CONFLICT DO NOTHING;
+    """)
+    as_a = """
+        BEGIN; SET LOCAL ROLE app_role;
+        SELECT set_config('app.company_ids', '{co65aaaa}', true);
+        SELECT string_agg(id, ',') FROM mock_external_bookings WHERE id LIKE 'mb65%';
+        SELECT string_agg(key, ',') FROM mock_external_idempotency WHERE key LIKE 'k65%';
+        COMMIT;
+    """
+    lines = [l for l in _psql(pg, as_a).splitlines()
+             if l not in ("BEGIN", "SET", "COMMIT", "{co65aaaa}")]
+    assert lines == ["mb65aaaa", "k65a"], lines
+    refused = pg.exec(["psql", "-U", "owner", "-d", pg.dbname, "-At", "-v", "ON_ERROR_STOP=1",
+                       "-c", "BEGIN; SET LOCAL ROLE app_role; "
+                       "SELECT set_config('app.company_ids', '{co65aaaa}', true); "
+                       "INSERT INTO mock_external_idempotency (key, company_id, response) "
+                       "VALUES ('k65c', 'co65bbbb', '{}'); COMMIT;"])
+    assert refused.exit_code != 0 and b"row-level security" in refused.output
+
+
 def _alembic_fails(url: str, *args: str) -> str:
     """Run alembic expecting failure; return its combined output."""
     repo_root = Path(__file__).parent.parent

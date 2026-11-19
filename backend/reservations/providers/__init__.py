@@ -22,6 +22,7 @@ from backend.reservations.providers.base import (
     SlotUnavailable,
     Transient,
 )
+from backend.reservations.providers.mock_external import MockExternalProvider
 from backend.reservations.providers.wizscheduler import WizSchedulerProvider
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
 
 _PROVIDERS: dict[str, BookingProvider] = {
     "wizscheduler": WizSchedulerProvider(),
+    "mock_external": MockExternalProvider(),
 }
 
 

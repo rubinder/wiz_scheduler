@@ -36,9 +36,9 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -60,6 +60,7 @@ from backend.reservations.providers import (
     ProviderBooking,
     ProviderContext,
     ProviderError,
+    Transient,
     provider_for,
 )
 from backend.reservations.rules import RulesSchema, get_rules
@@ -76,6 +77,10 @@ CLOSING_TEXT = ("We've been chatting for a while, so I'll end here. "
                 "Please start a new conversation if you still need help.")
 ENDED_TEXT = "This conversation has ended. Please start a new one if you need anything else."
 FALLBACK_TEXT = "Sorry, could you say that again?"
+# Prefixed to the reply when a provider call failed with Transient and its
+# one retry (same turn, same idempotency key) succeeded.
+RETRY_TEXT = "Sorry, I couldn't reach the booking system — let me try that again."
+PROVIDER_DOWN = "provider_unavailable"  # the handoff reason after two Transients
 
 _HISTORY_TYPES = ("user_turn", "assistant_turn", "tool_result", "action")
 _TOOL_EXPECTS = {tools.EXPECT_CONFIRM_HOLD, tools.EXPECT_CONFIRM_CANCEL,
@@ -123,6 +128,16 @@ class _Handoff(Exception):
         self.reason = reason
 
 
+class _ProviderDown(Exception):
+    """A provider write failed with Transient twice in one action."""
+
+
+def _key(conv: AgentConversation, action: str) -> str:
+    """The idempotency key of this turn's `action`: a retry in the same turn
+    reuses it, so an external provider never acts twice."""
+    return f"{conv.id}:{action}:{conv.turn_count or 0}"
+
+
 def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
@@ -148,7 +163,8 @@ async def _provider(db: AsyncSession, conv: AgentConversation,
     rules, _ = await get_rules(db, conv.company_id, conv.location_id)
     return provider_for(conv), ProviderContext(
         company_id=conv.company_id, location_id=conv.location_id,
-        timezone=loc.timezone, rules=rules, now=now.astimezone(timezone.utc))
+        timezone=loc.timezone, rules=rules, now=now.astimezone(timezone.utc),
+        conversation_id=conv.id, seq=conv.turn_count or 0)
 
 
 def _diner_text(raw: str | None) -> str:
@@ -305,6 +321,7 @@ class AgentCore:
         last_expect: str | None = None
         handoff: dict[str, Any] | None = None
         response: LlmResponse | None = None
+        retried = False  # a tool succeeded on its retry after a Transient
         for round_no in range(rounds):
             # The whole turn has a deadline: no model call starts past it,
             # and none may run beyond it.
@@ -352,7 +369,7 @@ class AgentCore:
 
             started = time.perf_counter()
             results: list[dict[str, Any]] = []
-            lockout = False
+            lockout: str | None = None
             for block in uses:
                 name, tool_input = block.get("name"), block.get("input")
                 await recording.record_event(db, conv, "tool_call", {
@@ -363,12 +380,16 @@ class AgentCore:
                 # Only a successful tool may raise a confirm button.
                 if not outcome.is_error:
                     last_expect = outcome.expect
+                    retried = retried or outcome.retried
                     if outcome.expect == tools.EXPECT_HANDOFF:
                         reason = (tool_input or {}).get("reason", "")
                         handoff = {"reason": reason if isinstance(reason, str) else "",
                                    "phone": rules.staff_transfer_number}
                 elif outcome.result.get("handoff") is True:
-                    lockout = True  # phone-wide lookup lockout: staff take over
+                    # The phone-wide lookup lockout, or a provider that failed
+                    # twice: staff take over.
+                    lockout = (PROVIDER_DOWN if outcome.result.get("error") == PROVIDER_DOWN
+                               else "lookup_lockout")
                 result = {"type": "tool_result", "tool_use_id": block.get("id"),
                           "content": json.dumps(outcome.result)}
                 if outcome.is_error:
@@ -379,7 +400,7 @@ class AgentCore:
                                          latency_ms={"tools": _ms(started)})
             messages.append({"role": "user", "content": results})
             if lockout:
-                raise _Handoff("lookup_lockout")
+                raise _Handoff(lockout)
             # Release the round's locks (a hold locks its location) before
             # the next model call.
             recording.touch_turn(conv)
@@ -389,6 +410,8 @@ class AgentCore:
         texts = [b.get("text", "") for b in response.content
                  if b.get("type") == "text" and b.get("text")]
         reply = texts[-1] if texts else FALLBACK_TEXT
+        if retried:
+            reply = f"{RETRY_TEXT} {reply}"
         if handoff is not None:
             # handoff_to_staff already recorded its `handoff` event.
             await self._release_hold(db, conv, now)
@@ -438,10 +461,38 @@ class AgentCore:
             out, result = await self._output(db, conv, FALLBACK_TEXT, None, zone), \
                 "unknown_action"
         else:
-            out, result = await handler(db, conv, now, zone)
+            try:
+                out, result = await handler(db, conv, now, zone)
+            except _ProviderDown:
+                rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+                out, result = await self._handoff(db, conv, PROVIDER_DOWN, now,
+                                                  rules), PROVIDER_DOWN
         await recording.record_event(db, conv, "action", {
             "action": action, "result": result, "reply": out.reply_text})
         return out
+
+    async def _write(self, db: AsyncSession, conv: AgentConversation,
+                     ctx: ProviderContext, action: str,
+                     call: Callable[[ProviderContext], Awaitable[ProviderBooking]]
+                     ) -> tuple[ProviderBooking, bool]:
+        """Run one provider write in a savepoint; on Transient, retry it once
+        (same turn, so the same idempotency key) with `attempt=1`. Returns the
+        booking and whether it took the retry; raises `_ProviderDown` after a
+        second Transient. Any other ProviderError propagates."""
+        for attempt in (0, 1):
+            try:
+                async with db.begin_nested():
+                    return await call(replace(ctx, attempt=attempt)), attempt == 1
+            except Transient:
+                logger.warning("agent %s: provider unavailable (conversation %s, "
+                               "attempt %d)", action, conv.id, attempt)
+                await recording.record_event(db, conv, "error", {
+                    "error": PROVIDER_DOWN, "action": action, "attempt": attempt})
+        raise _ProviderDown()
+
+    @staticmethod
+    def _retried(out: TurnOutput, retried: bool) -> TurnOutput:
+        return replace(out, reply_text=f"{RETRY_TEXT} {out.reply_text}") if retried else out
 
     async def _confirm_hold(self, db: AsyncSession, conv: AgentConversation,
                             now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
@@ -450,9 +501,11 @@ class AgentCore:
                 db, conv, "There's nothing to confirm yet. What date, time and party "
                 "size would you like?", None, zone), "nothing_held")
         provider, ctx = await _provider(db, conv, now)
+        ref, key = conv.held_reservation_id, _key(conv, "book")
         try:
-            async with db.begin_nested():
-                res = await provider.book(db, ctx, conv.held_reservation_id)
+            res, retried = await self._write(
+                db, conv, ctx, "book",
+                lambda c: provider.book(db, c, ref, idempotency_key=key))
         except HoldExpired:
             conv.held_reservation_id = None
             await db.flush()
@@ -478,14 +531,14 @@ class AgentCore:
                       "start_iso": local.isoformat(), "status": "booked",
                       "held_until": None,
                       "confirmation_code": res.code}
-            return (TurnOutput(
+            return (self._retried(TurnOutput(
                 f"You're booked for {res.party_size} on {when}. Your confirmation "
-                f"code is {res.code}.", "text", booked, True, None),
+                f"code is {res.code}.", "text", booked, True, None), retried),
                 f"booked {res.code}")
-        return (TurnOutput(
+        return (self._retried(TurnOutput(
             f"Thanks, your request for {res.party_size} on {when} is in, and the "
             f"restaurant will confirm it. Your reference code is "
-            f"{res.code}.", "text", None, False, None),
+            f"{res.code}.", "text", None, False, None), retried),
             f"pending_approval {res.code}")
 
     async def _decline_hold(self, db: AsyncSession, conv: AgentConversation,
@@ -532,9 +585,11 @@ class AgentCore:
                 db, conv, "There's no cancellation waiting to be confirmed. Which "
                 "booking would you like to cancel?", None, zone), "nothing_pending")
         provider, ctx = await _provider(db, conv, now)
+        ref, key = res.ref, _key(conv, "cancel")
         try:
-            async with db.begin_nested():
-                res = await provider.cancel(db, ctx, res.ref)
+            res, retried = await self._write(
+                db, conv, ctx, "cancel",
+                lambda c: provider.cancel(db, c, ref, idempotency_key=key))
         except ProviderError as exc:
             return (await self._output(
                 db, conv, "Sorry, that booking can't be cancelled here. Please contact "
@@ -544,9 +599,9 @@ class AgentCore:
         conv.pending_modify = None
         await db.flush()
         await recording.finish(db, conv, "cancelled")
-        return (TurnOutput(
+        return (self._retried(TurnOutput(
             f"Your booking {res.code} for {_when(res, zone)} is cancelled.",
-            "text", None, True, None), "cancelled")
+            "text", None, True, None), retried), "cancelled")
 
     async def _confirm_modify(self, db: AsyncSession, conv: AgentConversation,
                               now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
@@ -563,11 +618,12 @@ class AgentCore:
             start_iso, party = staged.get("start_iso"), staged.get("party_size")
             start = datetime.fromisoformat(start_iso) if isinstance(start_iso, str) else None
             provider, ctx = await _provider(db, conv, now)
-            async with db.begin_nested():
-                res = await provider.modify(
-                    db, ctx, res.ref,
-                    party_size=party if isinstance(party, int) else None,
-                    start=start)
+            ref, key = res.ref, _key(conv, "modify")
+            new_party = party if isinstance(party, int) else None
+            res, retried = await self._write(
+                db, conv, ctx, "modify",
+                lambda c: provider.modify(db, c, ref, party_size=new_party, start=start,
+                                          idempotency_key=key))
         except (ProviderError, ValueError) as exc:
             code = getattr(exc, "code", "invalid_input")
             return (await self._output(
@@ -578,9 +634,9 @@ class AgentCore:
         conv.pending_cancel_id = None
         await db.flush()
         await recording.finish(db, conv, "modified")
-        return (TurnOutput(
+        return (self._retried(TurnOutput(
             f"Done: booking {res.code} is now for {res.party_size} on "
-            f"{_when(res, zone)}.", "text", None, True, None), "modified")
+            f"{_when(res, zone)}.", "text", None, True, None), retried), "modified")
 
     # -- helpers -----------------------------------------------------------
 

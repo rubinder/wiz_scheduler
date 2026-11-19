@@ -70,7 +70,13 @@ The AI host agent books only through a `BookingProvider`
 (`backend/reservations/providers/`), fixed per conversation when it starts
 (`agent_conversations.provider`); the WizScheduler adapter wraps
 `find_slots` and `booking.py`. Staff and manager routes call `booking.*`
-directly.
+directly. The single-evaluator rule covers WizScheduler's own inventory
+only: the mock external provider (`providers/mock_external.py`) stands in
+for someone else's system, owns its inventory in `mock_external_*` tables
+and computes its own slots from the rules' periods, never calling
+`find_slots` or touching `reservations`. A conversation's booking refs
+(`held_reservation_id`, ...) are provider-scoped, so they carry no foreign
+key to `reservations`.
 
 ### Database
 

@@ -52,6 +52,10 @@ from backend.reservations.models import (
 )
 from backend.reservations.subscription_models import AgentUsage, ReservationSubscription
 from backend.reservations.voice_number_models import VoiceNumber, VoiceTransferCount
+from backend.reservations.mock_external_models import (
+    MockExternalBooking,
+    MockExternalIdempotency,
+)
 from backend.reservations.screening_models import (
     NumberRule,
     ScreenedCall,
@@ -60,6 +64,8 @@ from backend.reservations.screening_models import (
 )
 
 __all__ = [
+    "MockExternalBooking",
+    "MockExternalIdempotency",
     "NumberRule",
     "ScreenedCall",
     "SpamIngestFile",
