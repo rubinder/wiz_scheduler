@@ -146,7 +146,9 @@ follow with a "say that again", a not-caught reply, or a re-elicit of the
 slot just supplied. It is computed structurally, with no model call.
 
 **Latency** is p50 and p95 (nearest rank) for asr, tts, llm, tools and
-turn_total. **Cost per booking** is book-goal cost divided by passing
+the bridge turn (`turn_total`, labelled "bridge turn (excludes asr/tts)":
+the wall clock of the bridge call, which does not include the recognizer's
+asr or the synthesizer's tts). **Cost per booking** is book-goal cost divided by passing
 book-goal attempts; the report and compare use the same definition.
 
 **Cost.** `cost_estimate` for the 12 scenarios x 1 repeat is about $3.06 of

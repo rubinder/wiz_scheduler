@@ -48,7 +48,8 @@ def test_voice_section_lines() -> None:
     m = _metrics("run_a")
     text = "\n".join(voice_section(m, ["book", "cancel"]))
     assert "first-try understanding 66.7%" in text
-    assert "turn_total p50 300 ms, p95 600 ms" in text
+    assert "bridge turn (excludes asr/tts) p50 300 ms, p95 600 ms" in text
+    assert "recognizer errors 0" in text
     assert "repeats per scenario: book 1, cancel 1" in text
     assert "ssml errors 0" in text
     assert voice_section(_metrics("run_old"), ["book", "cancel"]) == []
@@ -60,7 +61,8 @@ def test_compare_two_fixture_runs() -> None:
     assert "pass rate" in out and "50.0%" in out and "100.0%" in out
     assert "+50.0 pts" in out
     assert "first-try understanding" in out and "+33.3 pts" in out  # 66.7 -> 100
-    assert "p50 turn_total" in out and "p95 turn_total" in out
+    assert "p50 bridge turn (excludes asr/tts)" in out and "p95 bridge turn" in out
+    assert "recognizer: noisy" in out.split("\n")[0] or "recognizer" in out.split("scenario flips")[0]
     assert "$0.0200" in out and "$0.0400" in out  # book-goal cost / passing book-goal
     assert "cancel: fail -> pass" in out
     assert "book:" not in out.split("scenario flips:")[1]
@@ -79,7 +81,7 @@ def test_compare_old_run_file_shows_na(capsys) -> None:
     out = capsys.readouterr().out
     line = next(ln for ln in out.splitlines() if ln.startswith("first-try understanding ") and "only" not in ln)
     assert line.split()[-3:] == ["n/a", "100.0%", "n/a"]
-    assert "n/a" in next(ln for ln in out.splitlines() if ln.startswith("p50 turn_total"))
+    assert "n/a" in next(ln for ln in out.splitlines() if ln.startswith("p50 bridge turn"))
 
 
 def test_compare_resolves_run_id_in_runs_dir(capsys) -> None:
@@ -161,3 +163,22 @@ def test_percentile_edges() -> None:
     assert percentile([1, 2], 50) == 1 and percentile([1, 2], 95) == 2
     xs = list(range(1, 21))
     assert percentile(xs, 50) == 10 and percentile(xs, 95) == 19
+
+
+def test_voice_section_counts_recognizer_errors() -> None:
+    m = _metrics("run_a")
+    m[0]["voice"]["errors"] = ["ThrottlingException", "ReadTimeoutError"]
+    assert "recognizer errors 2" in "\n".join(voice_section(m, ["book", "cancel"]))
+
+
+def test_compare_prints_meta_header_and_flags_differences() -> None:
+    a = {"id": "a", "meta": {"mode": "live", "recognizer": "exact", "seed": 1,
+                             "voice_knobs": {}, "prompt_version": "aaa"}, "results": []}
+    b = {"id": "b", "meta": {"mode": "live", "recognizer": "noisy", "seed": 1,
+                             "voice_knobs": {}, "prompt_version": "bbb"}, "results": []}
+    lines = compare_docs(a, b).splitlines()
+    flagged = [ln for ln in lines if ln.startswith("meta ") and "DIFFERS" in ln]
+    assert any("recognizer" in ln for ln in flagged)
+    assert any("prompt_version" in ln for ln in flagged)
+    assert not any("seed" in ln for ln in flagged)
+    assert any(ln.startswith("meta mode") and "DIFFERS" not in ln for ln in lines)

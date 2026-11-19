@@ -13,6 +13,15 @@ STAGE_KEYS = {"asr": "asr_ms", "tts": "tts_ms", "llm": "llm_ms",
               "tools": "tools_ms", "turn_total": "turn_ms"}
 
 
+# What the report and compare call the turn_total stage: the bridge turn's wall
+# clock, which does not include the recognizer's asr or the synthesizer's tts.
+STAGE_LABELS = {"turn_total": "bridge turn (excludes asr/tts)"}
+
+
+def stage_label(stage: str) -> str:
+    return STAGE_LABELS.get(stage, stage)
+
+
 def _voice(m: dict[str, Any]) -> dict[str, Any]:
     v = m.get("voice")
     return v if isinstance(v, dict) else {}
@@ -75,7 +84,7 @@ def voice_section(metrics: list[dict[str, Any]], scenario_ids: list[str]) -> lis
     lines = ["", "voice",
              f"first-try understanding {pct_text(first_try_understanding(vm))}"]
     for stage, pp in stage_percentiles(vm).items():
-        lines.append(f"  {stage:<10} " + ("p50 - ms, p95 - ms" if pp is None else
+        lines.append(f"  {stage_label(stage):<10} " + ("p50 - ms, p95 - ms" if pp is None else
                                           f"p50 {pp[0]:.0f} ms, p95 {pp[1]:.0f} ms"))
     per: dict[str, list[int]] = {}
     for sid, m in pairs:
@@ -86,6 +95,8 @@ def voice_section(metrics: list[dict[str, Any]], scenario_ids: list[str]) -> lis
         f"{sid} {sum(v)}" for sid, v in sorted(per.items())))
     errs = sum(len(_voice(m).get("ssml_errors") or []) for m in vm)
     lines.append(f"ssml errors {errs}")
+    rec = sum(len(_voice(m).get("errors") or []) for m in vm)
+    lines.append(f"recognizer errors {rec}")
     return lines
 
 

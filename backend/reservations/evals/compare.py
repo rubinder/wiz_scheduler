@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.reservations.evals.stats import (
-    cost_per_booking, first_try_understanding, pct_text, stage_percentiles)
+    cost_per_booking, first_try_understanding, pct_text, stage_label, stage_percentiles)
 
 
 def load_run(ref: str, runs_dir: Path) -> dict[str, Any]:
@@ -54,6 +54,20 @@ def _delta(a: float | None, b: float | None, fmt: Any) -> str:
     return "n/a" if a is None or b is None else fmt(b - a)
 
 
+META_FIELDS = ("mode", "recognizer", "seed", "voice_knobs", "prompt_version")
+
+
+def meta_lines(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
+    """One line per run setting, A then B, flagged where they differ."""
+    ma, mb = a.get("meta") or {}, b.get("meta") or {}
+    out = []
+    for f in META_FIELDS:
+        va, vb = ma.get(f), mb.get(f)
+        flag = "  <- DIFFERS" if va != vb else ""
+        out.append(f"meta {f}: A={va!r} B={vb!r}{flag}")
+    return out
+
+
 def compare_docs(a: dict[str, Any], b: dict[str, Any]) -> str:
     ma, mb = _metrics(a), _metrics(b)
     rows: list[tuple[str, str, str, str]] = []
@@ -67,14 +81,15 @@ def compare_docs(a: dict[str, Any], b: dict[str, Any]) -> str:
         first_try_understanding(mb), pct_text, lambda d: f"{100 * d:+.1f} pts")
     sa, sb = stage_percentiles(ma)["turn_total"], stage_percentiles(mb)["turn_total"]
     for i, label in ((0, "p50"), (1, "p95")):
-        row(f"{label} turn_total", sa[i] if sa else None, sb[i] if sb else None,
+        row(f"{label} {stage_label('turn_total')}", sa[i] if sa else None, sb[i] if sb else None,
             _ms, lambda d: f"{d:+.0f} ms")
     row("cost per booking", cost_per_booking(a.get("results") or []),
         cost_per_booking(b.get("results") or []),
         lambda v: "n/a" if v is None else f"${v:.4f}", lambda d: f"{d:+.4f}")
     w = max(len(r[0]) for r in rows)
     ida, idb = a.get("id", "A"), b.get("id", "B")
-    lines = ["first-try understanding and the latency rows cover voice attempts only",
+    lines = [*meta_lines(a, b), "",
+             "first-try understanding and the latency rows cover voice attempts only",
              f"{'':<{w}}  {ida:>14}  {idb:>14}  delta",
              "-" * (w + 40)]
     lines += [f"{n:<{w}}  {x:>14}  {y:>14}  {d}" for n, x, y, d in rows]
