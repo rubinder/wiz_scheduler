@@ -30,6 +30,9 @@ EVENT_TYPES = ("user_turn", "assistant_turn", "tool_call", "tool_result",
                "error", "handoff", "action")
 OUTCOMES = ("booked", "modified", "cancelled", "handed_off", "abandoned",
             "failed", "blocked")
+# Booking providers (reservations/providers): fixed per conversation at start.
+PROVIDERS = ("wizscheduler", "mock_external")
+DEFAULT_PROVIDER = "wizscheduler"
 
 
 def new_public_token() -> str:
@@ -56,6 +59,8 @@ class AgentConversation(Base):
                         name="ck_agent_conversations_status"),
         CheckConstraint("outcome IS NULL OR " + _in("outcome", OUTCOMES),
                         name="ck_agent_conversations_outcome"),
+        CheckConstraint(_in("provider", PROVIDERS),
+                        name="ck_agent_conversations_provider"),
         # One conversation per external contact (the Amazon Connect contact
         # id for a call) at a location.
         Index("uq_agent_conversations_location_external_ref", "location_id",
@@ -79,6 +84,11 @@ class AgentConversation(Base):
     source_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="open", server_default=text("'open'"))
+    # The booking provider this conversation books through, set from the
+    # location's rules when it starts and never changed (providers.provider_for).
+    provider: Mapped[str] = mapped_column(
+        String, nullable=False, default=DEFAULT_PROVIDER,
+        server_default=text("'wizscheduler'"))
     outcome: Mapped[str | None] = mapped_column(String, nullable=True)
     reservation_id: Mapped[str | None] = _reservation_fk()
     held_reservation_id: Mapped[str | None] = _reservation_fk()

@@ -47,13 +47,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.models import Location
-from backend.reservations import booking
 from backend.reservations.agent import recording, tools
 from backend.reservations.agent.llm import LLM_TIMEOUT_S, LlmClient, LlmResponse
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.agent.prompt import build_system_prompt
-from backend.reservations.booking import HoldExpired, ReservationError
-from backend.reservations.models import BOOKED, HELD, PENDING, Reservation
+from backend.reservations.providers import (
+    BOOKED,
+    HELD,
+    PENDING,
+    BookingProvider,
+    HoldExpired,
+    ProviderBooking,
+    ProviderContext,
+    ProviderError,
+    provider_for,
+)
 from backend.reservations.rules import RulesSchema, get_rules
 
 logger = logging.getLogger(__name__)
@@ -119,10 +127,28 @@ def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
-def _when(res: Reservation, zone: ZoneInfo) -> str:
-    local = res.start_at.astimezone(zone)
+def _when(res: ProviderBooking, zone: ZoneInfo) -> str:
+    local = res.start.astimezone(zone)
     hour = local.strftime("%I").lstrip("0") or "12"
     return f"{local:%A, %B} {local.day} at {hour}:{local:%M %p}"
+
+
+async def _provider(db: AsyncSession, conv: AgentConversation,
+                    now: datetime | None = None
+                    ) -> tuple[BookingProvider, ProviderContext]:
+    """The conversation's booking provider and its context. The location is
+    loaded as handle_turn loads it (archived or not), so an action on a
+    booking the diner already holds still applies. Writes pass the turn's
+    `now`; a read may leave it to the wall clock."""
+    now = now or datetime.now(timezone.utc)
+    loc = (await db.execute(
+        select(Location).where(Location.id == conv.location_id,
+                               Location.company_id == conv.company_id)
+    )).scalar_one()
+    rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+    return provider_for(conv), ProviderContext(
+        company_id=conv.company_id, location_id=conv.location_id,
+        timezone=loc.timezone, rules=rules, now=now.astimezone(timezone.utc))
 
 
 def _diner_text(raw: str | None) -> str:
@@ -423,44 +449,44 @@ class AgentCore:
             return (await self._output(
                 db, conv, "There's nothing to confirm yet. What date, time and party "
                 "size would you like?", None, zone), "nothing_held")
+        provider, ctx = await _provider(db, conv, now)
         try:
             async with db.begin_nested():
-                res = await booking.confirm(db, conv.company_id, conv.held_reservation_id,
-                                            now=now)
+                res = await provider.book(db, ctx, conv.held_reservation_id)
         except HoldExpired:
             conv.held_reservation_id = None
             await db.flush()
             return (await self._output(
                 db, conv, "Sorry, that hold expired before it was confirmed. Shall I "
                 "look for another time?", None, zone), "hold_expired")
-        except ReservationError as exc:
+        except ProviderError as exc:
             conv.held_reservation_id = None
             await db.flush()
             return (await self._output(
                 db, conv, "Sorry, that time is no longer held. Shall I look for "
                 "another time?", None, zone), exc.code)
         conv.held_reservation_id = None
-        conv.reservation_id = res.id
+        conv.reservation_id = res.ref
         await db.flush()
         when = _when(res, zone)
         if res.status == BOOKED:
             await recording.finish(db, conv, "booked")
-            local = res.start_at.astimezone(zone)
+            local = res.start.astimezone(zone)
             booked = {"party_size": res.party_size,
                       "local_date": local.date().isoformat(),
                       "local_time": local.strftime("%H:%M"),
                       "start_iso": local.isoformat(), "status": "booked",
                       "held_until": None,
-                      "confirmation_code": res.confirmation_code}
+                      "confirmation_code": res.code}
             return (TurnOutput(
                 f"You're booked for {res.party_size} on {when}. Your confirmation "
-                f"code is {res.confirmation_code}.", "text", booked, True, None),
-                f"booked {res.confirmation_code}")
+                f"code is {res.code}.", "text", booked, True, None),
+                f"booked {res.code}")
         return (TurnOutput(
             f"Thanks, your request for {res.party_size} on {when} is in, and the "
             f"restaurant will confirm it. Your reference code is "
-            f"{res.confirmation_code}.", "text", None, False, None),
-            f"pending_approval {res.confirmation_code}")
+            f"{res.code}.", "text", None, False, None),
+            f"pending_approval {res.code}")
 
     async def _decline_hold(self, db: AsyncSession, conv: AgentConversation,
                             now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
@@ -484,48 +510,48 @@ class AgentCore:
             "to do?", None, zone), "nothing_held")
 
     async def _staged(self, db: AsyncSession, conv: AgentConversation,
-                      res_id: str | None) -> Reservation | None:
+                      res_id: str | None,
+                      now: datetime | None = None) -> ProviderBooking | None:
         """A staged target, re-validated: still the verified booking, this
         company and location, and still booked or pending."""
         if res_id is None or res_id != conv.verified_reservation_id:
             return None
-        return (await db.execute(
-            select(Reservation).where(Reservation.id == res_id,
-                                      Reservation.company_id == conv.company_id,
-                                      Reservation.location_id == conv.location_id,
-                                      Reservation.status.in_((BOOKED, PENDING)))
-            .execution_options(populate_existing=True)
-        )).scalar_one_or_none()
+        provider, ctx = await _provider(db, conv, now)
+        res = await provider.lookup(db, ctx, ref=res_id)
+        if res is None or res.status not in (BOOKED, PENDING):
+            return None
+        return res
 
     async def _confirm_cancel(self, db: AsyncSession, conv: AgentConversation,
                               now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
-        res = await self._staged(db, conv, conv.pending_cancel_id)
+        res = await self._staged(db, conv, conv.pending_cancel_id, now)
         conv.pending_cancel_id = None
         await db.flush()
         if res is None:
             return (await self._output(
                 db, conv, "There's no cancellation waiting to be confirmed. Which "
                 "booking would you like to cancel?", None, zone), "nothing_pending")
+        provider, ctx = await _provider(db, conv, now)
         try:
             async with db.begin_nested():
-                res = await booking.cancel(db, conv.company_id, res.id, now=now)
-        except ReservationError as exc:
+                res = await provider.cancel(db, ctx, res.ref)
+        except ProviderError as exc:
             return (await self._output(
                 db, conv, "Sorry, that booking can't be cancelled here. Please contact "
                 "the restaurant.", None, zone), exc.code)
-        conv.reservation_id = res.id
+        conv.reservation_id = res.ref
         conv.verified_reservation_id = None
         conv.pending_modify = None
         await db.flush()
         await recording.finish(db, conv, "cancelled")
         return (TurnOutput(
-            f"Your booking {res.confirmation_code} for {_when(res, zone)} is cancelled.",
+            f"Your booking {res.code} for {_when(res, zone)} is cancelled.",
             "text", None, True, None), "cancelled")
 
     async def _confirm_modify(self, db: AsyncSession, conv: AgentConversation,
                               now: datetime, zone: ZoneInfo) -> tuple[TurnOutput, str]:
         staged = conv.pending_modify
-        res = await self._staged(db, conv, conv.verified_reservation_id) \
+        res = await self._staged(db, conv, conv.verified_reservation_id, now) \
             if isinstance(staged, dict) else None
         conv.pending_modify = None
         await db.flush()
@@ -536,23 +562,24 @@ class AgentCore:
         try:
             start_iso, party = staged.get("start_iso"), staged.get("party_size")
             start = datetime.fromisoformat(start_iso) if isinstance(start_iso, str) else None
+            provider, ctx = await _provider(db, conv, now)
             async with db.begin_nested():
-                res = await booking.modify(
-                    db, conv.company_id, res.id,
+                res = await provider.modify(
+                    db, ctx, res.ref,
                     party_size=party if isinstance(party, int) else None,
-                    start=start, now=now, by_staff=False)
-        except (ReservationError, ValueError) as exc:
+                    start=start)
+        except (ProviderError, ValueError) as exc:
             code = getattr(exc, "code", "invalid_input")
             return (await self._output(
                 db, conv, "Sorry, I couldn't make that change, so your booking is "
                 "unchanged. Shall I look for another option?", None, zone), code)
-        conv.reservation_id = res.id
+        conv.reservation_id = res.ref
         conv.verified_reservation_id = None
         conv.pending_cancel_id = None
         await db.flush()
         await recording.finish(db, conv, "modified")
         return (TurnOutput(
-            f"Done: booking {res.confirmation_code} is now for {res.party_size} on "
+            f"Done: booking {res.code} is now for {res.party_size} on "
             f"{_when(res, zone)}.", "text", None, True, None), "modified")
 
     # -- helpers -----------------------------------------------------------
@@ -563,41 +590,37 @@ class AgentCore:
         is with staff, so `handed_off`."""
         if conv.reservation_id is None:
             return default
-        status = (await db.execute(
-            select(Reservation.status).where(Reservation.id == conv.reservation_id,
-                                             Reservation.company_id == conv.company_id)
-        )).scalar_one_or_none()
+        provider, ctx = await _provider(db, conv)
+        res = await provider.lookup(db, ctx, ref=conv.reservation_id)
+        status = res.status if res is not None else None
         if status == BOOKED:
             return "booked"
         if status == PENDING:
             return "handed_off"
         return default
 
-    async def _active_hold(self, db: AsyncSession,
-                           conv: AgentConversation) -> Reservation | None:
+    async def _active_hold(self, db: AsyncSession, conv: AgentConversation,
+                           now: datetime | None = None) -> ProviderBooking | None:
         """The conversation's unconfirmed hold, if it is still live."""
         if conv.held_reservation_id is None:
             return None
-        res = (await db.execute(
-            select(Reservation).where(Reservation.id == conv.held_reservation_id,
-                                      Reservation.company_id == conv.company_id)
-            .execution_options(populate_existing=True)
-        )).scalar_one_or_none()
-        if res is None or res.status not in (HELD, PENDING) \
-                or res.confirmation_code is not None:
+        provider, ctx = await _provider(db, conv, now)
+        res = await provider.lookup(db, ctx, ref=conv.held_reservation_id)
+        if res is None or res.status not in (HELD, PENDING) or res.code is not None:
             return None
         return res
 
     async def _release_hold(self, db: AsyncSession, conv: AgentConversation,
                             now: datetime) -> bool:
         """Cancel the conversation's unconfirmed hold. Never a confirmed row."""
-        res = await self._active_hold(db, conv)
+        res = await self._active_hold(db, conv, now)
         if res is None:
             return False
+        provider, ctx = await _provider(db, conv, now)
         try:
             async with db.begin_nested():
-                await booking.cancel(db, conv.company_id, res.id, now=now)
-        except ReservationError:
+                await provider.cancel(db, ctx, res.ref)
+        except ProviderError:
             return False  # lapsed under the lock: nothing to release
         return True
 
@@ -608,8 +631,8 @@ class AgentCore:
         res = await self._active_hold(db, conv)
         hold = None
         if res is not None:
-            local = res.start_at.astimezone(zone)
-            hold = {"hold_id": res.id, "party_size": res.party_size,
+            local = res.start.astimezone(zone)
+            hold = {"hold_id": res.ref, "party_size": res.party_size,
                     "local_date": local.date().isoformat(),
                     "local_time": local.strftime("%H:%M"),
                     "start_iso": local.isoformat(),
@@ -636,7 +659,7 @@ class AgentCore:
             res = await self._staged(db, conv, conv.pending_cancel_id)
             if res is None:
                 return None
-            return {"kind": "cancel", "current": _slot(res.start_at, res.party_size, zone),
+            return {"kind": "cancel", "current": _slot(res.start, res.party_size, zone),
                     "proposed": None}
         if expect != tools.EXPECT_CONFIRM_MODIFY or not isinstance(conv.pending_modify,
                                                                    dict):
@@ -648,10 +671,10 @@ class AgentCore:
         party = conv.pending_modify.get("party_size")
         try:
             start = (datetime.fromisoformat(start_iso) if isinstance(start_iso, str)
-                     else res.start_at)
+                     else res.start)
         except ValueError:
             return None
-        return {"kind": "modify", "current": _slot(res.start_at, res.party_size, zone),
+        return {"kind": "modify", "current": _slot(res.start, res.party_size, zone),
                 "proposed": _slot(start, party if isinstance(party, int) else
                                   res.party_size, zone)}
 

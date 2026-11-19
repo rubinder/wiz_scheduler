@@ -66,6 +66,11 @@ and the manager API all ask it, and nothing else computes a free slot. Writes
 go through `booking.py` under a per-location row lock, with an exclusion
 constraint on table time ranges as the backstop. Tables are archived, never
 deleted. Hours, rules and reservation times are the location's local time.
+The AI host agent books only through a `BookingProvider`
+(`backend/reservations/providers/`), fixed per conversation when it starts
+(`agent_conversations.provider`); the WizScheduler adapter wraps
+`find_slots` and `booking.py`. Staff and manager routes call `booking.*`
+directly.
 
 ### Database
 
