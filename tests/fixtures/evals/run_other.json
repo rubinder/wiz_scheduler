@@ -8,6 +8,7 @@
    "conversation_snapshot": {},
    "failures": [],
    "metrics": {
+    "book_goal": true,
     "outcome": "booked",
     "total_cost_usd": 0.02,
     "turn_ms": [

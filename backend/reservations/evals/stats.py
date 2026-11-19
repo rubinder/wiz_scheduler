@@ -87,3 +87,23 @@ def voice_section(metrics: list[dict[str, Any]], scenario_ids: list[str]) -> lis
     errs = sum(len(_voice(m).get("ssml_errors") or []) for m in vm)
     lines.append(f"ssml errors {errs}")
     return lines
+
+
+def _get(r: Any, name: str) -> Any:
+    return r.get(name) if isinstance(r, dict) else getattr(r, name)
+
+
+def book_goal_attempts(results: Iterable[Any]) -> list[Any]:
+    return [r for r in results if (_get(r, "metrics") or {}).get("book_goal") is True]
+
+
+def cost_per_booking(results: Iterable[Any]) -> float | None:
+    """The one definition: the cost of every book-goal attempt over the
+    book-goal attempts that passed; None when none passed. `results` are
+    EvalResult rows or run-file result dicts."""
+    book = book_goal_attempts(results)
+    booked = sum(1 for r in book if _get(r, "passed"))
+    if not booked:
+        return None
+    return sum(float((_get(r, "metrics") or {}).get("total_cost_usd") or 0)
+               for r in book) / booked

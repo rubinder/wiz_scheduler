@@ -9,14 +9,19 @@ from pathlib import Path
 from typing import Any
 
 from backend.reservations.evals.stats import (
-    first_try_understanding, pct_text, stage_percentiles)
+    cost_per_booking, first_try_understanding, pct_text, stage_percentiles)
 
 
 def load_run(ref: str, runs_dir: Path) -> dict[str, Any]:
     """`ref` is a path to a run file, or a run id in `runs_dir`."""
-    path = Path(ref)
-    if not path.is_file():
-        path = runs_dir / f"{ref}.json"
+    if "/" in ref or "\\" in ref or ref.endswith(".json") or Path(ref).is_file():
+        path = Path(ref)
+        if not path.is_file():
+            raise FileNotFoundError(f"no such run file: {ref}")
+    else:
+        path = (runs_dir / f"{ref}.json").resolve()
+        if runs_dir.resolve() not in path.parents:
+            raise ValueError(f"run id {ref!r} is outside {runs_dir}")
     return json.loads(path.read_text())
 
 
@@ -27,15 +32,6 @@ def _metrics(doc: dict[str, Any]) -> list[dict[str, Any]]:
 def pass_rate(doc: dict[str, Any]) -> float | None:
     rs = doc.get("results") or []
     return sum(1 for r in rs if r.get("passed")) / len(rs) if rs else None
-
-
-def cost_per_booking(doc: dict[str, Any]) -> float | None:
-    """Total cost over booked outcomes; None when nothing booked."""
-    rs = doc.get("results") or []
-    cost = sum(float(m.get("total_cost_usd") or 0) for m in _metrics(doc))
-    booked = sum(1 for r in rs
-                 if (r.get("metrics") or {}).get("outcome") == "booked")
-    return cost / booked if booked else None
 
 
 def scenario_ids(doc: dict[str, Any]) -> set[str]:
@@ -73,11 +69,13 @@ def compare_docs(a: dict[str, Any], b: dict[str, Any]) -> str:
     for i, label in ((0, "p50"), (1, "p95")):
         row(f"{label} turn_total", sa[i] if sa else None, sb[i] if sb else None,
             _ms, lambda d: f"{d:+.0f} ms")
-    row("cost per booking", cost_per_booking(a), cost_per_booking(b),
+    row("cost per booking", cost_per_booking(a.get("results") or []),
+        cost_per_booking(b.get("results") or []),
         lambda v: "n/a" if v is None else f"${v:.4f}", lambda d: f"{d:+.4f}")
     w = max(len(r[0]) for r in rows)
     ida, idb = a.get("id", "A"), b.get("id", "B")
-    lines = [f"{'':<{w}}  {ida:>14}  {idb:>14}  delta",
+    lines = ["first-try understanding and the latency rows cover voice attempts only",
+             f"{'':<{w}}  {ida:>14}  {idb:>14}  delta",
              "-" * (w + 40)]
     lines += [f"{n:<{w}}  {x:>14}  {y:>14}  {d}" for n, x, y, d in rows]
     pa, pb = _scenario_pass(a), _scenario_pass(b)
@@ -96,11 +94,16 @@ def compare_main(ref_a: str, ref_b: str, *, allow_mismatch: bool,
     except (OSError, ValueError) as exc:
         print(f"cannot read run file: {exc}", file=sys.stderr)
         return 2
-    ia, ib = scenario_ids(a), scenario_ids(b)
+    try:
+        ia, ib = scenario_ids(a), scenario_ids(b)
+        text = compare_docs(a, b)
+    except (KeyError, AttributeError, TypeError) as exc:
+        print(f"malformed run file: {exc!r}", file=sys.stderr)
+        return 2
     if ia != ib and not allow_mismatch:
         print("refusing to compare: scenario sets differ "
               f"(only in A: {sorted(ia - ib)}; only in B: {sorted(ib - ia)}); "
               "pass --allow-mismatch", file=sys.stderr)
         return 2
-    print(compare_docs(a, b))
+    print(text)
     return 0

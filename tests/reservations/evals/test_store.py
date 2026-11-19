@@ -86,7 +86,7 @@ def test_report_of_nothing_does_not_divide_by_zero() -> None:
 async def test_store_run_persists_metadata_and_results() -> None:
     web, voice = prompt_hashes()
     meta = RunMeta(git_sha="deadbeef", agent_model="claude-x", diner_model="claude-y",
-                   prompt_hash_web=web, prompt_hash_voice=voice, mode="replay",
+                   prompt_hash_web=web, prompt_hash_voice=voice, prompt_version=voice[:12], mode="replay",
                    repeat=2, notes="unit")
     ok = CheckResult(passed=True, metrics=_metrics(2, 3, 0.01, 10, 20))
     bad = CheckResult(passed=False, failures=["no booking"], metrics={})
@@ -137,7 +137,7 @@ def test_write_run_file(tmp_path) -> None:
     run.created_at = datetime(2026, 11, 18, 12, tzinfo=timezone.utc)
     results = [_result("alpha", 1, True, turns=2, calls=4, cost=0.01, p50=100, p95=200)]
     meta = RunMeta(git_sha="abc", agent_model="m-a", diner_model="m-d",
-                   prompt_hash_web="w", prompt_hash_voice="v", mode="live", notes="n")
+                   prompt_hash_web="w", prompt_hash_voice="v", prompt_version="v", mode="live", notes="n")
     path = write_run_file(run, results, meta, "the report", tmp_path / "evals-runs")
     assert path == tmp_path / "evals-runs" / "run00001.json"
     doc = json.loads(path.read_text())

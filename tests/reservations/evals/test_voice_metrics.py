@@ -9,6 +9,7 @@ from backend.reservations.evals.checker import percentile
 from backend.reservations.evals.compare import compare_docs, compare_main, load_run
 from backend.reservations.evals.run import amain
 from backend.reservations.evals.stats import (
+    cost_per_booking,
     first_try_understanding, stage_percentiles, voice_section)
 from backend.reservations.evals.store import RunMeta, write_run_file
 
@@ -60,7 +61,7 @@ def test_compare_two_fixture_runs() -> None:
     assert "+50.0 pts" in out
     assert "first-try understanding" in out and "+33.3 pts" in out  # 66.7 -> 100
     assert "p50 turn_total" in out and "p95 turn_total" in out
-    assert "$0.0300" in out and "$0.0500" in out  # total cost over booked outcomes
+    assert "$0.0200" in out and "$0.0400" in out  # book-goal cost / passing book-goal
     assert "cancel: fail -> pass" in out
     assert "book:" not in out.split("scenario flips:")[1]
 
@@ -76,7 +77,7 @@ def test_compare_old_run_file_shows_na(capsys) -> None:
     assert compare_main(str(FIX / "run_old.json"), str(FIX / "run_b.json"),
                         allow_mismatch=False, runs_dir=FIX) == 0
     out = capsys.readouterr().out
-    line = next(ln for ln in out.splitlines() if ln.startswith("first-try"))
+    line = next(ln for ln in out.splitlines() if ln.startswith("first-try understanding ") and "only" not in ln)
     assert line.split()[-3:] == ["n/a", "100.0%", "n/a"]
     assert "n/a" in next(ln for ln in out.splitlines() if ln.startswith("p50 turn_total"))
 
@@ -101,9 +102,9 @@ def test_run_meta_fields_written(tmp_path) -> None:
                   prompt_hash_web="w", prompt_hash_voice="v", mode="replay", repeat=1,
                   created_at=datetime(2026, 11, 18, tzinfo=timezone.utc))
     base = dict(git_sha="abc", agent_model="m", diner_model="d", prompt_hash_web="w",
-                prompt_hash_voice="v", mode="replay")
+                prompt_hash_voice="v", mode="replay", prompt_version="abcdef123456")
     doc = json.loads(write_run_file(run, [], RunMeta(
-        **base, recognizer="noisy", seed=259, prompt_version="abcdef123456"),
+        **base, recognizer="noisy", seed=259),
         "r", tmp_path).read_text())
     assert doc["meta"]["recognizer"] == "noisy" and doc["meta"]["seed"] == 259
     assert doc["meta"]["voice_knobs"] == {} and "lex" not in doc["meta"]
@@ -112,3 +113,51 @@ def test_run_meta_fields_written(tmp_path) -> None:
     doc = json.loads(write_run_file(run, [], RunMeta(
         **base, recognizer="lex", lex=lex), "r", tmp_path).read_text())
     assert doc["meta"]["lex"] == lex
+
+
+def test_cost_per_booking_single_definition() -> None:
+    rs = [{"passed": True, "metrics": {"book_goal": True, "total_cost_usd": 0.02}},
+          {"passed": False, "metrics": {"book_goal": True, "total_cost_usd": 0.04}},
+          {"passed": True, "metrics": {"book_goal": False, "total_cost_usd": 9.0}}]
+    assert cost_per_booking(rs) == pytest.approx(0.06)
+    assert cost_per_booking(rs[1:2]) is None and cost_per_booking([]) is None
+
+    from backend.reservations.evals.models import EvalResult
+    from backend.reservations.evals.store import format_report
+    from tests.reservations.evals.test_store import _run
+    rows = [EvalResult(scenario_id="s", attempt=i, passed=r["passed"], failures=[],
+                       metrics=r["metrics"], conversation_snapshot={})
+            for i, r in enumerate(rs)]
+    assert cost_per_booking(rows) == pytest.approx(0.06)
+    assert "cost per booking $0.0600" in format_report(_run(), rows)
+
+
+def test_load_run_id_stays_inside_runs_dir(tmp_path) -> None:
+    (tmp_path / "x.json").write_text("{}")
+    assert load_run("x", tmp_path) == {}
+    with pytest.raises((OSError, ValueError)):
+        load_run("..", tmp_path)
+    with pytest.raises((OSError, ValueError)):
+        load_run("nope", tmp_path)
+
+
+def test_compare_malformed_file_exits_2(tmp_path, capsys) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"results": [{"passed": True}]}))
+    assert compare_main(str(bad), str(bad), allow_mismatch=False, runs_dir=tmp_path) == 2
+    bad.write_text(json.dumps({"results": [1]}))
+    assert compare_main(str(bad), str(bad), allow_mismatch=False, runs_dir=tmp_path) == 2
+    bad.write_text("[1]")
+    assert compare_main(str(bad), str(bad), allow_mismatch=False, runs_dir=tmp_path) == 2
+
+
+def test_compare_header_notes_voice_only(capsys) -> None:
+    compare_main("run_a", "run_b", allow_mismatch=False, runs_dir=FIX)
+    assert "voice attempts only" in capsys.readouterr().out
+
+
+def test_percentile_edges() -> None:
+    assert percentile([7], 50) == 7 and percentile([7], 95) == 7
+    assert percentile([1, 2], 50) == 1 and percentile([1, 2], 95) == 2
+    xs = list(range(1, 21))
+    assert percentile(xs, 50) == 10 and percentile(xs, 95) == 19

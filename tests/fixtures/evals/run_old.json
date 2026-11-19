@@ -10,6 +10,7 @@
    "conversation_snapshot": {},
    "failures": [],
    "metrics": {
+    "book_goal": true,
     "outcome": "booked",
     "total_cost_usd": 0.02,
     "turn_ms": [
@@ -24,6 +25,7 @@
    "conversation_snapshot": {},
    "failures": [],
    "metrics": {
+    "book_goal": false,
     "outcome": "cancelled",
     "total_cost_usd": 0.01
    },

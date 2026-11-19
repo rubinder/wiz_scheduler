@@ -23,7 +23,8 @@ from backend.reservations.agent.prompt import build_system_prompt
 from backend.reservations.evals.checker import percentile
 from backend.reservations.evals.models import EvalResult, EvalRun
 from backend.reservations.evals.runner import SuiteResult
-from backend.reservations.evals.stats import voice_section
+from backend.reservations.evals.stats import (
+    book_goal_attempts, cost_per_booking, voice_section)
 from backend.reservations.rules import RulesSchema
 
 REFERENCE_LOCATION = "Reference Bistro"
@@ -40,14 +41,13 @@ class RunMeta:
     prompt_hash_web: str
     prompt_hash_voice: str
     mode: str  # "live" | "replay"
+    prompt_version: str  # sha256[:12] of the rendered reference voice prompt
     repeat: int = 1
     notes: str | None = None
     recognizer: str = "exact"
     seed: int | None = None
     lex: dict[str, str] | None = None  # {bot_id, alias_id, locale}; lex runs only
     voice_knobs: dict[str, Any] = field(default_factory=dict)
-    # sha256[:12] of the rendered reference system prompt (voice).
-    prompt_version: str = ""
 
 
 def prompt_hash(channel: str) -> str:
@@ -164,10 +164,10 @@ def format_report(run: EvalRun, results: Sequence[EvalResult]) -> str:
     passed = sum(1 for r in results if r.passed)
     pct = round(100 * passed / total) if total else 0
     cost = sum(_nums(results, "total_cost_usd"))
-    book = [r for r in results if r.metrics.get("book_goal") is True]
+    book = book_goal_attempts(results)
     booked = sum(1 for r in book if r.passed)
-    per_booking = (f"${sum(_nums(book, 'total_cost_usd')) / booked:.4f}"
-                   if booked else "n/a")
+    cpb = cost_per_booking(results)
+    per_booking = f"${cpb:.4f}" if cpb is not None else "n/a"
     per_conversation = f"${cost / total:.4f}" if total else "n/a"
     turns = _pooled(results, "turn_ms")
     lines += ["",

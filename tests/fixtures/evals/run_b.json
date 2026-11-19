@@ -11,6 +11,7 @@
    "conversation_snapshot": {},
    "failures": [],
    "metrics": {
+    "book_goal": true,
     "llm_ms": [
      100
     ],
@@ -49,6 +50,7 @@
    "conversation_snapshot": {},
    "failures": [],
    "metrics": {
+    "book_goal": false,
     "llm_ms": [
      100
     ],
