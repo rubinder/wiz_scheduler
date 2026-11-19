@@ -72,6 +72,13 @@ export interface Persona {
   facts: string[];
 }
 
+/** Phone tuning knobs: API-only, no editor UI; carried through a save unchanged. */
+export interface VoiceKnobs {
+  voice_reply_max_sentences: number;
+  voice_read_back: boolean;
+  voice_confirm_style: "question" | "statement";
+}
+
 export interface RulesSchema {
   service_periods: ServicePeriod[];
   slot_interval_minutes: number;
@@ -88,6 +95,7 @@ export interface RulesSchema {
   hold_timeout_minutes: number;
   pending_hold_hours: number;
   persona: Persona;
+  voice?: VoiceKnobs;
   staff_transfer_number: string | null;
   /** The AI host stops taking new conversations at this location once today's spend reaches it (min 1). */
   daily_spend_cap_usd: number;

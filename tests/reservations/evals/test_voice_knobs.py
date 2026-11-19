@@ -47,6 +47,12 @@ def test_reply_max_sentences_adds_its_line_on_voice_only() -> None:
     assert "On the phone, answer in at most" not in _prompt("web", voice_reply_max_sentences=2)
 
 
+def test_max_sentences_replaces_the_two_sentence_line() -> None:
+    text = _prompt("voice", voice_reply_max_sentences=3)
+    assert "under two short sentences" not in text
+    assert "under two short sentences" in _prompt("voice")
+
+
 def test_read_back_adds_its_line_on_voice_only() -> None:
     line = ("Before you hold a table, read back the party size, date, time and "
             "the caller's phone number in one sentence.")
@@ -78,7 +84,7 @@ def test_statement_confirm_prompts() -> None:
                         {"kind": "cancel", "current": slot, "proposed": None})
     assert voice.confirm_prompt(cancel, "statement") == (
         "I can cancel your booking for 4 on Friday, December 4th at 7 pm — say "
-        "yes to confirm or no to change it.")
+        "yes to cancel it or no to keep it.")
     reply = voice.spoken_reply(hold, "statement")
     assert reply["confirm_prompt"].startswith("I can book")
 

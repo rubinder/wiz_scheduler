@@ -71,11 +71,12 @@ def _slot(slot: dict[str, Any]) -> str:
     return f"a table for {_when(slot)}"
 
 
-def _ask(question: str, statement: str, style: str) -> str:
+def _ask(question: str, statement: str, style: str,
+         tail: str = "say yes to confirm or no to change it") -> str:
     """`question` is the default wording; "statement" is the same offer as a
     sentence ending in a yes/no instruction."""
     if style == "statement":
-        return f"{statement} \u2014 say yes to confirm or no to change it."
+        return f"{statement} \u2014 {tail}."
     return question
 
 
@@ -95,7 +96,8 @@ def confirm_prompt(out: TurnOutput, style: str = "question") -> str | None:
         if out.expect == "confirm_cancel" and proposal.get("current"):
             when = _when(proposal["current"])
             return _ask(f"Shall I cancel your booking for {when}?",
-                        f"I can cancel your booking for {when}", style)
+                        f"I can cancel your booking for {when}", style,
+                        "say yes to cancel it or no to keep it")
     except (KeyError, TypeError, ValueError):
         return None
     return None

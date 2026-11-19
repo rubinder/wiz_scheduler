@@ -383,7 +383,8 @@ async def _amain(argv: list[str] | None, *, database_url: str | None,
                         # run_suite turns a run that raises into a failed outcome.
                         res = await run_suite(
                             factory, [scenario], core=AgentCore(client),
-                            diner_factory=lambda s: sim, recognizer=recognizer, voice_knobs=knobs)
+                            diner_factory=lambda s: sim, recognizer=recognizer,
+                            voice_knobs=knobs)
                         outcomes += res.outcomes
                         if args.record:
                             recorded += [(o, client.responses, scenario)

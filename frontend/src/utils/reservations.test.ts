@@ -96,6 +96,13 @@ describe("rules form conversion", () => {
     expect(rulesFormToPayload(payloadToRulesForm(rules))).toEqual(rules);
   });
 
+  it("round-trips the voice knobs, so a UI save never resets them", () => {
+    const voice = { voice_reply_max_sentences: 2, voice_read_back: true, voice_confirm_style: "statement" as const };
+    const out = rulesFormToPayload(payloadToRulesForm({ ...rules, voice }));
+    expect(out.voice).toEqual(voice);
+    expect(rulesFormToPayload(payloadToRulesForm(rules))).not.toHaveProperty("voice");
+  });
+
   it("round-trips the daily AI host spend cap, so a save never resets it", () => {
     const form = payloadToRulesForm(rules);
     expect(form.daily_spend_cap_usd).toBe("35.5");

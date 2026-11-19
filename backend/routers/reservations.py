@@ -190,6 +190,10 @@ async def write_rules(
         if problem:
             raise HTTPException(status_code=422, detail={
                 "code": "transfer_number_not_allowed", "message": problem})
+    if "voice" not in body.model_fields_set:
+        # A client that predates the voice knobs must not reset them.
+        stored, _ = await get_rules(db, str(user.company_id), location_id)
+        body = body.model_copy(update={"voice": stored.voice})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

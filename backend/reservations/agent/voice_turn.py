@@ -140,6 +140,14 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
         # A confirmation only answers the question the caller was asked.
         return voice.not_caught(last_reply)
 
+    # Read before the turn commits: nothing after it may raise on a rules read.
+    try:
+        confirm_style = (await get_rules(db, company_id, location_id)
+                         )[0].voice.voice_confirm_style
+    except Exception:
+        logger.exception("voice_bridge.rules_read_failed location=%s", location_id)
+        confirm_style = "question"
+
     claim = await recording.claim_turn_at_location(db, conv, seq=body.seq,
                                                    seen_seq=seen_seq)
     await db.commit()  # so a concurrent request sees the claim; frees the lock
@@ -167,10 +175,8 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
                                                  ("transport", timings.transport_ms))
                       if ms is not None}
             await recording.add_latency(db, conv, before, stages)
-            rules, _ = await get_rules(db, company_id, location_id)
             reply = await _screen_transfer(
-                db, location,
-                voice.spoken_reply(out, rules.voice.voice_confirm_style), now)
+                db, location, voice.spoken_reply(out, confirm_style), now)
     except BaseException:
         # handle_turn never raises an Exception: the call went away mid-turn.
         await gate.clear_mark_after_cancel(db, conv_id, company_id)
