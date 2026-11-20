@@ -18,6 +18,22 @@ to its provider (`agent_conversations.provider`), so a WizScheduler
 reservation id links only WizScheduler conversations and a mock booking id
 only mock ones: a ref is never matched against the other provider's ids.
 
+Erasure by confirmation code (`erase_by_code`) is the narrower request: one
+reservation, found by its code at the location in WizScheduler's or the
+mock's inventory, with the same scrub. A code both inventories hold here is
+refused (`AmbiguousCode`, 409): the manager erases by phone instead. While a
+linked conversation is still mid-turn, the mock booking is scrubbed but kept
+(its id and code), so erasing again by the same code still finds it and its
+conversation; it is deleted once none is in flight. It clears that
+reservation's contact fields (or deletes that mock booking) and deletes the
+conversations linked to it: by the provider-scoped refs, matched against
+conv.provider's inventory only, and by the reservation's own
+`conversation_id`. It does not touch the diner's other reservations, the
+conversations matched only by caller number, the lookup failures or the
+number-list entries: those belong to the phone number, and phone erasure
+removes them. Codes are matched as the agent's lookup matches them
+(surrounding whitespace dropped, upper-cased).
+
 Number-list entries for that number (#259 step 7) are diner data too. The
 request is per location and so is the manager's scope: export lists this
 location's entries and the company-wide ones (location_id NULL), and erase
@@ -47,18 +63,21 @@ left as it is and counted in `conversations_still_in_flight` (erase again
 later).
 """
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, delete, func, not_, or_, select, text, update
+from sqlalchemy import and_, delete, false, func, not_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
+from backend.models import Location
 from backend.reservations.agent.models import (
     AgentConversation,
     AgentEvent,
     ReservationLookupFailure,
 )
-from backend.reservations import booking, number_rules
+from backend.reservations import booking, demo_data, number_rules, subscription
 from backend.reservations.agent.recording import ERASED_SEQ, TURN_STALE_SECONDS
 from backend.reservations.booking import E164, InvalidPhone
 from backend.reservations.models import Reservation
@@ -66,6 +85,22 @@ from backend.reservations.providers import mock_external
 from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.queries import conversation_events
 from backend.reservations.screening_models import NumberRule
+from backend.services import operator_alerts
+
+logger = logging.getLogger(__name__)
+
+
+# The demo location's diner data is purged once this old (purge_demo_location).
+DEMO_PURGE_HOURS = 24
+
+
+class AmbiguousCode(booking.ReservationError):
+    """A WizScheduler reservation and a mock booking here share the code."""
+    code = "ambiguous_code"
+
+    def __init__(self) -> None:
+        super().__init__("A reservation and an external booking here share this code: "
+                         "erase by the diner's phone number instead.")
 
 
 @dataclass(frozen=True)
@@ -108,11 +143,12 @@ def _refs_in(ids: list[str]):
 
 
 def _conversation_filter(
-    company_id: str, location_id: str, phone: str, reservation_ids: list[str],
+    company_id: str, location_id: str, phone: str | None, reservation_ids: list[str],
     conversation_ids: list[str], mock_ids: list[str],
 ):
-    """A conversation's refs are matched against its own provider's ids only."""
-    linked = [AgentConversation.caller_number == phone]
+    """A conversation's refs are matched against its own provider's ids only.
+    `phone` None (erase by code) matches no conversation by caller number."""
+    linked = [AgentConversation.caller_number == phone] if phone is not None else []
     if reservation_ids:
         linked.append(and_(AgentConversation.provider == "wizscheduler",
                            _refs_in(reservation_ids)))
@@ -121,6 +157,8 @@ def _conversation_filter(
                            _refs_in(mock_ids)))
     if conversation_ids:
         linked.append(AgentConversation.id.in_(conversation_ids))
+    if not linked:
+        linked.append(false())
     return (
         AgentConversation.company_id == company_id,
         AgentConversation.location_id == location_id,
@@ -171,36 +209,39 @@ def _in_flight():
     )
 
 
-async def erase_diner_data(
-    db: AsyncSession, company_id: str, location_id: str, phone: str
-) -> dict[str, int]:
-    """Erase one diner's data at one location. Flushes; the caller commits
-    (which releases the location lock)."""
-    _require_phone(phone)
-    now = datetime.now(timezone.utc)
-    # 1. Location lock first; an archived location still serializes.
+async def _lock(db: AsyncSession, company_id: str, location_id: str,
+                now: datetime) -> None:
+    """The location lock first; an archived location still serializes. Then
+    the mock's own location lock, so no mock hold for the diner slips in
+    either (a mock turn takes it after its conversation row, and the erase
+    never waits on a conversation row)."""
     if not await booking.begin_location_write(db, company_id, location_id, now):
         if not await booking.lock_location_including_archived(
                 db, company_id, location_id):
             raise booking.ReservationNotFound()
-    #    Then the mock's own location lock, so no mock hold for the diner
-    #    slips in either (a mock turn takes it after its conversation row,
-    #    and the erase never waits on a conversation row).
     await mock_external.lock_location(db, location_id)
-    # 2. Snapshot under the locks, before the reservations lose their phone.
-    reservation_ids, conversation_ids = await _reservations(
-        db, company_id, location_id, phone)
-    mock_ids = [b.ref for b in await mock_external.bookings_for_phone(
-        db, company_id, location_id, phone, now)]
+
+
+async def _erase(
+    db: AsyncSession, company_id: str, location_id: str, phone: str | None,
+    reservation_ids: list[str], conversation_ids: list[str], mock_ids: list[str],
+    *, keep_mock_in_flight: bool = False,
+) -> dict[str, int]:
+    """The scrub both requests share, over a snapshot taken under the locks:
+    the conversations matched (deleted, or closed mid-turn), the
+    reservations' contact fields and the mock bookings. With
+    `keep_mock_in_flight` (erase by code), a conversation left in flight
+    keeps the mock bookings as scrubbed rows rather than deleting them, so a
+    retry by the same code finds them."""
     matched = _conversation_filter(company_id, location_id, phone, reservation_ids,
                                    conversation_ids, mock_ids)
     total = (await db.execute(
         select(func.count()).select_from(AgentConversation).where(*matched)
     )).scalar_one()
-    # 3. Delete the idle conversations. Rows are locked SKIP LOCKED (never
-    #    waited on, see the lock order above) and the in-flight test runs
-    #    once the lock is held, so a turn claimed meanwhile is skipped rather
-    #    than deleted under it.
+    # Delete the idle conversations. Rows are locked SKIP LOCKED (never
+    # waited on, see the lock order above) and the in-flight test runs once
+    # the lock is held, so a turn claimed meanwhile is skipped rather than
+    # deleted under it.
     idle = list((await db.execute(
         select(AgentConversation.id).where(*matched, not_(_in_flight()))
         .with_for_update(skip_locked=True)
@@ -212,8 +253,8 @@ async def erase_diner_data(
                                             AgentConversation.id.in_(idle))
             .execution_options(synchronize_session=False)
         )).rowcount
-    # 4. What is left of the match has a turn in flight: close what is not
-    #    locked; a row a turn holds is skipped and counted as still in flight.
+    # What is left of the match has a turn in flight: close what is not
+    # locked; a row a turn holds is skipped and counted as still in flight.
     busy = list((await db.execute(
         select(AgentConversation.id).where(*matched)
         .with_for_update(skip_locked=True)
@@ -228,7 +269,7 @@ async def erase_diner_data(
                     ended_at=func.coalesce(AgentConversation.ended_at, func.now()))
             .execution_options(synchronize_session=False)
         )).rowcount
-    # 5. Scrub the snapshot, all statuses.
+    # Scrub the snapshot, all statuses.
     scrubbed = 0
     if reservation_ids:
         scrubbed = (await db.execute(
@@ -239,7 +280,35 @@ async def erase_diner_data(
                     notes=None)
             .execution_options(synchronize_session=False)
         )).rowcount
-    external_deleted = await mock_external.erase_bookings(db, company_id, mock_ids)
+    if keep_mock_in_flight and total > deleted:
+        await mock_external.scrub_bookings(db, company_id, mock_ids)
+        external_deleted = 0
+    else:
+        external_deleted = await mock_external.erase_bookings(db, company_id, mock_ids)
+    return {
+        "reservations_scrubbed": scrubbed,
+        "external_bookings_deleted": external_deleted,
+        "conversations_deleted": deleted,
+        "conversations_closed_in_flight": closed,
+        "conversations_still_in_flight": max(0, total - deleted - closed),
+    }
+
+
+async def erase_diner_data(
+    db: AsyncSession, company_id: str, location_id: str, phone: str
+) -> dict[str, int]:
+    """Erase one diner's data at one location. Flushes; the caller commits
+    (which releases the location lock)."""
+    _require_phone(phone)
+    now = datetime.now(timezone.utc)
+    await _lock(db, company_id, location_id, now)
+    # Snapshot under the locks, before the reservations lose their phone.
+    reservation_ids, conversation_ids = await _reservations(
+        db, company_id, location_id, phone)
+    mock_ids = [b.ref for b in await mock_external.bookings_for_phone(
+        db, company_id, location_id, phone, now)]
+    counts = await _erase(db, company_id, location_id, phone, reservation_ids,
+                          conversation_ids, mock_ids)
     lookups = (await db.execute(
         delete(ReservationLookupFailure).where(
             ReservationLookupFailure.company_id == company_id,
@@ -259,12 +328,110 @@ async def erase_diner_data(
     )).scalar_one()
     await db.flush()
     return {
-        "reservations_scrubbed": scrubbed,
-        "external_bookings_deleted": external_deleted,
-        "conversations_deleted": deleted,
-        "conversations_closed_in_flight": closed,
-        "conversations_still_in_flight": max(0, total - deleted - closed),
+        **counts,
         "lookup_failures_deleted": lookups,
         "number_rules_deleted": rules,
         "company_rules_remaining": company_rules,
+    }
+
+
+async def erase_by_code(
+    db: AsyncSession, company_id: str, location_id: str, code: str
+) -> dict[str, int]:
+    """Erase the one reservation with this confirmation code at this
+    location, and its conversations. Raises booking.ReservationNotFound when
+    no reservation or mock booking here has the code, AmbiguousCode when
+    both do. Flushes; the caller commits (which releases the location lock)."""
+    code = booking.normalize_code(code)
+    now = datetime.now(timezone.utc)
+    await _lock(db, company_id, location_id, now)
+    rows = (await db.execute(
+        select(Reservation.id, Reservation.conversation_id).where(
+            Reservation.company_id == company_id,
+            Reservation.location_id == location_id,
+            Reservation.confirmation_code == code,
+        )
+    )).all()
+    mock_ids = await mock_external.refs_for_code(db, company_id, location_id, code)
+    if not rows and not mock_ids:
+        raise booking.ReservationNotFound()
+    if rows and mock_ids:
+        raise AmbiguousCode()
+    counts = await _erase(
+        db, company_id, location_id, None, [r.id for r in rows],
+        sorted({r.conversation_id for r in rows if r.conversation_id}), mock_ids,
+        keep_mock_in_flight=True)
+    await db.flush()
+    return counts
+
+
+async def purge_demo_location(db: AsyncSession, now: datetime) -> dict[str, int]:
+    """Purge the public demo location's diner data entered before
+    DEMO_PURGE_HOURS ago (decision 94): its manager login is shown to every
+    visitor, so a real visitor's details must not sit there. The same scrub
+    as erasure (`_erase`), under the same locks: reservations created before
+    the cutoff lose their contact fields (the seed's fictional ones are kept),
+    conversations started before it are deleted (closed if mid-turn), mock
+    bookings made before it are deleted, and lookup failures before it go.
+    Only settings.RESERVATIONS_DEMO_LOCATION_ID of
+    RESERVATIONS_DEMO_COMPANY_ID, never another location: nothing is done
+    when that location does not exist, and nothing, with a warning and an
+    operator alert, when its group is not comped: the settings are
+    env-overridable, and a wrong value must not purge a real tenant.
+
+    A seeded booking (demo_data) is kept only while its name, phone, email
+    and notes still equal the seed's exactly; one a demo manager edited
+    (a real person's name behind the seeded @example.com email) is scrubbed
+    like a visitor's, and the next seed rerun restores it. Flushes; the
+    caller commits."""
+    company_id = settings.RESERVATIONS_DEMO_COMPANY_ID
+    location_id = settings.RESERVATIONS_DEMO_LOCATION_ID
+    zero = {"demo_reservations_scrubbed": 0, "demo_conversations_deleted": 0,
+            "demo_external_bookings_deleted": 0, "demo_lookup_failures_deleted": 0}
+    exists = (await db.execute(select(Location.id).where(
+        Location.id == location_id, Location.company_id == company_id)
+    )).scalar_one_or_none()
+    if exists is None:
+        return zero
+    if not await subscription.is_comped_company(db, company_id):
+        logger.warning("demo purge refused: company %s is not comped", company_id)
+        operator_alerts.send_demo_purge_refused_alert(company_id, location_id)
+        return zero
+    cutoff = now - timedelta(hours=DEMO_PURGE_HOURS)
+    await _lock(db, company_id, location_id, now)
+    candidates = (await db.execute(
+        select(Reservation.id, Reservation.diner_name, Reservation.diner_phone,
+               Reservation.diner_email, Reservation.notes).where(
+            Reservation.company_id == company_id,
+            Reservation.location_id == location_id,
+            Reservation.created_at < cutoff,
+            or_(Reservation.diner_name.isnot(None), Reservation.diner_phone.isnot(None),
+                Reservation.diner_email.isnot(None), Reservation.notes.isnot(None)),
+        )
+    )).all()
+    reservation_ids = [
+        r.id for r in candidates
+        if demo_data.seeded_contact(r.id)
+        != (r.diner_name, r.diner_phone, r.diner_email, r.notes)]
+    conversation_ids = list((await db.execute(
+        select(AgentConversation.id).where(
+            AgentConversation.company_id == company_id,
+            AgentConversation.location_id == location_id,
+            AgentConversation.started_at < cutoff)
+    )).scalars().all())
+    mock_ids = await mock_external.refs_created_before(db, company_id, location_id, cutoff)
+    counts = await _erase(db, company_id, location_id, None, reservation_ids,
+                          conversation_ids, mock_ids)
+    lookups = (await db.execute(
+        delete(ReservationLookupFailure).where(
+            ReservationLookupFailure.company_id == company_id,
+            ReservationLookupFailure.location_id == location_id,
+            ReservationLookupFailure.created_at < cutoff)
+    )).rowcount
+    await db.flush()
+    return {
+        "demo_reservations_scrubbed": counts["reservations_scrubbed"],
+        "demo_conversations_deleted": counts["conversations_deleted"],
+        "demo_external_bookings_deleted": counts["external_bookings_deleted"],
+        "demo_lookup_failures_deleted": lookups,
     }

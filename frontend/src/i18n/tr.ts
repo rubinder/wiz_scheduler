@@ -1443,6 +1443,9 @@ const trLang = {
     weightRequired: "Onaylamadan önce her satıra 0 ile 1 arasında bir ağırlık girin.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Bu bir demo restorandır. Lütfen uydurma bilgiler kullanın — demo hesabı yazdıklarınızı görebilir.",
+    },
     common: {
       notEnabled: "Bu hesap için rezervasyonlar etkin değil.",
       loading: "Yükleniyor...",
@@ -1458,6 +1461,7 @@ const trLang = {
       party_too_large: "Bu grup bu rezervasyon için çok büyük.",
       invalid_transition: "Bu durum değişikliğine izin verilmiyor.",
       not_found: "Bulunamadı.",
+      ambiguous_code: "Buradaki bir rezervasyon ile harici bir rezervasyon aynı kodu paylaşıyor. Bunun yerine misafirin telefon numarasıyla silin.",
       invalid_party_size: "Geçersiz grup büyüklüğü.",
       table_has_bookings: "Bu masanın rezervasyonları var ve değiştirilemez.",
       duplicate_label: "İki masa aynı etikete sahip.",
@@ -1471,6 +1475,7 @@ const trLang = {
       phone_required: "Bu rezervasyon için telefon numarası gerekli.",
       code_exhausted: "Onay kodu oluşturulamadı. Lütfen tekrar deneyin.",
       admin_only: "Bunu yalnızca bir yönetici değiştirebilir.",
+      comped_cap_limit: "Ücretsiz planda günlük harcama sınırı {cap} tutarını aşamaz.",
       generic: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const trLang = {
       persona: "Telefon asistanı",
       voiceId: "Polly ses kimliği",
       greeting: "Karşılama",
+      greetingHint: "Misafirlere sunucunun otomatik olduğunu söylemelidir: İngilizce \"automated\" kelimesini ekleyin. Varsayılan karşılama için boş bırakın.",
       facts: "Asistanın paylaşabileceği bilgiler",
       addFact: "Bilgi ekle",
       transferNumber: "Personele aktarma numarası",
@@ -1648,6 +1654,7 @@ const trLang = {
       description: "Rezervasyon YZ karşılayıcısının, vardiya planlamasından ayrı kendi aboneliği vardır.",
       cardTitle: "YZ karşılayıcı aboneliği",
       price: "Aylık {price}, {included} kullanım dahil, sonrası bizim maliyetimiz + %{markup}",
+      compedPrice: "Ücretsiz plan",
       subscribe: "Abone ol",
       redirecting: "Ödemeye yönlendiriliyor...",
       manage: "Yönet",
@@ -1667,6 +1674,7 @@ const trLang = {
         paused: "Duraklatıldı",
         unpaid: "Ödenmedi",
         incomplete: "Ödeme tamamlanmadı",
+        comped: "Dahil",
         unknown: "Bilinmiyor",
         none: "Abone değil",
       },
@@ -1734,6 +1742,11 @@ const trLang = {
         erased: "Silindi: {scrubbed} rezervasyon temizlendi, {deleted} konuşma silindi, {closed} yanıt ortasında kapatıldı, {busy} hâlâ sürüyor, {lookups} arama kaydı silindi.",
         eraseAgain: "Bazı konuşmalar hâlâ sürüyordu: birkaç dakika sonra yeniden silin.",
         externalErased: "{count} harici rezervasyon silindi.",
+        code: "Onay kodu",
+        codeHint: "Yalnızca o rezervasyonun iletişim bilgilerini ve konuşmalarını siler. Misafirin diğer rezervasyonları kalır: bu kişiye ait her şeyi silmek için telefon numarasını kullanın.",
+        eraseByCode: "Bu rezervasyonu sil",
+        confirmEraseByCode: "{code} rezervasyonu silinsin mi? İletişim bilgileri kaldırılır ve konuşmaları silinir. Misafirin diğer rezervasyonları korunur. Bu işlem geri alınamaz.",
+        erasedByCode: "{code} rezervasyonu silindi: {scrubbed} rezervasyon temizlendi, {deleted} konuşma silindi, {closed} yanıt ortasında kapatıldı, {busy} hâlâ sürüyor.",
       },
       channels: {
         web: "Web sohbeti",

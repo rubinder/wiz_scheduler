@@ -19,6 +19,7 @@ from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
 from backend.analytics.models import AgentDailyMetric
+from backend.reservations import diner_data
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
 from backend.reservations.mock_external_models import (
     MockExternalBooking,
@@ -320,6 +321,11 @@ async def run_data_retention(db: AsyncSession) -> dict:
             .values(diner_name=None, diner_phone=None)
         )
         summary["old_mock_external_diners_scrubbed"] = result.rowcount
+
+        # 7f. The public demo location (decision 94): every visitor sees its
+        #     manager login, so its diner data goes after 24 hours, with the
+        #     same scrub as a diner erasure. That one location only.
+        summary.update(await diner_data.purge_demo_location(db, now))
 
         # 8. Signup signals past their window. These are observe-only
         #    anti-abuse breadcrumbs (services/signup_signals.py), not account

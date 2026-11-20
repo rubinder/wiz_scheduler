@@ -13,7 +13,8 @@ carries no diner data and outlives the conversation (retention and erasure
 delete agent_conversations; `conversation_id` is then set NULL).
 
 The agent answers only while the group's subscription is `active`,
-`trialing` or `past_due` (Ruling T: Stripe is still retrying the card), see
+`trialing` or `past_due` (Ruling T: Stripe is still retrying the card), or
+`comped` (given free by the operator; Stripe never sees it), see
 `active_for_location`, and while the location's spend today is under its
 `daily_spend_cap_usd` (`cap_reached`).
 
@@ -44,8 +45,9 @@ from backend.config import settings
 from backend.models.company import Company
 from backend.models.location import Location
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import get_rules
+from backend.reservations.rules import RulesSchema, get_rules
 from backend.reservations.subscription_models import (
+    COMPED,
     PRODUCT,
     STATUSES,
     AgentUsage,
@@ -53,16 +55,18 @@ from backend.reservations.subscription_models import (
 )
 from backend.utils.id_gen import generate_short_id
 
-__all__ = ["PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
+__all__ = ["COMPED", "PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
 
 # Ruling T (decision 38): past_due keeps service while Stripe retries the
 # card; unpaid, paused, canceled, incomplete and incomplete_expired stop it.
+# A comped group (no Stripe subscription, #259 step 11) is answered too.
 logger = logging.getLogger(__name__)
 
-ANSWERING_STATUSES = ("active", "trialing", "past_due")
-# Statuses whose usage overage is reconciled onto the next invoice. The same
-# set as ANSWERING_STATUSES today, kept apart because who may use the agent
-# and what Stripe will still invoice are separate questions.
+ANSWERING_STATUSES = ("active", "trialing", "past_due", COMPED)
+# Statuses whose usage overage is reconciled onto the next invoice. Kept
+# apart from ANSWERING_STATUSES because who may use the agent and what Stripe
+# will still invoice are separate questions: a comped group is answered, and
+# its usage is metered as cost, but Stripe never invoices it.
 BILLABLE_STATUSES = ("active", "trialing", "past_due")
 _CENT = Decimal("0.01")
 BUSY_TEXT = "Online booking is busy right now — please call the restaurant."
@@ -156,7 +160,7 @@ async def active_for_location(
     db: AsyncSession, company_id: str, location_id: str, now: datetime,
 ) -> ReservationSubscription | None:
     """The subscription that lets the agent answer at this location: the
-    location's group's, while `active`, `trialing` or `past_due`
+    location's group's, while `active`, `trialing`, `past_due` or `comped`
     (ANSWERING_STATUSES). Anything else (no group,
     no subscription, any other status, a location of another company) is None.
 
@@ -192,16 +196,86 @@ async def spend_today(
     counts all of its cost against the day it started, none against the
     next. Bounded: a conversation runs at most RESERVATION_AGENT_MAX_TURNS
     turns of RESERVATION_AGENT_MAX_TOKENS output, so what a chat carried
-    over midnight spends uncounted on the new day is that much at most."""
+    over midnight spends uncounted on the new day is that much at most.
+
+    Spend survives erasure (decision 93): a diner erasure deletes
+    conversations, and the public demo login can erase its own chats by
+    code, so a sum over conversations alone would let chat, book, erase
+    reset the day forever. The metered AgentUsage row (subscription.meter)
+    outlives its conversation: the FK sets conversation_id NULL and the row
+    keeps location_id, cost_usd and created_at (its first metered turn,
+    within seconds of the conversation's start). So today's spend is the
+    live conversations by start day plus the orphaned usage rows by
+    created_at. Not computed from AgentUsage alone: meter writes no row for
+    a cost that bills to 0.00, a `blocked` conversation or a company with no
+    ownership group, and a live conversation's row lags its cost by the
+    metering savepoint. Applies to every group, not only comped ones."""
     zone = tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)
     start, end = _local_day_bounds(now, zone)
-    total = (await db.execute(
+    live = (await db.execute(
         select(func.coalesce(func.sum(AgentConversation.cost_usd), 0))
         .where(AgentConversation.location_id == location_id,
                AgentConversation.started_at >= start,
                AgentConversation.started_at < end)
     )).scalar_one()
-    return Decimal(total)
+    erased = (await db.execute(
+        select(func.coalesce(func.sum(AgentUsage.cost_usd), 0))
+        .where(AgentUsage.location_id == location_id,
+               AgentUsage.conversation_id.is_(None),
+               AgentUsage.created_at >= start,
+               AgentUsage.created_at < end)
+    )).scalar_one()
+    return Decimal(live) + Decimal(erased)
+
+
+async def is_comped_company(db: AsyncSession, company_id: str) -> bool:
+    """The company's group holds a comped AI host subscription."""
+    return (await db.execute(
+        select(ReservationSubscription.id)
+        .join(Company, Company.ownership_group_id
+              == ReservationSubscription.ownership_group_id)
+        .where(Company.id == company_id, ReservationSubscription.status == COMPED)
+    )).scalar_one_or_none() is not None
+
+
+class CompedCapLimit(Exception):
+    """A comped group's rules asked for a daily cap above COMPED_DAILY_CAP_USD."""
+
+    def __init__(self, ceiling: float) -> None:
+        self.ceiling = ceiling
+        super().__init__(
+            f"A complimentary plan's daily spend cap cannot be above ${ceiling:.2f}")
+
+
+async def check_rules_cap(db: AsyncSession, company_id: str, cap: float) -> None:
+    """Refuse a rules write whose daily_spend_cap_usd is above
+    COMPED_DAILY_CAP_USD for a comped group (CompedCapLimit). daily_cap
+    clamps it anyway; a saved cap the location can never reach would only
+    mislead the manager."""
+    ceiling = settings.COMPED_DAILY_CAP_USD
+    if cap > ceiling and await is_comped_company(db, company_id):
+        raise CompedCapLimit(ceiling)
+
+
+async def rules_as_shown(db: AsyncSession, company_id: str, rules: RulesSchema) -> RulesSchema:
+    """The rules as the editor reads them: for a comped group the daily cap is
+    the effective one, min(stored, COMPED_DAILY_CAP_USD), so saving them
+    unchanged passes check_rules_cap (the $20 default would not)."""
+    ceiling = settings.COMPED_DAILY_CAP_USD
+    if rules.daily_spend_cap_usd > ceiling and await is_comped_company(db, company_id):
+        return rules.model_copy(update={"daily_spend_cap_usd": ceiling})
+    return rules
+
+
+async def daily_cap(db: AsyncSession, company_id: str, location_id: str) -> Decimal:
+    """The location's effective daily spend cap: its rules' daily_spend_cap_usd,
+    and for a comped group never above COMPED_DAILY_CAP_USD (its usage is
+    never invoiced, and a manager can raise the rules cap)."""
+    rules, _ = await get_rules(db, company_id, location_id)
+    cap = Decimal(str(rules.daily_spend_cap_usd))
+    if await is_comped_company(db, company_id):
+        cap = min(cap, Decimal(str(settings.COMPED_DAILY_CAP_USD)))
+    return cap
 
 
 async def cap_reached(
@@ -210,11 +284,11 @@ async def cap_reached(
 ) -> bool:
     """True once the location's spend today, plus the cost bound of each of
     `inflight_turns` other turns still running (recording.inflight_turns),
-    reaches its daily_spend_cap_usd. See the module notes on overshoot."""
-    rules, _ = await get_rules(db, company_id, location.id)
+    reaches its effective daily cap (daily_cap). See the module notes on
+    overshoot."""
     spent = await spend_today(db, location.id, now, location.timezone)
     reserved = Decimal(str(settings.RESERVATION_AGENT_TURN_COST_BOUND_USD)) * inflight_turns
-    return spent + reserved >= Decimal(str(rules.daily_spend_cap_usd))
+    return spent + reserved >= await daily_cap(db, company_id, location.id)
 
 
 async def busy_text(db: AsyncSession, company_id: str, location_id: str) -> str:

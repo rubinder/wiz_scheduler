@@ -1443,6 +1443,9 @@ const zh = {
     weightRequired: "批准前，请在每一行输入 0 到 1 之间的权重。",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "这是一家演示餐厅。请使用虚构的信息——演示账户可以看到您输入的内容。",
+    },
     common: {
       notEnabled: "此账户未启用预订功能。",
       loading: "加载中...",
@@ -1458,6 +1461,7 @@ const zh = {
       party_too_large: "该人数超出此预订的上限。",
       invalid_transition: "不允许此状态变更。",
       not_found: "未找到。",
+      ambiguous_code: "此处有一个预订和一个外部预订使用同一确认码。请改用食客的电话号码清除。",
       invalid_party_size: "人数无效。",
       table_has_bookings: "该餐桌有预订，无法更改。",
       duplicate_label: "两张餐桌的标签相同。",
@@ -1471,6 +1475,7 @@ const zh = {
       phone_required: "此预订需要电话号码。",
       code_exhausted: "无法生成确认码，请重试。",
       admin_only: "只有管理员可以更改此项。",
+      comped_cap_limit: "免费方案的每日支出上限不能高于 {cap}。",
       generic: "出了点问题，请重试。",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const zh = {
       persona: "电话助理",
       voiceId: "Polly 语音 ID",
       greeting: "问候语",
+      greetingHint: "必须告知食客接待方是自动化的：请包含英文单词 \"automated\"。留空则使用默认问候语。",
       facts: "助理可告知的信息",
       addFact: "添加信息",
       transferNumber: "转接店员的号码",
@@ -1648,6 +1654,7 @@ const zh = {
       description: "预订 AI 接待员有独立的订阅，与排班订阅分开。",
       cardTitle: "AI 接待员订阅",
       price: "每月 {price}，含 {included} 用量，超出部分按我们的成本 + {markup}% 计费",
+      compedPrice: "免费方案",
       subscribe: "订阅",
       redirecting: "正在跳转到支付页面...",
       manage: "管理",
@@ -1667,6 +1674,7 @@ const zh = {
         paused: "已暂停",
         unpaid: "未付款",
         incomplete: "付款未完成",
+        comped: "已包含",
         unknown: "未知",
         none: "未订阅",
       },
@@ -1734,6 +1742,11 @@ const zh = {
         erased: "已清除：{scrubbed} 条预订已清理，{deleted} 条对话已删除，{closed} 条在回复中途关闭，{busy} 条仍在进行，{lookups} 条查询记录已删除。",
         eraseAgain: "部分对话仍在进行：请几分钟后再次清除。",
         externalErased: "已删除 {count} 个外部预订。",
+        code: "确认码",
+        codeHint: "只清除该预订的联系信息及其对话。该食客的其他预订会保留：如需清除此人的全部数据，请使用电话号码。",
+        eraseByCode: "清除此预订",
+        confirmEraseByCode: "要清除预订 {code} 吗？其联系信息将被移除，其对话将被删除。该食客的其他预订会保留。此操作无法撤销。",
+        erasedByCode: "已清除预订 {code}：清理了 {scrubbed} 个预订，删除了 {deleted} 个对话，{closed} 个在回复中途关闭，{busy} 个仍在进行中。",
       },
       channels: {
         web: "网页聊天",

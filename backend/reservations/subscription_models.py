@@ -21,8 +21,13 @@ from backend.database import Base
 from backend.utils.id_gen import generate_short_id
 
 PRODUCT = "reservation_agent"
+# Stripe's subscription statuses, plus `comped`: ours alone, for a group the
+# operator gives the AI host free of charge (the demo tenant). A comped row has
+# no Stripe subscription, and no Stripe path in services/billing_reservations
+# acts on it.
+COMPED = "comped"
 STATUSES = ("incomplete", "incomplete_expired", "active", "trialing", "past_due",
-            "canceled", "unpaid", "paused")
+            "canceled", "unpaid", "paused", COMPED)
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:

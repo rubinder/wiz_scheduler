@@ -1443,6 +1443,9 @@ const vi = {
     weightRequired: "Nhập trọng số từ 0 đến 1 ở mọi dòng trước khi phê duyệt.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Đây là nhà hàng demo. Vui lòng dùng thông tin bịa — tài khoản demo có thể xem những gì bạn nhập.",
+    },
     common: {
       notEnabled: "Tài khoản này chưa bật đặt chỗ.",
       loading: "Đang tải...",
@@ -1458,6 +1461,7 @@ const vi = {
       party_too_large: "Nhóm này quá lớn cho lượt đặt này.",
       invalid_transition: "Không cho phép thay đổi trạng thái đó.",
       not_found: "Không tìm thấy.",
+      ambiguous_code: "Một lượt đặt và một lượt đặt bên ngoài ở đây dùng chung mã này. Hãy xóa bằng số điện thoại của thực khách.",
       invalid_party_size: "Số người không hợp lệ.",
       table_has_bookings: "Bàn đó đã có lượt đặt nên không thể thay đổi.",
       duplicate_label: "Hai bàn có cùng nhãn.",
@@ -1471,6 +1475,7 @@ const vi = {
       phone_required: "Đặt chỗ này cần có số điện thoại.",
       code_exhausted: "Không thể tạo mã xác nhận. Vui lòng thử lại.",
       admin_only: "Chỉ quản trị viên mới có thể thay đổi mục này.",
+      comped_cap_limit: "Với gói miễn phí, hạn mức chi tiêu hằng ngày không được vượt quá {cap}.",
       generic: "Đã xảy ra lỗi. Vui lòng thử lại.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const vi = {
       persona: "Trợ lý điện thoại",
       voiceId: "Mã giọng Polly",
       greeting: "Lời chào",
+      greetingHint: "Phải cho thực khách biết người tiếp đón là tự động: hãy có từ tiếng Anh \"automated\". Để trống để dùng lời chào mặc định.",
       facts: "Thông tin trợ lý có thể chia sẻ",
       addFact: "Thêm thông tin",
       transferNumber: "Số chuyển máy cho nhân viên",
@@ -1648,6 +1654,7 @@ const vi = {
       description: "Lễ tân AI đặt bàn có gói đăng ký riêng, tách biệt với xếp lịch.",
       cardTitle: "Gói đăng ký Lễ tân AI",
       price: "{price}/tháng, gồm {included} mức sử dụng, sau đó là chi phí của chúng tôi + {markup}%",
+      compedPrice: "Gói miễn phí",
       subscribe: "Đăng ký",
       redirecting: "Đang chuyển đến trang thanh toán...",
       manage: "Quản lý",
@@ -1667,6 +1674,7 @@ const vi = {
         paused: "Tạm dừng",
         unpaid: "Chưa thanh toán",
         incomplete: "Chưa hoàn tất thanh toán",
+        comped: "Đã bao gồm",
         unknown: "Không rõ",
         none: "Chưa đăng ký",
       },
@@ -1734,6 +1742,11 @@ const vi = {
         erased: "Đã xóa: {scrubbed} đặt bàn được làm sạch, {deleted} cuộc trò chuyện bị xóa, {closed} bị đóng giữa chừng, {busy} vẫn đang diễn ra, {lookups} bản ghi tra cứu bị xóa.",
         eraseAgain: "Một số cuộc trò chuyện vẫn đang diễn ra: hãy xóa lại sau vài phút.",
         externalErased: "Đã xóa {count} lượt đặt bên ngoài.",
+        code: "Mã xác nhận",
+        codeHint: "Chỉ xóa thông tin liên hệ của lượt đặt đó và các cuộc trò chuyện của nó. Các lượt đặt khác của thực khách vẫn còn: dùng số điện thoại để xóa mọi thứ của người này.",
+        eraseByCode: "Xóa lượt đặt này",
+        confirmEraseByCode: "Xóa lượt đặt {code}? Thông tin liên hệ của nó sẽ bị gỡ và các cuộc trò chuyện của nó sẽ bị xóa. Các lượt đặt khác của thực khách được giữ lại. Không thể hoàn tác.",
+        erasedByCode: "Đã xóa lượt đặt {code}: làm sạch {scrubbed} lượt đặt, xóa {deleted} cuộc trò chuyện, đóng {closed} cuộc giữa chừng, {busy} vẫn đang diễn ra.",
       },
       channels: {
         web: "Trò chuyện web",

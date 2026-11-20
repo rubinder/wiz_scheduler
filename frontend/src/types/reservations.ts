@@ -318,6 +318,16 @@ export interface DinerDataOut {
   number_rules: NumberRuleOut[];
 }
 
+/** What erasing one reservation by confirmation code did (POST .../diner-data/erase-by-code). */
+export interface DinerCodeEraseOut {
+  reservations_scrubbed: number;
+  /** The external (mock provider) booking with that code, deleted. */
+  external_bookings_deleted: number;
+  conversations_deleted: number;
+  conversations_closed_in_flight: number;
+  conversations_still_in_flight: number;
+}
+
 /** What erasing one diner's data did (POST .../diner-data/erase). */
 export interface DinerEraseOut {
   reservations_scrubbed: number;

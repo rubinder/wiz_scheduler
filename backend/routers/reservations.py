@@ -1,5 +1,6 @@
 """Manager reservations API: floor, rules, slots, bookings and the AI host's
 conversations."""
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
@@ -15,7 +16,7 @@ from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
 from backend.reservations import (
-    booking, diner_data, number_rules, voice_numbers, voice_transfers,
+    booking, diner_data, number_rules, subscription, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.providers import mock_external
@@ -31,13 +32,16 @@ from backend.reservations.queries import (
 from backend.reservations.rules import RulesSchema, get_rules, save_rules, stored_fields
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
+    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
     NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
 from backend.services.archive import active
 from backend.services.location_scope import LocationScope
+
+
+logger = logging.getLogger(__name__)
 
 
 def require_reservations_enabled() -> None:
@@ -72,6 +76,7 @@ _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     number_rules.ExpiryInPast: 422,
     number_rules.NoCallerNumber: 409,
     number_rules.NumberAllowed: 409,
+    diner_data.AmbiguousCode: 409,
 }
 
 
@@ -177,6 +182,7 @@ async def read_rules(
 ) -> RulesOut:
     await _location(db, scope, user, location_id)
     rules, version = await get_rules(db, str(user.company_id), location_id)
+    rules = await subscription.rules_as_shown(db, str(user.company_id), rules)
     return RulesOut(rules=rules, version=version)
 
 
@@ -216,6 +222,12 @@ async def write_rules(
         raise HTTPException(status_code=422, detail={
             "code": "mock_provider_not_allowed",
             "message": "The mock booking provider is not enabled here"})
+    try:
+        await subscription.check_rules_cap(db, str(user.company_id),
+                                           body.daily_spend_cap_usd)
+    except subscription.CompedCapLimit as e:
+        raise HTTPException(status_code=422, detail={
+            "code": "comped_cap_limit", "message": str(e), "ceiling_usd": e.ceiling})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)
@@ -453,6 +465,14 @@ async def read_diner_data(
     )
 
 
+def _audit_erase(location_id: str, user: User, by: Literal["code", "phone"],
+                 counts: dict[str, int]) -> None:
+    """One audit line per erase. Never the code or the phone: the line
+    must not carry what was erased."""
+    logger.info("diner_data.erase location=%s user=%s by=%s %s", location_id, user.id, by,
+                " ".join(f"{k}={v}" for k, v in counts.items()))
+
+
 @gated.post("/locations/{location_id}/diner-data/erase",
              response_model=DinerEraseOut)
 async def erase_diner_data(
@@ -468,7 +488,30 @@ async def erase_diner_data(
         counts = await diner_data.erase_diner_data(
             db, str(user.company_id), location_id, body.phone)
         await db.commit()
+    _audit_erase(location_id, user, "phone", counts)
     return DinerEraseOut(**counts)
+
+
+@gated.post("/locations/{location_id}/diner-data/erase-by-code",
+             response_model=DinerCodeEraseOut)
+async def erase_diner_data_by_code(
+    location_id: str,
+    body: DinerCodeIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerCodeEraseOut:
+    """Erase one reservation here by its confirmation code: its contact
+    scrubbed, its conversations deleted. The diner's other reservations stay
+    (phone erasure removes everything for the number). 404 for a code that
+    is not a reservation here."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        counts = await diner_data.erase_by_code(
+            db, str(user.company_id), location_id, body.code)
+        await db.commit()
+    _audit_erase(location_id, user, "code", counts)
+    return DinerCodeEraseOut(**counts)
 
 
 @gated.get("/locations/{location_id}/voice", response_model=VoiceNumberOut)

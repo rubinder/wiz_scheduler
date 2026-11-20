@@ -291,6 +291,13 @@ resource "aws_ecs_task_definition" "app" {
           name  = "ANALYTICS_BUCKET"
           value = aws_s3_bucket.analytics_lake[0].id
         },
+        ] : [], var.reservations_enabled ? [
+        {
+          # Flipped only after legal approval, together with
+          # agent_reconcile_enabled (docs/superpowers/decisions/reservations-decisions.md).
+          name  = "RESERVATIONS_ENABLED"
+          value = "true"
+        },
       ] : [])
 
       logConfiguration = {

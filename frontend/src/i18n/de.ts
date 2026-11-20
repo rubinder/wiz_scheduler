@@ -1443,6 +1443,9 @@ const de = {
     weightRequired: "Geben Sie vor dem Genehmigen in jeder Zeile eine Gewichtung von 0 bis 1 ein.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Dies ist ein Demo-Restaurant. Bitte verwenden Sie erfundene Angaben – das Demo-Konto kann sehen, was Sie eingeben.",
+    },
     common: {
       notEnabled: "Reservierungen sind für dieses Konto nicht aktiviert.",
       loading: "Wird geladen...",
@@ -1458,6 +1461,7 @@ const de = {
       party_too_large: "Diese Gruppe ist für diese Buchung zu groß.",
       invalid_transition: "Diese Statusänderung ist nicht erlaubt.",
       not_found: "Nicht gefunden.",
+      ambiguous_code: "Eine Reservierung und eine externe Buchung haben hier denselben Code. Löschen Sie stattdessen über die Telefonnummer des Gastes.",
       invalid_party_size: "Ungültige Gruppengröße.",
       table_has_bookings: "Dieser Tisch hat Reservierungen und kann nicht geändert werden.",
       duplicate_label: "Zwei Tische haben dieselbe Bezeichnung.",
@@ -1471,6 +1475,7 @@ const de = {
       phone_required: "Für diese Reservierung ist eine Telefonnummer erforderlich.",
       code_exhausted: "Es konnte kein Bestätigungscode erstellt werden. Bitte erneut versuchen.",
       admin_only: "Nur ein Admin kann dies ändern.",
+      comped_cap_limit: "Bei einem kostenlosen Tarif darf das tägliche Ausgabenlimit {cap} nicht überschreiten.",
       generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const de = {
       persona: "Telefonassistent",
       voiceId: "Polly-Stimmen-ID",
       greeting: "Begrüßung",
+      greetingHint: "Muss Gästen sagen, dass der Host automatisiert ist: Fügen Sie das englische Wort \"automated\" ein. Leer lassen für die Standardbegrüßung.",
       facts: "Fakten, die der Assistent nennen darf",
       addFact: "Fakt hinzufügen",
       transferNumber: "Weiterleitungsnummer für das Personal",
@@ -1648,6 +1654,7 @@ const de = {
       description: "Der KI-Gastgeber für Reservierungen hat ein eigenes Abonnement, getrennt von der Dienstplanung.",
       cardTitle: "Abonnement KI-Gastgeber",
       price: "{price}/Monat inkl. {included} Nutzung, danach unsere Kosten + {markup} %",
+      compedPrice: "Kostenloser Tarif",
       subscribe: "Abonnieren",
       redirecting: "Weiterleitung zur Zahlung...",
       manage: "Verwalten",
@@ -1667,6 +1674,7 @@ const de = {
         paused: "Pausiert",
         unpaid: "Unbezahlt",
         incomplete: "Zahlung nicht abgeschlossen",
+        comped: "Inklusive",
         unknown: "Unbekannt",
         none: "Nicht abonniert",
       },
@@ -1734,6 +1742,11 @@ const de = {
         erased: "Gelöscht: {scrubbed} Reservierungen bereinigt, {deleted} Gespräche gelöscht, {closed} mitten in einer Antwort geschlossen, {busy} noch aktiv, {lookups} Suchprotokolle gelöscht.",
         eraseAgain: "Einige Gespräche liefen noch: Löschen Sie in einigen Minuten erneut.",
         externalErased: "{count} externe Buchungen gelöscht.",
+        code: "Bestätigungscode",
+        codeHint: "Löscht nur die Kontaktdaten dieser Reservierung und ihre Gespräche. Die anderen Reservierungen des Gastes bleiben: Mit der Telefonnummer löschen Sie alles zu dieser Person.",
+        eraseByCode: "Diese Reservierung löschen",
+        confirmEraseByCode: "Reservierung {code} löschen? Ihre Kontaktdaten werden entfernt und ihre Gespräche gelöscht. Die anderen Reservierungen des Gastes bleiben erhalten. Dies kann nicht rückgängig gemacht werden.",
+        erasedByCode: "Reservierung {code} gelöscht: {scrubbed} Reservierungen bereinigt, {deleted} Gespräche gelöscht, {closed} mitten in der Antwort geschlossen, {busy} noch aktiv.",
       },
       channels: {
         web: "Webchat",

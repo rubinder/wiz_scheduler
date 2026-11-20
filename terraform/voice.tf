@@ -379,14 +379,20 @@ resource "aws_lexv2models_slot" "voice" {
 
 # --- Amazon Connect -----------------------------------------------------------
 
-# Contact flow logs carry caller numbers. Connect writes them to
-# /aws/connect/<instance alias>, into an existing group of that name, so it
-# is created here first with a retention: they expire after 30 days.
+# Phone numbers are never logged. The contact flow switches its own flow
+# logging off as its first block (voice/contact_flow.json.tftpl,
+# UpdateFlowLoggingBehavior), before any block that carries the caller
+# number (the screen Lambda's input, the bot's `caller` session attribute).
+# Connect has no log level that keeps blocks but drops customer attributes,
+# so the switch is all or nothing. As a backstop for whatever Connect writes
+# before that block runs, the group Connect writes to
+# (/aws/connect/<instance alias>) is created here first with a 1-day
+# retention, the shortest CloudWatch offers.
 resource "aws_cloudwatch_log_group" "voice_connect_flows" {
   count = var.voice_enabled ? 1 : 0
 
   name              = "/aws/connect/${local.voice_connect_alias}"
-  retention_in_days = 30
+  retention_in_days = 1
 
   tags = { Name = "${var.app_name}-host-flow-logs" }
 }

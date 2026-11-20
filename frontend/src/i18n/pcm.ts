@@ -1443,6 +1443,9 @@ const pcm = {
     weightRequired: "Put weight from 0 reach 1 for every row before you approve.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Dis na demo restaurant. Abeg use details wey you make up — di demo account fit see wetin you type.",
+    },
     common: {
       notEnabled: "Reservation no dey on for this account.",
       loading: "E dey load...",
@@ -1458,6 +1461,7 @@ const pcm = {
       party_too_large: "Dis group too big for dis booking.",
       invalid_transition: "Dem no allow dat status change.",
       not_found: "We no see am.",
+      ambiguous_code: "One booking and one outside booking for here get dis same code. Use di customer phone number clear am instead.",
       invalid_party_size: "Group size no correct.",
       table_has_bookings: "Dat table get bookings so you no fit change am.",
       duplicate_label: "Two tables get di same label.",
@@ -1471,6 +1475,7 @@ const pcm = {
       phone_required: "Dis booking need phone number.",
       code_exhausted: "We no fit create confirmation code. Abeg try again.",
       admin_only: "Na only admin fit change dis one.",
+      comped_cap_limit: "For free plan, di daily spend cap no fit pass {cap}.",
       generic: "Something go wrong. Abeg try again.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const pcm = {
       persona: "Phone helper",
       voiceId: "Polly voice id wey we go use",
       greeting: "Greeting",
+      greetingHint: "E must tell customers say di host na machine: put di English word \"automated\" inside. Leave am empty make we use di normal greeting.",
       facts: "Things wey assistant fit tell people",
       addFact: "Add fact",
       transferNumber: "Number to transfer to staff",
@@ -1648,6 +1654,7 @@ const pcm = {
       description: "Di reservation AI host get im own subscription, e no join scheduling own.",
       cardTitle: "Di AI host subscription",
       price: "{price} every month, e cover {included} usage, after dat na our cost + {markup}%",
+      compedPrice: "Free plan wey we dash you",
       subscribe: "Subscribe",
       redirecting: "We dey carry you go payment...",
       manage: "Manage am",
@@ -1667,6 +1674,7 @@ const pcm = {
         paused: "E pause",
         unpaid: "Dem never pay",
         incomplete: "Payment never finish",
+        comped: "E dey inside, na free",
         unknown: "We no know",
         none: "No subscription",
       },
@@ -1734,6 +1742,11 @@ const pcm = {
         erased: "E don clear: {scrubbed} bookings don clean, {deleted} talk don delete, {closed} close for middle of reply, {busy} still dey go on, {lookups} search record don delete.",
         eraseAgain: "Some talk still dey go on: clear am again after small minutes.",
         externalErased: "We don delete {count} outside bookings.",
+        code: "Confirmation code wey dem give",
+        codeHint: "E go only clear di contact details for dat booking and im conversations. Di customer oda bookings go remain: use di phone number if you wan clear everything for dis person.",
+        eraseByCode: "Clear dis booking comot",
+        confirmEraseByCode: "You wan clear booking {code}? We go remove im contact details and delete im conversations. Di customer oda bookings go stay. You no fit undo am.",
+        erasedByCode: "We don clear booking {code}: {scrubbed} bookings don clean, {deleted} conversations don delete, {closed} close for middle of reply, {busy} still dey go on.",
       },
       channels: {
         web: "Web chat",

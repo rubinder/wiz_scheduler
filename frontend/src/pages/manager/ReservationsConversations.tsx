@@ -5,6 +5,7 @@ import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
 import {
   eraseDinerData,
+  eraseDinerDataByCode,
   exportDinerData,
   getConfig,
   getConversation,
@@ -66,6 +67,7 @@ export default function ReservationsConversations() {
   const [detail, setDetail] = useState<ConversationDetailOut | null>(null);
   const [detailError, setDetailError] = useState("");
   const [dinerPhone, setDinerPhone] = useState("");
+  const [dinerCode, setDinerCode] = useState("");
   const [dinerBusy, setDinerBusy] = useState(false);
   const [dinerResult, setDinerResult] = useState("");
   const [dinerError, setDinerError] = useState("");
@@ -214,6 +216,36 @@ export default function ReservationsConversations() {
     }
   };
 
+  /** One reservation by its confirmation code; the diner's other reservations stay. */
+  const eraseByCode = async () => {
+    const code = dinerCode.trim().toUpperCase();
+    const d = c.dinerData;
+    if (!locationId || !code || dinerBusy) return;
+    if (!window.confirm(fill(d.confirmEraseByCode, { code }))) return;
+    setDinerBusy(true);
+    setDinerResult("");
+    setDinerError("");
+    try {
+      const out = await eraseDinerDataByCode(locationId, code);
+      const summary = fill(d.erasedByCode, {
+        code,
+        scrubbed: out.reservations_scrubbed,
+        deleted: out.conversations_deleted,
+        closed: out.conversations_closed_in_flight,
+        busy: out.conversations_still_in_flight,
+      });
+      const again = out.conversations_closed_in_flight + out.conversations_still_in_flight > 0;
+      const external =
+        out.external_bookings_deleted > 0 ? fill(d.externalErased, { count: out.external_bookings_deleted }) : "";
+      setDinerResult([summary, external, again ? d.eraseAgain : ""].filter(Boolean).join(" "));
+      setDinerCode("");
+    } catch (e) {
+      setDinerError(errorText(e));
+    } finally {
+      setDinerBusy(false);
+    }
+  };
+
   if (enabled === null) return <p className={text.muted}>{r.common.loading}</p>;
   if (!enabled) return <div className="glass-card p-6">{r.common.notEnabled}</div>;
 
@@ -354,6 +386,32 @@ export default function ReservationsConversations() {
           </div>
           <p id="diner-phone-hint" className={`text-xs ${text.placeholder}`}>
             {c.dinerData.phoneHint}
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label={c.dinerData.code}>
+              <input
+                type="text"
+                className={input}
+                value={dinerCode}
+                maxLength={32}
+                placeholder="ABC234"
+                aria-describedby="diner-code-hint"
+                onChange={(e) => setDinerCode(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <button
+              type="button"
+              className="glass-btn-danger text-sm"
+              disabled={dinerBusy || !dinerCode.trim()}
+              onClick={() => void eraseByCode()}
+            >
+              {c.dinerData.eraseByCode}
+            </button>
+          </div>
+          <p id="diner-code-hint" className={`text-xs ${text.placeholder}`}>
+            {c.dinerData.codeHint}
           </p>
           {dinerResult && (
             <p role="status" className={`text-sm ${text.primary}`}>

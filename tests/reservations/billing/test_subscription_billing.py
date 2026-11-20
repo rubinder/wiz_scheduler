@@ -578,10 +578,13 @@ async def test_status_reports_usage_and_spend_against_cap(
         ownership_group_id=OG_ID, stripe_subscription_id=AGENT_SUB, status="active",
         current_period_start=start, current_period_end=start + timedelta(days=30),
         cancel_at_period_end=True))
+    # Metered earlier in the period: an orphaned usage row (an erased
+    # conversation) metered today would count toward today's spend.
     for billed in ("4.00", "2.50"):
         db_session.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id=OG_ID,
                                   location_id=LOCATION_ID, cost_usd=Decimal("1"),
-                                  billed_usd=Decimal(billed), period_start=start))
+                                  billed_usd=Decimal(billed), period_start=start,
+                                  created_at=start))
     db_session.add(AgentConversation(company_id=COMPANY_ID, location_id=LOCATION_ID,
                                      channel="web", status="closed", started_at=now,
                                      cost_usd=Decimal("1.234")))

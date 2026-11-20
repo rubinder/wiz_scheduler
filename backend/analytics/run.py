@@ -33,7 +33,7 @@ from backend.analytics.schemas import TABLES
 from backend.tenant import tenant_scope_disabled
 from backend.models.location import Location
 from backend.reservations.models import ReservationRules
-from backend.reservations.rules import RulesSchema
+from backend.reservations.rules import STORED, RulesSchema
 from backend.services.operator_alerts import send_analytics_quality_alert
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,8 @@ async def load_rules(owner: AsyncSession,
     out: dict[str, metrics.LocationRules] = {}
     for loc in location_ids:
         try:
-            rules = RulesSchema.model_validate(stored[loc]) if loc in stored else RulesSchema()
+            rules = (RulesSchema.model_validate(stored[loc], context=STORED)
+                     if loc in stored else RulesSchema())
         except ValidationError:
             logger.warning("analytics: invalid rules at location %s, periods unknown", loc)
             rules = RulesSchema()

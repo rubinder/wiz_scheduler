@@ -447,3 +447,21 @@ def test_0048_downgrade_refuses_while_a_row_is_archived(rds_like_postgres):
         _psql(pg, "DELETE FROM roles WHERE id = 'mgo00148'; DELETE FROM companies WHERE id = 'mgc00148';")
     _alembic(url, "downgrade", "0047")
     _alembic(url, "upgrade", "head")
+
+
+def test_0067_downgrade_refuses_while_a_comped_row_exists(rds_like_postgres):
+    url, pg = rds_like_postgres
+    _alembic(url, "upgrade", "head")
+    _psql(pg, (
+        "INSERT INTO ownership_groups (id, name) VALUES ('mgg00067', 'M');"
+        "INSERT INTO reservation_subscriptions (id, ownership_group_id, status)"
+        " VALUES ('mgs00067', 'mgg00067', 'comped');"
+    ))
+    try:
+        assert "comped reservation_subscriptions row(s) exist" in _alembic_fails(
+            url, "downgrade", "0066")
+    finally:
+        _psql(pg, "DELETE FROM reservation_subscriptions WHERE id = 'mgs00067';"
+                  " DELETE FROM ownership_groups WHERE id = 'mgg00067';")
+    _alembic(url, "downgrade", "0066")
+    _alembic(url, "upgrade", "head")

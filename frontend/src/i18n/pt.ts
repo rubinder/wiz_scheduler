@@ -1443,6 +1443,9 @@ const pt = {
     weightRequired: "Informe um peso de 0 a 1 em cada linha antes de aprovar.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Este é um restaurante de demonstração. Use dados inventados — a conta de demonstração pode ver o que você digita.",
+    },
     common: {
       notEnabled: "As reservas não estão ativadas para esta conta.",
       loading: "Carregando...",
@@ -1458,6 +1461,7 @@ const pt = {
       party_too_large: "Esse grupo é grande demais para esta reserva.",
       invalid_transition: "Essa mudança de status não é permitida.",
       not_found: "Não encontrado.",
+      ambiguous_code: "Uma reserva e uma reserva externa partilham este código aqui. Apague pelo número de telefone do cliente.",
       invalid_party_size: "Tamanho de grupo inválido.",
       table_has_bookings: "Essa mesa tem reservas e não pode ser alterada.",
       duplicate_label: "Duas mesas têm o mesmo rótulo.",
@@ -1471,6 +1475,7 @@ const pt = {
       phone_required: "É necessário um número de telefone para esta reserva.",
       code_exhausted: "Não foi possível criar um código de confirmação. Tente novamente.",
       admin_only: "Só um administrador pode alterar isto.",
+      comped_cap_limit: "Em um plano gratuito, o limite de gasto diário não pode ultrapassar {cap}.",
       generic: "Algo deu errado. Tente novamente.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const pt = {
       persona: "Assistente telefônico",
       voiceId: "ID de voz do Polly",
       greeting: "Saudação",
+      greetingHint: "Deve dizer aos clientes que o anfitrião é automatizado: inclua a palavra inglesa \"automated\". Deixe vazio para usar a saudação padrão.",
       facts: "Informações que o assistente pode compartilhar",
       addFact: "Adicionar informação",
       transferNumber: "Número de transferência para a equipe",
@@ -1648,6 +1654,7 @@ const pt = {
       description: "O anfitrião IA de reservas tem a sua própria assinatura, separada da de escalas.",
       cardTitle: "Assinatura do anfitrião IA",
       price: "{price}/mês, inclui {included} de uso, depois o nosso custo + {markup}%",
+      compedPrice: "Plano gratuito",
       subscribe: "Assinar",
       redirecting: "Redirecionando para o pagamento...",
       manage: "Gerenciar",
@@ -1667,6 +1674,7 @@ const pt = {
         paused: "Pausada",
         unpaid: "Não paga",
         incomplete: "Pagamento não concluído",
+        comped: "Incluído",
         unknown: "Desconhecido",
         none: "Sem assinatura",
       },
@@ -1734,6 +1742,11 @@ const pt = {
         erased: "Apagado: {scrubbed} reservas limpas, {deleted} conversas excluídas, {closed} encerradas no meio de uma resposta, {busy} ainda em andamento, {lookups} registros de consulta excluídos.",
         eraseAgain: "Algumas conversas ainda estavam em andamento: apague novamente em alguns minutos.",
         externalErased: "{count} reservas externas eliminadas.",
+        code: "Código de confirmação",
+        codeHint: "Apaga apenas os dados de contato dessa reserva e as suas conversas. As outras reservas do cliente permanecem: use o número de telefone para apagar tudo desta pessoa.",
+        eraseByCode: "Apagar esta reserva",
+        confirmEraseByCode: "Apagar a reserva {code}? Os seus dados de contato são removidos e as suas conversas são eliminadas. As outras reservas do cliente são mantidas. Isto não pode ser desfeito.",
+        erasedByCode: "Reserva {code} apagada: {scrubbed} reservas limpas, {deleted} conversas eliminadas, {closed} fechadas a meio da resposta, {busy} ainda em curso.",
       },
       channels: {
         web: "Chat web",

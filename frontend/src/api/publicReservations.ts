@@ -7,7 +7,13 @@ const BASE = "/api/v1/public/reservations";
 export type Expect =
   | "text" | "confirm_hold" | "confirm_cancel" | "confirm_modify"
   | "phone_number" | "party_size" | "confirmation_code" | "handoff";
-export interface LocationInfo { location_name: string; timezone: string; greeting: string }
+export interface LocationInfo {
+  location_name: string;
+  timezone: string;
+  greeting: string;
+  /** The public demo restaurant: the page asks for made-up details. */
+  demo?: boolean;
+}
 export interface Hold {
   party_size: number;
   local_date: string;
