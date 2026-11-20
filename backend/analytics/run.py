@@ -81,8 +81,17 @@ async def day_lock(db: AsyncSession, day: date) -> AsyncIterator[AsyncConnection
         try:
             yield conn
         finally:
-            await conn.execute(text("SELECT pg_advisory_unlock(hashtext(:key), :day)"), params)
-            await conn.commit()
+            # A failing unlock must not mask the body's own error. Invalidate
+            # the connection instead of returning it to the pool: closing
+            # the session releases its advisory lock.
+            try:
+                await conn.execute(text("SELECT pg_advisory_unlock(hashtext(:key), :day)"),
+                                   params)
+                await conn.commit()
+            except Exception as exc:
+                logger.error("analytics %s: advisory unlock failed (%s), connection invalidated",
+                             day, type(exc).__name__)
+                await conn.invalidate()
 
 
 async def run(day: date, sink: lake.Sink, db: AsyncSession, *,

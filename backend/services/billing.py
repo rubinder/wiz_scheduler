@@ -1426,6 +1426,9 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         MockExternalIdempotency,
     )
     from backend.reservations.voice_numbers import release_for_deleted_group
+    from backend.analytics.models import AgentDailyMetric
+    from backend.models.feedback_submission import FeedbackSubmission
+    from backend.models.special_hours_day import SpecialHoursDay
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1468,8 +1471,9 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     number_rules and screened_calls (#259 step 7) ref companies
         #     and locations. mock_external_idempotency (companies) and
         #     mock_external_bookings (companies, locations), #259 step 9.
+        #     agent_daily_metrics (companies, locations), #259 step 10.
         await release_for_deleted_group(db, og.id)
-        for model in (MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
+        for model in (AgentDailyMetric, MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
                       ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):
@@ -1494,6 +1498,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         await db.execute(delete(EmployeeCompany).where(EmployeeCompany.company_id.in_(company_ids)))
         # 10. departments — refs locations
         await db.execute(delete(Department).where(Department.company_id.in_(company_ids)))
+        # 10b. special_hours_days — refs locations and shift_templates
+        await db.execute(delete(SpecialHoursDay).where(SpecialHoursDay.company_id.in_(company_ids)))
         # 11. shift_templates — refs locations
         await db.execute(delete(ShiftTemplate).where(ShiftTemplate.company_id.in_(company_ids)))
         # 12. employees — self-FK + refs roles, users
@@ -1510,6 +1516,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         await db.execute(delete(UserConsent).where(UserConsent.company_id.in_(company_ids)))
         # 18. failure_logs
         await db.execute(delete(FailureLog).where(FailureLog.company_id.in_(company_ids)))
+        # 18b. feedback_submissions — refs companies (users SET NULL)
+        await db.execute(delete(FeedbackSubmission).where(FeedbackSubmission.company_id.in_(company_ids)))
         # 19. users
         await db.execute(delete(User).where(User.company_id.in_(company_ids)))
         # 20. companies

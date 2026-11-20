@@ -438,6 +438,7 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
     from backend.reservations.mock_external_models import (
         MockExternalBooking, MockExternalIdempotency,
     )
+    from backend.analytics.models import AgentDailyMetric
     # The mock external provider's rows (#259 step 9): bookings ref the
     # location; idempotency rows are company-keyed only (a 24-hour cache).
     await _run(
@@ -484,6 +485,7 @@ async def _prune_over_limit_demo_data(db: AsyncSession) -> None:
         "reservation_tables",
     )
     for model, label in (
+        (AgentDailyMetric, "agent_daily_metrics"),
         (Reservation, "reservations"),
         (TableCombination, "table_combinations"),
         (DiningTable, "dining_tables"),

@@ -508,6 +508,13 @@ async def test_prune_delete_order_satisfies_foreign_keys():
                 party_size=2, status="booked", code="MOCK23"))
             db.add(MockExternalIdempotency(company_id=COMPANY_ID, key="c:book:1",
                                            response={"ref": "mock0001"}))
+            from backend.analytics.models import AgentDailyMetric
+            db.add(AgentDailyMetric(
+                id="adm00001", company_id=COMPANY_ID, location_id=doomed,
+                day=date(2026, 8, 10), conversations=1, resolved=0, booked=0,
+                handed_off=0, abandoned=0, failed=0, booking_intent=0,
+                handoff_reasons={}, cost_usd=0, billed_usd=0, screened=0,
+                blocked=0, covers_by_period={}))
             await db.commit()
 
             # The assertion is that this does not raise an IntegrityError.
@@ -515,8 +522,8 @@ async def test_prune_delete_order_satisfies_foreign_keys():
             await db.commit()
 
             assert (await db.execute(select(MockExternalIdempotency.key))).all() == []
-            for model in (MockExternalBooking, AgentUsage, AgentEvent, AgentConversation,
-                          ReservationTable,
+            for model in (AgentDailyMetric, MockExternalBooking, AgentUsage, AgentEvent,
+                          AgentConversation, ReservationTable,
                           Reservation, TableCombination,
                           DiningTable, FloorSection, ReservationRules):
                 assert (await db.execute(select(model.id))).scalars().all() == [], \

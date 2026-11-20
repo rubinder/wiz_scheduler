@@ -73,6 +73,13 @@ Notes:
 - Billed amounts reconcile internally (`agent_usage.billed_usd` against the
   conversations) in the job's data-quality checks. The comparison with live
   Stripe stays in the daily agent reconcile job (step 5).
+- That check recomputes each usage row's billed amount with the current
+  `RESERVATIONS_USAGE_MARKUP`, not the markup it was billed at. After a
+  markup change, rerunning or backfilling a day from before the change fails
+  `usage_billed` (and can fail `usage_unexpected`) and withholds that day's
+  metrics, although the rows were billed correctly. Run any backfill before
+  changing the markup; otherwise accept the alert for days before the
+  change (their lake is still landed).
 
 ## Access
 

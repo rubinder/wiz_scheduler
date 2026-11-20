@@ -38,6 +38,14 @@ export function isDefaultRange(from: string, to: string, today: string): boolean
   return d.from === from && d.to === to;
 }
 
+/**
+ * Whether any day had AI host activity (a conversation or a screened call).
+ * Covers count every booking source, so a day's row can exist without it.
+ */
+export function hasAgentActivity(days: InsightsDay[]): boolean {
+  return days.some((d) => d.conversations > 0 || d.screened > 0);
+}
+
 export interface DayPoint {
   day: string;
   row: InsightsDay | null;

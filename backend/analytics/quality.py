@@ -20,6 +20,11 @@ ids (never diner data), fit for the operator alert.
       bills to 0.00, has no usage row (subscription.meter never writes one);
    c. usage_orphan: every landed agent_usage row references a conversation
       that exists.
+   billed_amount reads the current RESERVATIONS_USAGE_MARKUP, not the
+   markup a row was billed at: after a markup change, rerunning or
+   backfilling a day from before it fails usage_billed / usage_unexpected
+   and withholds that day's metrics although nothing is wrong. Backfill
+   before changing the markup, or accept the alert for those days.
    A conversation with cost and no usage row is not a defect (metering
    skips a company without an ownership group). This is an internal
    reconciliation; comparing against Stripe stays in the step 5 reconcile

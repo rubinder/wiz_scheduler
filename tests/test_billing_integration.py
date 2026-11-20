@@ -2607,6 +2607,48 @@ async def test_delete_og_and_dependents_removes_reservation_rows(
     )).scalar_one_or_none() is None
 
 
+async def test_delete_og_and_dependents_removes_special_hours_and_feedback(
+    db_session: AsyncSession, og_with_card
+):
+    """special_hours_days (locations, shift_templates) and feedback_submissions
+    (companies) hold NO ACTION FKs, so a group with either could not be
+    deleted. tests/test_group_deletion_sweep.py found them."""
+    from datetime import date, time
+    from sqlalchemy import func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import Location, Region
+    from backend.models.feedback_submission import FeedbackSubmission
+    from backend.models.special_hours_day import SpecialHoursDay
+
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add(region)
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id,
+                        name="L1", timezone="America/New_York")
+    db_session.add(location)
+    await db_session.flush()
+    db_session.add_all([
+        SpecialHoursDay(company_id=COMPANY_ID, location_id=location.id,
+                        date=date(2026, 12, 24), open_time=time(9),
+                        close_time=time(14), label="Eve"),
+        FeedbackSubmission(company_id=COMPANY_ID, subject="s", message="m",
+                           feedback_type="bug"),
+    ])
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    for model in (SpecialHoursDay, FeedbackSubmission):
+        assert (await db_session.execute(
+            select(func.count()).select_from(model)
+            .where(model.company_id == COMPANY_ID)
+        )).scalar() == 0, model.__tablename__
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+
+
 async def test_delete_og_and_dependents_handles_empty_og(
     db_session: AsyncSession
 ):

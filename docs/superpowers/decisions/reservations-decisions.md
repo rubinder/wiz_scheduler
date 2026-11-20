@@ -529,6 +529,10 @@ Setup steps are in `analytics/README.md` and the analytics lake section of
   its metrics are not written). Athena sees only days from 2026-11-01 on
   (the `dt` projection range, decision 75); change `projection.dt.range`
   first if you need earlier days.
+- Run any backfill before changing `RESERVATIONS_USAGE_MARKUP`: the billing
+  check recomputes billed amounts at the current markup, so a day from
+  before a change fails `usage_billed` and its metrics are withheld. After a
+  change, accept that alert for earlier days (`analytics/README.md`).
 - Run `analytics/apply_views.sh` as the `wizscheduler-analytics-reader` role
   (assumed with MFA), then query each view once in the
   `wizscheduler-analytics` workgroup.

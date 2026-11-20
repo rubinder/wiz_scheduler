@@ -29,6 +29,7 @@ import {
   formatPoints,
   formatUsdAmount,
   handoffTotals,
+  hasAgentActivity,
   isDefaultRange,
   latestValue,
   PALETTE,
@@ -222,11 +223,11 @@ export default function ReservationsInsights() {
         </p>
       )}
 
-      {data && view && data.days.length === 0 && (
+      {data && view && !hasAgentActivity(data.days) && (
         <div className="glass-card p-6">{isDefaultRange(data.from, data.to, today) ? s.empty : s.noData}</div>
       )}
 
-      {data && view && data.days.length > 0 && (
+      {data && view && hasAgentActivity(data.days) && (
         <>
           <section className="glass-card space-y-3 p-4">
             <h2 className={`text-lg font-semibold ${text.heading}`}>{s.kpiTitle}</h2>

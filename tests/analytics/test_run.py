@@ -302,6 +302,28 @@ async def test_runs_of_the_same_day_are_serialised(db_session, seeded, alerts,
     assert summary["ok"]
 
 
+async def test_a_failing_unlock_never_masks_the_original_error(db_session, caplog) -> None:
+    class Boom(Exception):
+        pass
+
+    with pytest.raises(Boom):
+        async with run.day_lock(db_session, DAY) as conn:
+            pid = (await conn.execute(text("SELECT pg_backend_pid()"))).scalar_one()
+            # Kill the lock's connection, so the unlock in `finally` fails too.
+            async with db_session.bind.connect() as other:
+                await other.execute(text("SELECT pg_terminate_backend(:pid)"), {"pid": pid})
+            raise Boom
+    assert "advisory unlock failed" in caplog.text
+    # The killed session took its lock with it: the day is free again.
+    params = {"key": run.LOCK_KEY, "day": DAY.toordinal()}
+    async with db_session.bind.connect() as probe:
+        got = (await probe.execute(
+            text("SELECT pg_try_advisory_lock(hashtext(:key), :day)"), params)).scalar_one()
+        assert got
+        await probe.execute(text("SELECT pg_advisory_unlock(hashtext(:key), :day)"), params)
+        await probe.commit()
+
+
 # --- retention ---------------------------------------------------------------
 
 
@@ -323,3 +345,27 @@ async def test_retention_purges_old_daily_metrics(db_session, seed_location) -> 
     summary = await run_data_retention(db_session)
     assert summary["old_agent_daily_metrics_deleted"] == 1
     assert [m.day for m in await _metrics(db_session)] == [today - timedelta(days=10)]
+
+
+# --- group deletion ----------------------------------------------------------
+
+
+async def test_group_deletion_deletes_the_daily_metrics(db_session, seed_location) -> None:
+    from backend.models import Company
+    from backend.services.billing import delete_og_and_dependents
+
+    og = OwnershipGroup(id="ogalyt03", name="Group", ai_credits_usd=0.0)
+    db_session.add(og)
+    await db_session.flush()
+    (await db_session.get(Company, COMPANY_ID)).ownership_group_id = og.id
+    db_session.add(AgentDailyMetric(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, day=DAY, conversations=1,
+        resolved=1, booked=1, handed_off=0, abandoned=0, failed=0, booking_intent=1,
+        handoff_reasons={}, cost_usd=Decimal("0.01"), billed_usd=Decimal("0.02"),
+        screened=0, blocked=0, covers_by_period={}))
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, og)
+    await db_session.commit()
+    assert await _metrics(db_session) == []
+    assert await db_session.get(Company, COMPANY_ID) is None

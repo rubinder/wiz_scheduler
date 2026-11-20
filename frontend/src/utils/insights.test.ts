@@ -10,6 +10,7 @@ import {
   formatPoints,
   formatUsdAmount,
   handoffTotals,
+  hasAgentActivity,
   isDefaultRange,
   latestValue,
   PALETTE,
@@ -282,5 +283,20 @@ describe("seriesMean", () => {
   it("averages the non-null values of a series, or null when there are none", () => {
     expect(seriesMean([{ a: 100 }, { a: null }, { a: 300 }], "a")).toBe(200);
     expect(seriesMean([{ a: null }], "a")).toBeNull();
+  });
+});
+
+describe("hasAgentActivity", () => {
+  it("is false with no days", () => {
+    expect(hasAgentActivity([])).toBe(false);
+  });
+
+  it("is false when the only rows are covers from other booking sources", () => {
+    expect(hasAgentActivity([row("2026-11-17", { covers_by_period: { Dinner: 4 } }), row("2026-11-18")])).toBe(false);
+  });
+
+  it("is true with a conversation or a screened call on any day", () => {
+    expect(hasAgentActivity([row("2026-11-17"), row("2026-11-18", { conversations: 1 })])).toBe(true);
+    expect(hasAgentActivity([row("2026-11-17", { screened: 2 })])).toBe(true);
   });
 });
