@@ -219,3 +219,37 @@ legal can check them.
 - Update the owner checklist to point at the switch-on order (Task 1) and
   the legal draft PR number.
 - [ ] Commit `docs(reservations): launch decisions and switch-on order (#259)`.
+
+### Task 5: Pre-launch privacy gaps the legal draft surfaced
+
+These are added after the legal draft (PR #284) listed open questions that
+are product gaps, not wording.
+
+- **Erasure by confirmation code.** Spec §11 says diner data is erasable
+  per reservation "by confirmation code or phone number" from the manager
+  UI. Only erasure by phone number exists today. Add erasure by code:
+  - It uses the same service and the same scrub as phone erasure.
+  - It is scope-checked to the manager's locations.
+  - The manager UI gets an input for it, with copy in all 19 locales.
+  - Tests:
+    - erasure by code scrubs that reservation and its conversation;
+    - an unknown code gives 404;
+    - a code at another company's location gives 404.
+- **Automated-assistant disclosure.**
+  - The default voice greeting and the default web chat greeting both say
+    the host is an automated assistant. Example: "Hi, you've reached
+    {restaurant}'s automated reservations assistant."
+  - The restaurant's rules may change the wording, but the rules schema
+    rejects a custom greeting that doesn't contain "automated" or
+    "assistant" (case-insensitive).
+  - Tests: cover both defaults and the validation.
+- **Connect flow logs.** Caller numbers appear unredacted in the Connect
+  contact flow logs, which are kept 30 days. That breaks the "phone
+  numbers are never logged" rule.
+  - Reduce the flow log level so customer attributes and caller numbers
+    aren't logged, if the provider supports it. Otherwise cut the log
+    group's retention to 1 day and document why.
+  - This is a Terraform change, so the controller applies it. The
+    implementer writes the change as a patch file in the scratchpad.
+  - Extend the gating test so the default plan stays unchanged.
+- [ ] Commit `fix(reservations): erase by confirmation code, disclose the automated host, keep caller numbers out of flow logs (#259)`.
