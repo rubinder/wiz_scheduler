@@ -13,6 +13,14 @@ autoreload_failed_at, and an agent subscription's deletion never cancels the
 scheduling plan. Every other event falls through to the scheduling code
 unchanged.
 
+Comped groups (#259 step 11). A `comped` row is the operator's free AI host
+(the demo tenant): it has no Stripe subscription and Stripe never sees it.
+Every entry point here that would read or write Stripe for a group (webhook
+apply, the overage reconcile and its daily run, the final invoice, Checkout,
+the deletion cancel) checks for it first and leaves the row unchanged
+without a Stripe call. Its usage is still metered (subscription.meter), as
+cost, and never invoiced.
+
 Anti-corruption: Stripe objects arrive as webhook dicts or SDK objects, and
 the period fields moved from the subscription onto its items in API
 2025-03-31; `_field` and `_period` read both, so nothing past this module
@@ -33,14 +41,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.models.location import Location
 from backend.models.ownership_group import OwnershipGroup
-from backend.reservations.rules import get_rules
 from backend.reservations.subscription import (
     ANSWERING_STATUSES,
     BILLABLE_STATUSES,
+    COMPED,
     PRODUCT,
     STATUSES,
     AgentUsage,
     ReservationSubscription,
+    daily_cap,
     for_group,
     period_start_for,
     period_usage,
@@ -220,6 +229,16 @@ async def _lock_group(db: AsyncSession, og_id: str) -> OwnershipGroup | None:
     )).scalar_one_or_none()
 
 
+async def _is_comped(db: AsyncSession, og_id: str) -> bool:
+    """True when the group's agent row is comped (Stripe never sees it)."""
+    return (await db.execute(
+        select(ReservationSubscription.id)
+        .where(ReservationSubscription.ownership_group_id == og_id,
+               ReservationSubscription.status == COMPED)
+        .execution_options(populate_existing=True)
+    )).scalar_one_or_none() is not None
+
+
 async def _locked_row(db: AsyncSession, og_id: str) -> ReservationSubscription | None:
     """The group's row as committed now (call under the group lock): the
     session's identity map may hold a copy from before another writer's
@@ -259,7 +278,7 @@ def stripe_client() -> Any:
 def _status(raw: Any, sub_id: str) -> str | None:
     if raw is None:
         return None
-    if raw not in STATUSES:
+    if raw not in STATUSES or raw == COMPED:  # comped is ours, never Stripe's
         logger.warning("agent subscription %s: unknown status %r left unchanged", sub_id, raw)
         return None
     return raw
@@ -280,6 +299,10 @@ async def _apply(db: AsyncSession, og_id: str, sub: Any) -> tuple[ReservationSub
     sub_id = _as_id(_field(sub, "id"))
     status = _status(_field(sub, "status"), sub_id)
     row = await _locked_row(db, og_id)
+    if row is not None and row.status == COMPED:
+        logger.info("agent subscription %s (%s) for og %s ignored; the group is comped",
+                    sub_id, status, og_id)
+        return None, False
     if row is None:
         row = ReservationSubscription(
             ownership_group_id=og_id, stripe_subscription_id=sub_id,
@@ -889,6 +912,9 @@ async def reconcile_agent_overage(
     summary: dict = {"og_id": og_id}
     await _lock_group(db, og_id)
     row = await _locked_row(db, og_id)
+    if row is not None and row.status == COMPED:
+        await db.rollback()
+        return {**summary, "skipped": COMPED}
     if row is None or not row.stripe_subscription_id:
         await db.rollback()
         return {**summary, "skipped": "no_subscription"}
@@ -1402,6 +1428,9 @@ async def finalize_agent_billing(db: AsyncSession, og_id: str, sub_id: str) -> d
     run = _FinalRun()
     try:
         await _lock_group(db, og_id)
+        if await _is_comped(db, og_id):
+            await db.rollback()
+            return {**summary, "skipped": COMPED}
         sub = _retrieve_subscription(sub_id)
         if _field(sub, "status") != "canceled":
             await db.rollback()
@@ -1570,7 +1599,7 @@ async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | No
             select(ReservationSubscription.ownership_group_id,
                    ReservationSubscription.stripe_subscription_id)
             .where(ReservationSubscription.stripe_subscription_id.is_not(None),
-                   ReservationSubscription.status.not_in(TERMINAL_STATUSES))
+                   ReservationSubscription.status.not_in((*TERMINAL_STATUSES, COMPED)))
             .order_by(ReservationSubscription.ownership_group_id)
         )).all()
         for og_id, sub_id in groups:
@@ -1604,6 +1633,15 @@ async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | No
     return out
 
 
+def _live_stripe_object(event_type: str, obj: Any) -> bool:
+    """From the payload alone (a comped group gets no Stripe read): a paid
+    Checkout, or a subscription Stripe still bills."""
+    if event_type == "checkout.session.completed":
+        return True
+    return (event_type.startswith("customer.subscription.")
+            and _field(obj, "status") in BILLABLE_STATUSES)
+
+
 async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dict:
     """Apply one agent-subscription webhook event. Touches only the
     reservation_subscriptions row, its overage charges (and, for a
@@ -1617,6 +1655,17 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
     og_id = await _group_for(db, sub_id, _object_metadata(event_type, obj), customer)
     if not og_id or not sub_id:
         return {"handled": False}
+    if await _is_comped(db, og_id):
+        logger.info("agent %s for og %s ignored: the group is comped", event_type, og_id)
+        if _live_stripe_object(event_type, obj):
+            # A Stripe subscription a comped group should never have: nothing
+            # here acts on it, so the operator decides (refund, cancel).
+            from backend.services import operator_alerts
+
+            logger.warning("agent subscription %s is live in Stripe for comped og %s",
+                           sub_id, og_id)
+            operator_alerts.send_agent_comped_stripe_alert(og_id, sub_id, event_type)
+        return {"handled": False, "og_id": og_id, "skipped": COMPED}
 
     if event_type == "invoice.upcoming":
         row = await _row_by_subscription(db, sub_id)
@@ -1759,6 +1808,8 @@ async def confirm_checkout(db: AsyncSession, og: OwnershipGroup, session_id: str
     Idempotent with the checkout.session.completed webhook."""
     if not settings.STRIPE_SECRET_KEY:
         raise NotConfigured("not_configured")
+    if await _is_comped(db, og.id):
+        raise AlreadySubscribed("already_subscribed")
     try:
         session = _client().v1.checkout.sessions.retrieve(session_id)
     except stripe.StripeError as e:
@@ -1787,7 +1838,8 @@ async def cancel_for_deleted_group(db: AsyncSession, og_id: str) -> bool:
     never raises, so it never blocks the deletion."""
     try:
         row = await for_group(db, og_id)
-        if row is None or not row.stripe_subscription_id or row.status in TERMINAL_STATUSES:
+        if (row is None or not row.stripe_subscription_id
+                or row.status in (*TERMINAL_STATUSES, COMPED)):
             return False
         _client().v1.subscriptions.cancel(row.stripe_subscription_id)
         return True
@@ -1815,9 +1867,8 @@ async def status_summary(
     )).scalars().all()
     per_location = []
     for loc in locations:
-        rules, _ = await get_rules(db, company_id, loc.id)
         spent = await spend_today(db, loc.id, now, loc.timezone)
-        cap = Decimal(str(rules.daily_spend_cap_usd))
+        cap = await daily_cap(db, company_id, loc.id)
         per_location.append({
             "location_id": loc.id, "name": loc.name,
             "spend_today_usd": _money(spent), "daily_cap_usd": _money(cap),

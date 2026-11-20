@@ -377,10 +377,14 @@ codes, never one of our AI host numbers, at most `VOICE_TRANSFERS_PER_DAY`
 per location per day: `backend/reservations/voice_transfers.py`), and the
 budget is the backstop.
 
-Contact flow logs carry caller numbers. Terraform creates their log group,
-`/aws/connect/<instance alias>`, with a 30-day retention before the
-instance, so Connect writes into it rather than creating one that never
-expires.
+Phone numbers are never logged, so the contact flow turns its own flow
+logging off as its first block (`UpdateFlowLoggingBehavior`), before any
+block that sees the caller number. Connect has no level that keeps the
+blocks but drops customer attributes. As a backstop, Terraform creates the
+flow-log group, `/aws/connect/<instance alias>`, with a 1-day retention
+before the instance, so Connect writes into it rather than creating one
+that never expires. To debug a flow, set the block to `Enabled` for the
+session and back afterwards.
 
 Each run of `publish_lex_bot.sh` publishes a new bot version and leaves the
 old ones. Lex keeps at most 100 versions per bot; prune unused ones now and

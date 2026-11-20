@@ -11,6 +11,7 @@ import {
   canSubscribe,
   checkoutReturn,
   formatDollars,
+  isComped,
   periodEndLabel,
   priceValues,
   survivesCancellationUntil,
@@ -160,7 +161,9 @@ export default function Billing() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
               <h2 className={`text-lg font-semibold ${text.heading}`}>{b.cardTitle}</h2>
-              <p className={`text-sm ${text.secondary}`}>{fill(b.price, priceValues(agent, lang))}</p>
+              <p className={`text-sm ${text.secondary}`}>
+                {isComped(agent.status) ? b.compedPrice : fill(b.price, priceValues(agent, lang))}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {canSubscribe(agent.status) && (
@@ -173,7 +176,7 @@ export default function Billing() {
                   {busy ? b.redirecting : b.subscribe}
                 </button>
               )}
-              {agent.status !== null && (
+              {agent.status !== null && !isComped(agent.status) && (
                 <button type="button" className="glass-btn-secondary" disabled={busy} onClick={manage}>
                   {b.manage}
                 </button>
@@ -211,7 +214,7 @@ export default function Billing() {
             </div>
           )}
 
-          {agent.status !== null && usage && (
+          {agent.status !== null && !isComped(agent.status) && usage && (
             <div className="space-y-2">
               <h3 className={`font-semibold ${text.heading}`}>{b.usageTitle}</h3>
               <dl className="grid grid-cols-3 gap-2 text-sm">

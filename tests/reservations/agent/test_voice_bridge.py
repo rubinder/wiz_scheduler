@@ -197,6 +197,7 @@ async def test_greeting_creates_the_voice_conversation(client, db_session, line,
     assert r.status_code == 200, r.text
     out = r.json()
     assert "Downtown Store" in out["text"] and out["end_call"] is False
+    assert "automated reservations assistant" in out["text"]
     assert out["expect"] == "text" and out["confirm_prompt"] is None
     conv = await _conv(db_session)
     assert conv.channel == "voice" and conv.caller_number == CALLER

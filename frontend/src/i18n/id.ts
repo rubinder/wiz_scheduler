@@ -1443,6 +1443,9 @@ const ind = {
     weightRequired: "Masukkan bobot dari 0 sampai 1 di setiap baris sebelum menyetujui.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Ini restoran demo. Gunakan data karangan — akun demo dapat melihat apa yang Anda ketik.",
+    },
     common: {
       notEnabled: "Reservasi tidak diaktifkan untuk akun ini.",
       loading: "Memuat...",
@@ -1458,6 +1461,7 @@ const ind = {
       party_too_large: "Rombongan itu terlalu besar untuk pemesanan ini.",
       invalid_transition: "Perubahan status itu tidak diizinkan.",
       not_found: "Tidak ditemukan.",
+      ambiguous_code: "Sebuah reservasi dan pemesanan eksternal di sini memakai kode yang sama. Hapus dengan nomor telepon tamu.",
       invalid_party_size: "Ukuran rombongan tidak valid.",
       table_has_bookings: "Meja itu memiliki pemesanan dan tidak dapat diubah.",
       duplicate_label: "Dua meja memiliki label yang sama.",
@@ -1471,6 +1475,7 @@ const ind = {
       phone_required: "Nomor telepon wajib untuk reservasi ini.",
       code_exhausted: "Tidak dapat membuat kode konfirmasi. Silakan coba lagi.",
       admin_only: "Hanya admin yang dapat mengubah ini.",
+      comped_cap_limit: "Pada paket gratis, batas pengeluaran harian tidak boleh melebihi {cap}.",
       generic: "Terjadi kesalahan. Silakan coba lagi.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const ind = {
       persona: "Asisten telepon",
       voiceId: "ID suara Polly",
       greeting: "Sapaan",
+      greetingHint: "Harus memberi tahu tamu bahwa host ini otomatis: sertakan kata bahasa Inggris \"automated\". Kosongkan untuk memakai sapaan bawaan.",
       facts: "Fakta yang boleh disampaikan asisten",
       addFact: "Tambah fakta",
       transferNumber: "Nomor transfer ke staf",
@@ -1648,6 +1654,7 @@ const ind = {
       description: "Host AI reservasi punya langganan sendiri, terpisah dari penjadwalan.",
       cardTitle: "Langganan Host AI",
       price: "{price}/bulan, termasuk penggunaan {included}, lalu biaya kami + {markup}%",
+      compedPrice: "Paket gratis",
       subscribe: "Berlangganan",
       redirecting: "Mengarahkan ke pembayaran...",
       manage: "Kelola",
@@ -1667,6 +1674,7 @@ const ind = {
         paused: "Dijeda",
         unpaid: "Belum dibayar",
         incomplete: "Pembayaran belum selesai",
+        comped: "Termasuk",
         unknown: "Tidak diketahui",
         none: "Belum berlangganan",
       },
@@ -1734,6 +1742,11 @@ const ind = {
         erased: "Dihapus: {scrubbed} reservasi dibersihkan, {deleted} percakapan dihapus, {closed} ditutup saat membalas, {busy} masih berlangsung, {lookups} catatan pencarian dihapus.",
         eraseAgain: "Beberapa percakapan masih berlangsung: hapus lagi dalam beberapa menit.",
         externalErased: "{count} pemesanan eksternal dihapus.",
+        code: "Kode konfirmasi",
+        codeHint: "Hanya menghapus detail kontak reservasi itu dan percakapannya. Reservasi lain milik tamu tetap ada: gunakan nomor telepon untuk menghapus semua data orang ini.",
+        eraseByCode: "Hapus reservasi ini",
+        confirmEraseByCode: "Hapus reservasi {code}? Detail kontaknya dihapus dan percakapannya dihapus. Reservasi lain milik tamu tetap disimpan. Tindakan ini tidak dapat dibatalkan.",
+        erasedByCode: "Reservasi {code} dihapus: {scrubbed} reservasi dibersihkan, {deleted} percakapan dihapus, {closed} ditutup di tengah balasan, {busy} masih berlangsung.",
       },
       channels: {
         web: "Obrolan web",

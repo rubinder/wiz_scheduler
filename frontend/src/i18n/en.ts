@@ -1451,6 +1451,9 @@ const en = {
     weightRequired: "Enter a weight from 0 to 1 on every row before approving.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "This is a demo restaurant. Please use made-up details — the demo account can see what you type.",
+    },
     common: {
       notEnabled: "Reservations are not enabled for this account.",
       loading: "Loading...",
@@ -1466,6 +1469,7 @@ const en = {
       party_too_large: "That party is too large for this booking.",
       invalid_transition: "That status change is not allowed.",
       not_found: "Not found.",
+      ambiguous_code: "A reservation and an external booking here share this code. Erase by the diner's phone number instead.",
       invalid_party_size: "Invalid party size.",
       table_has_bookings: "That table has bookings and cannot be changed.",
       duplicate_label: "Two tables share the same label.",
@@ -1479,6 +1483,7 @@ const en = {
       phone_required: "A phone number is required for this booking.",
       code_exhausted: "Could not create a confirmation code. Please try again.",
       admin_only: "Only an admin can change this.",
+      comped_cap_limit: "On a complimentary plan the daily spend cap cannot be above {cap}.",
       generic: "Something went wrong. Please try again.",
     },
     rules: {
@@ -1517,6 +1522,7 @@ const en = {
       persona: "Phone assistant",
       voiceId: "Polly voice id",
       greeting: "Greeting",
+      greetingHint: "Must tell diners the host is automated: include the word \"automated\". Leave empty to use the default greeting.",
       facts: "Facts the assistant can share",
       addFact: "Add fact",
       transferNumber: "Staff transfer number",
@@ -1656,6 +1662,7 @@ const en = {
       description: "The reservation AI host has its own subscription, separate from scheduling.",
       cardTitle: "AI host subscription",
       price: "{price}/month, includes {included} of usage, then our cost + {markup}%",
+      compedPrice: "Complimentary plan",
       subscribe: "Subscribe",
       redirecting: "Redirecting to payment...",
       manage: "Manage",
@@ -1675,6 +1682,7 @@ const en = {
         paused: "Paused",
         unpaid: "Unpaid",
         incomplete: "Payment not completed",
+        comped: "Included",
         unknown: "Unknown",
         none: "Not subscribed",
       },
@@ -1742,6 +1750,11 @@ const en = {
         erased: "Erased: {scrubbed} reservations scrubbed, {deleted} conversations deleted, {closed} closed mid-reply, {busy} still in progress, {lookups} lookup records deleted.",
         eraseAgain: "Some conversations were still in progress: erase again in a few minutes.",
         externalErased: "{count} external bookings deleted.",
+        code: "Confirmation code",
+        codeHint: "Erases only that reservation's contact details and its conversations. The diner's other reservations stay: use the phone number to erase everything for this person.",
+        eraseByCode: "Erase this reservation",
+        confirmEraseByCode: "Erase reservation {code}? Its contact details are removed and its conversations are deleted. The diner's other reservations are kept. This cannot be undone.",
+        erasedByCode: "Erased reservation {code}: {scrubbed} reservations scrubbed, {deleted} conversations deleted, {closed} closed mid-reply, {busy} still in progress.",
       },
       channels: {
         web: "Web chat",

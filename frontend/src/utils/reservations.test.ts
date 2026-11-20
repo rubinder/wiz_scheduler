@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FloorOut, ReservationOut, RulesSchema, TableIO } from "../types/reservations";
 import {
+  errorMessage,
   CANVAS,
   clampTable,
   editorToFloorIn,
@@ -55,6 +56,7 @@ describe("reservations helpers", () => {
 
   it("maps error codes to i18n keys", () => {
     expect(errorKey({ code: "table_has_bookings" })).toBe("reservations.errors.table_has_bookings");
+    expect(errorKey({ code: "comped_cap_limit" })).toBe("reservations.errors.comped_cap_limit");
     expect(errorKey("boom")).toBe("reservations.errors.generic");
     expect(errorKey({ code: "nope" })).toBe("reservations.errors.generic");
     expect(errorKey(null)).toBe("reservations.errors.generic");
@@ -402,5 +404,15 @@ describe("mockProviderOffered", () => {
     expect(mockProviderOffered(true, "wizscheduler")).toBe(true);
     expect(mockProviderOffered(false, "mock_external")).toBe(true);
     expect(mockProviderOffered(false, undefined)).toBe(false);
+  });
+});
+
+describe("errorMessage", () => {
+  it("interpolates the comped ceiling from the error detail", () => {
+    expect(errorMessage("Cap above {cap}.", { code: "comped_cap_limit", ceiling_usd: 3 }, "en")).toBe("Cap above $3.00.");
+  });
+  it("leaves text without a placeholder or without a ceiling alone", () => {
+    expect(errorMessage("Not found.", { code: "not_found" }, "en")).toBe("Not found.");
+    expect(errorMessage("Cap above {cap}.", null, "en")).toBe("Cap above {cap}.");
   });
 });

@@ -648,3 +648,14 @@ async def test_max_claims_leaves_the_rest_requested(
     out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW, max_claims=1)
     assert len(out["claimed"]) == 1 and len(out["pending"]) == 1
     assert fake.names().count("search") == 1
+
+
+async def test_a_comped_group_never_claims_a_number(db_session, seed_location, fake):
+    # Comped is answered, but a Connect number is cost with no revenue; the
+    # demo is web chat.
+    await subscribe(db_session, "comped")
+    out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert out["claimed"] == [] and await _rows(db_session) == {}
+    out = await voice_numbers.run_daily(db_session, NOW)
+    assert out["errors"] == [] and await _rows(db_session) == {}
+    assert "claim" not in fake.names() and "search" not in fake.names()

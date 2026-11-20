@@ -235,6 +235,107 @@ async def test_diner_data_covers_the_mock_bookings_and_matches_refs_by_provider(
     assert (await db_session.get(Reservation, ids["ada"])).diner_name == "Bob"
 
 
+
+async def test_erase_by_code_covers_a_mock_booking_and_matches_refs_by_provider(
+        client, manager_token, seeded_floor, db_session: AsyncSession):
+    ada_mock = _mock(_at(18), code="MOCK23")
+    ada_other = _mock(_at(20), code="MOCK45")
+    db_session.add_all([ada_mock, ada_other])
+    await db_session.flush()
+    db_session.add(MockExternalIdempotency(
+        company_id=COMPANY_ID, key="c:book:1",
+        response={"ref": ada_mock.id, "diner_name": "Ada", "diner_phone": ADA}))
+    db_session.add(MockExternalIdempotency(
+        company_id=COMPANY_ID, key="c:book:2",
+        response={"ref": ada_other.id, "diner_name": "Ada", "diner_phone": ADA}))
+    await db_session.commit()
+    mine = await _conv(db_session, "mock_external", held_reservation_id=ada_mock.id)
+    wiz_same_id = await _conv(db_session, "wizscheduler", reservation_id=ada_mock.id)
+    other = await _conv(db_session, "mock_external", reservation_id=ada_other.id)
+    ids = {"mock": ada_mock.id, "other": ada_other.id, "mine": mine.id,
+           "wiz": wiz_same_id.id, "conv_other": other.id}
+
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "mock23"}, headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["external_bookings_deleted"] == 1 and out["reservations_scrubbed"] == 0
+    assert out["conversations_deleted"] == 1
+
+    db_session.expire_all()
+    left = (await db_session.execute(select(MockExternalBooking.id))).scalars().all()
+    assert left == [ids["other"]]
+    keys = (await db_session.execute(select(MockExternalIdempotency.key))).scalars().all()
+    assert keys == ["c:book:2"]
+    assert await db_session.get(AgentConversation, ids["mine"]) is None
+    assert await db_session.get(AgentConversation, ids["wiz"]) is not None
+    assert await db_session.get(AgentConversation, ids["conv_other"]) is not None
+
+
+async def test_erase_by_code_keeps_a_mock_booking_until_its_chats_are_out_of_flight(
+        client, manager_token, seeded_floor, db_session: AsyncSession):
+    """A retry must still find the code: while a linked conversation is mid-
+    turn the mock booking is scrubbed but kept, and deleted on the retry."""
+    booking = _mock(_at(18), code="MOCK23")
+    db_session.add(booking)
+    await db_session.flush()
+    db_session.add(MockExternalIdempotency(
+        company_id=COMPANY_ID, key="c:book:1",
+        response={"ref": booking.id, "diner_name": "Ada", "diner_phone": ADA}))
+    await db_session.commit()
+    conv = await _conv(db_session, "mock_external", reservation_id=booking.id)
+    conv.turn_started_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    ids = {"booking": booking.id, "conv": conv.id}
+    h = _auth(manager_token)
+
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "MOCK23"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["conversations_closed_in_flight"] == 1
+    assert r.json()["external_bookings_deleted"] == 0
+    db_session.expire_all()
+    kept = await db_session.get(MockExternalBooking, ids["booking"])
+    assert kept is not None and kept.code == "MOCK23"
+    assert (kept.diner_name, kept.diner_phone) == (None, None)
+    assert (await db_session.execute(select(MockExternalIdempotency))).first() is None
+
+    # The turn ends; erasing again by the same code finishes the job.
+    closed = await db_session.get(AgentConversation, ids["conv"])
+    closed.turn_started_at = None
+    await db_session.commit()
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "MOCK23"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["conversations_deleted"] == 1
+    assert r.json()["external_bookings_deleted"] == 1
+    db_session.expire_all()
+    assert await db_session.get(AgentConversation, ids["conv"]) is None
+    assert await db_session.get(MockExternalBooking, ids["booking"]) is None
+
+
+async def test_erase_by_a_code_both_inventories_share_is_refused(
+        client, manager_token, seeded_floor, db_session: AsyncSession):
+    mock = _mock(_at(18), code="SAME23")
+    db_session.add(mock)
+    start = datetime.now(timezone.utc) + timedelta(days=3)
+    res = Reservation(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, party_size=2,
+        start_at=start, end_at=start + timedelta(hours=2), status=BOOKED,
+        diner_name="Bob", diner_phone=BOB, source=SOURCE_STAFF,
+        confirmation_code="SAME23")
+    db_session.add(res)
+    await db_session.commit()
+    ids = {"mock": mock.id, "res": res.id}
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "same23"}, headers=_auth(manager_token))
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "ambiguous_code"
+    assert "phone" in r.json()["detail"]["message"]
+    db_session.expire_all()
+    assert (await db_session.get(MockExternalBooking, ids["mock"])).diner_phone == ADA
+    assert (await db_session.get(Reservation, ids["res"])).diner_phone == BOB
+
 # -- retention --------------------------------------------------------------------
 
 

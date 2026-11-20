@@ -9,6 +9,7 @@ import type { Location } from "../../types";
 import type { DateOverride, ServicePeriod, SlotOut } from "../../types/reservations";
 import {
   errorKey,
+  errorMessage,
   formatLocalTime,
   localDateString,
   payloadToRulesForm,
@@ -84,7 +85,7 @@ export default function ReservationsRules() {
 
   const errorText = (detail: unknown): string => {
     const key = errorKey(detail).split(".")[2];
-    return (r.errors as Record<string, string>)[key] ?? r.errors.generic;
+    return errorMessage((r.errors as Record<string, string>)[key] ?? r.errors.generic, detail, lang);
   };
 
   const location = useMemo(() => locations.find((l) => l.id === locationId), [locations, locationId]);
@@ -442,7 +443,7 @@ export default function ReservationsRules() {
                 onChange={(e) => patch({ persona: { ...form.persona, voice_id: e.target.value } })}
               />
             </Field>
-            <Field label={r.rules.greeting}>
+            <Field label={r.rules.greeting} hint={r.rules.greetingHint}>
               <textarea
                 className={`${input} w-full`}
                 rows={2}

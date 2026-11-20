@@ -48,11 +48,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.availability import candidate_starts
-from backend.reservations.booking import CodeExhausted, DinerContact, InvalidPartySize
+from backend.reservations.booking import (
+    CodeExhausted, DinerContact, InvalidPartySize, normalize_code,
+)
 from backend.reservations.codes import new_code
 from backend.reservations.mock_external_models import (
     MockExternalBooking,
@@ -386,7 +388,7 @@ class MockExternalProvider:
         if ref is not None:
             q = q.where(MockExternalBooking.id == ref)
         elif code is not None and phone is not None:
-            q = q.where(MockExternalBooking.code == code.strip().upper(),
+            q = q.where(MockExternalBooking.code == normalize_code(code),
                         MockExternalBooking.diner_phone == phone)
         else:
             raise ValueError("lookup needs a ref, or a code and a phone")
@@ -441,16 +443,66 @@ async def bookings_for_phone(
     return [_booking(r, now) for r in rows]
 
 
-async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
-    """Delete these mock bookings, and the stored idempotent responses that
-    repeat their diner's details. Returns the bookings deleted."""
-    if not refs:
-        return 0
+async def refs_created_before(
+    db: AsyncSession, company_id: str, location_id: str, cutoff: datetime,
+) -> list[str]:
+    """The mock bookings at the location created before `cutoff` that still
+    carry diner details (the demo purge, diner_data.purge_demo_location)."""
+    return list((await db.execute(
+        select(MockExternalBooking.id).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.created_at < cutoff,
+            or_(MockExternalBooking.diner_name.isnot(None),
+                MockExternalBooking.diner_phone.isnot(None)),
+        )
+    )).scalars().all())
+
+
+async def refs_for_code(
+    db: AsyncSession, company_id: str, location_id: str, code: str,
+) -> list[str]:
+    """The mock booking at the location with this (normalized) code, as a
+    list of refs: empty, or one (codes are unique per location)."""
+    return list((await db.execute(
+        select(MockExternalBooking.id).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.code == code,
+        )
+    )).scalars().all())
+
+
+async def _delete_responses(db: AsyncSession, company_id: str, refs: list[str]) -> None:
     await db.execute(
         delete(MockExternalIdempotency).where(
             MockExternalIdempotency.company_id == company_id,
             MockExternalIdempotency.response["ref"].astext.in_(refs))
         .execution_options(synchronize_session=False))
+
+
+async def scrub_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
+    """Clear these mock bookings' diner details but keep the rows (id and
+    code), and delete the stored idempotent responses that repeat the
+    details. For an erase by code with a conversation still mid-turn: the
+    retry must still find the code. Returns the bookings scrubbed."""
+    if not refs:
+        return 0
+    await _delete_responses(db, company_id, refs)
+    return (await db.execute(
+        update(MockExternalBooking)
+        .where(MockExternalBooking.company_id == company_id,
+               MockExternalBooking.id.in_(refs))
+        .values(diner_name=None, diner_phone=None)
+        .execution_options(synchronize_session=False))).rowcount
+
+
+async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
+    """Delete these mock bookings, and the stored idempotent responses that
+    repeat their diner's details. Returns the bookings deleted."""
+    if not refs:
+        return 0
+    await _delete_responses(db, company_id, refs)
     return (await db.execute(
         delete(MockExternalBooking).where(
             MockExternalBooking.company_id == company_id,

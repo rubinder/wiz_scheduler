@@ -108,6 +108,22 @@ async def test_voice_knobs_round_trip_through_rules(client, manager_token, seed_
     assert r.status_code == 422
 
 
+
+async def test_rules_put_rejects_a_greeting_that_hides_the_automated_host(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    rules["persona"]["greeting"] = "Ciao! Welcome to Luigi's."
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 422
+    assert "automated" in r.text
+    rules["persona"]["greeting"] = "Ciao! Luigi's reservations Assistant here."
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 422
+    rules["persona"]["greeting"] = "Ciao! Luigi's Automated reservations assistant."
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
 async def test_rules_put_without_voice_keeps_stored_voice(client, manager_token, seed_location):
     h = _auth(manager_token)
     rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
@@ -626,3 +642,57 @@ async def test_rules_put_without_voice_survives_invalid_stored_rules(
     r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
     assert r.status_code == 200
     assert r.json()["rules"]["voice"]["voice_reply_max_sentences"] == 0
+
+
+async def test_a_comped_group_cannot_save_a_cap_above_the_comped_ceiling(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "comped")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    rules["daily_spend_cap_usd"] = 3.01
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 422, r.text
+    detail = r.json()["detail"]
+    assert detail["code"] == "comped_cap_limit"
+    assert detail["ceiling_usd"] == 3.0 and "$3.00" in detail["message"]
+    rules["daily_spend_cap_usd"] = 3.0
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
+
+async def test_a_paying_group_can_save_a_cap_above_the_comped_ceiling(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "active")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    rules["daily_spend_cap_usd"] = 50
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
+
+async def test_a_comped_group_with_default_rules_round_trips_a_save(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    """The $20 default cap reads back as the comped ceiling, so saving the
+    rules unchanged is not refused."""
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "comped")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert rules["daily_spend_cap_usd"] == 3.0
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
+
+async def test_a_paying_group_reads_its_stored_cap(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "active")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert rules["daily_spend_cap_usd"] == 20.0

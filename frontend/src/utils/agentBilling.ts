@@ -13,14 +13,23 @@ export type AgentStatusKey =
   | "paused"
   | "unpaid"
   | "incomplete"
+  | "comped"
   | "unknown";
 
-const NAMED = new Set(["active", "trialing", "past_due", "canceled", "paused", "unpaid", "incomplete"]);
+const NAMED = new Set(["active", "trialing", "past_due", "canceled", "paused", "unpaid", "incomplete", "comped"]);
 
 /** Subscriptions Stripe still bills and that block a second Checkout (past_due included, Ruling T). */
 const LIVE = new Set(["active", "trialing", "past_due"]);
 
-/** The i18n key under reservations.billing.statuses for a Stripe status. */
+/**
+ * Comped: the AI host is included free (the demo), with no Stripe subscription,
+ * so there is nothing to subscribe to, manage or bill.
+ */
+export function isComped(status: string | null): boolean {
+  return status === "comped";
+}
+
+/** The i18n key under reservations.billing.statuses for a subscription status. */
 export function agentStatusKey(status: string | null): AgentStatusKey {
   if (status === null) return "none";
   if (status === "incomplete_expired") return "canceled";
@@ -29,7 +38,7 @@ export function agentStatusKey(status: string | null): AgentStatusKey {
 
 /** Subscribe is offered unless a subscription is live (the server cancels leftovers first). */
 export function canSubscribe(status: string | null): boolean {
-  return status === null || !LIVE.has(status);
+  return status === null || !(LIVE.has(status) || isComped(status));
 }
 
 /** Whole-cent dollar amounts (the API rounds them); utils/conversations.formatUsd is for sub-cent costs. */

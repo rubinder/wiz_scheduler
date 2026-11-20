@@ -18,13 +18,13 @@ from tests.reservations.evals.test_run import _url
 # sha256 of the prompts as rendered before the knobs existed, for the fixture
 # location below. A change here means CI replay recordings may go stale.
 GOLDEN = {
-    "web": "2a13758499ab31fc4e7325b7b8002188ba2d60b1f19f7f5aa2dd9f969b221bb0",
-    "voice": "8735419a806a8fa53b66f8da75557b42c901df1d274266e8fa8461a6fcf3d8d5",
+    "web": "9cb57cc288f3e8e13e3ec15dd69f40971ea6b0d0a88e5de09e105b083e59f9fd",
+    "voice": "93241bed088a470546ca0c58afe35ce91dd5db163a63ab2bdd2e29a9e958df2f",
 }
 
 
 def _rules(**voice_knobs) -> RulesSchema:
-    return RulesSchema(persona={"greeting": "Hi", "facts": ["Open late"]},
+    return RulesSchema(persona={"greeting": "Hi, automated host here", "facts": ["Open late"]},
                        max_self_book_party=6, voice=voice_knobs)
 
 

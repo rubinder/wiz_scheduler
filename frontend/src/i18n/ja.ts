@@ -1443,6 +1443,9 @@ const ja = {
     weightRequired: "承認する前に、すべての行に0〜1の重みを入力してください。",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "これはデモ用のレストランです。架空の情報をご利用ください。デモアカウントは入力内容を閲覧できます。",
+    },
     common: {
       notEnabled: "このアカウントでは予約が有効になっていません。",
       loading: "読み込み中...",
@@ -1458,6 +1461,7 @@ const ja = {
       party_too_large: "この人数はこの予約には多すぎます。",
       invalid_transition: "そのステータス変更は許可されていません。",
       not_found: "見つかりません。",
+      ambiguous_code: "ここでは予約と外部予約が同じコードを使っています。代わりにお客様の電話番号で消去してください。",
       invalid_party_size: "人数が正しくありません。",
       table_has_bookings: "このテーブルには予約があり変更できません。",
       duplicate_label: "2つのテーブルに同じラベルがあります。",
@@ -1471,6 +1475,7 @@ const ja = {
       phone_required: "この予約には電話番号が必要です。",
       code_exhausted: "確認コードを作成できませんでした。もう一度お試しください。",
       admin_only: "これを変更できるのは管理者のみです。",
+      comped_cap_limit: "無料プランでは、1日の支出上限を{cap}より高く設定できません。",
       generic: "問題が発生しました。もう一度お試しください。",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const ja = {
       persona: "電話アシスタント",
       voiceId: "Pollyの音声ID",
       greeting: "あいさつ",
+      greetingHint: "ホストが自動であることをお客様に伝える必要があります：英単語 \"automated\" を含めてください。空欄にすると既定のあいさつを使います。",
       facts: "アシスタントが伝えられる情報",
       addFact: "情報を追加",
       transferNumber: "スタッフへの転送番号",
@@ -1648,6 +1654,7 @@ const ja = {
       description: "予約用AIホストには、シフト作成とは別の専用サブスクリプションがあります。",
       cardTitle: "AIホストのサブスクリプション",
       price: "月額 {price}、{included} 分の利用を含み、超過分は当社コスト + {markup}%",
+      compedPrice: "無料プラン",
       subscribe: "申し込む",
       redirecting: "支払いページへ移動しています...",
       manage: "管理",
@@ -1667,6 +1674,7 @@ const ja = {
         paused: "一時停止中",
         unpaid: "未払い",
         incomplete: "支払い未完了",
+        comped: "無料で付帯",
         unknown: "不明",
         none: "未契約",
       },
@@ -1734,6 +1742,11 @@ const ja = {
         erased: "消去しました: 予約{scrubbed}件をクリア、会話{deleted}件を削除、応答中に終了{closed}件、進行中{busy}件、検索記録{lookups}件を削除。",
         eraseAgain: "進行中の会話がありました。数分後にもう一度消去してください。",
         externalErased: "外部予約を {count} 件削除しました。",
+        code: "確認コード",
+        codeHint: "その予約の連絡先情報と会話だけを消去します。このお客様の他の予約は残ります。この方のすべてを消去するには電話番号を使ってください。",
+        eraseByCode: "この予約を消去",
+        confirmEraseByCode: "予約 {code} を消去しますか？連絡先情報が削除され、会話も削除されます。このお客様の他の予約は残ります。元に戻せません。",
+        erasedByCode: "予約 {code} を消去しました：予約 {scrubbed} 件を消去、会話 {deleted} 件を削除、返信途中で {closed} 件を終了、{busy} 件は進行中です。",
       },
       channels: {
         web: "ウェブチャット",

@@ -4,6 +4,7 @@ import {
   canSubscribe,
   checkoutReturn,
   formatDollars,
+  isComped,
   periodEndLabel,
   priceValues,
   survivesCancellationUntil,
@@ -15,6 +16,17 @@ describe("agent subscription status", () => {
     for (const s of ["active", "trialing", "past_due", "canceled", "paused", "unpaid", "incomplete"]) {
       expect(agentStatusKey(s)).toBe(s);
     }
+  });
+
+  it("labels a comped group Included, never offers Subscribe or a renewal date, and hides its usage bill", () => {
+    expect(agentStatusKey("comped")).toBe("comped");
+    expect(canSubscribe("comped")).toBe(false);
+    expect(isComped("comped")).toBe(true);
+    expect(isComped("active")).toBe(false);
+    expect(isComped(null)).toBe(false);
+    expect(
+      periodEndLabel({ status: "comped", current_period_end: "2026-12-18T00:00:00+00:00", cancel_at_period_end: false }),
+    ).toBeNull();
   });
 
   it("treats no subscription as none, an expired incomplete one as canceled, anything else as unknown", () => {

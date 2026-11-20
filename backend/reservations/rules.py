@@ -3,7 +3,10 @@
 from datetime import date, datetime, time, timezone
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel, Field, TypeAdapter, ValidationError, ValidationInfo, field_validator,
+    model_validator,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,10 +69,39 @@ class MockExternalSettings(BaseModel):
 ProviderName = Literal["wizscheduler", "mock_external"]
 
 
+# Validation context for rules read back from storage: checks added after
+# rules were stored (the greeting disclosure) apply on write only, so
+# existing rules keep reading.
+STORED = {"stored": True}
+
+
+def discloses_automation(greeting: str) -> bool:
+    """The greeting tells the diner the host is automated: it says
+    "automated", case-insensitive. "Assistant" alone does not (a person can
+    be an assistant), so it no longer passes."""
+    return "automated" in greeting.lower()
+
+
 class Persona(BaseModel):
     voice_id: str = "Joanna"
+    # Empty: the default greeting (agent/gate.greeting). A custom greeting
+    # must say the host is automated; a stored one that does not (saved
+    # before the rule) reads, but is never rendered: the default is.
     greeting: str = ""
     facts: list[str] = []
+
+    @field_validator("greeting")
+    @classmethod
+    def _discloses(cls, v: str, info: ValidationInfo) -> str:
+        if v and not (info.context or {}).get("stored") and not discloses_automation(v):
+            raise ValueError("the greeting must tell diners the host is automated: "
+                             "include the word 'automated'")
+        return v
+
+    def rendered_greeting(self) -> str:
+        """The custom greeting, or "" (use the default) when it is unset or
+        does not disclose the automated host."""
+        return self.greeting if discloses_automation(self.greeting) else ""
 
 
 def _default_durations() -> list[DurationBand]:
@@ -170,7 +202,7 @@ async def get_rules(
     row = await _row(db, company_id, location_id)
     if row is None:
         return RulesSchema(), 0
-    return RulesSchema.model_validate(row.rules), row.version
+    return RulesSchema.model_validate(row.rules, context=STORED), row.version
 
 
 async def save_rules(
@@ -208,7 +240,8 @@ async def stored_fields(
     for name in names:
         info = RulesSchema.model_fields[name]
         try:
-            out[name] = TypeAdapter(info.annotation).validate_python(raw[name])
+            out[name] = TypeAdapter(info.annotation).validate_python(
+                raw[name], context=STORED)
         except (KeyError, ValidationError):
             out[name] = info.get_default(call_default_factory=True)
     return out

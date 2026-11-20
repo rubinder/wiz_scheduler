@@ -187,6 +187,11 @@ class DinerPhoneIn(BaseModel):
     phone: str
 
 
+class DinerCodeIn(BaseModel):
+    """A confirmation code, any case, surrounding whitespace allowed."""
+    code: str = Field(min_length=1, max_length=32)
+
+
 RuleAction = Literal["allow", "block"]
 
 
@@ -307,6 +312,16 @@ class DinerDataOut(BaseModel):
     reservations: list[ReservationOut]
     conversations: list[ConversationDetailOut]
     number_rules: list[NumberRuleOut]
+
+
+class DinerCodeEraseOut(BaseModel):
+    """Erasure by confirmation code: one reservation and its conversations
+    (reservations/diner_data.erase_by_code). The number's other data stays."""
+    reservations_scrubbed: int
+    external_bookings_deleted: int
+    conversations_deleted: int
+    conversations_closed_in_flight: int
+    conversations_still_in_flight: int
 
 
 class DinerEraseOut(BaseModel):

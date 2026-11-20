@@ -189,7 +189,8 @@ async def location_info(
 ) -> LocationInfoOut:
     return LocationInfoOut(location_name=scope.location.name,
                            timezone=scope.location.timezone,
-                           greeting=await _greeting(db, scope))
+                           greeting=await _greeting(db, scope),
+                           demo=gate.is_demo_location(scope.company_id, scope.location.id))
 
 
 @router.post("/{slug}/{location_id}/conversations", response_model=ConversationOut,

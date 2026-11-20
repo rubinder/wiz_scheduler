@@ -1443,6 +1443,9 @@ const fr = {
     weightRequired: "Saisissez un poids de 0 à 1 sur chaque ligne avant d'approuver.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Ceci est un restaurant de démonstration. Utilisez des informations inventées : le compte de démonstration peut voir ce que vous saisissez.",
+    },
     common: {
       notEnabled: "Les réservations ne sont pas activées pour ce compte.",
       loading: "Chargement...",
@@ -1458,6 +1461,7 @@ const fr = {
       party_too_large: "Ce groupe est trop grand pour cette réservation.",
       invalid_transition: "Ce changement de statut n'est pas autorisé.",
       not_found: "Introuvable.",
+      ambiguous_code: "Une réservation et une réservation externe partagent ce code ici. Effacez plutôt par le numéro de téléphone du client.",
       invalid_party_size: "Taille de groupe invalide.",
       table_has_bookings: "Cette table a des réservations et ne peut pas être modifiée.",
       duplicate_label: "Deux tables ont le même libellé.",
@@ -1471,6 +1475,7 @@ const fr = {
       phone_required: "Un numéro de téléphone est requis pour cette réservation.",
       code_exhausted: "Impossible de créer un code de confirmation. Veuillez réessayer.",
       admin_only: "Seul un administrateur peut modifier ceci.",
+      comped_cap_limit: "Avec une formule offerte, le plafond de dépenses quotidien ne peut pas dépasser {cap}.",
       generic: "Une erreur s'est produite. Veuillez réessayer.",
     },
     rules: {
@@ -1509,6 +1514,7 @@ const fr = {
       persona: "Assistant téléphonique",
       voiceId: "Identifiant de voix Polly",
       greeting: "Message d'accueil",
+      greetingHint: "Doit indiquer aux clients que l'hôte est automatisé : incluez le mot anglais \"automated\". Laissez vide pour le message d'accueil par défaut.",
       facts: "Informations que l'assistant peut donner",
       addFact: "Ajouter une information",
       transferNumber: "Numéro de transfert vers le personnel",
@@ -1648,6 +1654,7 @@ const fr = {
       description: "L'hôte IA des réservations a son propre abonnement, distinct de la planification.",
       cardTitle: "Abonnement à l'hôte IA",
       price: "{price}/mois, {included} d'utilisation inclus, puis notre coût + {markup} %",
+      compedPrice: "Formule offerte",
       subscribe: "S'abonner",
       redirecting: "Redirection vers le paiement...",
       manage: "Gérer",
@@ -1667,6 +1674,7 @@ const fr = {
         paused: "En pause",
         unpaid: "Impayé",
         incomplete: "Paiement non finalisé",
+        comped: "Inclus",
         unknown: "Inconnu",
         none: "Non abonné",
       },
@@ -1734,6 +1742,11 @@ const fr = {
         erased: "Effacé : {scrubbed} réservations nettoyées, {deleted} conversations supprimées, {closed} fermées en cours de réponse, {busy} encore en cours, {lookups} enregistrements de recherche supprimés.",
         eraseAgain: "Certaines conversations étaient encore en cours : effacez à nouveau dans quelques minutes.",
         externalErased: "{count} réservations externes supprimées.",
+        code: "Code de confirmation",
+        codeHint: "N'efface que les coordonnées de cette réservation et ses conversations. Les autres réservations du client restent : utilisez le numéro de téléphone pour tout effacer pour cette personne.",
+        eraseByCode: "Effacer cette réservation",
+        confirmEraseByCode: "Effacer la réservation {code} ? Ses coordonnées sont retirées et ses conversations supprimées. Les autres réservations du client sont conservées. Cette action est irréversible.",
+        erasedByCode: "Réservation {code} effacée : {scrubbed} réservations nettoyées, {deleted} conversations supprimées, {closed} fermées en cours de réponse, {busy} encore en cours.",
       },
       channels: {
         web: "Chat web",
