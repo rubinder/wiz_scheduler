@@ -31,6 +31,10 @@ async def _screen(client, caller: str | None = CALLER, dialed: str = DIALED,
                              headers=headers or {})
 
 
+def _without_greeting(body: dict) -> dict:
+    return {k: v for k, v in body.items() if k != "greeting"}
+
+
 async def _calls(db) -> list[ScreenedCall]:
     return list((await db.execute(
         select(ScreenedCall).order_by(ScreenedCall.created_at)
@@ -55,7 +59,8 @@ async def test_secret_and_flag_are_enforced(client, db_session, line, monkeypatc
 async def test_default_answer_records_a_screened_call(client, db_session, line, llm):
     r = await _screen(client)
     assert r.status_code == 200, r.text
-    assert r.json() == {"action": "answer", "reason": "default"}
+    assert _without_greeting(r.json()) == {"action": "answer", "reason": "default"}
+    assert "automated reservations assistant" in r.json()["greeting"]
     [call] = await _calls(db_session)
     assert (call.company_id, call.location_id) == (COMPANY_ID, LOCATION_ID)
     assert call.caller_key == source_key_for(CALLER)
@@ -69,7 +74,8 @@ async def test_blocked_caller(client, db_session, line, llm):
     db_session.add(NumberRule(company_id=COMPANY_ID, location_id=LOCATION_ID,
                               e164=CALLER, action="block"))
     await db_session.commit()
-    assert (await _screen(client)).json() == {"action": "block", "reason": "block_list"}
+    assert (await _screen(client)).json() == {
+        "action": "block", "reason": "block_list", "greeting": ""}
     [call] = await _calls(db_session)
     assert (call.decision, call.reason) == ("block", "block_list")
     assert llm.requests == []
@@ -83,7 +89,8 @@ async def test_company_block_with_a_location_allow_is_answered(client, db_sessio
                    action="allow"),
     ])
     await db_session.commit()
-    assert (await _screen(client)).json() == {"action": "answer", "reason": "allow_list"}
+    assert _without_greeting((await _screen(client)).json()) == {
+        "action": "answer", "reason": "allow_list"}
 
 
 async def test_ftc_listed_caller_is_blocked(client, db_session, line):
@@ -91,7 +98,7 @@ async def test_ftc_listed_caller_is_blocked(client, db_session, line):
     db_session.add(SpamNumber(e164=CALLER, report_date=today - timedelta(days=2),
                               reports=3))
     await db_session.commit()
-    assert (await _screen(client)).json() == {"action": "block", "reason": "ftc"}
+    assert (await _screen(client)).json() == {"action": "block", "reason": "ftc", "greeting": ""}
     [call] = await _calls(db_session)
     assert call.reason == "ftc"
 
@@ -100,7 +107,7 @@ async def test_ftc_listed_caller_is_blocked(client, db_session, line):
 async def test_withheld_caller_is_answered_with_no_key(client, db_session, line, caller):
     r = await _screen(client, caller=caller)
     assert r.status_code == 200, r.text
-    assert r.json() == {"action": "answer", "reason": "withheld"}
+    assert _without_greeting(r.json()) == {"action": "answer", "reason": "withheld"}
     [call] = await _calls(db_session)
     assert call.caller_key is None and call.reason == "withheld"
 
@@ -108,6 +115,23 @@ async def test_withheld_caller_is_answered_with_no_key(client, db_session, line,
 async def test_unknown_dialed_number_answers_and_records_nothing(client, db_session, line,
                                                                  llm):
     r = await _screen(client, dialed="+12125550000")
-    assert r.json() == {"action": "answer", "reason": "default"}
+    # Not a location's number: no greeting, the Lambda's disclosing fallback plays.
+    assert r.json() == {"action": "answer", "reason": "default", "greeting": ""}
     assert await _calls(db_session) == []
     assert llm.requests == []
+
+
+async def test_the_answer_greeting_follows_the_disclosure_setting(client, db_session, line):
+    from backend.reservations.rules import get_rules, save_rules
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    rules.disclose_automated = False
+    rules.persona.greeting = "Thanks for calling Luigi's, how can I help?"
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    await db_session.commit()
+    assert (await _screen(client)).json()["greeting"] == (
+        "Thanks for calling Luigi's, how can I help?")
+    rules.persona.greeting = ""
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    await db_session.commit()
+    greeting = (await _screen(client)).json()["greeting"]
+    assert greeting and "automated" not in greeting.lower()

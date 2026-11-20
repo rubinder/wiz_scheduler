@@ -1476,6 +1476,7 @@ const pcm = {
       code_exhausted: "We no fit create confirmation code. Abeg try again.",
       admin_only: "Na only admin fit change dis one.",
       comped_cap_limit: "For free plan, di daily spend cap no fit pass {cap}.",
+      greeting_missing_disclosure: "Di greeting must tell customers say di host na machine (put di English word \"automated\" inside), or admin must off di notice.",
       generic: "Something go wrong. Abeg try again.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const pcm = {
       voiceId: "Polly voice id wey we go use",
       greeting: "Greeting",
       greetingHint: "E must tell customers say di host na machine: put di English word \"automated\" inside. Leave am empty make we use di normal greeting.",
+      discloseAutomated: "Talk say na machine assistant",
+      discloseAutomatedHint: "E dey on by default. Di greeting for web chat and phone dey tell customers say na machine assistant dem dey talk to. Na only admin fit off am; if you off am, your restaurant go take responsibility for any notice wey law need. Anyhow, di assistant no go ever claim say e be person.",
+      greetingHintNoDisclosure: "Leave am empty make we use di normal greeting.",
       facts: "Things wey assistant fit tell people",
       addFact: "Add fact",
       transferNumber: "Number to transfer to staff",

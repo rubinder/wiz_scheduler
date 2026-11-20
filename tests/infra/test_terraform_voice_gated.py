@@ -272,11 +272,14 @@ def test_reservations_env_only_added_when_switch_on() -> None:
     assert "agent_reconcile_enabled" in m.group(1)
 
 
-def test_the_spoken_flow_greeting_discloses_the_automated_host() -> None:
-    """Callers hear the flow's own prompt before any backend turn, so the
-    disclosure must be in it (#259 launch task 5)."""
+def test_the_spoken_flow_greeting_follows_the_screen_and_falls_back_disclosing() -> None:
+    """Callers first hear the greeting the screen Lambda returned (the
+    location's, which follows its disclosure setting). When the Lambda
+    fails, the flow's own fallback discloses the automated host."""
     text = (TERRAFORM / "voice" / "contact_flow.json.tftpl").read_text()
-    prompts = re.findall(r'Text\s*=\s*"([^"]*)"', text)
-    assert prompts, "no spoken prompt found"
-    first = prompts[0].lower()
-    assert "automated" in first or "assistant" in first
+    assert 'Text     = "$.Attributes.greeting"' in text
+    assert 'Attributes    = { greeting = "$.External.greeting" }' in text
+    fallback = re.search(r'Identifier = "greet-fallback".*?greeting = "([^"]*)"', text, re.S)
+    assert fallback and "automated" in fallback.group(1).lower()
+    assert '{ NextAction = "greet-fallback", ErrorType = "NoMatchingError" }' in text
+    assert text.index('Identifier = "no-flow-logs"') < text.index('Identifier = "greet"')

@@ -79,6 +79,7 @@ const KNOWN_ERRORS = new Set([
   "admin_only",
   "number_allowed",
   "comped_cap_limit",
+  "greeting_missing_disclosure",
 ]);
 
 /** Maps an ApiError.data detail ({code, message}) to an i18n key. */
@@ -134,6 +135,8 @@ export interface RulesForm {
   /** Admin-only: sent on save only when the editor may choose the provider. */
   provider: BookingProviderName;
   mock_external: { max_covers_per_slot: string; latency_ms: string; failure_rate: string };
+  /** Admin-only, sent like `provider`: the greeting says the host is automated. */
+  disclose_automated: boolean;
 }
 
 /** The server's defaults (rules.py), for rules saved before step 9. */
@@ -181,14 +184,16 @@ export function payloadToRulesForm(r: RulesSchema): RulesForm {
       latency_ms: str((r.mock_external ?? MOCK_DEFAULTS).latency_ms),
       failure_rate: str((r.mock_external ?? MOCK_DEFAULTS).failure_rate),
     },
+    disclose_automated: r.disclose_automated ?? true,
   };
 }
 
 /**
  * Times stay "HH:MM" (the server accepts it); blank capacity, pacing and
  * transfer number become null. `withProvider` (admins only) sends the booking
- * provider and the mock's knobs; otherwise they are omitted and the server
- * keeps what is stored, so a regular manager's save never touches them.
+ * provider, the mock's knobs and the automated-assistant disclosure;
+ * otherwise they are omitted and the server keeps what is stored, so a
+ * regular manager's save never touches them.
  */
 export function rulesFormToPayload(f: RulesForm, withProvider = false): RulesSchema {
   return {
@@ -222,6 +227,7 @@ export function rulesFormToPayload(f: RulesForm, withProvider = false): RulesSch
             latency_ms: num(f.mock_external.latency_ms),
             failure_rate: num(f.mock_external.failure_rate),
           },
+          disclose_automated: f.disclose_automated,
         }
       : {}),
   };

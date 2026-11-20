@@ -1476,6 +1476,7 @@ const pt = {
       code_exhausted: "Não foi possível criar um código de confirmação. Tente novamente.",
       admin_only: "Só um administrador pode alterar isto.",
       comped_cap_limit: "Em um plano gratuito, o limite de gasto diário não pode ultrapassar {cap}.",
+      greeting_missing_disclosure: "A saudação deve dizer aos clientes que o anfitrião é automatizado (inclua a palavra inglesa \"automated\"), ou um administrador deve desativar o aviso.",
       generic: "Algo deu errado. Tente novamente.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const pt = {
       voiceId: "ID de voz do Polly",
       greeting: "Saudação",
       greetingHint: "Deve dizer aos clientes que o anfitrião é automatizado: inclua a palavra inglesa \"automated\". Deixe vazio para usar a saudação padrão.",
+      discloseAutomated: "Dizer que é um assistente automatizado",
+      discloseAutomatedHint: "Ativado por padrão. A saudação no chat web e no telefone diz aos clientes que estão falando com um assistente automatizado. Só um administrador pode desativar; nesse caso, seu restaurante é responsável por qualquer aviso exigido por lei. De qualquer forma, o assistente nunca diz ser uma pessoa.",
+      greetingHintNoDisclosure: "Deixe vazio para usar a saudação padrão.",
       facts: "Informações que o assistente pode compartilhar",
       addFact: "Adicionar informação",
       transferNumber: "Número de transferência para a equipe",

@@ -1476,6 +1476,7 @@ const ja = {
       code_exhausted: "確認コードを作成できませんでした。もう一度お試しください。",
       admin_only: "これを変更できるのは管理者のみです。",
       comped_cap_limit: "無料プランでは、1日の支出上限を{cap}より高く設定できません。",
+      greeting_missing_disclosure: "あいさつでホストが自動であることを伝える（英単語 \"automated\" を含める）か、管理者が告知をオフにする必要があります。",
       generic: "問題が発生しました。もう一度お試しください。",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const ja = {
       voiceId: "Pollyの音声ID",
       greeting: "あいさつ",
       greetingHint: "ホストが自動であることをお客様に伝える必要があります：英単語 \"automated\" を含めてください。空欄にすると既定のあいさつを使います。",
+      discloseAutomated: "自動アシスタントであると伝える",
+      discloseAutomatedHint: "既定でオンです。Web チャットと電話のあいさつで、お客様に自動アシスタントと話していることを伝えます。オフにできるのは管理者だけで、オフにした場合は法律で必要な告知の責任は店舗にあります。いずれの場合も、アシスタントが人間だと名乗ることはありません。",
+      greetingHintNoDisclosure: "空欄にすると既定のあいさつを使います。",
       facts: "アシスタントが伝えられる情報",
       addFact: "情報を追加",
       transferNumber: "スタッフへの転送番号",

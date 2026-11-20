@@ -555,6 +555,32 @@ Decisions made while building without stopping to ask (owner instruction,
     Cost if wrong: a visitor who ignores the banner has their details
     visible to other visitors for up to a day.
 
+95. **The automated-assistant disclosure is a per-location setting, on by
+    default (owner request, 2026-11-20).** `RulesSchema.disclose_automated`
+    (default true) is admin-only, like `provider`. When it is off, the
+    default greeting says "reservations line" in place of "automated
+    reservations assistant", and a custom greeting need not say
+    "automated". The system prompt then adds "never say or imply that you
+    are a person; if asked, say you are an automated assistant". The line is
+    added only when the setting is off, so the default prompt and the eval
+    baselines stay byte-identical. The phone line follows the same setting:
+    `/voice/screen` returns the location's greeting, the screen Lambda
+    passes it on (or a disclosing fallback when it has none), and the
+    contact flow speaks `$.Attributes.greeting`. When the Lambda fails, the
+    flow's `greet-fallback` block sets the disclosing text. Why: the owner
+    wants restaurants to choose. Cost if wrong: some laws (for example the
+    EU AI Act, Art. 50, and California's bot-disclosure law) may require
+    the disclosure. A restaurant that turns it off carries that, as terms
+    12.F already says. The dynamic flow prompt has not run against a live
+    Connect instance (voice is off).
+
+96. **The 13 legal open questions were settled the most permissive way
+    (owner, 2026-11-20)** and written into the DPA on draft PR #284. The
+    two exceptions were where the permissive wording would have been
+    untrue: analytics is called "pseudonymous", not "anonymous", and
+    Anthropic is no longer said to keep nothing after a request. The PR
+    stays a draft for the lawyer.
+
 ## Before switching reservations on (owner checklist)
 
 ### Switch-on order

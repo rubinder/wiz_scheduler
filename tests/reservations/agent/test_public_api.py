@@ -158,6 +158,20 @@ async def test_location_info_and_greeting(client, db_session, seeded_floor, llm)
     assert (await client.get(BASE)).json()["greeting"] == "Ciao! Luigi's automated host here."
 
 
+async def test_greeting_without_the_disclosure_when_the_admin_turned_it_off(
+        client, db_session, seeded_floor, llm):
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    rules.disclose_automated = False
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    await db_session.commit()
+    greeting = (await client.get(BASE)).json()["greeting"]
+    assert "Downtown Store" in greeting and "automated" not in greeting.lower()
+    rules.persona.greeting = "Ciao! Welcome to Luigi's."
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    await db_session.commit()
+    assert (await client.get(BASE)).json()["greeting"] == "Ciao! Welcome to Luigi's."
+
+
 async def test_a_stored_greeting_without_the_disclosure_falls_back_to_the_default(
         client, db_session, seeded_floor, llm):
     """Rules stored before the disclosure rule are read, but their greeting

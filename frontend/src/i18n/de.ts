@@ -1476,6 +1476,7 @@ const de = {
       code_exhausted: "Es konnte kein Bestätigungscode erstellt werden. Bitte erneut versuchen.",
       admin_only: "Nur ein Admin kann dies ändern.",
       comped_cap_limit: "Bei einem kostenlosen Tarif darf das tägliche Ausgabenlimit {cap} nicht überschreiten.",
+      greeting_missing_disclosure: "Die Begrüßung muss sagen, dass der Host automatisiert ist (fügen Sie das englische Wort \"automated\" ein), oder ein Admin muss den Hinweis ausschalten.",
       generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const de = {
       voiceId: "Polly-Stimmen-ID",
       greeting: "Begrüßung",
       greetingHint: "Muss Gästen sagen, dass der Host automatisiert ist: Fügen Sie das englische Wort \"automated\" ein. Leer lassen für die Standardbegrüßung.",
+      discloseAutomated: "Sagen, dass es ein automatisierter Assistent ist",
+      discloseAutomatedHint: "Standardmäßig an. Die Begrüßung im Webchat und am Telefon sagt Gästen, dass sie mit einem automatisierten Assistenten sprechen. Nur ein Admin kann das ausschalten; dann ist Ihr Restaurant für jeden gesetzlich vorgeschriebenen Hinweis verantwortlich. In jedem Fall gibt sich der Assistent nie als Person aus.",
+      greetingHintNoDisclosure: "Leer lassen für die Standardbegrüßung.",
       facts: "Fakten, die der Assistent nennen darf",
       addFact: "Fakt hinzufügen",
       transferNumber: "Weiterleitungsnummer für das Personal",

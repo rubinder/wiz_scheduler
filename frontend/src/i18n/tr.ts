@@ -1476,6 +1476,7 @@ const trLang = {
       code_exhausted: "Onay kodu oluşturulamadı. Lütfen tekrar deneyin.",
       admin_only: "Bunu yalnızca bir yönetici değiştirebilir.",
       comped_cap_limit: "Ücretsiz planda günlük harcama sınırı {cap} tutarını aşamaz.",
+      greeting_missing_disclosure: "Karşılama, misafirlere sunucunun otomatik olduğunu söylemelidir (İngilizce \"automated\" kelimesini ekleyin) ya da bir yönetici bildirimi kapatmalıdır.",
       generic: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const trLang = {
       voiceId: "Polly ses kimliği",
       greeting: "Karşılama",
       greetingHint: "Misafirlere sunucunun otomatik olduğunu söylemelidir: İngilizce \"automated\" kelimesini ekleyin. Varsayılan karşılama için boş bırakın.",
+      discloseAutomated: "Otomatik bir asistan olduğunu söyle",
+      discloseAutomatedHint: "Varsayılan olarak açık. Web sohbetindeki ve telefondaki karşılama, misafirlere otomatik bir asistanla konuştuklarını söyler. Yalnızca bir yönetici kapatabilir; kapatırsanız yasanın gerektirdiği her bildirimden restoranınız sorumludur. Her durumda asistan asla insan olduğunu iddia etmez.",
+      greetingHintNoDisclosure: "Varsayılan karşılama için boş bırakın.",
       facts: "Asistanın paylaşabileceği bilgiler",
       addFact: "Bilgi ekle",
       transferNumber: "Personele aktarma numarası",

@@ -7,6 +7,8 @@ ${jsonencode({
       "no-flow-logs"   = { position = { x = 40, y = 240 } }
       "screen"         = { position = { x = 200, y = 240 } }
       "check-screen"   = { position = { x = 440, y = 240 } }
+      "greet"          = { position = { x = 700, y = 240 } }
+      "greet-fallback" = { position = { x = 440, y = 440 } }
       "set-voice"      = { position = { x = 200, y = 40 } }
       "host-bot"       = { position = { x = 440, y = 40 } }
       "check-transfer" = { position = { x = 700, y = 40 } }
@@ -27,8 +29,9 @@ ${jsonencode({
     },
     {
       # Call screening (#259 step 7): the screen Lambda answers a flat map,
-      # {"action": "answer"|"block"}, and fails open itself. An error or a
-      # timeout here also answers: only an explicit block disconnects.
+      # {"action": "answer"|"block", "greeting": ...}, and fails open itself.
+      # An error or a timeout here also answers, with the disclosing fallback
+      # greeting: only an explicit block disconnects.
       Identifier = "screen"
       Type       = "InvokeLambdaFunction"
       Parameters = {
@@ -39,7 +42,7 @@ ${jsonencode({
       Transitions = {
         NextAction = "check-screen"
         Errors = [
-          { NextAction = "set-voice", ErrorType = "NoMatchingError" },
+          { NextAction = "greet-fallback", ErrorType = "NoMatchingError" },
         ]
       }
     },
@@ -48,11 +51,39 @@ ${jsonencode({
       Type       = "Compare"
       Parameters = { ComparisonValue = "$.External.action" }
       Transitions = {
-        NextAction = "set-voice"
+        NextAction = "greet"
         Conditions = [
           { NextAction = "disconnect", Condition = { Operator = "Equals", Operands = ["block"] } },
         ]
-        Errors = [{ NextAction = "set-voice", ErrorType = "NoMatchingCondition" }]
+        Errors = [{ NextAction = "greet", ErrorType = "NoMatchingCondition" }]
+      }
+    },
+    {
+      # The greeting the caller hears first: the screen Lambda's, which
+      # follows the location's automated-assistant disclosure setting (it
+      # always sets one, disclosing when the backend gave none).
+      Identifier = "greet"
+      Type       = "UpdateContactAttributes"
+      Parameters = {
+        TargetContact = "Current"
+        Attributes    = { greeting = "$.External.greeting" }
+      }
+      Transitions = {
+        NextAction = "set-voice"
+        Errors     = [{ NextAction = "greet-fallback", ErrorType = "NoMatchingError" }]
+      }
+    },
+    {
+      # The Lambda failed, so the location's setting is unknown: disclose.
+      Identifier = "greet-fallback"
+      Type       = "UpdateContactAttributes"
+      Parameters = {
+        TargetContact = "Current"
+        Attributes    = { greeting = "Thanks for calling. You have reached an automated reservations assistant. How can I help you?" }
+      }
+      Transitions = {
+        NextAction = "set-voice"
+        Errors     = [{ NextAction = "set-voice", ErrorType = "NoMatchingError" }]
       }
     },
     {
@@ -73,7 +104,7 @@ ${jsonencode({
       Identifier = "host-bot"
       Type       = "ConnectParticipantWithLexBot"
       Parameters = {
-        Text     = "Thanks for calling. You have reached an automated reservations assistant. How can I help you?"
+        Text     = "$.Attributes.greeting"
         LexV2Bot = { AliasArn = lex_bot_alias_arn }
         LexSessionAttributes = {
           contact_id = "$.ContactId"
