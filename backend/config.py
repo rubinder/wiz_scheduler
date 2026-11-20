@@ -393,6 +393,11 @@ class Settings(BaseSettings):
     # once per location (more are answered 409 location_busy).
     RESERVATION_AGENT_TURN_COST_BOUND_USD: float = 0.05
     RESERVATION_AGENT_LOCATION_MAX_INFLIGHT: int = 10
+    # Hard daily spend ceiling per location for a comped group (#259 step
+    # 11): its usage is never invoiced, so the operator pays it. The location's
+    # daily_spend_cap_usd still applies below it; a manager raising that cap
+    # cannot lift a comped location past this.
+    COMPED_DAILY_CAP_USD: float = 3.0
 
     # Data retention periods (days)
     RETENTION_REJECTED_SCHEDULES_DAYS: int = 30

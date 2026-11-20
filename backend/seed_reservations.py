@@ -15,7 +15,8 @@ booking.*), so the seeded data passes the same validation as real data and
 `find_slots` stays the only evaluator of what is free. Bookings are keyed on
 the location's local date, so a rerun on a later day adds the new days and
 leaves the earlier bookings alone, even those now in the past. A booking
-whose slot has meanwhile been taken is skipped, not fatal.
+whose slot has meanwhile been taken is skipped, not fatal. Older seeded
+bookings keep the status they were seeded with after their time passes.
 
 Diners are invented: phones are in the 555-0100..0199 fiction range and
 emails are @example.com.
@@ -37,8 +38,11 @@ from backend.reservations import booking
 from backend.reservations.floor import (
     CombinationIO,
     FloorIn,
+    FloorInvalid,
     SectionIO,
+    TableHasBookings,
     TableIO,
+    get_floor,
     save_floor,
 )
 from backend.reservations.models import (
@@ -233,27 +237,54 @@ async def _seed_floor(db: AsyncSession, now: datetime) -> None:
         table_ids=[by_label[lbl] for lbl in combo_labels], min_seats=1, max_seats=1,
     ).on_conflict_do_nothing())
     # A seeded table a visitor archived cannot come back under its id (only
-    # services/archive.py touches archived_at, and it has no table restore):
-    # it is saved as a new table instead.
+    # services/archive.py touches archived_at, and it has no table restore).
+    # The active table with its label stands in for it, if there is one (the
+    # replacement an earlier run made, or the visitor's); otherwise it is
+    # saved as a new table, once.
     archived = set((await db.execute(select(DiningTable.id).where(
+        DiningTable.company_id == COMPANY_ID, DiningTable.location_id == LOCATION_ID,
         DiningTable.id.in_(list(by_label.values())),
         DiningTable.archived_at.is_not(None)))).scalars().all())
-    await save_floor(db, COMPANY_ID, LOCATION_ID, FloorIn(
-        sections=[SectionIO(id=sid, key=key, name=name, sort_order=i)
-                  for i, (sid, key, name) in enumerate(SECTIONS)],
-        tables=[TableIO(id=None if tid in archived else tid, label=label, section_key=key,
+    floor = await get_floor(db, COMPANY_ID, LOCATION_ID)
+    active_by_label = {t.label: t.id for t in floor.tables}
+    seeded_ids = {
+        tid: active_by_label.get(label) if tid in archived else tid
+        for tid, label, *_ in TABLES
+    }
+    section_id_by_key = {key: sid for sid, key, _ in SECTIONS}
+    ours_sections = set(section_id_by_key.values())
+    ours_labels = {t[1] for t in TABLES}
+    # What a visitor added is kept as it is, so the save never archives a
+    # table (save_floor archives every table left out, and refuses one with
+    # an upcoming booking).
+    visitor_sections = [s for s in floor.sections if s.id not in ours_sections]
+    visitor_tables = [t for t in floor.tables if t.label not in ours_labels]
+    visitor_combos = [c for c in floor.combinations if c.id != combo_id]
+    payload = FloorIn(
+        sections=[SectionIO(id=sid, key=sid, name=name, sort_order=i)
+                  for i, (sid, _, name) in enumerate(SECTIONS)] + visitor_sections,
+        tables=[TableIO(id=seeded_ids[tid], label=label,
+                        section_key=section_id_by_key[key],
                         min_seats=lo, max_seats=hi, combinable=comb, x=x, y=y)
-                for tid, label, key, lo, hi, comb, x, y in TABLES],
-        combinations=[CombinationIO(id=combo_id, name=combo_name, table_labels=combo_labels)],
-    ), now=now)
+                for tid, label, key, lo, hi, comb, x, y in TABLES] + visitor_tables,
+        combinations=[CombinationIO(id=combo_id, name=combo_name, table_labels=combo_labels)]
+        + [CombinationIO(id=c.id, name=c.name, table_labels=c.table_labels)
+           for c in visitor_combos],
+    )
+    try:
+        async with db.begin_nested():
+            await save_floor(db, COMPANY_ID, LOCATION_ID, payload, now=now)
+    except (FloorInvalid, TableHasBookings) as e:
+        # Never fatal for the demo: the floor stays as the visitor left it.
+        print(f"  floor left as it is: {e}")
 
 
-async def _seed_rules(db: AsyncSession, today: date) -> None:
+async def _seed_rules(db: AsyncSession, today: date, now: datetime) -> None:
     desired = demo_rules(today)
     payload = desired.model_dump(mode="json")
     await db.execute(pg_insert(ReservationRules).values(
         id=RULES_ID, company_id=COMPANY_ID, location_id=LOCATION_ID, rules=payload,
-        version=1, updated_at=datetime.now(timezone.utc),
+        version=1, updated_at=now,
     ).on_conflict_do_nothing())
     current, _ = await get_rules(db, COMPANY_ID, LOCATION_ID)
     if current.model_dump(mode="json") != payload:
@@ -380,7 +411,7 @@ async def seed_reservations(db: AsyncSession, *, now: datetime | None = None) ->
     zone = ZoneInfo(loc.timezone)
     today = now.astimezone(zone).date()  # the location's day, from UTC now
     await _seed_floor(db, now)
-    await _seed_rules(db, today)
+    await _seed_rules(db, today, now)
     rules, _ = await get_rules(db, COMPANY_ID, LOCATION_ID)
     return {
         "sections": len(SECTIONS),

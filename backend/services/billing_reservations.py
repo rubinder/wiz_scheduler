@@ -41,7 +41,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.models.location import Location
 from backend.models.ownership_group import OwnershipGroup
-from backend.reservations.rules import get_rules
 from backend.reservations.subscription import (
     ANSWERING_STATUSES,
     BILLABLE_STATUSES,
@@ -50,6 +49,7 @@ from backend.reservations.subscription import (
     STATUSES,
     AgentUsage,
     ReservationSubscription,
+    daily_cap,
     for_group,
     period_start_for,
     period_usage,
@@ -1633,6 +1633,15 @@ async def reconcile_all_agent_subscriptions(db: AsyncSession, now: datetime | No
     return out
 
 
+def _live_stripe_object(event_type: str, obj: Any) -> bool:
+    """From the payload alone (a comped group gets no Stripe read): a paid
+    Checkout, or a subscription Stripe still bills."""
+    if event_type == "checkout.session.completed":
+        return True
+    return (event_type.startswith("customer.subscription.")
+            and _field(obj, "status") in BILLABLE_STATUSES)
+
+
 async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dict:
     """Apply one agent-subscription webhook event. Touches only the
     reservation_subscriptions row, its overage charges (and, for a
@@ -1648,6 +1657,14 @@ async def handle_agent_event(db: AsyncSession, event_type: str, obj: Any) -> dic
         return {"handled": False}
     if await _is_comped(db, og_id):
         logger.info("agent %s for og %s ignored: the group is comped", event_type, og_id)
+        if _live_stripe_object(event_type, obj):
+            # A Stripe subscription a comped group should never have: nothing
+            # here acts on it, so the operator decides (refund, cancel).
+            from backend.services import operator_alerts
+
+            logger.warning("agent subscription %s is live in Stripe for comped og %s",
+                           sub_id, og_id)
+            operator_alerts.send_agent_comped_stripe_alert(og_id, sub_id, event_type)
         return {"handled": False, "og_id": og_id, "skipped": COMPED}
 
     if event_type == "invoice.upcoming":
@@ -1850,9 +1867,8 @@ async def status_summary(
     )).scalars().all()
     per_location = []
     for loc in locations:
-        rules, _ = await get_rules(db, company_id, loc.id)
         spent = await spend_today(db, loc.id, now, loc.timezone)
-        cap = Decimal(str(rules.daily_spend_cap_usd))
+        cap = await daily_cap(db, company_id, loc.id)
         per_location.append({
             "location_id": loc.id, "name": loc.name,
             "spend_today_usd": _money(spent), "daily_cap_usd": _money(cap),

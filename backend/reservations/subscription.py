@@ -208,17 +208,37 @@ async def spend_today(
     return Decimal(total)
 
 
+async def _is_comped_company(db: AsyncSession, company_id: str) -> bool:
+    return (await db.execute(
+        select(ReservationSubscription.id)
+        .join(Company, Company.ownership_group_id
+              == ReservationSubscription.ownership_group_id)
+        .where(Company.id == company_id, ReservationSubscription.status == COMPED)
+    )).scalar_one_or_none() is not None
+
+
+async def daily_cap(db: AsyncSession, company_id: str, location_id: str) -> Decimal:
+    """The location's effective daily spend cap: its rules' daily_spend_cap_usd,
+    and for a comped group never above COMPED_DAILY_CAP_USD (its usage is
+    never invoiced, and a manager can raise the rules cap)."""
+    rules, _ = await get_rules(db, company_id, location_id)
+    cap = Decimal(str(rules.daily_spend_cap_usd))
+    if await _is_comped_company(db, company_id):
+        cap = min(cap, Decimal(str(settings.COMPED_DAILY_CAP_USD)))
+    return cap
+
+
 async def cap_reached(
     db: AsyncSession, company_id: str, location: Location, now: datetime,
     inflight_turns: int,
 ) -> bool:
     """True once the location's spend today, plus the cost bound of each of
     `inflight_turns` other turns still running (recording.inflight_turns),
-    reaches its daily_spend_cap_usd. See the module notes on overshoot."""
-    rules, _ = await get_rules(db, company_id, location.id)
+    reaches its effective daily cap (daily_cap). See the module notes on
+    overshoot."""
     spent = await spend_today(db, location.id, now, location.timezone)
     reserved = Decimal(str(settings.RESERVATION_AGENT_TURN_COST_BOUND_USD)) * inflight_turns
-    return spent + reserved >= Decimal(str(rules.daily_spend_cap_usd))
+    return spent + reserved >= await daily_cap(db, company_id, location.id)
 
 
 async def busy_text(db: AsyncSession, company_id: str, location_id: str) -> str:

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from backend import seed
 from backend import seed_reservations as sr
@@ -255,3 +255,46 @@ async def test_group_deletion_removes_the_seeded_rows(db_session, demo, monkeypa
         assert n == 0, model.__tablename__
     assert (await db_session.execute(select(func.count()).select_from(
         ReservationSubscription))).scalar_one() == 0
+
+
+async def test_the_seed_survives_an_archived_table_and_a_visitor_table_with_a_booking(
+        db_session, demo):
+    from backend.reservations import booking
+    from backend.services.archive import archive_dining_table
+
+    await _seed(db_session)
+    # A visitor archives seeded T3 and adds a table of their own with a booking.
+    t3 = await db_session.get(DiningTable, "rsvtbl03")
+    archive_dining_table(t3, now=NOW)
+    visitor = DiningTable(company_id=seed.COMPANY_ID, location_id=seed.LOCATION_ID,
+                          section_id="rsvsec01", label="V1", min_seats=9, max_seats=10)
+    db_session.add(visitor)
+    await db_session.commit()
+    rules, _ = await get_rules(db_session, seed.COMPANY_ID, seed.LOCATION_ID)
+    zone = ZoneInfo(demo.timezone)
+    day = NOW.astimezone(zone).date() + timedelta(days=3)
+    await db_session.execute(
+        update(ReservationRules)
+        .where(ReservationRules.location_id == seed.LOCATION_ID)
+        .values(rules={**rules.model_dump(mode="json"), "max_party_size": 10}))
+    await db_session.commit()
+    await booking.book_staff(db_session, seed.COMPANY_ID, seed.LOCATION_ID, 10,
+                             datetime.combine(day, time(19), tzinfo=zone),
+                             booking.DinerContact(name="Visitor Party"), now=NOW)
+    await db_session.commit()
+
+    labels: list[list[str]] = []
+    for _ in range(3):
+        await _seed(db_session)
+        db_session.expire_all()
+        active = (await db_session.execute(select(DiningTable).where(
+            DiningTable.location_id == seed.LOCATION_ID,
+            DiningTable.archived_at.is_(None)))).scalars().all()
+        labels.append(sorted(t.label for t in active))
+        assert visitor.id in {t.id for t in active}
+    # T3 comes back once, as one active table, and the runs agree.
+    assert labels[0] == labels[1] == labels[2]
+    assert labels[0].count("T3") == 1
+    total_t3 = (await db_session.execute(select(func.count()).select_from(DiningTable).where(
+        DiningTable.location_id == seed.LOCATION_ID, DiningTable.label == "T3"))).scalar_one()
+    assert total_t3 == 2  # the archived seeded row and its one replacement

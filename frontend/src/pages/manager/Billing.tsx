@@ -161,7 +161,9 @@ export default function Billing() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
               <h2 className={`text-lg font-semibold ${text.heading}`}>{b.cardTitle}</h2>
-              <p className={`text-sm ${text.secondary}`}>{fill(b.price, priceValues(agent, lang))}</p>
+              <p className={`text-sm ${text.secondary}`}>
+                {isComped(agent.status) ? b.statuses.comped : fill(b.price, priceValues(agent, lang))}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {canSubscribe(agent.status) && (
@@ -173,9 +175,6 @@ export default function Billing() {
                 >
                   {busy ? b.redirecting : b.subscribe}
                 </button>
-              )}
-              {isComped(agent.status) && (
-                <span className={`text-sm font-medium ${text.primary}`}>{b.statuses.comped}</span>
               )}
               {agent.status !== null && !isComped(agent.status) && (
                 <button type="button" className="glass-btn-secondary" disabled={busy} onClick={manage}>

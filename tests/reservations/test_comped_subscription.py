@@ -9,7 +9,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from backend.config import settings
-from backend.models import OwnershipGroup
+from backend.models import Location, OwnershipGroup
 from backend.reservations import subscription
 from backend.reservations.subscription import ReservationSubscription
 from backend.services import billing_reservations as br
@@ -148,3 +148,67 @@ async def test_checkout_confirm_is_refused_for_a_comped_group(db_session, comped
     with pytest.raises(br.AlreadySubscribed):
         await br.confirm_checkout(db_session, og, "cs_1")
     assert (await _row(db_session)).status == "comped"
+
+
+# ---------------------------------------------------------------------------
+# Hard spend ceiling: comped usage is never invoiced, so the operator pays it.
+# ---------------------------------------------------------------------------
+
+
+async def _cap_and_spend(db_session, cap: float, spent: str) -> None:
+    from decimal import Decimal
+
+    from backend.reservations.agent.models import AgentConversation
+    from backend.reservations.rules import get_rules, save_rules
+
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    rules.daily_spend_cap_usd = cap
+    await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
+    db_session.add(AgentConversation(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, channel="web", status="closed",
+        outcome="booked", started_at=NOW, cost_usd=Decimal(spent)))
+    await db_session.commit()
+
+
+async def test_a_comped_location_stops_at_the_comped_ceiling_whatever_its_rules_say(
+        db_session, comped, monkeypatch):
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await _cap_and_spend(db_session, 50, "3.00")
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert await subscription.cap_reached(db_session, COMPANY_ID, loc, NOW, 0)
+    out = await br.status_summary(db_session, AGENT_OG_ID, COMPANY_ID, NOW)
+    assert out["locations"][0]["daily_cap_usd"] == 3.0 and out["locations"][0]["cap_reached"]
+
+
+async def test_a_comped_location_under_the_ceiling_still_answers(db_session, comped):
+    await _cap_and_spend(db_session, 50, "2.50")
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert not await subscription.cap_reached(db_session, COMPANY_ID, loc, NOW, 0)
+
+
+async def test_a_paying_location_keeps_its_own_cap(db_session, seed_location):
+    await subscribe(db_session, "active")
+    await _cap_and_spend(db_session, 50, "3.00")
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert not await subscription.cap_reached(db_session, COMPANY_ID, loc, NOW, 0)
+    out = await br.status_summary(db_session, AGENT_OG_ID, COMPANY_ID, NOW)
+    assert out["locations"][0]["daily_cap_usd"] == 50.0
+
+
+async def test_a_live_stripe_subscription_for_a_comped_group_alerts_the_operator(
+        db_session, comped, monkeypatch):
+    from backend.services import operator_alerts
+
+    sent: list[tuple] = []
+    monkeypatch.setattr(operator_alerts, "send_agent_comped_stripe_alert",
+                        lambda og_id, sub_id, event_type: sent.append((og_id, sub_id, event_type)))
+    before = _snapshot(await _row(db_session))
+    out = await br.handle_agent_event(
+        db_session, "customer.subscription.created", _agent_subscription("active"))
+    assert out["skipped"] == "comped"
+    assert sent == [(AGENT_OG_ID, "sub_other", "customer.subscription.created")]
+    assert _snapshot(await _row(db_session)) == before
+    # An ended one is nothing to act on.
+    await br.handle_agent_event(
+        db_session, "customer.subscription.deleted", _agent_subscription("canceled"))
+    assert len(sent) == 1

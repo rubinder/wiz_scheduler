@@ -326,6 +326,23 @@ def send_agent_invoice_unpaid_alert(og_id: str, invoice_id: str, outcome: str,
     )
 
 
+def send_agent_comped_stripe_alert(og_id: str, subscription_id: str, event_type: str) -> bool:
+    """A comped group (#259 step 11) received an event for a Stripe AI host
+    subscription that is live or paid. Comped groups are never synced from
+    Stripe, so the event was ignored: the operator cancels or refunds it in
+    Stripe. Never raises."""
+    logger.warning("[OPERATOR] agent_comped_stripe og=%s subscription=%s event=%s",
+                   og_id, subscription_id, event_type)
+    return _send_operator_email(
+        f"[WizScheduler] Stripe AI host subscription for comped og={og_id}",
+        f"<p>og={html.escape(og_id)} has a comped AI host, but Stripe sent "
+        f"<code>{html.escape(event_type)}</code> for a live or paid subscription "
+        f"<code>{html.escape(subscription_id)}</code>. The event was ignored and "
+        f"nothing was synced. Cancel or refund it in Stripe if it should not exist.</p>",
+        "agent_comped_stripe",
+    )
+
+
 def send_voice_numbers_unreleased_alert(og_id: str, phone_number_ids: list[str],
                                         reason: str) -> bool:
     """A deleted group's Amazon Connect numbers could not be released (#259

@@ -3,8 +3,9 @@
 One `VoiceNumber` per location, owned by the location's ownership group and
 following its AI host subscription (`ensure_for_group`):
 
-- subscription answering (ANSWERING_STATUSES): every active location gets a
-  number. A new row starts `requested`; the number is searched, claimed in
+- subscription answering (ANSWERING_STATUSES) and not comped: every active
+  location gets a number. A comped group never gets one (no revenue for its
+  cost; the demo it is for is web chat). A new row starts `requested`; the number is searched, claimed in
   Amazon Connect, routed to the AI host contact flow, and becomes `active`.
   A number in its release hold (`releasing`) is reactivated as it is, with
   no new claim. An archived location's number goes on hold.
@@ -59,7 +60,7 @@ from backend.database import cross_tenant_session
 from backend.models.company import Company
 from backend.models.location import Location
 from backend.reservations.subscription import ANSWERING_STATUSES, for_group
-from backend.reservations.subscription_models import ReservationSubscription
+from backend.reservations.subscription_models import COMPED, ReservationSubscription
 from backend.reservations.voice_number_models import VOICE_STATUSES, VoiceNumber
 from backend.services import connect_numbers
 from backend.services.archive import active
@@ -289,7 +290,11 @@ async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = 
     out: dict = {"og": og_id, "claimed": [], "reactivated": [], "held": [], "pending": []}
     with tenant_scope_disabled():
         sub: ReservationSubscription | None = await for_group(db, og_id)
-        answering = sub is not None and sub.status in ANSWERING_STATUSES
+        # A comped group is answered (web chat) but gets no number: a Connect
+        # number costs money every month and its usage is never invoiced,
+        # and the demo it exists for is web chat.
+        answering = (sub is not None and sub.status in ANSWERING_STATUSES
+                     and sub.status != COMPED)
         # Plain values: every step below commits or rolls back.
         wanted = {loc.id: loc.company_id
                   for loc in (await _active_locations(db, og_id) if answering else [])}
