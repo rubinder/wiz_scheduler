@@ -1,5 +1,6 @@
 """Conversation recording: start, append events, finish, and cost."""
 
+import logging
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal, Mapping
@@ -18,7 +19,10 @@ from backend.reservations.agent.models import (
     AgentConversation,
     AgentEvent,
 )
+from backend.reservations.agent.voice_cost import voice_cost
 from backend.reservations.rules import get_rules
+
+logger = logging.getLogger(__name__)
 
 # last_seq of a conversation whose diner data was erased while a turn was
 # in flight (diner_data.erase_diner_data closes it instead of deleting it).
@@ -167,6 +171,55 @@ async def add_latency(db: AsyncSession, conv: AgentConversation, after_seq: int,
         .values(latency_ms=AgentEvent.latency_ms.op("||")(
             literal(dict(stages), type_=JSONB)))
         .execution_options(synchronize_session=False))
+
+
+async def add_voice_cost(db: AsyncSession, conv: AgentConversation, after_seq: int,
+                         *, lex_requests: int, polly_chars: int) -> Decimal:
+    """Add a phone turn's call cost (voice_cost.voice_cost) to the first
+    event the turn recorded, the one after `after_seq`, and to the
+    conversation, and meter it like model cost. The call seconds are the
+    database clock's now less the last event before the turn (the call's
+    start on its first turn): server timestamps only, never a duration the
+    channel reports. Nothing when the turn recorded no event or the row is
+    gone; kept (as record_event keeps cost) on a row erased mid-turn.
+    Returns the amount added. Does not commit."""
+    locked = (await db.execute(
+        select(AgentConversation)
+        .where(AgentConversation.id == conv.id,
+               AgentConversation.company_id == conv.company_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if locked is None:
+        return Decimal(0)
+    first = (await db.execute(
+        select(AgentEvent)
+        .where(AgentEvent.conversation_id == conv.id,
+               AgentEvent.company_id == conv.company_id,
+               AgentEvent.seq > after_seq)
+        .order_by(AgentEvent.seq).limit(1)
+    )).scalar_one_or_none()
+    if first is None:
+        return Decimal(0)
+    since = (await db.execute(
+        select(func.max(AgentEvent.created_at))
+        .where(AgentEvent.conversation_id == conv.id,
+               AgentEvent.company_id == conv.company_id,
+               AgentEvent.seq <= after_seq)
+    )).scalar_one_or_none() or locked.started_at
+    db_now = (await db.execute(select(func.now()))).scalar_one()
+    seconds = (db_now - since).total_seconds()
+    cost = voice_cost(lex_requests, polly_chars, seconds)
+    logger.info("reservation_agent.voice_cost conversation=%s lex=%d polly_chars=%d "
+                "call_seconds=%.1f usd=%s", conv.id, lex_requests, polly_chars,
+                seconds, cost)
+    if cost <= 0:
+        return cost
+    first.cost_usd = (first.cost_usd or Decimal(0)) + cost
+    locked.cost_usd = (locked.cost_usd or Decimal(0)) + cost
+    await db.flush()
+    await subscription.meter(db, locked, datetime.now(timezone.utc))
+    return cost
 
 
 async def last_event_seq(db: AsyncSession, conv: AgentConversation) -> int:

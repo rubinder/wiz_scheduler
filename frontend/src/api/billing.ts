@@ -254,7 +254,7 @@ export interface ReservationAgentStatus {
   configured: boolean;
   /** The monthly subscription price the card shows (server setting). */
   price_usd_monthly: number;
-  /** Usage is billed at model cost x this (1.5 = cost + 50%). */
+  /** Usage (model cost, plus call minutes and speech on voice) is billed at cost x this (1.5 = cost + 50%). */
   usage_markup: number;
   /** Stripe subscription status, or null when the group never subscribed. */
   status: string | null;

@@ -11,17 +11,19 @@ from sqlalchemy import text as sql
 from backend.config import settings
 from backend.main import app
 from backend.models import Location
-from backend.reservations.agent import voice
+from backend.reservations.agent import recording, voice
 from backend.reservations.agent.core import HANDOFF_TEXT, AgentCore, TurnOutput
 from backend.reservations.agent.gate import get_agent_core
 from backend.reservations.agent.models import AgentConversation, AgentEvent
+from backend.reservations.agent.voice_cost import voice_cost
 from backend.reservations.models import BOOKED, HELD, Reservation
 from backend.reservations.rules import get_rules, save_rules
+from backend.reservations.subscription import AgentUsage, billed_amount
 from backend.reservations.voice_number_models import VoiceNumber
 from backend.services.rate_limit import source_key_for
 from backend.tenant import get_tenant_context
 from tests.conftest import COMPANY_ID, LOCATION_ID
-from tests.reservations.agent.fakes import ScriptedLlm, reply, text
+from tests.reservations.agent.fakes import USAGE, ScriptedLlm, reply, text
 from tests.reservations.agent.test_core import _day, _hold_script
 from tests.reservations.conftest import AGENT_OG_ID, subscribe
 
@@ -488,6 +490,93 @@ async def test_erasure_during_a_turn_is_not_written_back(client, db_session, lin
     # A retry of the erased turn is not answered from a stored reply.
     again = (await _post(client, _body(1, text_="table for two, I'm Ada"))).json()
     assert "Ada" not in again["text"]
+
+
+# -- call cost: minutes, Lex and Polly --------------------------------------------------
+
+REPLY_1 = "Sure, what day would you like?"
+REPLY_2 = "And for how many people?"
+
+
+async def _events(db, conv) -> list[AgentEvent]:
+    return list((await db.execute(
+        select(AgentEvent).where(AgentEvent.conversation_id == conv.id)
+        .order_by(AgentEvent.seq).execution_options(populate_existing=True)
+    )).scalars().all())
+
+
+def _model_cost(events) -> Decimal:
+    return sum((recording.cost_of({"input_tokens": e.input_tokens,
+                                   "output_tokens": e.output_tokens,
+                                   "cache_read_tokens": e.cache_read_tokens,
+                                   "cache_write_tokens": e.cache_write_tokens})
+                for e in events), Decimal(0))
+
+
+async def _backdate(db, conv_id: str, seconds: int) -> None:
+    """Move the call's start and every event so far `seconds` into the past."""
+    await db.execute(sql(
+        "UPDATE agent_conversations SET started_at = started_at - make_interval("
+        "secs => :s) WHERE id = :id"), {"s": seconds, "id": conv_id})
+    await db.execute(sql(
+        "UPDATE agent_events SET created_at = created_at - make_interval("
+        "secs => :s) WHERE conversation_id = :id"), {"s": seconds, "id": conv_id})
+    await db.commit()
+
+
+async def _first_turn(client, db, llm, started_ago: int) -> AgentConversation:
+    await _post(client, _body(0))
+    await _backdate(db, (await _conv(db)).id, started_ago)
+    llm.push(reply(text(REPLY_1)))
+    out = (await _post(client, _body(1, text_="a table please"))).json()
+    assert out["text"] == REPLY_1
+    return await _conv(db)
+
+
+async def test_a_voice_turn_bills_minutes_lex_and_polly(client, db_session, line, llm):
+    conv = await _first_turn(client, db_session, llm, started_ago=40)
+    events = await _events(db_session, conv)
+    voice_part = conv.cost_usd - _model_cost(events)
+    # One speech request, the reply's characters, ~40 s since the call began.
+    assert voice_cost(1, len(REPLY_1), 40) <= voice_part <= voice_cost(1, len(REPLY_1), 45)
+    assert conv.cost_usd == sum((e.cost_usd for e in events), Decimal(0))
+    # On the turn's first event, with the model cost of that event.
+    first = events[0]
+    assert first.cost_usd - _model_cost([first]) == voice_part
+
+
+async def test_the_next_turn_bills_only_the_seconds_since_the_last(client, db_session,
+                                                                   line, llm):
+    conv = await _first_turn(client, db_session, llm, started_ago=40)
+    before = conv.cost_usd
+    await _backdate(db_session, conv.id, 30)
+    llm.push(reply(text(REPLY_2)))
+    await _post(client, _body(2, text_="friday"))
+    conv = await _conv(db_session)
+    # The second turn's model cost is one scripted call, as the first's.
+    voice_part = conv.cost_usd - before - recording.cost_of(USAGE)
+    assert voice_cost(1, len(REPLY_2), 30) <= voice_part <= voice_cost(1, len(REPLY_2), 35)
+
+
+async def test_a_long_gap_is_capped(client, db_session, line, llm):
+    conv = await _first_turn(client, db_session, llm, started_ago=5)
+    before = conv.cost_usd
+    await _backdate(db_session, conv.id, 3600)
+    llm.push(reply(text(REPLY_2)))
+    await _post(client, _body(2, text_="friday"))
+    conv = await _conv(db_session)
+    assert conv.cost_usd - before - recording.cost_of(USAGE) == voice_cost(
+        1, len(REPLY_2), settings.VOICE_COST_MAX_SECONDS_PER_TURN)
+
+
+async def test_voice_cost_is_billed_with_the_markup(client, db_session, line, llm):
+    conv = await _first_turn(client, db_session, llm, started_ago=3600)
+    model = _model_cost(await _events(db_session, conv))
+    usage = (await db_session.execute(
+        select(AgentUsage).where(AgentUsage.conversation_id == conv.id)
+        .execution_options(populate_existing=True))).scalar_one()
+    assert usage.cost_usd == conv.cost_usd > model
+    assert usage.billed_usd == billed_amount(conv.cost_usd) > billed_amount(model)
 
 
 # -- toll fraud: transfers ------------------------------------------------------------

@@ -101,8 +101,9 @@ class RulesSchema(BaseModel):
     staff_transfer_number: str | None = Field(
         default=None, pattern=r"^\+[1-9]\d{6,14}$"
     )
-    # Model cost (USD) the AI host may spend at this location per local day;
-    # once reached, new and ongoing chats are closed with a call-us reply.
+    # Cost (USD: model, and voice call cost) the AI host may spend at this
+    # location per local day; once reached, new and ongoing chats are closed
+    # with a call-us reply.
     daily_spend_cap_usd: float = Field(default=20.0, ge=1)
     # The booking provider new AI host conversations book through (#259 step
     # 9). A conversation keeps the one it started with. Admin-only, as are
