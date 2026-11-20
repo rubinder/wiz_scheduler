@@ -185,13 +185,22 @@ async def add_voice_cost(db: AsyncSession, conv: AgentConversation, after_seq: i
     In a savepoint, and never raises into the call path (it logs instead,
     and the turn goes unbilled). Returns the amount added. Does not
     commit."""
+    conv_id = conv.id  # read before a rollback can expire the row
     try:
         async with db.begin_nested():
             return await _add_voice_cost(db, conv, after_seq, lex_requests,
                                          polly_chars)
     except Exception:
         logger.exception("reservation_agent.voice_cost_failed conversation=%s",
-                         conv.id)
+                         conv_id)
+        # A savepoint rollback expires what it touched (conv is the locked
+        # row); reload it so the caller's later reads never lazy-load
+        # under async.
+        try:
+            await db.refresh(conv)
+        except Exception:
+            logger.exception("reservation_agent.voice_cost_refresh_failed "
+                             "conversation=%s", conv_id)
         return Decimal(0)
 
 

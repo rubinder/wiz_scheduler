@@ -1,5 +1,6 @@
 """Voice bridge (#259 step 6): the endpoint the Connect Lambda calls per turn."""
 
+import inspect
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -601,6 +602,27 @@ async def test_a_voice_cost_failure_never_breaks_the_call(client, db_session, li
     conv = await _conv(db_session)
     assert conv.turn_started_at is None and conv.last_seq == 1
     assert conv.cost_usd == _model_cost(await _events(db_session, conv))
+
+
+async def test_a_voice_cost_failure_after_writing_never_breaks_the_call(
+        client, db_session, line, llm, monkeypatch):
+    """A failure after the cost was added to the (locked) conversation rolls
+    the savepoint back and expires that row; the reply is still stored and
+    returned, and the turn goes unbilled."""
+    real_meter = recording.subscription.meter
+
+    async def boom(*args, **kwargs):
+        # Only the voice-cost path fails; the turn's own metering is real.
+        if any(f.function == "_add_voice_cost" for f in inspect.stack()):
+            raise RuntimeError("meter exploded")
+        return await real_meter(*args, **kwargs)
+    monkeypatch.setattr(recording.subscription, "meter", boom)
+    await _post(client, _body(0))
+    llm.push(reply(text(REPLY_1)))
+    r = await _post(client, _body(1, text_="a table please"))
+    assert r.status_code == 200 and r.json()["text"] == REPLY_1
+    conv = await _conv(db_session)
+    assert conv.turn_started_at is None and conv.last_seq == 1
 
 
 # -- toll fraud: transfers ------------------------------------------------------------
