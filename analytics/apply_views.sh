@@ -5,7 +5,7 @@
 #
 # Defaults: workgroup wizscheduler-analytics, database wizscheduler_analytics
 # (terraform/analytics.tf with app_name = "wizscheduler"). Needs the
-# analytics_reader policy and AWS credentials for the account. Each view is
+# analytics-reader role (assumed with MFA) and AWS credentials for the account. Each view is
 # one CREATE OR REPLACE VIEW, so rerunning is safe.
 set -euo pipefail
 
