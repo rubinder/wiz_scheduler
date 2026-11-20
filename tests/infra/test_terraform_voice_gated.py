@@ -70,8 +70,9 @@ def test_ecs_task_definition_unchanged_with_voice_off() -> None:
 
 
 def test_connect_can_transfer_out_and_flow_logs_expire() -> None:
-    """The staff handoff is an outbound transfer, and the flow logs (caller
-    numbers) live in a group Terraform owns with a retention."""
+    """The staff handoff is an outbound transfer, and whatever flow logs
+    Connect writes live in a group Terraform owns, kept 1 day (#259 launch
+    task 5: phone numbers are never logged)."""
     text = (TERRAFORM / "voice.tf").read_text()
     instance = re.search(r'resource "aws_connect_instance" "voice" \{(.*?)\n\}', text, re.S)
     assert instance and re.search(r"outbound_calls_enabled\s*=\s*true", instance.group(1))
@@ -80,7 +81,7 @@ def test_connect_can_transfer_out_and_flow_logs_expire() -> None:
         r'resource "aws_cloudwatch_log_group" "voice_connect_flows" \{(.*?)\n\}', text, re.S)
     assert logs, "Connect flow-log group missing"
     assert 'name              = "/aws/connect/${local.voice_connect_alias}"' in logs.group(1)
-    assert re.search(r"retention_in_days\s*=\s*30\b", logs.group(1))
+    assert re.search(r"retention_in_days\s*=\s*1\b", logs.group(1))
     assert re.search(r"instance_alias\s*=\s*local\.voice_connect_alias", instance.group(1))
 
 
@@ -105,9 +106,31 @@ def test_screening_resources_exist_and_are_voice_gated() -> None:
     assert "source_arn    = aws_connect_instance.voice[0].arn" in perm.group(1)
 
 
+def test_contact_flow_turns_flow_logging_off_before_any_caller_number() -> None:
+    """The first block disables flow logging; it leads straight to the
+    screen, the first block that sees the caller number."""
+    text = (TERRAFORM / "voice" / "contact_flow.json.tftpl").read_text()
+    assert 'StartAction = "no-flow-logs"' in text
+    block = re.search(r'Identifier = "no-flow-logs"(.*?)\n    \}', text, re.S)
+    assert block, "no-flow-logs block missing"
+    assert 'Type       = "UpdateFlowLoggingBehavior"' in block.group(1)
+    assert 'Parameters = { FlowLoggingBehavior = "Disabled" }' in block.group(1)
+    assert 'Transitions = { NextAction = "screen" }' in block.group(1)
+    assert "Enabled" not in text.replace("Disabled", "")
+    assert text.index('Identifier = "no-flow-logs"') < text.index("CustomerEndpoint")
+
+
+def test_flow_logging_changes_stay_voice_gated() -> None:
+    """The default plan is unchanged: the flow-log group and the contact flow
+    exist only with voice on."""
+    gates = dict(_blocks(TERRAFORM / "voice.tf"))
+    assert _gated(gates["resource.aws_cloudwatch_log_group.voice_connect_flows"],
+                  "voice_enabled")
+    assert _gated(gates["resource.aws_connect_contact_flow.voice"], "voice_enabled")
+
+
 def test_contact_flow_screens_first_and_fails_open() -> None:
     text = (TERRAFORM / "voice" / "contact_flow.json.tftpl").read_text()
-    assert 'StartAction = "screen"' in text
     assert 'Type       = "InvokeLambdaFunction"' in text
     assert 'ResponseValidation         = { ResponseType = "STRING_MAP" }' in text
     assert 'InvocationTimeLimitSeconds = "3"' in text

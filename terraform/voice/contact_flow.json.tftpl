@@ -1,9 +1,10 @@
 ${jsonencode({
   Version     = "2019-10-30"
-  StartAction = "screen"
+  StartAction = "no-flow-logs"
   Metadata = {
     entryPointPosition = { x = 40, y = 40 }
     ActionMetadata = {
+      "no-flow-logs"   = { position = { x = 40, y = 240 } }
       "screen"         = { position = { x = 200, y = 240 } }
       "check-screen"   = { position = { x = 440, y = 240 } }
       "set-voice"      = { position = { x = 200, y = 40 } }
@@ -14,6 +15,16 @@ ${jsonencode({
     }
   }
   Actions = [
+    {
+      # Phone numbers are never logged: flow logging is off from here on,
+      # before the screen Lambda (caller and dialed numbers) and the bot
+      # (the `caller` session attribute) run (voice.tf, voice_connect_flows).
+      Identifier = "no-flow-logs"
+      Type       = "UpdateFlowLoggingBehavior"
+      Parameters = { FlowLoggingBehavior = "Disabled" }
+      # The flow language documents no error branches for this action.
+      Transitions = { NextAction = "screen" }
+    },
     {
       # Call screening (#259 step 7): the screen Lambda answers a flat map,
       # {"action": "answer"|"block"}, and fails open itself. An error or a
