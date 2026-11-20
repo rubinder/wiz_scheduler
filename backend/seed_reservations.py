@@ -26,7 +26,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +34,10 @@ from backend import seed
 from backend.config import settings
 from backend.database import async_session_factory, engine
 from backend.models import Company, Location
-from backend.reservations import booking
+from backend.reservations import booking, demo_data
+from backend.reservations.demo_data import (  # noqa: F401  (re-exported)
+    BOOKING_PLAN, DINERS, DINNER, LUNCH, NOTES, reservation_id,
+)
 from backend.reservations.floor import (
     CombinationIO,
     FloorIn,
@@ -103,39 +106,10 @@ TABLES = [
 # The combinable pair: two 4-tops pushed together seat up to 8.
 COMBINATION = ("rsvcmb01", "T8+T9", ["T8", "T9"])
 
-LUNCH, DINNER = "Lunch", "Dinner"
 MAX_SELF_BOOK_PARTY = 6
 
-# (period, hour, minute, party size). Each day books six of these, a
-# different six by weekday, so the week does not repeat itself.
-BOOKING_PLAN = [
-    (LUNCH, 12, 0, 2), (LUNCH, 12, 30, 4), (LUNCH, 13, 15, 3),
-    (DINNER, 17, 30, 2), (DINNER, 18, 0, 4), (DINNER, 18, 30, 7),
-    (DINNER, 19, 0, 2), (DINNER, 19, 30, 5), (DINNER, 20, 15, 2),
-]
-DINERS = [
-    "Avery Quill", "Bram Ostrowe", "Celine Marchetti", "Dorian Vale", "Esme Thackery",
-    "Felix Ambrose", "Greta Halvorsen", "Hollis Ndiaye", "Ines Calloway", "Jasper Wren",
-    "Keira Moss", "Lionel Stroud", "Mira Castellane", "Nico Faraday", "Odette Brightwell",
-    "Pascal Inwood", "Quinn Albright", "Rhea Delacroix", "Silas Penhallow", "Talia Okonkwo",
-    "Ulric Hale", "Vera Lindgren", "Wesley Ashcombe", "Xiomara Reyes", "Yusuf Kestrel",
-    "Zelda Marwood", "Arlo Fenwick", "Bianca Torvald", "Cyrus Bellamy", "Delphine Oakes",
-    "Emeric Szabo", "Fiona Garrick", "Gideon Larch", "Harriet Sloane", "Idris Wolcott",
-    "June Halloway", "Kasimir Dunne", "Lark Emberly", "Marcus Thistle", "Nadia Quaresma",
-    "Orrin Blackwood", "Priya Venkatesan",
-]
-NOTES = [None, "Celebrating an anniversary", None, "High chair, please", None,
-         "Window table if possible", None, "One guest uses a wheelchair"]
-
-
-def _b36(n: int, width: int) -> str:
-    return seed._b36(n, width)
-
-
-def reservation_id(day: date, index: int) -> str:
-    """"rsv" + the local date's ordinal (4 base36 chars, to the year 4600) +
-    its position in BOOKING_PLAN: the same booking always has the same id."""
-    return f"rsv{_b36(day.toordinal(), 4)}{_b36(index, 1)}"
+# BOOKING_PLAN, DINERS and NOTES live in backend/reservations/demo_data.py,
+# which the demo purge reads too (decision 94).
 
 
 def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
@@ -294,14 +268,8 @@ async def _seed_rules(db: AsyncSession, today: date, now: datetime) -> None:
 
 
 def _diner(day: date, index: int) -> booking.DinerContact:
-    n = (day.toordinal() * len(BOOKING_PLAN) + index) % len(DINERS)
-    name = DINERS[n]
-    first, last = name.lower().split(" ", 1)
-    return booking.DinerContact(
-        name=name,
-        phone=f"+1212555{100 + n % 100:04d}",  # 555-0100..0199: fiction only
-        email=f"{first}.{last.replace(' ', '')}@example.com",
-    )
+    name, phone, email = demo_data.diner(day, index)
+    return booking.DinerContact(name=name, phone=phone, email=email)
 
 
 def _plan(rules: RulesSchema, today: date) -> list[tuple[date, int, datetime, int]]:
@@ -325,7 +293,7 @@ async def _book(db: AsyncSession, res_id: str, day: date, index: int, start: dat
     is on, and otherwise booked, a request awaiting approval (a party above
     the self-book limit), or now and then cancelled."""
     diner = _diner(day, index)
-    notes = NOTES[(day.toordinal() + index) % len(NOTES)]
+    notes = demo_data.notes(day, index)
     end = start + timedelta(minutes=rules.duration_for(party))
     key = day.toordinal() + index
     if (party > rules.max_self_book_party
@@ -378,6 +346,17 @@ async def _seed_bookings(db: AsyncSession, rules: RulesSchema, zone: ZoneInfo,
         Reservation.conversation_id.is_(None)).values(source=SOURCE_STAFF))
     for res_id, (day, index, wall, party) in zip(ids, plan):
         if res_id in existing:
+            # Restore the seed's diner details on a row the demo purge
+            # scrubbed, or a visitor edited (decision 94).
+            name, phone, email = demo_data.diner(day, index)
+            await db.execute(update(Reservation).where(
+                Reservation.company_id == COMPANY_ID, Reservation.id == res_id,
+                or_(Reservation.diner_name.is_distinct_from(name),
+                    Reservation.diner_phone.is_distinct_from(phone),
+                    Reservation.diner_email.is_distinct_from(email),
+                    Reservation.notes.is_distinct_from(demo_data.notes(day, index))),
+            ).values(diner_name=name, diner_phone=phone, diner_email=email,
+                     notes=demo_data.notes(day, index)))
             continue
         start = wall.replace(tzinfo=zone)
         try:

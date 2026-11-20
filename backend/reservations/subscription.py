@@ -45,7 +45,7 @@ from backend.config import settings
 from backend.models.company import Company
 from backend.models.location import Location
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import get_rules
+from backend.reservations.rules import RulesSchema, get_rules
 from backend.reservations.subscription_models import (
     COMPED,
     PRODUCT,
@@ -241,6 +241,11 @@ async def is_comped_company(db: AsyncSession, company_id: str) -> bool:
 class CompedCapLimit(Exception):
     """A comped group's rules asked for a daily cap above COMPED_DAILY_CAP_USD."""
 
+    def __init__(self, ceiling: float) -> None:
+        self.ceiling = ceiling
+        super().__init__(
+            f"A complimentary plan's daily spend cap cannot be above ${ceiling:.2f}")
+
 
 async def check_rules_cap(db: AsyncSession, company_id: str, cap: float) -> None:
     """Refuse a rules write whose daily_spend_cap_usd is above
@@ -249,8 +254,17 @@ async def check_rules_cap(db: AsyncSession, company_id: str, cap: float) -> None
     mislead the manager."""
     ceiling = settings.COMPED_DAILY_CAP_USD
     if cap > ceiling and await is_comped_company(db, company_id):
-        raise CompedCapLimit(
-            f"A complimentary plan's daily spend cap cannot be above ${ceiling:.2f}")
+        raise CompedCapLimit(ceiling)
+
+
+async def rules_as_shown(db: AsyncSession, company_id: str, rules: RulesSchema) -> RulesSchema:
+    """The rules as the editor reads them: for a comped group the daily cap is
+    the effective one, min(stored, COMPED_DAILY_CAP_USD), so saving them
+    unchanged passes check_rules_cap (the $20 default would not)."""
+    ceiling = settings.COMPED_DAILY_CAP_USD
+    if rules.daily_spend_cap_usd > ceiling and await is_comped_company(db, company_id):
+        return rules.model_copy(update={"daily_spend_cap_usd": ceiling})
+    return rules
 
 
 async def daily_cap(db: AsyncSession, company_id: str, location_id: str) -> Decimal:

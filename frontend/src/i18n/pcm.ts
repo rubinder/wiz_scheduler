@@ -1475,7 +1475,7 @@ const pcm = {
       phone_required: "Dis booking need phone number.",
       code_exhausted: "We no fit create confirmation code. Abeg try again.",
       admin_only: "Na only admin fit change dis one.",
-      comped_cap_limit: "For free plan, di daily spend cap no fit pass di plan limit.",
+      comped_cap_limit: "For free plan, di daily spend cap no fit pass {cap}.",
       generic: "Something go wrong. Abeg try again.",
     },
     rules: {

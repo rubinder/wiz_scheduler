@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FloorOut, ReservationOut, RulesSchema, TableIO } from "../types/reservations";
 import {
+  errorMessage,
   CANVAS,
   clampTable,
   editorToFloorIn,
@@ -403,5 +404,15 @@ describe("mockProviderOffered", () => {
     expect(mockProviderOffered(true, "wizscheduler")).toBe(true);
     expect(mockProviderOffered(false, "mock_external")).toBe(true);
     expect(mockProviderOffered(false, undefined)).toBe(false);
+  });
+});
+
+describe("errorMessage", () => {
+  it("interpolates the comped ceiling from the error detail", () => {
+    expect(errorMessage("Cap above {cap}.", { code: "comped_cap_limit", ceiling_usd: 3 }, "en")).toBe("Cap above $3.00.");
+  });
+  it("leaves text without a placeholder or without a ceiling alone", () => {
+    expect(errorMessage("Not found.", { code: "not_found" }, "en")).toBe("Not found.");
+    expect(errorMessage("Cap above {cap}.", null, "en")).toBe("Cap above {cap}.");
   });
 });

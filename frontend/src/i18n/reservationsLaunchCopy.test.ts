@@ -30,7 +30,7 @@ describe("AI host launch copy", () => {
     it(`${code}: banner, comped error and a hint naming only "automated"`, () => {
       const r = (MODULES[`./${code}.ts`] as { reservations: Reservations }).reservations;
       expect(r.publicChat?.demoBanner).toBeTruthy();
-      expect(r.errors.comped_cap_limit).toBeTruthy();
+      expect(r.errors.comped_cap_limit).toContain("{cap}");
       expect(r.rules.greetingHint).toContain('"automated"');
       expect(r.rules.greetingHint).not.toContain('"assistant"');
       expect(r.billing.compedPrice.toLowerCase()).not.toContain("demo");

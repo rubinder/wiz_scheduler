@@ -654,7 +654,9 @@ async def test_a_comped_group_cannot_save_a_cap_above_the_comped_ceiling(
     rules["daily_spend_cap_usd"] = 3.01
     r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
     assert r.status_code == 422, r.text
-    assert r.json()["detail"]["code"] == "comped_cap_limit"
+    detail = r.json()["detail"]
+    assert detail["code"] == "comped_cap_limit"
+    assert detail["ceiling_usd"] == 3.0 and "$3.00" in detail["message"]
     rules["daily_spend_cap_usd"] = 3.0
     r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
     assert r.status_code == 200, r.text
@@ -670,3 +672,27 @@ async def test_a_paying_group_can_save_a_cap_above_the_comped_ceiling(
     rules["daily_spend_cap_usd"] = 50
     r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
     assert r.status_code == 200, r.text
+
+
+async def test_a_comped_group_with_default_rules_round_trips_a_save(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    """The $20 default cap reads back as the comped ceiling, so saving the
+    rules unchanged is not refused."""
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "comped")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert rules["daily_spend_cap_usd"] == 3.0
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
+
+async def test_a_paying_group_reads_its_stored_cap(
+        client, manager_token, seed_location, db_session, monkeypatch):
+    from tests.reservations.conftest import subscribe
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    await subscribe(db_session, "active")
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    assert rules["daily_spend_cap_usd"] == 20.0

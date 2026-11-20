@@ -426,9 +426,11 @@ Decisions made while building without stopping to ask (owner instruction,
     demo manager can raise `daily_spend_cap_usd` in the rules, and comped usage
     is never invoiced, so the rules cap alone is not a ceiling. The demo's own
     rules cap is $3 too, and a rules save above the ceiling for a comped group
-    is refused with 422 `comped_cap_limit` (`subscription.check_rules_cap`,
-    shown in the rules editor), so the editor never shows a cap the location
-    cannot reach. "Today" survives erasure (decision 93). The billing card's
+    is refused with 422 `comped_cap_limit` (`subscription.check_rules_cap`;
+    the detail carries `ceiling_usd`, and the rules editor shows the amount in
+    all 19 locales). The rules GET returns a comped group's cap as
+    min(stored, ceiling) (`subscription.rules_as_shown`), so the $20 default
+    reads back as $3 and saving the rules unchanged is never refused. "Today" survives erasure (decision 93). The billing card's
     price line for a comped group says "Complimentary plan". Cost if wrong:
     the demo stops answering after $3 a day, or a raised cap on the demo costs
     the operator real money.
@@ -450,7 +452,10 @@ Decisions made while building without stopping to ask (owner instruction,
     conversation is behind any of them, and analytics counts `web_agent` rows
     as AI host bookings. The requests are held as `web_agent` (a staff hold is
     never a request) and then written as `staff`; a rerun moves rows an
-    earlier seed left as `web_agent` (`rsv` ids, no conversation). Cost if
+    earlier seed left as `web_agent` (`rsv` ids, no conversation). The seeded
+    diners, notes and booking plan live in `reservations/demo_data.py`, read
+    by the seed and by the demo purge (decision 94), and a rerun restores the
+    seed's details on any of this week's seeded rows that differ. Cost if
     wrong: a rerun duplicates tables, a seeded phone dials someone, or the
     demo's insights credit the AI host with bookings it never made.
 
@@ -535,13 +540,18 @@ Decisions made while building without stopping to ask (owner instruction,
     you type." in all 19 locales (the rest of the diner page stays English).
     The daily retention sweep (`run_data_retention`, step 7f,
     `diner_data.purge_demo_location`) runs the erasure scrub there on what is
-    older than 24 hours: reservations created before then lose their contact
+    older than 24 hours, and only when that company's group is comped: the
+    ids are env-overridable, so pointed at a group that is not comped it
+    purges nothing, logs a warning (ids only) and sends the operator a
+    `demo_purge_refused` alert. What it scrubs: reservations created before then lose their contact
     fields, conversations started before then are deleted, mock bookings
-    made before then are deleted, and lookup failures go. The seed's
-    fictional bookings (`rsv` id and `@example.com` email) are kept, so the
-    demo still shows a full book without a reseed; a visitor's row that
-    happens to match both holds made-up details anyway. It acts on that
-    location of that company only, and on nothing when it does not exist.
+    made before then are deleted, and lookup failures go. A seeded booking is
+    kept only while its name, phone, email and notes still equal
+    `demo_data.seeded_contact` for its id exactly, so the demo still shows a
+    full book; one a demo manager edited (a real name behind the seeded
+    `@example.com` email, say) is scrubbed like a visitor's, and the next
+    seed rerun restores it. It acts on that location of that company only,
+    and on nothing when it does not exist.
     Cost if wrong: a visitor who ignores the banner has their details
     visible to other visitors for up to a day.
 

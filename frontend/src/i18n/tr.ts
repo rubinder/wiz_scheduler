@@ -1475,7 +1475,7 @@ const trLang = {
       phone_required: "Bu rezervasyon için telefon numarası gerekli.",
       code_exhausted: "Onay kodu oluşturulamadı. Lütfen tekrar deneyin.",
       admin_only: "Bunu yalnızca bir yönetici değiştirebilir.",
-      comped_cap_limit: "Ücretsiz planda günlük harcama sınırı planın sınırını aşamaz.",
+      comped_cap_limit: "Ücretsiz planda günlük harcama sınırı {cap} tutarını aşamaz.",
       generic: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
     },
     rules: {

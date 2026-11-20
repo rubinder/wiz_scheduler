@@ -182,6 +182,7 @@ async def read_rules(
 ) -> RulesOut:
     await _location(db, scope, user, location_id)
     rules, version = await get_rules(db, str(user.company_id), location_id)
+    rules = await subscription.rules_as_shown(db, str(user.company_id), rules)
     return RulesOut(rules=rules, version=version)
 
 
@@ -226,7 +227,7 @@ async def write_rules(
                                            body.daily_spend_cap_usd)
     except subscription.CompedCapLimit as e:
         raise HTTPException(status_code=422, detail={
-            "code": "comped_cap_limit", "message": str(e)})
+            "code": "comped_cap_limit", "message": str(e), "ceiling_usd": e.ceiling})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

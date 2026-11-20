@@ -1475,7 +1475,7 @@ const vi = {
       phone_required: "Đặt chỗ này cần có số điện thoại.",
       code_exhausted: "Không thể tạo mã xác nhận. Vui lòng thử lại.",
       admin_only: "Chỉ quản trị viên mới có thể thay đổi mục này.",
-      comped_cap_limit: "Với gói miễn phí, hạn mức chi tiêu hằng ngày không được vượt quá giới hạn của gói.",
+      comped_cap_limit: "Với gói miễn phí, hạn mức chi tiêu hằng ngày không được vượt quá {cap}.",
       generic: "Đã xảy ra lỗi. Vui lòng thử lại.",
     },
     rules: {

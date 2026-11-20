@@ -1475,7 +1475,7 @@ const pt = {
       phone_required: "É necessário um número de telefone para esta reserva.",
       code_exhausted: "Não foi possível criar um código de confirmação. Tente novamente.",
       admin_only: "Só um administrador pode alterar isto.",
-      comped_cap_limit: "Em um plano gratuito, o limite de gasto diário não pode ultrapassar o limite do plano.",
+      comped_cap_limit: "Em um plano gratuito, o limite de gasto diário não pode ultrapassar {cap}.",
       generic: "Algo deu errado. Tente novamente.",
     },
     rules: {

@@ -1483,7 +1483,7 @@ const en = {
       phone_required: "A phone number is required for this booking.",
       code_exhausted: "Could not create a confirmation code. Please try again.",
       admin_only: "Only an admin can change this.",
-      comped_cap_limit: "On a complimentary plan the daily spend cap cannot be above the plan's limit.",
+      comped_cap_limit: "On a complimentary plan the daily spend cap cannot be above {cap}.",
       generic: "Something went wrong. Please try again.",
     },
     rules: {

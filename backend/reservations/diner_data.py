@@ -63,6 +63,7 @@ left as it is and counted in `conversations_still_in_flight` (erase again
 later).
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -76,7 +77,7 @@ from backend.reservations.agent.models import (
     AgentEvent,
     ReservationLookupFailure,
 )
-from backend.reservations import booking, number_rules
+from backend.reservations import booking, demo_data, number_rules, subscription
 from backend.reservations.agent.recording import ERASED_SEQ, TURN_STALE_SECONDS
 from backend.reservations.booking import E164, InvalidPhone
 from backend.reservations.models import Reservation
@@ -84,6 +85,9 @@ from backend.reservations.providers import mock_external
 from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.queries import conversation_events
 from backend.reservations.screening_models import NumberRule
+from backend.services import operator_alerts
+
+logger = logging.getLogger(__name__)
 
 
 # The demo location's diner data is purged once this old (purge_demo_location).
@@ -361,14 +365,6 @@ async def erase_by_code(
     return counts
 
 
-# The demo seed's fictional bookings (backend/seed_reservations.py): an "rsv"
-# id and an example.com email. The purge keeps them, so the demo still shows
-# a full book; a visitor row matching both by chance holds made-up details
-# anyway (the banner asks for them).
-_SEEDED_ID_PREFIX = "rsv"
-_SEEDED_EMAIL_DOMAIN = "@example.com"
-
-
 async def purge_demo_location(db: AsyncSession, now: datetime) -> dict[str, int]:
     """Purge the public demo location's diner data entered before
     DEMO_PURGE_HOURS ago (decision 94): its manager login is shown to every
@@ -379,7 +375,15 @@ async def purge_demo_location(db: AsyncSession, now: datetime) -> dict[str, int]
     bookings made before it are deleted, and lookup failures before it go.
     Only settings.RESERVATIONS_DEMO_LOCATION_ID of
     RESERVATIONS_DEMO_COMPANY_ID, never another location: nothing is done
-    when that location does not exist. Flushes; the caller commits."""
+    when that location does not exist, and nothing, with a warning and an
+    operator alert, when its group is not comped: the settings are
+    env-overridable, and a wrong value must not purge a real tenant.
+
+    A seeded booking (demo_data) is kept only while its name, phone, email
+    and notes still equal the seed's exactly; one a demo manager edited
+    (a real person's name behind the seeded @example.com email) is scrubbed
+    like a visitor's, and the next seed rerun restores it. Flushes; the
+    caller commits."""
     company_id = settings.RESERVATIONS_DEMO_COMPANY_ID
     location_id = settings.RESERVATIONS_DEMO_LOCATION_ID
     zero = {"demo_reservations_scrubbed": 0, "demo_conversations_deleted": 0,
@@ -389,20 +393,26 @@ async def purge_demo_location(db: AsyncSession, now: datetime) -> dict[str, int]
     )).scalar_one_or_none()
     if exists is None:
         return zero
+    if not await subscription.is_comped_company(db, company_id):
+        logger.warning("demo purge refused: company %s is not comped", company_id)
+        operator_alerts.send_demo_purge_refused_alert(company_id, location_id)
+        return zero
     cutoff = now - timedelta(hours=DEMO_PURGE_HOURS)
     await _lock(db, company_id, location_id, now)
-    reservation_ids = list((await db.execute(
-        select(Reservation.id).where(
+    candidates = (await db.execute(
+        select(Reservation.id, Reservation.diner_name, Reservation.diner_phone,
+               Reservation.diner_email, Reservation.notes).where(
             Reservation.company_id == company_id,
             Reservation.location_id == location_id,
             Reservation.created_at < cutoff,
             or_(Reservation.diner_name.isnot(None), Reservation.diner_phone.isnot(None),
                 Reservation.diner_email.isnot(None), Reservation.notes.isnot(None)),
-            not_(and_(Reservation.id.startswith(_SEEDED_ID_PREFIX, autoescape=True),
-                      func.coalesce(Reservation.diner_email, "")
-                      .endswith(_SEEDED_EMAIL_DOMAIN, autoescape=True))),
         )
-    )).scalars().all())
+    )).all()
+    reservation_ids = [
+        r.id for r in candidates
+        if demo_data.seeded_contact(r.id)
+        != (r.diner_name, r.diner_phone, r.diner_email, r.notes)]
     conversation_ids = list((await db.execute(
         select(AgentConversation.id).where(
             AgentConversation.company_id == company_id,

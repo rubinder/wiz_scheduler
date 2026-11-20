@@ -1475,7 +1475,7 @@ const fr = {
       phone_required: "Un numéro de téléphone est requis pour cette réservation.",
       code_exhausted: "Impossible de créer un code de confirmation. Veuillez réessayer.",
       admin_only: "Seul un administrateur peut modifier ceci.",
-      comped_cap_limit: "Avec une formule offerte, le plafond de dépenses quotidien ne peut pas dépasser la limite de la formule.",
+      comped_cap_limit: "Avec une formule offerte, le plafond de dépenses quotidien ne peut pas dépasser {cap}.",
       generic: "Une erreur s'est produite. Veuillez réessayer.",
     },
     rules: {

@@ -1475,7 +1475,7 @@ const zh = {
       phone_required: "此预订需要电话号码。",
       code_exhausted: "无法生成确认码，请重试。",
       admin_only: "只有管理员可以更改此项。",
-      comped_cap_limit: "免费方案的每日支出上限不能高于方案的限额。",
+      comped_cap_limit: "免费方案的每日支出上限不能高于 {cap}。",
       generic: "出了点问题，请重试。",
     },
     rules: {

@@ -343,6 +343,24 @@ def send_agent_comped_stripe_alert(og_id: str, subscription_id: str, event_type:
     )
 
 
+def send_demo_purge_refused_alert(company_id: str, location_id: str) -> bool:
+    """The daily demo purge (#259 decision 94) was pointed at a location whose
+    group has no comped AI host subscription, so it purged nothing: the
+    RESERVATIONS_DEMO_* settings may name a real tenant. Ids only, never
+    diner data. Never raises."""
+    logger.warning("[OPERATOR] demo_purge_refused company=%s location=%s",
+                   company_id, location_id)
+    return _send_operator_email(
+        f"[WizScheduler] demo purge refused for company={company_id}",
+        f"<p>RESERVATIONS_DEMO_COMPANY_ID / RESERVATIONS_DEMO_LOCATION_ID name "
+        f"company <code>{html.escape(company_id)}</code>, location "
+        f"<code>{html.escape(location_id)}</code>, whose group is not comped. The "
+        f"daily demo purge did nothing. Check the settings: they must name the "
+        f"public demo restaurant.</p>",
+        "demo_purge_refused",
+    )
+
+
 def send_voice_numbers_unreleased_alert(og_id: str, phone_number_ids: list[str],
                                         reason: str) -> bool:
     """A deleted group's Amazon Connect numbers could not be released (#259

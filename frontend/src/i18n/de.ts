@@ -1475,7 +1475,7 @@ const de = {
       phone_required: "Für diese Reservierung ist eine Telefonnummer erforderlich.",
       code_exhausted: "Es konnte kein Bestätigungscode erstellt werden. Bitte erneut versuchen.",
       admin_only: "Nur ein Admin kann dies ändern.",
-      comped_cap_limit: "Bei einem kostenlosen Tarif darf das tägliche Ausgabenlimit das Limit des Tarifs nicht überschreiten.",
+      comped_cap_limit: "Bei einem kostenlosen Tarif darf das tägliche Ausgabenlimit {cap} nicht überschreiten.",
       generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     },
     rules: {

@@ -176,6 +176,39 @@ async def test_a_rerun_moves_old_seeded_requests_to_the_staff_source(db_session,
     assert sources == {"staff"}
 
 
+async def test_every_seeded_row_matches_demo_data_so_the_purge_keeps_it(db_session, demo):
+    """The demo purge keeps a seeded row only while it equals
+    demo_data.seeded_contact exactly: the seed must write those values."""
+    from backend.reservations import demo_data
+    await _seed(db_session)
+    rows = (await db_session.execute(select(Reservation).where(
+        Reservation.location_id == seed.LOCATION_ID))).scalars().all()
+    assert rows
+    for r in rows:
+        assert demo_data.seeded_contact(r.id) == (
+            r.diner_name, r.diner_phone, r.diner_email, r.notes), r.id
+
+
+async def test_a_rerun_restores_a_scrubbed_or_edited_seeded_row(db_session, demo):
+    from backend.reservations import demo_data
+    await _seed(db_session)
+    ids = (await db_session.execute(select(Reservation.id).where(
+        Reservation.location_id == seed.LOCATION_ID).order_by(Reservation.id)
+    )).scalars().all()
+    scrubbed, edited = ids[0], ids[1]
+    await db_session.execute(update(Reservation).where(Reservation.id == scrubbed).values(
+        diner_name=None, diner_phone=None, diner_email=None, notes=None))
+    await db_session.execute(update(Reservation).where(Reservation.id == edited).values(
+        diner_name="Real Person"))
+    await db_session.commit()
+    await _seed(db_session)
+    db_session.expire_all()
+    for rid in (scrubbed, edited):
+        r = await db_session.get(Reservation, rid)
+        assert demo_data.seeded_contact(rid) == (
+            r.diner_name, r.diner_phone, r.diner_email, r.notes)
+
+
 async def test_every_diner_is_fictional(db_session, demo):
     await _seed(db_session)
     rows = (await db_session.execute(select(Reservation).where(

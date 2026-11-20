@@ -1,4 +1,5 @@
 /** Helpers for the reservations manager UI. Times are the restaurant's local time. */
+import { formatDollars } from "./agentBilling";
 import type {
   BookingProviderName,
   DateOverride,
@@ -84,6 +85,19 @@ const KNOWN_ERRORS = new Set([
 export function errorKey(detail: unknown): string {
   const code = errorCode(detail);
   return code ? `reservations.errors.${code}` : "reservations.errors.generic";
+}
+
+/**
+ * An error's translated text with its placeholders filled from the detail:
+ * `{cap}` is the comped ceiling (comped_cap_limit's `ceiling_usd`), in dollars.
+ */
+export function errorMessage(text: string, detail: unknown, locale: string): string {
+  const ceiling =
+    detail && typeof detail === "object" && !Array.isArray(detail)
+      ? (detail as { ceiling_usd?: unknown }).ceiling_usd
+      : undefined;
+  if (typeof ceiling !== "number") return text;
+  return text.replace("{cap}", formatDollars(ceiling, locale));
 }
 
 /** The known error code in an ApiError.data detail ({code, message}), or null. */

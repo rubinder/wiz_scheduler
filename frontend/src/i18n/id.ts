@@ -1475,7 +1475,7 @@ const ind = {
       phone_required: "Nomor telepon wajib untuk reservasi ini.",
       code_exhausted: "Tidak dapat membuat kode konfirmasi. Silakan coba lagi.",
       admin_only: "Hanya admin yang dapat mengubah ini.",
-      comped_cap_limit: "Pada paket gratis, batas pengeluaran harian tidak boleh melebihi batas paket.",
+      comped_cap_limit: "Pada paket gratis, batas pengeluaran harian tidak boleh melebihi {cap}.",
       generic: "Terjadi kesalahan. Silakan coba lagi.",
     },
     rules: {
