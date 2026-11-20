@@ -2649,6 +2649,52 @@ async def test_delete_og_and_dependents_removes_special_hours_and_feedback(
     )).scalar_one_or_none() is None
 
 
+async def test_delete_og_and_dependents_removes_activation_events_and_manager_invites(
+    db_session: AsyncSession, og_with_card
+):
+    """activation_events and manager_invites reference ownership_groups (and
+    manager_invites.accepted_company_id references companies) with NO ACTION
+    FKs. Every group has a 'signup' activation event, so before the fix the
+    day-90 deletion failed for every group."""
+    from sqlalchemy import func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models.activation_event import ActivationEvent
+    from backend.models.manager_invite import ManagerInvite
+
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    db_session.add_all([
+        ActivationEvent(ownership_group_id=og_with_card.id, event="signup"),
+        ManagerInvite(ownership_group_id=og_with_card.id, email="p@example.com",
+                      token=f"tok-pending-{_id()}", status="pending",
+                      expires_at=expires),
+        ManagerInvite(ownership_group_id=og_with_card.id, email="a@example.com",
+                      token=f"tok-accepted-{_id()}", status="accepted",
+                      expires_at=expires, accepted_at=datetime.now(timezone.utc),
+                      accepted_company_id=COMPANY_ID),
+    ])
+    await db_session.commit()
+    og_id = og_with_card.id
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    assert (await db_session.execute(
+        select(func.count()).select_from(ActivationEvent)
+        .where(ActivationEvent.ownership_group_id == og_id)
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(func.count()).select_from(ManagerInvite)
+        .where((ManagerInvite.ownership_group_id == og_id)
+               | (ManagerInvite.accepted_company_id == COMPANY_ID))
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id)
+    )).scalar_one_or_none() is None
+
+
 async def test_delete_og_and_dependents_handles_empty_og(
     db_session: AsyncSession
 ):

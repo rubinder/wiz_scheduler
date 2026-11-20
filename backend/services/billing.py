@@ -1365,7 +1365,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
 
     Called by the day-90 cron after send_data_deleted_email. Caller must commit.
 
-    Deletes 22 explicit tables in dependency order plus the OG row.
+    Deletes every referencing table in dependency order plus the OG row
+    (tests/test_group_deletion_sweep.py checks none is missed).
     storage_snapshots and billing_charges cascade automatically via
     ondelete=CASCADE on their FK to ownership_groups.id.
 
@@ -1429,6 +1430,8 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     from backend.analytics.models import AgentDailyMetric
     from backend.models.feedback_submission import FeedbackSubmission
     from backend.models.special_hours_day import SpecialHoursDay
+    from backend.models.activation_event import ActivationEvent
+    from backend.models.manager_invite import ManagerInvite
 
     company_ids = (await db.execute(
         select(Company.id).where(Company.ownership_group_id == og.id)
@@ -1520,6 +1523,11 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         await db.execute(delete(FeedbackSubmission).where(FeedbackSubmission.company_id.in_(company_ids)))
         # 19. users
         await db.execute(delete(User).where(User.company_id.in_(company_ids)))
+        # 19b. manager_invites accepted into these companies — refs companies
+        #      (accepted_company_id, NO ACTION); the group's own invites go
+        #      below, before the OG row.
+        await db.execute(delete(ManagerInvite).where(
+            ManagerInvite.accepted_company_id.in_(company_ids)))
         # 20. companies
         await db.execute(delete(Company).where(Company.id.in_(company_ids)))
 
@@ -1548,6 +1556,14 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     await db.execute(delete(AgentUsage).where(AgentUsage.ownership_group_id == og.id))
     await db.execute(delete(ReservationSubscription).where(
         ReservationSubscription.ownership_group_id == og.id))
+
+    # 26. manager_invites (OG-level, NO ACTION FK). Accepted ones carrying
+    #     one of this group's companies already went before companies.
+    await db.execute(delete(ManagerInvite).where(ManagerInvite.ownership_group_id == og.id))
+    # 27. activation_events (OG-level funnel observations, NO ACTION FK).
+    #     Every group has a 'signup' row, so missing this blocked every
+    #     deletion.
+    await db.execute(delete(ActivationEvent).where(ActivationEvent.ownership_group_id == og.id))
 
     # storage_snapshots + billing_charges cascade automatically.
 
