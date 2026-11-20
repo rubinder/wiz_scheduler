@@ -368,7 +368,8 @@ Decisions made while building without stopping to ask (owner instruction,
 73. **Eval failures are stored as categories.** `eval_results` keeps the
     leading words of a failure, not its text, because the text can quote
     persona names. Eval results land only from local runs (where
-    `evals-runs/` exists), never from ECS. Cost if wrong: failure detail
+    `evals-runs/` exists; it is gitignored, so it is absent from the image),
+    never from ECS. Cost if wrong: failure detail
     needs the run files.
 74. **Billed reconciliation is internal.** The quality check compares
     `agent_usage` with the day's conversations. Stripe is compared in the
@@ -525,7 +526,9 @@ Setup steps are in `analytics/README.md` and the analytics lake section of
 - Backfill from the first day reservations were enabled:
   `python -m backend.scripts.run_agent_analytics --backfill START END`, with
   the real dates (a failed day exits 1 and alerts; its lake is landed but
-  its metrics are not written).
+  its metrics are not written). Athena sees only days from 2026-11-01 on
+  (the `dt` projection range, decision 75); change `projection.dt.range`
+  first if you need earlier days.
 - Run `analytics/apply_views.sh` as the `wizscheduler-analytics-reader` role
-  (assumed with MFA) and query each view once.
-- Try one Athena query in the `wizscheduler-analytics` workgroup.
+  (assumed with MFA), then query each view once in the
+  `wizscheduler-analytics` workgroup.
