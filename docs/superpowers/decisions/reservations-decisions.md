@@ -401,17 +401,118 @@ Decisions made while building without stopping to ask (owner instruction,
     booking source, not only agent bookings. Cost if wrong: add a source
     filter or move the view's bucketing into Postgres.
 
+### Launch (step 11)
+
+81. **`reservations_enabled` is the one Terraform switch, default false, and
+    flipping it is plan-neutral until then.** It only sets
+    `RESERVATIONS_ENABLED` in the ECS task; off, the task definition is
+    byte-identical to before, so merging the launch branch changes nothing in
+    production. It is flipped with `agent_reconcile_enabled` and only after
+    legal approves. Cost if wrong: flipping early puts a public chat on the
+    operator's bill with the privacy wording unapproved.
+
+82. **The demo group is `comped`, a subscription status, not a coupon.** The
+    demo ownership group has no Stripe customer, so there is nothing to put a
+    coupon on, and a fake customer would be a path to real charges. A comped
+    group is answered like an active one (`ANSWERING_STATUSES`), its usage is
+    recorded for the analytics, and it is never invoiced; Stripe never sees
+    it. The seed leaves a real Stripe subscription alone. Cost if wrong: a
+    comped group's usage is visible but unbilled, so the operator absorbs it,
+    which decision 83 bounds.
+
+83. **A comped group's daily spend never exceeds
+    `COMPED_DAILY_CAP_USD` ($3).** `subscription.daily_cap` takes the lower of
+    that and the rules' cap. This came from an automated security review: the
+    demo manager can raise `daily_spend_cap_usd` in the rules, and comped usage
+    is never invoiced, so the rules cap alone is not a ceiling. The demo's own
+    rules cap is $3 too. Cost if wrong: the demo stops answering after $3 a
+    day, or a raised cap on the demo costs the operator real money.
+
+84. **A comped group gets no phone number.** `voice_numbers` excludes comped
+    groups from claiming one. The demo is web chat; a Connect number costs
+    money every month and a comped group brings no revenue. Cost if wrong: the
+    demo has no phone line until this is changed.
+
+85. **The demo is Fernhollow Kitchen, and all of its data is fictional.**
+    `python -m backend.seed_reservations` turns the demo tenant's first
+    location into a restaurant: floor, rules, a holiday closure, a week of
+    bookings and the comped subscription. Diner phones are 555-01xx
+    (`+1212555` then `0100` to `0199`) and emails are `@example.com`, so no number or
+    address can reach a real person. The seed is idempotent: rows have fixed
+    ids, tables are matched by label so same-label tables an earlier run or a
+    manager made are reused, and a rerun adds only the new days. Cost if
+    wrong: a rerun duplicates tables, or a seeded phone dials someone.
+
+86. **The location rename shows in the scheduling demo too.** The seed sets
+    the demo location's name to Fernhollow Kitchen, and that location is the
+    one the scheduling demo uses. Cost if wrong: the scheduling demo shows a
+    restaurant name; rename it back by hand.
+
+87. **Diner data can be erased by confirmation code (spec section 11).**
+    `POST /locations/{id}/diner-data/erase-by-code` scrubs that one
+    reservation's name, phone, email and notes and deletes its conversations
+    and any mock booking with the code. Unlike phone erase it does not touch
+    the diner's other reservations, lookup failures or number rules, because
+    a code names one booking, not a person. A code carried by both a
+    WizScheduler reservation and a mock booking at the location answers 409
+    `ambiguous_code`: erasing one by guess could miss the other, so the
+    manager erases by phone instead. When a conversation is still mid-turn the
+    mock booking is scrubbed, not deleted, so retrying the same code finds it
+    and finishes. Cost if wrong: a diner's request for one booking takes more
+    than one call.
+
+88. **Parked: phone erase with a mock in-flight chat leaves that chat.** The
+    phone path still deletes the mock bookings, so a conversation mid-turn
+    when it runs is left. The mock provider is demo-only and a regular
+    manager cannot switch it on, so this is not a diner risk. Cost if wrong: a
+    mid-turn demo chat survives a phone erase.
+
+89. **Each erase writes one audit line, with no code and no phone.**
+    `diner_data.erase location=... user=... by=code|phone` plus the counts.
+    The line must not carry what was erased. Cost if wrong: the audit trail
+    itself holds the personal data it records the removal of.
+
+90. **The host tells the diner it is automated, on every channel.** The spoken
+    flow greeting says "an automated reservations assistant"; the web default
+    greeting says "automated reservations assistant"; a custom greeting is
+    refused on save unless it contains "automated" or "assistant"
+    (`rules.discloses_automation`). Stored greetings that predate the check
+    are not rewritten. The check matches English words only, so a greeting in
+    another language that discloses it is refused: issue #285. Cost if wrong:
+    a non-English restaurant must add one English word until #285 lands.
+
+91. **Phone numbers stay out of Connect flow logs.** The contact flow's first
+    block is `UpdateFlowLoggingBehavior` set to Disabled, before the screen
+    Lambda and the bot see the caller number. As a backstop for anything
+    written before that block runs, the `/aws/connect/<alias>` log group is
+    created with 1-day retention, CloudWatch's shortest. This is untested on
+    live Connect, which documents no error branch for the block: watch the
+    second voice apply. Cost if wrong: caller numbers sit in flow logs for a
+    day, or the apply fails on the block.
+
+92. **The legal text is held as draft PR #284 with 13 open questions, and no
+    agent merges it.** Only the owner, after legal reviews, merges it, and it
+    is step 1 of the switch-on order. Cost if wrong: the product goes live with
+    unapproved privacy and DPA wording.
+
 ## Before switching reservations on (owner checklist)
 
 ### Switch-on order
 
-1. Legal approves the draft PR, and the owner merges it.
+1. Legal approves the draft PR #284 (13 open questions), and the owner merges
+   it. No agent merges it (decision 92).
 2. Do Stripe, voice and screening per the existing checklist sections.
 3. Set `reservations_enabled`, `agent_reconcile_enabled` and, if wanted,
    `voice_provisioning_enabled` and `analytics_enabled` to true in one PR.
-   CI applies it.
-4. Run the demo seed as a one-off ECS task: `python -m backend.seed_reservations`.
+   CI applies it. Watch the second voice apply for the
+   `UpdateFlowLoggingBehavior` block (decision 91): it is untested on live
+   Connect.
+4. Run the demo seed as a one-off ECS task: `python -m backend.seed_reservations`
+   (idempotent, safe to rerun).
 5. Smoke test: open `/r/<demo slug>/<demo location>`, book, then cancel.
+6. Test-call a voice-enabled location (the demo has no number, decision 84;
+   the greeting is the shared contact flow's) and check the spoken greeting
+   says it is an automated assistant (decision 90).
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
   otherwise every active location gets a public chat on the operator's bill.
