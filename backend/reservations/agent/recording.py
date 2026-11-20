@@ -178,11 +178,25 @@ async def add_voice_cost(db: AsyncSession, conv: AgentConversation, after_seq: i
     """Add a phone turn's call cost (voice_cost.voice_cost) to the first
     event the turn recorded, the one after `after_seq`, and to the
     conversation, and meter it like model cost. The call seconds are the
-    database clock's now less the last event before the turn (the call's
-    start on its first turn): server timestamps only, never a duration the
-    channel reports. Nothing when the turn recorded no event or the row is
-    gone; kept (as record_event keeps cost) on a row erased mid-turn.
-    Returns the amount added. Does not commit."""
+    database's now() less the newest event before the turn (the call's
+    start on its first turn), both on the database clock: never a duration
+    the channel reports. Nothing when the turn recorded no event or the row
+    is gone; kept (as record_event keeps cost) on a row erased mid-turn.
+    In a savepoint, and never raises into the call path (it logs instead,
+    and the turn goes unbilled). Returns the amount added. Does not
+    commit."""
+    try:
+        async with db.begin_nested():
+            return await _add_voice_cost(db, conv, after_seq, lex_requests,
+                                         polly_chars)
+    except Exception:
+        logger.exception("reservation_agent.voice_cost_failed conversation=%s",
+                         conv.id)
+        return Decimal(0)
+
+
+async def _add_voice_cost(db: AsyncSession, conv: AgentConversation, after_seq: int,
+                          lex_requests: int, polly_chars: int) -> Decimal:
     locked = (await db.execute(
         select(AgentConversation)
         .where(AgentConversation.id == conv.id,
@@ -201,14 +215,17 @@ async def add_voice_cost(db: AsyncSession, conv: AgentConversation, after_seq: i
     )).scalar_one_or_none()
     if first is None:
         return Decimal(0)
-    since = (await db.execute(
-        select(func.max(AgentEvent.created_at))
-        .where(AgentEvent.conversation_id == conv.id,
-               AgentEvent.company_id == conv.company_id,
-               AgentEvent.seq <= after_seq)
-    )).scalar_one_or_none() or locked.started_at
-    db_now = (await db.execute(select(func.now()))).scalar_one()
-    seconds = (db_now - since).total_seconds()
+    previous = (select(func.max(AgentEvent.created_at))
+                .where(AgentEvent.conversation_id == conv.id,
+                       AgentEvent.company_id == conv.company_id,
+                       AgentEvent.seq <= after_seq)
+                .scalar_subquery())
+    seconds = float((await db.execute(
+        select(func.extract("epoch", func.now() - func.coalesce(
+            previous, AgentConversation.started_at)))
+        .where(AgentConversation.id == conv.id,
+               AgentConversation.company_id == conv.company_id)
+    )).scalar_one())
     cost = voice_cost(lex_requests, polly_chars, seconds)
     logger.info("reservation_agent.voice_cost conversation=%s lex=%d polly_chars=%d "
                 "call_seconds=%.1f usd=%s", conv.id, lex_requests, polly_chars,

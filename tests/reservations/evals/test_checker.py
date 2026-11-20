@@ -442,3 +442,25 @@ async def test_a_mock_conversation_is_graded_from_the_mock_inventory(
     await db_session.commit()
     result = await check(db_session, seeded, conv, scenario)
     assert result.failures == []
+
+
+async def test_eval_cost_is_model_cost_with_voice_cost_apart(db_session: AsyncSession
+                                                             ) -> None:
+    """Voice cost depends on the harness's timing, so it stays out of
+    total_cost_usd (comparable with the step-8 baseline) and is reported as
+    voice_cost_usd."""
+    scenario, seeded, conv = await _setup(db_session, "book_four_friday_7pm")
+    exp = scenario.expect.booking
+    await _book(db_session, scenario, seeded, conv, exp.party_size,
+                _local(scenario, exp.local_date, exp.local_time))
+    await _turns(db_session, conv, 3)
+    added = await recording.add_voice_cost(db_session, conv, 0, lex_requests=1,
+                                           polly_chars=100)
+    await recording.finish(db_session, conv, "booked")
+    await db_session.commit()
+
+    m = (await check(db_session, seeded, conv, scenario)).metrics
+    model = 3 * recording.cost_of({"input_tokens": 1000, "output_tokens": 100})
+    assert added > 0
+    assert m["total_cost_usd"] == pytest.approx(float(model))
+    assert m["voice_cost_usd"] == pytest.approx(float(added))

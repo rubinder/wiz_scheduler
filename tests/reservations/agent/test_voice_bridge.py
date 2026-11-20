@@ -487,6 +487,8 @@ async def test_erasure_during_a_turn_is_not_written_back(client, db_session, lin
     # The model call is still recorded and metered, without its words.
     assert any(e.cost_usd > 0 for e in after)
     assert conv.cost_usd == sum((e.cost_usd for e in events), Decimal(0))
+    # And so is the turn's call cost.
+    assert conv.cost_usd > _model_cost(events)
     # A retry of the erased turn is not answered from a stored reply.
     again = (await _post(client, _body(1, text_="table for two, I'm Ada"))).json()
     assert "Ada" not in again["text"]
@@ -577,6 +579,28 @@ async def test_voice_cost_is_billed_with_the_markup(client, db_session, line, ll
         .execution_options(populate_existing=True))).scalar_one()
     assert usage.cost_usd == conv.cost_usd > model
     assert usage.billed_usd == billed_amount(conv.cost_usd) > billed_amount(model)
+
+
+async def test_a_retried_turn_is_not_billed_again(client, db_session, line, llm):
+    conv = await _first_turn(client, db_session, llm, started_ago=40)
+    cost = conv.cost_usd
+    again = (await _post(client, _body(1, text_="a table please"))).json()
+    assert again["text"] == REPLY_1  # the stored reply
+    assert (await _conv(db_session)).cost_usd == cost
+
+
+async def test_a_voice_cost_failure_never_breaks_the_call(client, db_session, line, llm,
+                                                         monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("pricing exploded")
+    monkeypatch.setattr(recording, "voice_cost", boom)
+    await _post(client, _body(0))
+    llm.push(reply(text(REPLY_1)))
+    r = await _post(client, _body(1, text_="a table please"))
+    assert r.status_code == 200 and r.json()["text"] == REPLY_1
+    conv = await _conv(db_session)
+    assert conv.turn_started_at is None and conv.last_seq == 1
+    assert conv.cost_usd == _model_cost(await _events(db_session, conv))
 
 
 # -- toll fraud: transfers ------------------------------------------------------------

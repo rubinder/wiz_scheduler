@@ -324,11 +324,22 @@ Decisions made while building without stopping to ask (owner instruction,
     not told apart and is counted as speech) `+ polly_chars x 16 / 1e6`
     (plain characters of the reply text and confirm question the Lambda
     speaks, at most 1000; SSML tags are not billed) `+ call_seconds x
-    (0.018 + 0.0022) / 60`. Call seconds are an estimate: the database clock
-    at the end of the turn less the newest event of the previous turn (the
-    call's start on its first turn), per second, capped at
+    (0.018 + 0.0022) / 60`. Call seconds are an estimate: the database's
+    `now()` at the end of the turn less the newest event of the previous
+    turn (the call's start on its first turn), computed in SQL so both
+    sides are the database clock, per second, clamped to 0 ..
     `VOICE_COST_MAX_SECONDS_PER_TURN` (120); no client-reported duration is
-    trusted. Not billed: the greeting turn's speech and the time after the
+    trusted. Adding it runs in a savepoint and never raises into the call
+    path: on a failure the turn is logged and goes unbilled, and the caller
+    still hears the reply. A retried turn (same seq) is answered from the
+    stored reply and not billed again; a conversation erased mid-turn keeps
+    its call cost, as it keeps model cost. Polly is billed on the assumption
+    that Connect charges it separately when it speaks Lex replies; confirm
+    that before switch-on, and if Connect does not, set
+    `VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD=0`. Evals: `total_cost_usd`
+    (and so cost per booking) stays model cost only, comparable with the
+    step-8 baseline, because call seconds there measure the harness; the
+    call cost is reported apart as `voice_cost_usd`. Not billed: the greeting turn's speech and the time after the
     last turn until hangup (no turn follows to charge them), turns that
     record no event (spend-cap closes, replays), staff transfer outbound
     minutes (AWS bills them; bounded by `VOICE_TRANSFERS_PER_DAY` and the $50
@@ -402,6 +413,8 @@ Setup steps are in the voice section of `terraform/README.md`.
 - Make one live test call.
 - Check the VOICE_COST_* prices against current AWS pricing for the Connect
   region (decision 70).
+- Confirm whether Connect bills Polly separately when it speaks Lex replies.
+  If it does not, set `VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD=0`.
 - Turn on `agent_reconcile_enabled` together with RESERVATIONS (decision 45).
 - Run a live test of `find_owned` in `services/connect_numbers.py`
   (`ListPhoneNumbersV2` with `PhoneNumberPrefix`); it was only tested
