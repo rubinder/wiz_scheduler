@@ -185,3 +185,51 @@ def test_task_role_reaches_the_lake_prefix_only() -> None:
         "aws_s3_bucket.analytics_lake[0].arn",
     ]
     assert 'values   = ["${local.analytics_prefix}/*"]' in m.group(1)
+
+
+def _block(text: str, header: str) -> str:
+    m = re.search(re.escape(header) + r" \{(.*?)\n\}", text, re.S)
+    assert m, f"{header} missing"
+    return m.group(1)
+
+
+def test_analyst_is_an_mfa_role_ci_can_create() -> None:
+    """CI may create ${app_name}-* roles and inline policies (cicd.tf), not
+    customer-managed policies."""
+    tf = (TERRAFORM / "analytics.tf").read_text()
+    assert 'resource "aws_iam_policy" ' not in tf
+    role = _block(tf, 'resource "aws_iam_role" "analytics_reader"')
+    assert 'name                 = "${var.app_name}-analytics-reader"' in role
+    trust = _block(tf, 'data "aws_iam_policy_document" "analytics_reader_assume"')
+    assert ':root"]' in trust
+    assert 'variable = "aws:MultiFactorAuthPresent"' in trust
+    assert 'values   = ["true"]' in trust
+    policy = _block(tf, 'resource "aws_iam_role_policy" "analytics_reader"')
+    assert "role   = aws_iam_role.analytics_reader[0].id" in policy
+    cicd = (TERRAFORM / "cicd.tf").read_text()
+    for action in ("iam:CreateRole", "iam:PutRolePolicy", "iam:TagRole"):
+        assert f'"{action}"' in cicd
+    assert '"arn:aws:iam::*:role/${var.app_name}-*"' in cicd
+
+
+def test_analyst_glue_writes_are_the_views_only() -> None:
+    tf = (TERRAFORM / "analytics.tf").read_text()
+    views = re.search(r"analytics_views = \[(.*?)\]", tf, re.S)
+    assert views
+    names = sorted(re.findall(r'"([a-z_]+)"', views.group(1)))
+    sql = sorted(p.stem for p in (TERRAFORM.parent / "analytics" / "sql").glob("*.sql"))
+    assert names == sql
+    reader = _block(tf, 'data "aws_iam_policy_document" "analytics_reader"')
+    statements = re.split(r"\n  statement \{", reader)
+    writes = [s for s in statements if "glue:CreateTable" in s]
+    assert len(writes) == 1
+    assert "table/${local.analytics_database}/${v}" in writes[0]
+    assert "table/${local.analytics_database}/*" not in writes[0]
+    for s in statements:
+        if "glue:Get" in s:
+            assert "glue:CreateTable" not in s and "glue:DeleteTable" not in s
+    lake_list = [s for s in statements if 'sid       = "LakeList"' in s]
+    assert len(lake_list) == 1
+    assert 'values   = ["${local.analytics_prefix}/*"]' in lake_list[0]
+    catalog = [s for s in statements if "athena:GetTableMetadata" in s]
+    assert catalog and "datacatalog/AwsDataCatalog" in catalog[0]

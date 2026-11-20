@@ -6,9 +6,12 @@
 -- (dinner, lunch, ... in the location's local time) is
 -- agent_daily_metrics.covers_by_period in Postgres. A reservation lands in
 -- the partition of the day it was created, with its status as of that run,
--- so a later cancellation is not reflected here.
+-- so a later cancellation is not reflected here. dt is that creation day,
+-- kept so a dt filter prunes partitions; sum over it for a start date's
+-- total covers.
 CREATE OR REPLACE VIEW covers_by_service_period AS
 SELECT
+    dt,
     company_id,
     location_id,
     provider,
@@ -18,4 +21,4 @@ SELECT
     sum(party_size) AS covers
 FROM reservations
 WHERE status IN ('booked', 'seated', 'completed')
-GROUP BY company_id, location_id, provider, CAST(start_at AS date), hour(start_at)
+GROUP BY dt, company_id, location_id, provider, CAST(start_at AS date), hour(start_at)

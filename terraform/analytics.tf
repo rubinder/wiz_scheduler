@@ -299,7 +299,55 @@ resource "aws_iam_role_policy" "ecs_task_analytics" {
   policy = data.aws_iam_policy_document.ecs_task_analytics[0].json
 }
 
-# --- IAM: the analyst (attach to the owner's IAM user; terraform/README.md) ---
+# --- IAM: the analyst role (assumed by the owner with MFA; analytics/README.md) ---
+#
+# A role, not a customer-managed policy: the CI user may create roles named
+# ${app_name}-* and their inline policies (cicd.tf, IAMRoleManagement), but
+# not policies. Any principal in this account whose own IAM policy allows
+# sts:AssumeRole on it can assume it, with MFA only.
+
+locals {
+  # The views in analytics/sql, one Glue table each once applied. The
+  # analyst may create, replace and drop these, and no other table.
+  analytics_views = [
+    "booking_conversion",
+    "cost_per_booking",
+    "covers_by_service_period",
+    "daily_resolution_rate",
+    "handoff_reasons",
+    "latency_percentiles",
+    "spam_blocked_share",
+  ]
+  analytics_glue_arn = "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}"
+}
+
+data "aws_iam_policy_document" "analytics_reader_assume" {
+  count = var.analytics_enabled ? 1 : 0
+
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:MultiFactorAuthPresent"
+      values   = ["true"]
+    }
+  }
+}
+
+resource "aws_iam_role" "analytics_reader" {
+  count = var.analytics_enabled ? 1 : 0
+
+  name                 = "${var.app_name}-analytics-reader"
+  description          = "Query the AI host analytics lake through the Athena analytics workgroup."
+  assume_role_policy   = data.aws_iam_policy_document.analytics_reader_assume[0].json
+  max_session_duration = 3600 * 4
+
+  tags = { Name = "${var.app_name}-analytics-reader" }
+}
 
 data "aws_iam_policy_document" "analytics_reader" {
   count = var.analytics_enabled ? 1 : 0
@@ -320,15 +368,25 @@ data "aws_iam_policy_document" "analytics_reader" {
   }
 
   statement {
+    sid = "AthenaCatalog"
+    actions = [
+      "athena:GetDataCatalog",
+      "athena:GetDatabase",
+      "athena:ListDatabases",
+      "athena:ListTableMetadata",
+      "athena:GetTableMetadata",
+    ]
+    resources = ["arn:aws:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:datacatalog/AwsDataCatalog"]
+  }
+
+  statement {
     sid       = "AthenaList"
-    actions   = ["athena:ListWorkGroups", "athena:ListDataCatalogs", "athena:ListDatabases"]
+    actions   = ["athena:ListWorkGroups", "athena:ListDataCatalogs"]
     resources = ["*"]
   }
 
-  # Get* reads the catalog; the view DDL in analytics/sql needs table
-  # create/update/delete in this database only.
   statement {
-    sid = "GlueCatalog"
+    sid = "GlueRead"
     actions = [
       "glue:GetDatabase",
       "glue:GetDatabases",
@@ -337,15 +395,23 @@ data "aws_iam_policy_document" "analytics_reader" {
       "glue:GetPartition",
       "glue:GetPartitions",
       "glue:BatchGetPartition",
-      "glue:CreateTable",
-      "glue:UpdateTable",
-      "glue:DeleteTable",
     ]
     resources = [
-      "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+      "${local.analytics_glue_arn}:catalog",
       aws_glue_catalog_database.analytics[0].arn,
-      "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${local.analytics_database}/*",
+      "${local.analytics_glue_arn}:table/${local.analytics_database}/*",
     ]
+  }
+
+  # CREATE OR REPLACE VIEW / DROP VIEW for analytics/sql's views only, so the
+  # analyst cannot replace or drop a lake table.
+  statement {
+    sid     = "GlueViewWrites"
+    actions = ["glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable"]
+    resources = concat(
+      ["${local.analytics_glue_arn}:catalog", aws_glue_catalog_database.analytics[0].arn],
+      [for v in local.analytics_views : "${local.analytics_glue_arn}:table/${local.analytics_database}/${v}"],
+    )
   }
 
   statement {
@@ -355,9 +421,20 @@ data "aws_iam_policy_document" "analytics_reader" {
   }
 
   statement {
-    sid       = "LakeList"
-    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    sid       = "LakeLocation"
+    actions   = ["s3:GetBucketLocation"]
     resources = [aws_s3_bucket.analytics_lake[0].arn]
+  }
+
+  statement {
+    sid       = "LakeList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.analytics_lake[0].arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${local.analytics_prefix}/*"]
+    }
   }
 
   statement {
@@ -378,12 +455,12 @@ data "aws_iam_policy_document" "analytics_reader" {
   }
 }
 
-resource "aws_iam_policy" "analytics_reader" {
+resource "aws_iam_role_policy" "analytics_reader" {
   count = var.analytics_enabled ? 1 : 0
 
-  name        = "${var.app_name}-analytics-reader"
-  description = "Query the AI host analytics lake through the Athena analytics workgroup."
-  policy      = data.aws_iam_policy_document.analytics_reader[0].json
+  name   = "${var.app_name}-analytics-reader"
+  role   = aws_iam_role.analytics_reader[0].id
+  policy = data.aws_iam_policy_document.analytics_reader[0].json
 }
 
 # --- Nightly schedule (same shape as agent_reconcile_schedule.tf) ---

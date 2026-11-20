@@ -17,8 +17,8 @@ Everything is in `terraform/analytics.tf`, off by default behind
 on, Terraform creates the lake and Athena results buckets, the Glue database
 `wizscheduler_analytics` with one table per lake table (partition projection
 on `dt`, so new days need no crawler or `MSCK REPAIR`), the Athena workgroup
-`wizscheduler-analytics`, the `wizscheduler-analytics-reader` IAM policy and
-the nightly schedule.
+`wizscheduler-analytics`, the MFA-only `wizscheduler-analytics-reader` IAM
+role and the nightly schedule.
 
 The Glue columns are generated from the pyarrow schemas. After changing
 `backend/analytics/schemas.py`:
@@ -59,7 +59,10 @@ it. Every file is `CREATE OR REPLACE VIEW`, so rerunning is safe.
 Notes:
 
 - Filter on `dt` when querying a view; projection prunes partitions only
-  when the predicate reaches the table.
+  when the predicate reaches the table. `booking_conversion` looks intent
+  up in events partitions at or after the conversation's `dt` (events never
+  predate the conversation); Athena's dynamic filtering can skip earlier
+  partitions, but later ones are still read.
 - `latency_percentiles` is approximate; `agent_daily_metrics` uses nearest
   rank, so the two can differ slightly.
 - The lake holds no location time zone or rules, so
@@ -73,12 +76,51 @@ Notes:
 
 ## Access
 
-Attach the reader policy to the owner's IAM user, then query in the
-`wizscheduler-analytics` workgroup (console or CLI):
+Query as the `wizscheduler-analytics-reader` role, in the
+`wizscheduler-analytics` workgroup. It is a role rather than a policy to
+attach because the CI user that applies Terraform may create
+`wizscheduler-*` roles but not IAM policies. Its trust policy admits this
+account's principals, only with MFA, and only those whose own IAM policy
+allows `sts:AssumeRole` on it (an administrator already does).
 
-    aws iam attach-user-policy --user-name <owner-user> \
-      --policy-arn arn:aws:iam::<account-id>:policy/wizscheduler-analytics-reader
+With a CLI profile in `~/.config/aws` or `~/.aws/config`:
 
-It grants Athena on the workgroup, Glue reads on the database and its tables
-(plus table create/update/delete there, for the views), S3 reads on the lake
-prefix, and writes to the results bucket. Results expire after 30 days.
+    [profile wiz-analytics]
+    role_arn       = arn:aws:iam::<account-id>:role/wizscheduler-analytics-reader
+    source_profile = default
+    mfa_serial     = arn:aws:iam::<account-id>:mfa/<owner-mfa-device>
+    region         = us-east-1
+
+then `AWS_PROFILE=wiz-analytics analytics/apply_views.sh`, or any
+`aws athena ...` call with `--profile wiz-analytics` (the CLI prompts for
+the MFA code). Without a profile:
+
+    aws sts assume-role \
+      --role-arn arn:aws:iam::<account-id>:role/wizscheduler-analytics-reader \
+      --role-session-name analytics \
+      --serial-number arn:aws:iam::<account-id>:mfa/<owner-mfa-device> \
+      --token-code <6-digit code>
+
+and export the returned credentials. In the console, use Switch role with
+the account id and role name.
+
+The role grants Athena on the workgroup and the AwsDataCatalog metadata
+calls, Glue reads on the database and its tables, Glue create/update/delete
+on the seven view tables only (so the views can be replaced, never a lake
+table), S3 reads and listing under the lake prefix, and writes to the
+results bucket. Results expire after 30 days.
+
+## Go-live
+
+After the first apply with `analytics_enabled = true` and the first nightly
+run (or a manual `run_agent_analytics` task):
+
+1. Run `analytics/apply_views.sh` as the reader role once. This doubles as
+   a dry run: the views were written against the schemas but never run on
+   Athena before, so fix any file that fails and rerun.
+2. Query each view for the landed days, e.g.
+   `SELECT * FROM daily_resolution_rate WHERE dt = '<yesterday>'`, and
+   compare `daily_resolution_rate`, `booking_conversion`, `handoff_reasons`,
+   `cost_per_booking` and `spam_blocked_share` with that day's
+   `agent_daily_metrics` rows (latency percentiles are approximate, covers
+   are by UTC hour, so those two differ by design).

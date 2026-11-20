@@ -417,8 +417,10 @@ and the ECS task definition is unchanged. Turning it on creates:
   1 GiB scan cutoff per query);
 - a task-role policy letting the app put, get, list and delete under
   `lake/` only, and `ANALYTICS_BUCKET` in the task's environment;
-- the policy `wizscheduler-analytics-reader`, attached to nobody; attach it
-  to the owner's IAM user (`analytics/README.md`, "Access");
+- the role `wizscheduler-analytics-reader` with an inline policy, assumable
+  by this account's principals with MFA only (`analytics/README.md`,
+  "Access"). A role because the CI user can create `wizscheduler-*` roles
+  and their inline policies, not IAM policies;
 - the nightly job at `analytics_schedule` (default `cron(30 6 * * ? *)`),
   `python -m backend.scripts.run_agent_analytics` on the service's task
   definition.
