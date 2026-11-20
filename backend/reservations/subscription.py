@@ -184,8 +184,9 @@ def _local_day_bounds(now: datetime, tz: ZoneInfo) -> tuple[datetime, datetime]:
 async def spend_today(
     db: AsyncSession, location_id: str, now: datetime, tz: ZoneInfo | str,
 ) -> Decimal:
-    """Model cost of the location's conversations started in its local day
-    (open ones included), from agent_conversations.cost_usd.
+    """Cost (model, and voice call cost) of the location's conversations
+    started in its local day (open ones included), from
+    agent_conversations.cost_usd.
 
     Conversations count by start day: a chat that crosses local midnight
     counts all of its cost against the day it started, none against the

@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from backend.models import Location
+from backend.reservations.agent import recording
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.evals.scenarios_io import (
     ExpectedBooking,
@@ -358,11 +359,19 @@ async def check(db: AsyncSession, seeded: SeededScenario, conv: AgentConversatio
     tools_ms = [float(e.latency_ms["tools"]) for e in events
                 if isinstance(e.latency_ms, dict)
                 and isinstance(e.latency_ms.get("tools"), (int, float))]
+    model_cost = sum((recording.cost_of({
+        "input_tokens": e.input_tokens, "output_tokens": e.output_tokens,
+        "cache_read_tokens": e.cache_read_tokens,
+        "cache_write_tokens": e.cache_write_tokens}) for e in events), Decimal(0))
     metrics: dict[str, Any] = {
         "turns": turns,
         "diner_turns": sum(1 for e in events if e.type == "user_turn"),
         "model_calls": sum(1 for e in events if e.type == "assistant_turn"),
-        "total_cost_usd": float(conv.cost_usd or Decimal(0)),
+        # Model cost only, comparable with the step-8 baseline: a voice
+        # turn's call cost (decision 70) depends on the harness's timing,
+        # so it is reported apart.
+        "total_cost_usd": float(model_cost),
+        "voice_cost_usd": float((conv.cost_usd or Decimal(0)) - model_cost),
         "llm_ms": llm_ms,
         "tools_ms": tools_ms,
         "llm_p50_ms": percentile(llm_ms, 50),

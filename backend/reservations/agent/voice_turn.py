@@ -17,7 +17,7 @@ from backend.config import settings
 from backend.dependencies import bind_rls_context
 from backend.models import Location
 from backend.reservations import voice_numbers, voice_transfers
-from backend.reservations.agent import gate, recording, voice
+from backend.reservations.agent import gate, recording, voice, voice_cost
 from backend.reservations.agent.core import AgentCore, TurnInput
 from backend.reservations.agent.models import AgentConversation
 from backend.reservations.rules import get_rules
@@ -186,6 +186,10 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
             await recording.add_latency(db, conv, before, stages)
             reply = await _screen_transfer(
                 db, location, voice.spoken_reply(out, confirm_style), now)
+            # Every turn past the greeting is one Lex request (speech or
+            # keypad: the Lambda forwards both as the transcript).
+            await recording.add_voice_cost(db, conv, before, lex_requests=1,
+                                           polly_chars=voice_cost.spoken_chars(reply))
     except BaseException:
         # handle_turn never raises an Exception: the call went away mid-turn.
         await gate.clear_mark_after_cancel(db, conv_id, company_id)

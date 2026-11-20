@@ -605,3 +605,23 @@ async def test_confirm_on_the_closing_turn_books_through_the_api(
     r = await _turn(client, token, {"action": "confirm_hold"})
     assert r.status_code == 200, r.text
     assert r.json()["ended"] and r.json()["reply_text"].startswith("You're booked")
+
+
+async def test_a_web_turn_bills_the_model_only(client, db_session, seeded_floor, llm):
+    """Call minutes, Lex and Polly are a voice cost: a web chat turn, however
+    long after the conversation began, costs its model call and nothing more."""
+    from sqlalchemy import text as sql
+
+    from tests.reservations.agent.fakes import USAGE
+
+    token = await _start(client)
+    await db_session.execute(sql(
+        "UPDATE agent_conversations SET started_at = started_at - interval '1 hour' "
+        "WHERE public_token = :t"), {"t": token})
+    await db_session.commit()
+    llm.push(reply(text("Hello! How can I help?")))
+    assert (await _turn(client, token, {"text": "hi"})).status_code == 200
+    conv = (await db_session.execute(
+        select(AgentConversation).where(AgentConversation.public_token == token)
+        .execution_options(populate_existing=True))).scalar_one()
+    assert conv.cost_usd == recording.cost_of(USAGE)

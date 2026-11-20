@@ -303,6 +303,17 @@ class Settings(BaseSettings):
     # contact) and per contact. Only the Lambda calls the bridge, so there is
     # no per-address limit; this bounds one caller's abuse.
     VOICE_CALLER_TURNS_PER_MINUTE: int = 30
+    # A voice turn's call cost, added to its recorded cost and billed with
+    # the AI host usage (reservations/agent/voice_cost.py): Connect voice
+    # usage plus inbound DID minutes for the seconds since the call's last
+    # turn (at most VOICE_COST_MAX_SECONDS_PER_TURN), one Lex speech request,
+    # and Polly neural characters of the reply.
+    # AWS list prices, us-east-1; verify against AWS pricing before switch-on.
+    VOICE_COST_CONNECT_PER_MIN_USD: float = 0.018
+    VOICE_COST_TELEPHONY_INBOUND_PER_MIN_USD: float = 0.0022
+    VOICE_COST_LEX_PER_SPEECH_REQUEST_USD: float = 0.004
+    VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD: float = 16.0
+    VOICE_COST_MAX_SECONDS_PER_TURN: float = 120
     # Call screening (#259 step 7): a caller is blocked as spam once the FTC
     # complaint list has at least SPAM_MIN_REPORTS reports of the number over
     # the last SPAM_WINDOW_DAYS report dates (reservations.screening).
@@ -363,7 +374,8 @@ class Settings(BaseSettings):
     RESERVATION_AGENT_MAX_TOKENS: int = 1024
     # AI host subscription (#259 step 5): a licensed monthly price, the
     # first RESERVATIONS_INCLUDED_USAGE_USD of billed usage per period free,
-    # and usage billed at model cost x RESERVATIONS_USAGE_MARKUP. Empty
+    # and usage billed at cost x RESERVATIONS_USAGE_MARKUP (model cost, plus
+    # call minutes, Lex and Polly on voice: the VOICE_COST_* settings). Empty
     # price id: the subscribe endpoints answer 503 not_configured.
     # RESERVATIONS_PRICE_MONTHLY_USD is what the billing card shows; Stripe
     # charges the price RESERVATIONS_PRICE_ID names, so keep the two equal.

@@ -309,6 +309,48 @@ Decisions made while building without stopping to ask (owner instruction,
     `rules.mock_external` change only for an admin (403 `admin_only`). Cost
     if wrong: a regular manager could point a live location at the mock.
 
+### Voice usage billing
+
+70. **Voice calls bill their minutes and speech through the AI host usage.**
+    Each phone turn that reaches the core adds
+    `voice_cost(lex_requests, polly_chars, call_seconds)`
+    (`reservations/agent/voice_cost.py`) to the cost of the first event that
+    turn recorded, so it flows into `agent_conversations.cost_usd`, the
+    "billed as it is spent" meter, `agent_usage` (cost x
+    `RESERVATIONS_USAGE_MARKUP`, overage past the included amount) and the
+    daily spend cap exactly like model cost. Formula, from the `VOICE_COST_*`
+    settings (AWS us-east-1 list prices): `lex_requests x 0.004` (one per
+    turn: the Lambda forwards keypad digits as the transcript too, so DTMF is
+    not told apart and is counted as speech) `+ polly_chars x 16 / 1e6`
+    (plain characters of the reply text and confirm question the Lambda
+    speaks, at most 1000; SSML tags are not billed) `+ call_seconds x
+    (0.018 + 0.0022) / 60`. Call seconds are an estimate: the database's
+    `now()` at the end of the turn less the newest event of the previous
+    turn (the call's start on its first turn), computed in SQL so both
+    sides are the database clock, per second, clamped to 0 ..
+    `VOICE_COST_MAX_SECONDS_PER_TURN` (120); no client-reported duration is
+    trusted. Adding it runs in a savepoint and never raises into the call
+    path: on a failure the turn is logged and goes unbilled, and the caller
+    still hears the reply. A retried turn (same seq) is answered from the
+    stored reply and not billed again; a conversation erased mid-turn keeps
+    its call cost, as it keeps model cost. Polly is billed on the assumption
+    that Connect charges it separately when it speaks Lex replies; confirm
+    that before switch-on, and if Connect does not, set
+    `VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD=0`. Evals: `total_cost_usd`
+    (and so cost per booking) stays model cost only, comparable with the
+    step-8 baseline, because call seconds there measure the harness; the
+    call cost is reported apart as `voice_cost_usd`. Not billed: the greeting turn's speech and the time after the
+    last turn until hangup (no turn follows to charge them), turns that
+    record no event (spend-cap closes, replays), staff transfer outbound
+    minutes (AWS bills them; bounded by `VOICE_TRANSFERS_PER_DAY` and the $50
+    voice budget alarm) and the per-number daily fee (covered by the $10
+    base price). No schema change: the breakdown is logged
+    (`reservation_agent.voice_cost`, no number or words), not stored. Cost if
+    wrong: stale prices or the estimate under- or over-bill by fractions of a
+    cent per turn (a 3-minute, 6-turn call is about $0.09 of AWS cost before
+    markup); a too-low cap under-bills long silences, a too-high one
+    over-bills a turn that waited on a stuck retry.
+
 ## Before switching reservations on (owner checklist)
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
@@ -369,6 +411,10 @@ Setup steps are in the voice section of `terraform/README.md`.
 - Open the contact flow once in the Connect console.
 - Set `voice_provisioning_enabled`.
 - Make one live test call.
+- Check the VOICE_COST_* prices against current AWS pricing for the Connect
+  region (decision 70).
+- Confirm whether Connect bills Polly separately when it speaks Lex replies.
+  If it does not, set `VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD=0`.
 - Turn on `agent_reconcile_enabled` together with RESERVATIONS (decision 45).
 - Run a live test of `find_owned` in `services/connect_numbers.py`
   (`ListPhoneNumbersV2` with `PhoneNumberPrefix`); it was only tested
