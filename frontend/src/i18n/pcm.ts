@@ -1667,6 +1667,7 @@ const pcm = {
         paused: "E pause",
         unpaid: "Dem never pay",
         incomplete: "Payment never finish",
+        comped: "E dey inside, na free",
         unknown: "We no know",
         none: "No subscription",
       },

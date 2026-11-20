@@ -1667,6 +1667,7 @@ const hi = {
         paused: "रुकी हुई",
         unpaid: "अवैतनिक",
         incomplete: "भुगतान पूरा नहीं हुआ",
+        comped: "शामिल",
         unknown: "अज्ञात",
         none: "सदस्यता नहीं",
       },

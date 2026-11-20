@@ -1667,6 +1667,7 @@ const fr = {
         paused: "En pause",
         unpaid: "Impayé",
         incomplete: "Paiement non finalisé",
+        comped: "Inclus",
         unknown: "Inconnu",
         none: "Non abonné",
       },

@@ -1667,6 +1667,7 @@ const ur = {
         paused: "موقوف",
         unpaid: "غیر ادا شدہ",
         incomplete: "ادائیگی مکمل نہیں ہوئی",
+        comped: "شامل",
         unknown: "نامعلوم",
         none: "سبسکرائب نہیں",
       },

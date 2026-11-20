@@ -11,6 +11,7 @@ import {
   canSubscribe,
   checkoutReturn,
   formatDollars,
+  isComped,
   periodEndLabel,
   priceValues,
   survivesCancellationUntil,
@@ -173,7 +174,10 @@ export default function Billing() {
                   {busy ? b.redirecting : b.subscribe}
                 </button>
               )}
-              {agent.status !== null && (
+              {isComped(agent.status) && (
+                <span className={`text-sm font-medium ${text.primary}`}>{b.statuses.comped}</span>
+              )}
+              {agent.status !== null && !isComped(agent.status) && (
                 <button type="button" className="glass-btn-secondary" disabled={busy} onClick={manage}>
                   {b.manage}
                 </button>
@@ -211,7 +215,7 @@ export default function Billing() {
             </div>
           )}
 
-          {agent.status !== null && usage && (
+          {agent.status !== null && !isComped(agent.status) && usage && (
             <div className="space-y-2">
               <h3 className={`font-semibold ${text.heading}`}>{b.usageTitle}</h3>
               <dl className="grid grid-cols-3 gap-2 text-sm">

@@ -1667,6 +1667,7 @@ const zh = {
         paused: "已暂停",
         unpaid: "未付款",
         incomplete: "付款未完成",
+        comped: "已包含",
         unknown: "未知",
         none: "未订阅",
       },

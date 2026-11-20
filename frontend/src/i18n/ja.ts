@@ -1667,6 +1667,7 @@ const ja = {
         paused: "一時停止中",
         unpaid: "未払い",
         incomplete: "支払い未完了",
+        comped: "無料で付帯",
         unknown: "不明",
         none: "未契約",
       },

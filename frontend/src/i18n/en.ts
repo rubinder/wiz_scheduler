@@ -1675,6 +1675,7 @@ const en = {
         paused: "Paused",
         unpaid: "Unpaid",
         incomplete: "Payment not completed",
+        comped: "Included",
         unknown: "Unknown",
         none: "Not subscribed",
       },

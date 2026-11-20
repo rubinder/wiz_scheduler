@@ -1667,6 +1667,7 @@ const ar = {
         paused: "متوقف مؤقتًا",
         unpaid: "غير مدفوع",
         incomplete: "لم يكتمل الدفع",
+        comped: "مشمول",
         unknown: "غير معروف",
         none: "غير مشترك",
       },

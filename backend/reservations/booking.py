@@ -52,6 +52,7 @@ from backend.reservations.models import (
 )
 from backend.reservations.rules import RulesSchema, get_rules
 from backend.services.archive import active
+from backend.utils.id_gen import generate_short_id
 
 E164 = re.compile(r"^\+[1-9]\d{6,14}$")
 _OVERLAP_CONSTRAINT = "ex_reservation_tables_no_overlap"
@@ -323,12 +324,14 @@ async def hold(
     now: datetime | None = None,
     apply_cutoff: bool = True,
     diner: DinerContact | None = None,
+    reservation_id: str | None = None,
 ) -> Reservation:
     """Hold tables for one party at exactly `start`.
 
     Parties above `max_self_book_party` go to `pending_approval` unless staff
     are booking them. `diner`, when given, is stored on the held row so a
-    later `confirm` can omit it.
+    later `confirm` can omit it. `reservation_id` names the new row (the demo
+    seed's deterministic ids); by default one is generated.
     """
     now = _now(now)
     if not await begin_location_write(db, company_id, location_id, now):
@@ -345,6 +348,7 @@ async def hold(
     # extends it to the approval window once the diner submits it.
     held_until = now + timedelta(minutes=rules.hold_timeout_minutes)
     res = Reservation(
+        id=reservation_id or generate_short_id(),
         company_id=company_id, location_id=location_id, party_size=party_size,
         start_at=slot.start, end_at=slot.end, status=PENDING if pending else HELD,
         held_until=held_until, source=source, conversation_id=conversation_id,
@@ -404,11 +408,13 @@ async def book_staff(
     diner: DinerContact,
     notes: str | None = None,
     now: datetime | None = None,
+    reservation_id: str | None = None,
 ) -> Reservation:
     """Staff bookings skip the cutoff and approval."""
     now = _now(now)
     res = await hold(db, company_id, location_id, party_size, start,
-                     source=SOURCE_STAFF, now=now, apply_cutoff=False)
+                     source=SOURCE_STAFF, now=now, apply_cutoff=False,
+                     reservation_id=reservation_id)
     res.notes = notes
     return await confirm(db, company_id, res.id, diner, now=now)
 

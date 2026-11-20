@@ -1667,6 +1667,7 @@ const ind = {
         paused: "Dijeda",
         unpaid: "Belum dibayar",
         incomplete: "Pembayaran belum selesai",
+        comped: "Termasuk",
         unknown: "Tidak diketahui",
         none: "Belum berlangganan",
       },

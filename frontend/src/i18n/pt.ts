@@ -1667,6 +1667,7 @@ const pt = {
         paused: "Pausada",
         unpaid: "Não paga",
         incomplete: "Pagamento não concluído",
+        comped: "Incluído",
         unknown: "Desconhecido",
         none: "Sem assinatura",
       },

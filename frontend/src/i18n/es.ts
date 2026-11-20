@@ -1667,6 +1667,7 @@ const es = {
         paused: "En pausa",
         unpaid: "Impagada",
         incomplete: "Pago no completado",
+        comped: "Incluido",
         unknown: "Desconocido",
         none: "Sin suscripción",
       },

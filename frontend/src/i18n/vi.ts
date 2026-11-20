@@ -1667,6 +1667,7 @@ const vi = {
         paused: "Tạm dừng",
         unpaid: "Chưa thanh toán",
         incomplete: "Chưa hoàn tất thanh toán",
+        comped: "Đã bao gồm",
         unknown: "Không rõ",
         none: "Chưa đăng ký",
       },

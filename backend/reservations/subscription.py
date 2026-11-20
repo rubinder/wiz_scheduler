@@ -13,7 +13,8 @@ carries no diner data and outlives the conversation (retention and erasure
 delete agent_conversations; `conversation_id` is then set NULL).
 
 The agent answers only while the group's subscription is `active`,
-`trialing` or `past_due` (Ruling T: Stripe is still retrying the card), see
+`trialing` or `past_due` (Ruling T: Stripe is still retrying the card), or
+`comped` (given free by the operator; Stripe never sees it), see
 `active_for_location`, and while the location's spend today is under its
 `daily_spend_cap_usd` (`cap_reached`).
 
@@ -46,6 +47,7 @@ from backend.models.location import Location
 from backend.reservations.agent.models import AgentConversation
 from backend.reservations.rules import get_rules
 from backend.reservations.subscription_models import (
+    COMPED,
     PRODUCT,
     STATUSES,
     AgentUsage,
@@ -53,16 +55,18 @@ from backend.reservations.subscription_models import (
 )
 from backend.utils.id_gen import generate_short_id
 
-__all__ = ["PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
+__all__ = ["COMPED", "PRODUCT", "STATUSES", "AgentUsage", "ReservationSubscription"]
 
 # Ruling T (decision 38): past_due keeps service while Stripe retries the
 # card; unpaid, paused, canceled, incomplete and incomplete_expired stop it.
+# A comped group (no Stripe subscription, #259 step 11) is answered too.
 logger = logging.getLogger(__name__)
 
-ANSWERING_STATUSES = ("active", "trialing", "past_due")
-# Statuses whose usage overage is reconciled onto the next invoice. The same
-# set as ANSWERING_STATUSES today, kept apart because who may use the agent
-# and what Stripe will still invoice are separate questions.
+ANSWERING_STATUSES = ("active", "trialing", "past_due", COMPED)
+# Statuses whose usage overage is reconciled onto the next invoice. Kept
+# apart from ANSWERING_STATUSES because who may use the agent and what Stripe
+# will still invoice are separate questions: a comped group is answered, and
+# its usage is metered as cost, but Stripe never invoices it.
 BILLABLE_STATUSES = ("active", "trialing", "past_due")
 _CENT = Decimal("0.01")
 BUSY_TEXT = "Online booking is busy right now — please call the restaurant."
@@ -156,7 +160,7 @@ async def active_for_location(
     db: AsyncSession, company_id: str, location_id: str, now: datetime,
 ) -> ReservationSubscription | None:
     """The subscription that lets the agent answer at this location: the
-    location's group's, while `active`, `trialing` or `past_due`
+    location's group's, while `active`, `trialing`, `past_due` or `comped`
     (ANSWERING_STATUSES). Anything else (no group,
     no subscription, any other status, a location of another company) is None.
 

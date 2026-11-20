@@ -1667,6 +1667,7 @@ const trLang = {
         paused: "Duraklatıldı",
         unpaid: "Ödenmedi",
         incomplete: "Ödeme tamamlanmadı",
+        comped: "Dahil",
         unknown: "Bilinmiyor",
         none: "Abone değil",
       },
