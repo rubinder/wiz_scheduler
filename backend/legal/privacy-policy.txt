@@ -1,7 +1,7 @@
 PRIVACY POLICY FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: November 15, 2026
+Last Updated: November 20, 2026
 
 1. INTRODUCTION
 WizScheduler ("we", "our", "us") is a multi-tenant AI-powered employee scheduling platform operated by Suggestival LLC. This Privacy Policy explains how we collect, use, disclose, and safeguard your personal data when you use our service. We are committed to protecting your privacy in compliance with the General Data Protection Regulation (GDPR), the California Consumer Privacy Act (CCPA), the New York SHIELD Act, and other applicable data protection laws.
@@ -183,3 +183,49 @@ For privacy inquiries, data subject requests, or complaints:
 - Response Time: We respond to data subject requests within 30 days (45 days for complex requests)
 
 If you are dissatisfied with our response, you may lodge a complaint with your local data protection authority.
+
+17. DINERS OF RESTAURANTS THAT USE THE AI HOST
+Some restaurants that use WizScheduler also use its AI host, which takes reservations from their diners by web chat and by phone. This section applies to you if you book, change, cancel or ask about a reservation with such a restaurant, or if the restaurant records your reservation in WizScheduler. Diners are not WizScheduler users.
+
+A. WHO IS RESPONSIBLE FOR YOUR DATA
+The restaurant is the controller of its diners' personal data. WizScheduler processes that data on the restaurant's behalf, as its processor, under our Data Processing Agreement with the restaurant. Please send questions and requests about your data to the restaurant.
+
+B. DATA WE PROCESS FOR THE RESTAURANT
+- Your name and phone number, given for the reservation
+- Your email address, if the restaurant records one (the AI host does not ask for it)
+- Party size, the date and times of the reservation, notes on it, and its status and confirmation code
+- Transcripts of your conversations with the AI host: what you write in the web chat or say on the phone (as recognized from speech), and the AI host's replies
+- On phone calls, your caller ID number
+- On web chat, a keyed hash of your IP address, used for rate limits and to stop repeated guessing of booking details. Raw IP addresses are not stored
+
+C. HOW THE DATA IS USED
+- To make, change, cancel and look up reservations, and to pass you to the restaurant's staff when the AI host cannot help
+- To screen phone calls before the AI host answers. Your caller ID number is checked against the restaurant's own allow and block lists and against the U.S. Federal Trade Commission's published Do Not Call reported-calls data. A number is treated as spam and the call is ended when that data shows at least 3 reports of it in the last 90 days, unless the restaurant has allowed the number. Calls with a withheld caller ID are answered. The record of each screening decision keeps only a keyed hash of the caller number, not the number itself
+- To bill the restaurant for its use of the AI host. Usage records hold no diner data
+
+D. AI PROCESSING
+The text of your conversation and the reservation details the AI host looks up are sent to Anthropic's Claude AI to produce the AI host's replies (see Section 5.A).
+
+E. PHONE CALLS
+Phone calls to the AI host are handled by Amazon Web Services in the United States (region us-east-1): Amazon Connect carries the call, Amazon Lex turns your speech into text, Amazon Polly speaks the AI host's replies, and AWS Lambda passes each turn of the conversation to WizScheduler.
+- Calls are not recorded
+- Amazon Connect Contact Lens (call analytics) is not turned on, and Amazon Lex conversation logs are not turned on
+- Amazon Connect's call flow logs, which include the caller ID number, are deleted after 30 days
+- The logs of our AWS Lambda functions record a call identifier and the outcome, not your number or what you said, and are deleted after 14 days
+
+F. RETENTION
+- Conversation transcripts are deleted 1 year after the conversation started
+- Your name, phone number, email address and notes are removed from a reservation 1 year after the reservation's end time. The reservation itself (party size and times, without your contact details) is kept for the restaurant's statistics
+- Records of call screening decisions are deleted after 1 year
+- Entries for your number on a restaurant's allow or block list are deleted 1 year after they expire; entries without an expiry stay until the restaurant removes them
+- Records of failed booking lookups, used to stop repeated guessing, are deleted after 1 day
+- If the restaurant's WizScheduler account is deleted, its diner data is deleted with it
+
+G. ACCESS AND ERASURE
+To see or erase your data, contact the restaurant. The restaurant can export your data at one of its locations, and erase it, using your phone number. Erasure deletes your conversation transcripts and that location's allow or block list entries for your number, and removes your name, phone number, email address and notes from your reservations there. Entries that apply to all of a restaurant group's locations are removed separately by the group's administrator.
+
+H. ANALYTICS
+We measure how the AI host performs (for example, how many conversations end in a reservation) using anonymous, aggregated data that holds no diner names, phone numbers or email addresses.
+
+I. NO SALE OF DINER DATA
+We do not sell diner data.

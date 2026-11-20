@@ -1,7 +1,7 @@
 TERMS OF SERVICE FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: November 15, 2026
+Last Updated: November 20, 2026
 
 1. ACCEPTANCE OF TERMS
 By accessing or using WizScheduler ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, you may not use the Service. These Terms apply to all users, including managers, employees, and administrators.
@@ -162,6 +162,16 @@ E. OPTIONAL PAYROLL ARCHIVE
 - The fee is non-refundable, including if you reactivate your account. If you reactivate and later cancel again, the archive is saved when the account is deleted, at no additional charge
 - Exporting your pay records yourself remains free at any time before your account is deleted
 - If you do not buy the archive, your pay records are deleted with your account on your instruction. You are then solely responsible for keeping any records you are legally required to keep (for example under wage-and-hour, tax or employment record-keeping laws) and for any copy you exported. We have no obligation to keep or restore them, and we are not liable for any loss, claim, fine or penalty that results from your not having them
+
+F. AI HOST SUBSCRIPTION
+- The AI host takes reservations from your diners by web chat and by phone. It is an optional subscription, separate from your scheduling plan, at $10.00 per month for your account
+- The first $5.00 of usage in each billing period is included. Usage beyond it is billed at our cost multiplied by 1.5, rounded to the cent for each conversation
+- Usage covers the AI model cost of each conversation and, on phone calls, call minutes, speech recognition (Amazon Lex) and speech synthesis (Amazon Polly). Every conversation that reaches the AI host is usage, whether or not it ends in a reservation. Calls blocked by call screening are not usage. Outbound minutes of calls passed to your staff, and the daily cost of your AI host phone numbers, are not billed as usage
+- Each location has a daily spend cap, measured as our cost before the 1.5 multiplier, per local day. It is $20.00 unless an administrator changes it (the minimum is $1.00). Once a location reaches its cap, the AI host closes new and ongoing conversations there for the rest of that day and refers diners to the restaurant. Conversations already in progress when the cap is reached can take that day's spend over the cap; that usage is billed
+- While the subscription is active, each active location has an AI host phone number. When the subscription ends or stops answering (for example after it is cancelled, or once payment retries have run out), the AI host stops answering and each location's number is released 7 days after that. If you resubscribe within those 7 days, you keep the number
+- The AI host subscription keeps running, and billing, during the 90-day read-only period after you cancel your scheduling plan. It is cancelled when your account is deleted
+- You are responsible for giving your diners and callers any notice the law requires where you operate, including any notice that they are talking to an automated system, that their conversation is transcribed, or that their data is processed by third parties, and for obtaining any consent the law requires
+- You are the controller of your diners' personal data. You handle their access and erasure requests, using the tools the Service provides, as described in the Privacy Policy (Section 17) and the DPA
 
 13. LIMITATION OF LIABILITY
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, WIZSCHEDULER AND SUGGESTIVAL LLC SHALL NOT BE LIABLE FOR:
