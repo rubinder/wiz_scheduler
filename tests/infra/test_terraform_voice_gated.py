@@ -51,7 +51,7 @@ def test_every_block_is_gated(filename: str, flag: str) -> None:
 
 @pytest.mark.parametrize("flag", ["voice_enabled", "voice_provisioning_enabled",
                                   "agent_reconcile_enabled", "ftc_ingest_enabled",
-                                  "analytics_enabled"])
+                                  "analytics_enabled", "reservations_enabled"])
 def test_flags_default_false(flag: str) -> None:
     text = (TERRAFORM / "variables.tf").read_text()
     m = re.search(rf'variable "{flag}" \{{(.*?)\n\}}', text, re.S)
@@ -233,3 +233,17 @@ def test_analyst_glue_writes_are_the_views_only() -> None:
     assert 'values   = ["${local.analytics_prefix}/*"]' in lake_list[0]
     catalog = [s for s in statements if "athena:GetTableMetadata" in s]
     assert catalog and "datacatalog/AwsDataCatalog" in catalog[0]
+
+
+def test_reservations_env_only_added_when_switch_on() -> None:
+    """RESERVATIONS_ENABLED reaches the task only through an empty-when-off
+    list, so the default plan is unchanged (#259 step 11)."""
+    text = (TERRAFORM / "ecs.tf").read_text()
+    assert re.search(
+        r'var\.reservations_enabled \? \[\s*\{\s*(?:#[^\n]*\s*)*name\s*=\s*"RESERVATIONS_ENABLED"\s*'
+        r'value\s*=\s*"true"\s*\},?\s*\] : \[\]', text)
+    assert text.count("RESERVATIONS_ENABLED") == 1
+    variables = (TERRAFORM / "variables.tf").read_text()
+    m = re.search(r'variable "reservations_enabled" \{(.*?)\n\}', variables, re.S)
+    assert m and "legal" in m.group(1).lower()
+    assert "agent_reconcile_enabled" in m.group(1)

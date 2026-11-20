@@ -403,6 +403,16 @@ Decisions made while building without stopping to ask (owner instruction,
 
 ## Before switching reservations on (owner checklist)
 
+### Switch-on order
+
+1. Legal approves the draft PR, and the owner merges it.
+2. Do Stripe, voice and screening per the existing checklist sections.
+3. Set `reservations_enabled`, `agent_reconcile_enabled` and, if wanted,
+   `voice_provisioning_enabled` and `analytics_enabled` to true in one PR.
+   CI applies it.
+4. Run the demo seed as a one-off ECS task: `python -m backend.seed_reservations`.
+5. Smoke test: open `/r/<demo slug>/<demo location>`, book, then cancel.
+
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
   otherwise every active location gets a public chat on the operator's bill.
 - Set `PUBLIC_ORIGIN_SECRET` and the matching CloudFront origin header

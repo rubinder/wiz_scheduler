@@ -176,6 +176,12 @@ variable "rls_enforce" {
 
 # --- AI host (#259) ---
 
+variable "reservations_enabled" {
+  description = "Sets RESERVATIONS_ENABLED in the ECS task, turning on reservations and the AI host. Flip it only after legal approval, and together with agent_reconcile_enabled."
+  type        = bool
+  default     = false
+}
+
 variable "agent_reconcile_enabled" {
   description = "Run the daily AI host billing reconcile (agent_reconcile_schedule.tf). Flip with RESERVATIONS_ENABLED."
   type        = bool
