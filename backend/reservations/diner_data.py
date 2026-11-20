@@ -19,8 +19,12 @@ reservation id links only WizScheduler conversations and a mock booking id
 only mock ones: a ref is never matched against the other provider's ids.
 
 Erasure by confirmation code (`erase_by_code`) is the narrower request: one
-reservation, found by its code at the location (WizScheduler's or the mock's
-inventory, either or both), with the same scrub. It clears that
+reservation, found by its code at the location in WizScheduler's or the
+mock's inventory, with the same scrub. A code both inventories hold here is
+refused (`AmbiguousCode`, 409): the manager erases by phone instead. While a
+linked conversation is still mid-turn, the mock booking is scrubbed but kept
+(its id and code), so erasing again by the same code still finds it and its
+conversation; it is deleted once none is in flight. It clears that
 reservation's contact fields (or deletes that mock booking) and deletes the
 conversations linked to it: by the provider-scoped refs, matched against
 conv.provider's inventory only, and by the reservation's own
@@ -78,6 +82,15 @@ from backend.reservations.providers import mock_external
 from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.queries import conversation_events
 from backend.reservations.screening_models import NumberRule
+
+
+class AmbiguousCode(booking.ReservationError):
+    """A WizScheduler reservation and a mock booking here share the code."""
+    code = "ambiguous_code"
+
+    def __init__(self) -> None:
+        super().__init__("A reservation and an external booking here share this code: "
+                         "erase by the diner's phone number instead.")
 
 
 @dataclass(frozen=True)
@@ -202,10 +215,14 @@ async def _lock(db: AsyncSession, company_id: str, location_id: str,
 async def _erase(
     db: AsyncSession, company_id: str, location_id: str, phone: str | None,
     reservation_ids: list[str], conversation_ids: list[str], mock_ids: list[str],
+    *, keep_mock_in_flight: bool = False,
 ) -> dict[str, int]:
     """The scrub both requests share, over a snapshot taken under the locks:
     the conversations matched (deleted, or closed mid-turn), the
-    reservations' contact fields and the mock bookings."""
+    reservations' contact fields and the mock bookings. With
+    `keep_mock_in_flight` (erase by code), a conversation left in flight
+    keeps the mock bookings as scrubbed rows rather than deleting them, so a
+    retry by the same code finds them."""
     matched = _conversation_filter(company_id, location_id, phone, reservation_ids,
                                    conversation_ids, mock_ids)
     total = (await db.execute(
@@ -253,7 +270,11 @@ async def _erase(
                     notes=None)
             .execution_options(synchronize_session=False)
         )).rowcount
-    external_deleted = await mock_external.erase_bookings(db, company_id, mock_ids)
+    if keep_mock_in_flight and total > deleted:
+        await mock_external.scrub_bookings(db, company_id, mock_ids)
+        external_deleted = 0
+    else:
+        external_deleted = await mock_external.erase_bookings(db, company_id, mock_ids)
     return {
         "reservations_scrubbed": scrubbed,
         "external_bookings_deleted": external_deleted,
@@ -309,8 +330,8 @@ async def erase_by_code(
 ) -> dict[str, int]:
     """Erase the one reservation with this confirmation code at this
     location, and its conversations. Raises booking.ReservationNotFound when
-    no reservation or mock booking here has the code. Flushes; the caller
-    commits (which releases the location lock)."""
+    no reservation or mock booking here has the code, AmbiguousCode when
+    both do. Flushes; the caller commits (which releases the location lock)."""
     code = booking.normalize_code(code)
     now = datetime.now(timezone.utc)
     await _lock(db, company_id, location_id, now)
@@ -324,8 +345,11 @@ async def erase_by_code(
     mock_ids = await mock_external.refs_for_code(db, company_id, location_id, code)
     if not rows and not mock_ids:
         raise booking.ReservationNotFound()
+    if rows and mock_ids:
+        raise AmbiguousCode()
     counts = await _erase(
         db, company_id, location_id, None, [r.id for r in rows],
-        sorted({r.conversation_id for r in rows if r.conversation_id}), mock_ids)
+        sorted({r.conversation_id for r in rows if r.conversation_id}), mock_ids,
+        keep_mock_in_flight=True)
     await db.flush()
     return counts

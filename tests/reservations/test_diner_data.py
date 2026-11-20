@@ -451,3 +451,27 @@ async def test_erase_by_code_404_when_flag_off(client, manager_token, seeded_flo
     r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
                           json={"code": "ADA234"}, headers=_auth(manager_token))
     assert r.status_code == 404
+
+
+
+async def test_both_erasures_log_one_audit_line_without_the_code_or_phone(
+    client, manager_token, diners, db_session: AsyncSession, caplog
+):
+    await _with_codes(db_session, diners)
+    h = _auth(manager_token)
+    with caplog.at_level("INFO", logger="backend.routers.reservations"):
+        r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                              json={"code": "ada234"}, headers=h)
+        assert r.status_code == 200, r.text
+        r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase",
+                              json={"phone": ADA}, headers=h)
+        assert r.status_code == 200, r.text
+    lines = [rec.getMessage() for rec in caplog.records
+             if rec.getMessage().startswith("diner_data.erase ")]
+    assert len(lines) == 2
+    assert f"location={LOCATION_ID}" in lines[0] and "by=code" in lines[0]
+    assert "by=phone" in lines[1] and "reservations_scrubbed=" in lines[1]
+    assert all(" user=" in line for line in lines)
+    for line in lines:
+        assert "ADA234" not in line.upper()
+        assert ADA not in line and ADA.lstrip("+") not in line

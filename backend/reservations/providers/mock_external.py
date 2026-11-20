@@ -48,7 +48,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.availability import candidate_starts
@@ -457,16 +457,36 @@ async def refs_for_code(
     )).scalars().all())
 
 
-async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
-    """Delete these mock bookings, and the stored idempotent responses that
-    repeat their diner's details. Returns the bookings deleted."""
-    if not refs:
-        return 0
+async def _delete_responses(db: AsyncSession, company_id: str, refs: list[str]) -> None:
     await db.execute(
         delete(MockExternalIdempotency).where(
             MockExternalIdempotency.company_id == company_id,
             MockExternalIdempotency.response["ref"].astext.in_(refs))
         .execution_options(synchronize_session=False))
+
+
+async def scrub_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
+    """Clear these mock bookings' diner details but keep the rows (id and
+    code), and delete the stored idempotent responses that repeat the
+    details. For an erase by code with a conversation still mid-turn: the
+    retry must still find the code. Returns the bookings scrubbed."""
+    if not refs:
+        return 0
+    await _delete_responses(db, company_id, refs)
+    return (await db.execute(
+        update(MockExternalBooking)
+        .where(MockExternalBooking.company_id == company_id,
+               MockExternalBooking.id.in_(refs))
+        .values(diner_name=None, diner_phone=None)
+        .execution_options(synchronize_session=False))).rowcount
+
+
+async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:
+    """Delete these mock bookings, and the stored idempotent responses that
+    repeat their diner's details. Returns the bookings deleted."""
+    if not refs:
+        return 0
+    await _delete_responses(db, company_id, refs)
     return (await db.execute(
         delete(MockExternalBooking).where(
             MockExternalBooking.company_id == company_id,

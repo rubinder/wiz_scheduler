@@ -162,7 +162,7 @@ export default function Billing() {
             <div className="space-y-1">
               <h2 className={`text-lg font-semibold ${text.heading}`}>{b.cardTitle}</h2>
               <p className={`text-sm ${text.secondary}`}>
-                {isComped(agent.status) ? b.statuses.comped : fill(b.price, priceValues(agent, lang))}
+                {isComped(agent.status) ? b.compedPrice : fill(b.price, priceValues(agent, lang))}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

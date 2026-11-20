@@ -1,5 +1,6 @@
 """Manager reservations API: floor, rules, slots, bookings and the AI host's
 conversations."""
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta, timezone
@@ -40,6 +41,9 @@ from backend.services.archive import active
 from backend.services.location_scope import LocationScope
 
 
+logger = logging.getLogger(__name__)
+
+
 def require_reservations_enabled() -> None:
     if not settings.RESERVATIONS_ENABLED:
         raise HTTPException(status_code=404, detail="Not found")
@@ -72,6 +76,7 @@ _ERROR_STATUS: dict[type[booking.ReservationError], int] = {
     number_rules.ExpiryInPast: 422,
     number_rules.NoCallerNumber: 409,
     number_rules.NumberAllowed: 409,
+    diner_data.AmbiguousCode: 409,
 }
 
 
@@ -453,6 +458,14 @@ async def read_diner_data(
     )
 
 
+def _audit_erase(location_id: str, user: User, by: Literal["code", "phone"],
+                 counts: dict[str, int]) -> None:
+    """One audit line per erase. Never the code or the phone: the line
+    must not carry what was erased."""
+    logger.info("diner_data.erase location=%s user=%s by=%s %s", location_id, user.id, by,
+                " ".join(f"{k}={v}" for k, v in counts.items()))
+
+
 @gated.post("/locations/{location_id}/diner-data/erase",
              response_model=DinerEraseOut)
 async def erase_diner_data(
@@ -468,6 +481,7 @@ async def erase_diner_data(
         counts = await diner_data.erase_diner_data(
             db, str(user.company_id), location_id, body.phone)
         await db.commit()
+    _audit_erase(location_id, user, "phone", counts)
     return DinerEraseOut(**counts)
 
 
@@ -489,6 +503,7 @@ async def erase_diner_data_by_code(
         counts = await diner_data.erase_by_code(
             db, str(user.company_id), location_id, body.code)
         await db.commit()
+    _audit_erase(location_id, user, "code", counts)
     return DinerCodeEraseOut(**counts)
 
 
