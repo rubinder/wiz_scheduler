@@ -16,8 +16,9 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "cancel table reservations for diners.",
         f"All dates and times are the restaurant's local time ({timezone}).",
     ]
-    if persona.greeting:
-        lines.append(f"Greeting to use when the conversation starts: {persona.greeting}")
+    if persona.rendered_greeting():
+        lines.append("Greeting to use when the conversation starts: "
+                     f"{persona.rendered_greeting()}")
     if persona.facts:
         lines.append("Facts about the restaurant:")
         lines.extend(f"- {fact}" for fact in persona.facts)

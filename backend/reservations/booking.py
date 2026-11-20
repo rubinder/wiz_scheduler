@@ -536,6 +536,12 @@ async def set_status(
     return res
 
 
+def normalize_code(code: str) -> str:
+    """A confirmation code as stored: surrounding whitespace dropped,
+    upper-cased (codes are stored upper-case, so lookups stay index-friendly)."""
+    return code.strip().upper()
+
+
 async def lookup(
     db: AsyncSession, company_id: str, location_id: str, code: str, phone: str
 ) -> Reservation | None:
@@ -544,8 +550,7 @@ async def lookup(
         select(Reservation).where(
             Reservation.company_id == company_id,
             Reservation.location_id == location_id,
-            # Codes are stored upper-case, so this stays index-friendly.
-            Reservation.confirmation_code == code.strip().upper(),
+            Reservation.confirmation_code == normalize_code(code),
             Reservation.diner_phone == phone,
         )
     )).scalar_one_or_none()

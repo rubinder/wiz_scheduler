@@ -31,7 +31,7 @@ from backend.reservations.queries import (
 from backend.reservations.rules import RulesSchema, get_rules, save_rules, stored_fields
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
+    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
     NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
@@ -469,6 +469,27 @@ async def erase_diner_data(
             db, str(user.company_id), location_id, body.phone)
         await db.commit()
     return DinerEraseOut(**counts)
+
+
+@gated.post("/locations/{location_id}/diner-data/erase-by-code",
+             response_model=DinerCodeEraseOut)
+async def erase_diner_data_by_code(
+    location_id: str,
+    body: DinerCodeIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> DinerCodeEraseOut:
+    """Erase one reservation here by its confirmation code: its contact
+    scrubbed, its conversations deleted. The diner's other reservations stay
+    (phone erasure removes everything for the number). 404 for a code that
+    is not a reservation here."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    async with _domain_errors(db):
+        counts = await diner_data.erase_by_code(
+            db, str(user.company_id), location_id, body.code)
+        await db.commit()
+    return DinerCodeEraseOut(**counts)
 
 
 @gated.get("/locations/{location_id}/voice", response_model=VoiceNumberOut)

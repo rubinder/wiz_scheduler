@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from backend.reservations.rules import (
     DateOverride,
+    Persona,
     RulesSchema,
     ServicePeriod,
     get_rules,
@@ -112,3 +113,40 @@ async def test_section_cover_limits_must_be_positive():
     with pytest.raises(ValidationError):
         RulesSchema(section_cover_limits={"patio": 0})
     assert RulesSchema(section_cover_limits={"patio": 1}).section_cover_limits == {"patio": 1}
+
+
+# -- automated-assistant disclosure (#259 launch task 5) -----------------------
+
+
+async def test_a_custom_greeting_must_disclose_the_automated_host():
+    with pytest.raises(ValidationError, match="automated"):
+        Persona(greeting="Ciao! Welcome to Luigi's.")
+    with pytest.raises(ValidationError, match="automated"):
+        RulesSchema.model_validate({"persona": {"greeting": "Hello there"}})
+    for ok in ("", "Hi, you've reached Luigi's AUTOMATED host.",
+               "Luigi's reservations assistant here."):
+        assert Persona(greeting=ok).greeting == ok
+
+
+async def test_stored_rules_with_an_old_greeting_still_read(db_session, seed_location):
+    """Validation is on write only: rules stored before the disclosure rule
+    keep reading (the greeting falls back to the default when rendered)."""
+    from backend.reservations.models import ReservationRules
+    payload = RulesSchema().model_dump(mode="json")
+    payload["persona"]["greeting"] = "Ciao! Welcome to Luigi's."
+    db_session.add(ReservationRules(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                                    rules=payload, version=3))
+    await db_session.flush()
+    rules, version = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    assert version == 3 and rules.persona.greeting == "Ciao! Welcome to Luigi's."
+
+
+async def test_the_prompt_never_carries_a_greeting_without_the_disclosure():
+    from backend.reservations.agent.prompt import build_system_prompt
+    from backend.reservations.rules import STORED
+    old = RulesSchema.model_validate(
+        {"persona": {"greeting": "Ciao! Welcome to Luigi's."}}, context=STORED)
+    assert "Luigi" not in build_system_prompt("Fixture", "America/New_York", old, "web")
+    ok = RulesSchema(persona={"greeting": "Luigi's automated host here."})
+    assert "Luigi's automated host here." in build_system_prompt(
+        "Fixture", "America/New_York", ok, "voice")

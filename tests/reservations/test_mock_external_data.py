@@ -235,6 +235,42 @@ async def test_diner_data_covers_the_mock_bookings_and_matches_refs_by_provider(
     assert (await db_session.get(Reservation, ids["ada"])).diner_name == "Bob"
 
 
+
+async def test_erase_by_code_covers_a_mock_booking_and_matches_refs_by_provider(
+        client, manager_token, seeded_floor, db_session: AsyncSession):
+    ada_mock = _mock(_at(18), code="MOCK23")
+    ada_other = _mock(_at(20), code="MOCK45")
+    db_session.add_all([ada_mock, ada_other])
+    await db_session.flush()
+    db_session.add(MockExternalIdempotency(
+        company_id=COMPANY_ID, key="c:book:1",
+        response={"ref": ada_mock.id, "diner_name": "Ada", "diner_phone": ADA}))
+    db_session.add(MockExternalIdempotency(
+        company_id=COMPANY_ID, key="c:book:2",
+        response={"ref": ada_other.id, "diner_name": "Ada", "diner_phone": ADA}))
+    await db_session.commit()
+    mine = await _conv(db_session, "mock_external", held_reservation_id=ada_mock.id)
+    wiz_same_id = await _conv(db_session, "wizscheduler", reservation_id=ada_mock.id)
+    other = await _conv(db_session, "mock_external", reservation_id=ada_other.id)
+    ids = {"mock": ada_mock.id, "other": ada_other.id, "mine": mine.id,
+           "wiz": wiz_same_id.id, "conv_other": other.id}
+
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "mock23"}, headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["external_bookings_deleted"] == 1 and out["reservations_scrubbed"] == 0
+    assert out["conversations_deleted"] == 1
+
+    db_session.expire_all()
+    left = (await db_session.execute(select(MockExternalBooking.id))).scalars().all()
+    assert left == [ids["other"]]
+    keys = (await db_session.execute(select(MockExternalIdempotency.key))).scalars().all()
+    assert keys == ["c:book:2"]
+    assert await db_session.get(AgentConversation, ids["mine"]) is None
+    assert await db_session.get(AgentConversation, ids["wiz"]) is not None
+    assert await db_session.get(AgentConversation, ids["conv_other"]) is not None
+
 # -- retention --------------------------------------------------------------------
 
 

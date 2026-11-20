@@ -442,7 +442,7 @@ export default function ReservationsRules() {
                 onChange={(e) => patch({ persona: { ...form.persona, voice_id: e.target.value } })}
               />
             </Field>
-            <Field label={r.rules.greeting}>
+            <Field label={r.rules.greeting} hint={r.rules.greetingHint}>
               <textarea
                 className={`${input} w-full`}
                 rows={2}

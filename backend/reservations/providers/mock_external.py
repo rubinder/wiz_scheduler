@@ -52,7 +52,9 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.availability import candidate_starts
-from backend.reservations.booking import CodeExhausted, DinerContact, InvalidPartySize
+from backend.reservations.booking import (
+    CodeExhausted, DinerContact, InvalidPartySize, normalize_code,
+)
 from backend.reservations.codes import new_code
 from backend.reservations.mock_external_models import (
     MockExternalBooking,
@@ -386,7 +388,7 @@ class MockExternalProvider:
         if ref is not None:
             q = q.where(MockExternalBooking.id == ref)
         elif code is not None and phone is not None:
-            q = q.where(MockExternalBooking.code == code.strip().upper(),
+            q = q.where(MockExternalBooking.code == normalize_code(code),
                         MockExternalBooking.diner_phone == phone)
         else:
             raise ValueError("lookup needs a ref, or a code and a phone")
@@ -439,6 +441,20 @@ async def bookings_for_phone(
         ).order_by(MockExternalBooking.start_at, MockExternalBooking.id)
     )).scalars().all()
     return [_booking(r, now) for r in rows]
+
+
+async def refs_for_code(
+    db: AsyncSession, company_id: str, location_id: str, code: str,
+) -> list[str]:
+    """The mock booking at the location with this (normalized) code, as a
+    list of refs: empty, or one (codes are unique per location)."""
+    return list((await db.execute(
+        select(MockExternalBooking.id).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.code == code,
+        )
+    )).scalars().all())
 
 
 async def erase_bookings(db: AsyncSession, company_id: str, refs: list[str]) -> int:

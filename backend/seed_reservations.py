@@ -189,8 +189,9 @@ def demo_rules(today: date) -> RulesSchema:
         booking_horizon_days=60,
         cutoff_minutes=60,
         persona=Persona(
-            greeting=f"Thanks for reaching {RESTAURANT_NAME}! I can book, change or "
-                     "cancel a table for you.",
+            greeting=f"Thanks for reaching {RESTAURANT_NAME}! I'm the automated "
+                     "reservations assistant: I can book, change or cancel a table "
+                     "for you.",
             facts=[
                 f"{RESTAURANT_NAME} is a fictional neighborhood restaurant serving "
                 "seasonal New American dishes.",

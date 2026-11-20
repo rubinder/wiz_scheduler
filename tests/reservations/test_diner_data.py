@@ -339,3 +339,115 @@ async def test_erase_skips_a_conversation_a_running_turn_has_locked(
     db_session.expire_all()
     kept = await db_session.get(AgentConversation, c["caller"])
     assert kept is not None and kept.status == "open"
+
+
+# -- erase by confirmation code (#259 launch task 5) ---------------------------
+
+
+async def _with_codes(db: AsyncSession, diners: dict) -> None:
+    for rid, code in ((diners["ada"][0], "ADA234"), (diners["ada"][1], "ADA567"),
+                      (diners["ada_elsewhere"], "ELS234")):
+        res = await db.get(Reservation, rid)
+        res.confirmation_code = code
+    await db.commit()
+
+
+async def test_erase_by_code_scrubs_only_that_reservation_and_its_conversations(
+    client, manager_token, diners, db_session: AsyncSession
+):
+    await _with_codes(db_session, diners)
+    linked_by_res = await _conv(db_session, text="Ada's request")
+    linked_id = linked_by_res.id
+    ada1 = await db_session.get(Reservation, diners["ada"][0])
+    ada1.conversation_id = linked_id
+    await db_session.commit()
+
+    # Case and surrounding whitespace are normalized, as in the agent's lookup.
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "  ada234 "}, headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert r.json() == {"reservations_scrubbed": 1, "external_bookings_deleted": 0,
+                        "conversations_deleted": 2,
+                        "conversations_closed_in_flight": 0,
+                        "conversations_still_in_flight": 0}
+
+    db_session.expire_all()
+    erased = await db_session.get(Reservation, diners["ada"][0])
+    assert (erased.diner_name, erased.diner_phone, erased.diner_email, erased.notes) \
+        == (None,) * 4
+    assert erased.party_size == 2
+    c = diners["convs"]
+    assert await db_session.get(AgentConversation, c["booked"]) is None
+    assert await db_session.get(AgentConversation, linked_id) is None
+    # Ada's other reservation, her caller-number conversation and her lookup
+    # failures are not this reservation's: phone erasure removes those.
+    other = await db_session.get(Reservation, diners["ada"][1])
+    assert other.diner_phone == ADA and other.diner_name == "Ada"
+    for key in ("held", "caller", "bob", "elsewhere"):
+        assert await db_session.get(AgentConversation, c[key]) is not None
+    phones = (await db_session.execute(select(ReservationLookupFailure.phone).where(
+        ReservationLookupFailure.location_id == LOCATION_ID))).scalars().all()
+    assert sorted(phones) == sorted([ADA, BOB])
+
+
+async def test_erase_by_unknown_code_is_404(client, manager_token, diners, db_session):
+    await _with_codes(db_session, diners)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "ZZZ999"}, headers=_auth(manager_token))
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "not_found"
+
+
+async def test_erase_by_code_at_another_location_is_404(
+    client, manager_token, diners, db_session
+):
+    await _with_codes(db_session, diners)
+    # ELS234 is a reservation at the other location, not this one.
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "ELS234"}, headers=_auth(manager_token))
+    assert r.status_code == 404
+    db_session.expire_all()
+    assert (await db_session.get(Reservation, diners["ada_elsewhere"])).diner_phone == ADA
+
+
+async def test_erase_by_code_at_another_company_is_404(
+    client, manager_token, seeded_floor, db_session
+):
+    db_session.add(Company(id=COMPANY2_ID, name="Other Co", slug="other-co"))
+    await db_session.flush()
+    db_session.add(Region(id="rgn2xxxx", company_id=COMPANY2_ID, name="R"))
+    await db_session.flush()
+    db_session.add(Location(id="loc2xxxx", company_id=COMPANY2_ID, region_id="rgn2xxxx",
+                            name="Elsewhere", timezone="America/New_York"))
+    await db_session.commit()
+    theirs = _res(ADA, "Theirs", location_id="loc2xxxx", company_id=COMPANY2_ID)
+    theirs.confirmation_code = "THR234"
+    db_session.add(theirs)
+    await db_session.commit()
+    theirs_id = theirs.id
+    h = _auth(manager_token)
+    for loc in ("loc2xxxx", LOCATION_ID):
+        r = await client.post(f"{BASE}/locations/{loc}/diner-data/erase-by-code",
+                              json={"code": "THR234"}, headers=h)
+        assert r.status_code == 404
+    db_session.expire_all()
+    assert (await db_session.get(Reservation, theirs_id)).diner_name == "Theirs"
+
+
+async def test_erase_by_code_out_of_scope_is_404(
+    client, regular_token, diners, db_session: AsyncSession
+):
+    await _with_codes(db_session, diners)
+    r = await client.post(f"{BASE}/locations/{OTHER_LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "ELS234"}, headers=_auth(regular_token))
+    assert r.status_code == 404
+    db_session.expire_all()
+    assert (await db_session.get(Reservation, diners["ada_elsewhere"])).diner_phone == ADA
+
+
+async def test_erase_by_code_404_when_flag_off(client, manager_token, seeded_floor,
+                                               monkeypatch):
+    monkeypatch.setattr(settings, "RESERVATIONS_ENABLED", False)
+    r = await client.post(f"{BASE}/locations/{LOCATION_ID}/diner-data/erase-by-code",
+                          json={"code": "ADA234"}, headers=_auth(manager_token))
+    assert r.status_code == 404

@@ -14,7 +14,7 @@ from backend.models import Company, Location, Region
 from backend.reservations.agent import recording
 from backend.reservations.agent.core import AgentCore
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.models import BOOKED, Reservation
+from backend.reservations.models import BOOKED, Reservation, ReservationRules
 from backend.reservations.rules import get_rules, save_rules
 from backend.routers.public_reservations import get_agent_core
 from backend.tenant import get_tenant_context
@@ -133,12 +133,33 @@ async def test_location_info_and_greeting(client, db_session, seeded_floor, llm)
     assert body["location_name"] == "Downtown Store"
     assert body["timezone"] == "America/New_York"
     assert "Downtown Store" in body["greeting"]
+    assert "automated reservations assistant" in body["greeting"]
 
     rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
-    rules.persona.greeting = "Ciao! Welcome to Luigi's."
+    rules.persona.greeting = "Ciao! Luigi's automated host here."
     await save_rules(db_session, COMPANY_ID, LOCATION_ID, rules)
     await db_session.commit()
-    assert (await client.get(BASE)).json()["greeting"] == "Ciao! Welcome to Luigi's."
+    assert (await client.get(BASE)).json()["greeting"] == "Ciao! Luigi's automated host here."
+
+
+async def test_a_stored_greeting_without_the_disclosure_falls_back_to_the_default(
+        client, db_session, seeded_floor, llm):
+    """Rules stored before the disclosure rule are read, but their greeting
+    is never shown: the default, which discloses the automated host, is."""
+    rules, _ = await get_rules(db_session, COMPANY_ID, LOCATION_ID)
+    payload = rules.model_dump(mode="json")
+    payload["persona"]["greeting"] = "Ciao! Welcome to Luigi's."
+    row = (await db_session.execute(select(ReservationRules).where(
+        ReservationRules.location_id == LOCATION_ID))).scalar_one_or_none()
+    if row is None:
+        db_session.add(ReservationRules(company_id=COMPANY_ID, location_id=LOCATION_ID,
+                                        rules=payload, version=1))
+    else:
+        row.rules = payload
+    await db_session.commit()
+    greeting = (await client.get(BASE)).json()["greeting"]
+    assert "Luigi" not in greeting
+    assert "automated reservations assistant" in greeting
 
 
 async def test_start_conversation_returns_token_and_greeting(client, db_session,

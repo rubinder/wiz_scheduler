@@ -38,9 +38,14 @@ def get_agent_core() -> AgentCore:
 
 async def greeting(db: AsyncSession, company_id: str, location: Location) -> str:
     rules, _ = await get_rules(db, company_id, location.id)
-    return rules.persona.greeting or (
-        f"Hi, thanks for contacting {location.name}. "
-        "How can I help with your reservation?")
+    return rules.persona.rendered_greeting() or default_greeting(location.name)
+
+
+def default_greeting(location_name: str) -> str:
+    """Says the host is automated (the disclosure a custom greeting must
+    keep too, rules.Persona). Shared by the web chat and the voice line."""
+    return (f"Hi, you've reached {location_name}'s automated reservations assistant. "
+            "How can I help with your reservation?")
 
 
 async def subscribed(db: AsyncSession, company_id: str, location_id: str,

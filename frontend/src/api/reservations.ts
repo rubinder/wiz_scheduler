@@ -4,6 +4,7 @@ import type {
   ConversationDetailOut,
   ConversationOut,
   DinerDataOut,
+  DinerCodeEraseOut,
   DinerEraseOut,
   FloorIn,
   FloorOut,
@@ -113,6 +114,14 @@ export function exportDinerData(locationId: string, phone: string): Promise<Dine
 /** Erase one diner's data at a location: contact details scrubbed, conversations deleted. */
 export function eraseDinerData(locationId: string, phone: string): Promise<DinerEraseOut> {
   return apiFetch(`${base(locationId)}/diner-data/erase`, { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+/**
+ * Erase one reservation at a location by its confirmation code: its contact details scrubbed,
+ * its conversations deleted. The diner's other reservations stay (erase by phone for those).
+ */
+export function eraseDinerDataByCode(locationId: string, code: string): Promise<DinerCodeEraseOut> {
+  return apiFetch(`${base(locationId)}/diner-data/erase-by-code`, { method: "POST", body: JSON.stringify({ code }) });
 }
 
 /** Number-list entries: one location's plus the company-wide ones, or every entry in scope. */

@@ -108,6 +108,19 @@ async def test_voice_knobs_round_trip_through_rules(client, manager_token, seed_
     assert r.status_code == 422
 
 
+
+async def test_rules_put_rejects_a_greeting_that_hides_the_automated_host(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
+    rules["persona"]["greeting"] = "Ciao! Welcome to Luigi's."
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 422
+    assert "automated" in r.text
+    rules["persona"]["greeting"] = "Ciao! Luigi's reservations Assistant here."
+    r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
+    assert r.status_code == 200, r.text
+
 async def test_rules_put_without_voice_keeps_stored_voice(client, manager_token, seed_location):
     h = _auth(manager_token)
     rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]
