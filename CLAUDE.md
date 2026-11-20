@@ -83,6 +83,14 @@ rules (`rules.provider`, `rules.mock_external`), admin-only (403
 `admin_only`); the host day list shows the mock's live bookings read-only
 (`external: true`, no tables).
 
+### Analytics
+
+`backend/analytics/` runs nightly (`scripts/run_agent_analytics.py`, D-1 and D-2,
+idempotent per UTC day) behind `analytics_enabled`. It lands the AI host data as
+Parquet in an S3 lake and writes `agent_daily_metrics`. The lake is anonymous:
+no diner, source or caller keys, no turn text. The app reads only
+`agent_daily_metrics`; it never queries Athena (the owner's analyst role does).
+
 ### Database
 
 SQLAlchemy 2.x `Mapped[...]` / `mapped_column(...)` style. Primary keys are

@@ -351,6 +351,56 @@ Decisions made while building without stopping to ask (owner instruction,
     markup); a too-low cap under-bills long silences, a too-high one
     over-bills a turn that waited on a stuck retry.
 
+### Analytics (step 10)
+
+71. **The lake is anonymous.** Parquet rows carry no diner names, phones,
+    emails, confirmation codes, no `diner_key`/`source_key`/caller keys, and
+    no turn text (`text_chars` only); tool payloads pass a key allowlist
+    (`redact.py`). This tightens the plan's wording, which kept HMAC keys: an
+    HMAC of a person is still personal data, and no metric needs diner
+    identity. Why: erasure then needs no lake rewrite. Cost if wrong: no
+    repeat-caller or transcript analytics without a new redaction pipeline.
+72. **Partitions are idempotent.** The nightly job replaces one
+    `<table>/dt=YYYY-MM-DD` partition and that day's `agent_daily_metrics`
+    rows per UTC day, under a per-day advisory lock, and runs D-1 and D-2 so
+    a conversation open at midnight gets its final state. Cost if wrong: a
+    rerun would double count.
+73. **Eval failures are stored as categories.** `eval_results` keeps the
+    leading words of a failure, not its text, because the text can quote
+    persona names. Eval results land only from local runs (where
+    `evals-runs/` exists; it is gitignored, so it is absent from the image),
+    never from ECS. Cost if wrong: failure detail
+    needs the run files.
+74. **Billed reconciliation is internal.** The quality check compares
+    `agent_usage` with the day's conversations. Stripe is compared in the
+    step 5 reconcile job, not here. Cost if wrong: a Stripe mismatch is
+    caught by step 5 a day later than a lake check would.
+75. **Partition projection instead of crawlers.** Glue tables project `dt`
+    from 2026-11-01 to now, so new days need no crawler or `MSCK REPAIR`.
+    Cost if wrong: a table moved to another start date needs a Terraform
+    change.
+76. **The app never queries Athena.** Insights reads `agent_daily_metrics`
+    in Postgres only; Athena is the owner's ad hoc tool. Why: no AWS query
+    cost or latency on a request path. Cost if wrong: a dashboard needing a
+    lake-only column must first land it in Postgres.
+77. **The lake bucket is not `prevent_destroy`.** With `count` it would fail
+    the plan whenever `analytics_enabled` is off, as the non-empty bucket
+    fails the apply. So turning the flag off with data in the bucket blocks
+    the apply until the bucket is emptied. Cost if wrong: either way a
+    blocked apply, never silent data loss.
+78. **Analyst access is an MFA-only role.** `wizscheduler-analytics-reader` is
+    a role (CI can create roles, not customer-managed policies), assumable
+    only with MFA, with Athena on its workgroup and Glue writes limited to
+    the views in `analytics/sql`. Cost if wrong: widen the role.
+79. **Insights KPIs show a dash for partial windows.** A 7-day window that
+    reaches before the fetched range is null, not a partial sum that would
+    read as a real comparison. Cost if wrong: an early window looks empty.
+80. **`covers_by_service_period` in Athena uses UTC hour.** The lake holds no
+    time zone or service periods. The named-period figure (local time) is
+    `agent_daily_metrics.covers_by_period` in Postgres. Covers count every
+    booking source, not only agent bookings. Cost if wrong: add a source
+    filter or move the view's bucketing into Postgres.
+
 ## Before switching reservations on (owner checklist)
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
@@ -463,3 +513,26 @@ Schedule and Lambda notes are in the call screening section of
   fail open if it does not (decision 47).
 - A demo location can use `mock_external` (rules `provider`) to show the
   booking provider seam; keep real locations on `wizscheduler`.
+
+### Analytics (step 10)
+
+Setup steps are in `analytics/README.md` and the analytics lake section of
+`terraform/README.md`.
+
+- Set `analytics_enabled=true` and apply.
+- `ANALYTICS_BUCKET` is set in the ECS task by `terraform/ecs.tf` when the
+  flag is on; no manual setting is needed. Check the task definition shows
+  it.
+- Backfill from the first day reservations were enabled:
+  `python -m backend.scripts.run_agent_analytics --backfill START END`, with
+  the real dates (a failed day exits 1 and alerts; its lake is landed but
+  its metrics are not written). Athena sees only days from 2026-11-01 on
+  (the `dt` projection range, decision 75); change `projection.dt.range`
+  first if you need earlier days.
+- Run any backfill before changing `RESERVATIONS_USAGE_MARKUP`: the billing
+  check recomputes billed amounts at the current markup, so a day from
+  before a change fails `usage_billed` and its metrics are withheld. After a
+  change, accept that alert for earlier days (`analytics/README.md`).
+- Run `analytics/apply_views.sh` as the `wizscheduler-analytics-reader` role
+  (assumed with MFA), then query each view once in the
+  `wizscheduler-analytics` workgroup.

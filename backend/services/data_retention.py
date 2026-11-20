@@ -18,6 +18,7 @@ from backend.models import (
 from backend.models.consent import UserConsent
 from backend.models.ownership_group import OwnershipGroup
 from backend.models.failure_log import FailureLog
+from backend.analytics.models import AgentDailyMetric
 from backend.reservations.agent.models import AgentConversation, ReservationLookupFailure
 from backend.reservations.mock_external_models import (
     MockExternalBooking,
@@ -247,6 +248,14 @@ async def run_data_retention(db: AsyncSession) -> dict:
                 AgentConversation.started_at < cutoff_reservations)
         )
         summary["old_agent_conversations_deleted"] = result.rowcount
+
+        # 7d-metrics. Daily AI host metrics (#259 step 10) on the same
+        #            window, by their day.
+        result = await db.execute(
+            delete(AgentDailyMetric).where(
+                AgentDailyMetric.day < cutoff_reservations.date())
+        )
+        summary["old_agent_daily_metrics_deleted"] = result.rowcount
 
         # 7d'. Call screening decisions (#259 step 7) on the same window as
         #      agent conversations and their events.

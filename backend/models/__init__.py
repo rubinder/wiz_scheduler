@@ -56,6 +56,7 @@ from backend.reservations.mock_external_models import (
     MockExternalBooking,
     MockExternalIdempotency,
 )
+from backend.analytics.models import AgentDailyMetric
 from backend.reservations.screening_models import (
     NumberRule,
     ScreenedCall,
@@ -64,6 +65,7 @@ from backend.reservations.screening_models import (
 )
 
 __all__ = [
+    "AgentDailyMetric",
     "MockExternalBooking",
     "MockExternalIdempotency",
     "NumberRule",

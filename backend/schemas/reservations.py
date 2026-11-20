@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from backend.analytics.models import AgentDailyMetric
 from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.models import Reservation
 from backend.reservations.providers.base import ProviderBooking
@@ -251,6 +252,51 @@ class ScreeningStatsOut(BaseModel):
     blocked_list: int
     blocked_ftc: int
     answered: int
+
+
+class InsightsDayOut(BaseModel):
+    """One agent_daily_metrics row (one UTC day). Money as decimal strings."""
+    day: date
+    conversations: int
+    resolved: int
+    booked: int
+    handed_off: int
+    abandoned: int
+    failed: int
+    booking_intent: int
+    handoff_reasons: dict[str, int]
+    llm_p50_ms: int | None
+    llm_p95_ms: int | None
+    turn_p50_ms: int | None
+    turn_p95_ms: int | None
+    cost_usd: str
+    billed_usd: str
+    screened: int
+    blocked: int
+    covers_by_period: dict[str, int]
+
+    @classmethod
+    def of(cls, m: AgentDailyMetric) -> "InsightsDayOut":
+        return cls(
+            day=m.day, conversations=m.conversations, resolved=m.resolved,
+            booked=m.booked, handed_off=m.handed_off, abandoned=m.abandoned,
+            failed=m.failed, booking_intent=m.booking_intent,
+            handoff_reasons=m.handoff_reasons, llm_p50_ms=m.llm_p50_ms,
+            llm_p95_ms=m.llm_p95_ms, turn_p50_ms=m.turn_p50_ms,
+            turn_p95_ms=m.turn_p95_ms, cost_usd=str(m.cost_usd),
+            billed_usd=str(m.billed_usd), screened=m.screened, blocked=m.blocked,
+            covers_by_period=m.covers_by_period)
+
+
+class InsightsOut(BaseModel):
+    """The AI host's daily metrics for one location, `from` to `to`
+    inclusive (UTC dates). Days with no row are absent, not zero."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    location_id: str
+    from_: date = Field(alias="from")
+    to: date
+    days: list[InsightsDayOut]
 
 
 class DinerDataOut(BaseModel):
