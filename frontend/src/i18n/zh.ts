@@ -1824,6 +1824,9 @@ const zh = {
       billed: "计费金额",
       spamShare: "被筛查来电中被拦截的比例",
       covers: "按服务时段统计的用餐人数",
+      noData: "此范围内没有数据。",
+      summary: "{series}：最新 {latest}，范围平均 {range}。",
+      totals: "此范围内合计：{list}。",
     },
   },
 } as const;

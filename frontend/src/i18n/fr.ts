@@ -1824,6 +1824,9 @@ const fr = {
       billed: "Facturé",
       spamShare: "Part des appels filtrés bloqués",
       covers: "Couverts par service",
+      noData: "Aucune donnée sur cette période.",
+      summary: "{series} : dernier {latest}, moyenne sur la période {range}.",
+      totals: "Totaux sur cette période : {list}.",
     },
   },
 } as const;

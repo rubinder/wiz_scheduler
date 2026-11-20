@@ -6,7 +6,8 @@
  */
 import type { InsightsDay } from "../types/reservations";
 
-const DASH = "—";
+/** What an unknown value (a zero denominator, a missing window) shows as. */
+export const DASH = "—";
 
 /** "YYYY-MM-DD" to a UTC epoch day, without parsing the string as a Date. */
 function epochDay(day: string): number {
@@ -29,6 +30,12 @@ export function datesBetween(from: string, to: string): string[] {
 export function defaultRange(today: string): { from: string; to: string } {
   const end = epochDay(today) - 1;
   return { from: fromEpochDay(end - 29), to: fromEpochDay(end) };
+}
+
+/** Whether `from`..`to` is the default range for UTC date `today`. */
+export function isDefaultRange(from: string, to: string, today: string): boolean {
+  const d = defaultRange(today);
+  return d.from === from && d.to === to;
 }
 
 export interface DayPoint {
@@ -67,16 +74,27 @@ export function formatUsdAmount(value: number | null, lang: string): string {
   return new Intl.NumberFormat(lang, { style: "currency", currency: "USD" }).format(value);
 }
 
-/** A decimal string as integer micro-dollars, so sums carry no float drift. */
-function micros(amount: string): bigint {
+/** A decimal string as integer micro-dollars, so sums carry no float drift; null if it does not parse. */
+function micros(amount: string): bigint | null {
   const m = /^(-?)(\d+)(?:\.(\d*))?$/.exec(amount.trim());
-  if (!m) return 0n;
+  if (!m) return null;
   const value = BigInt(m[2]) * 1_000_000n + BigInt((m[3] ?? "").slice(0, 6).padEnd(6, "0"));
   return m[1] ? -value : value;
 }
 
-function perBooking(totalMicros: bigint, booked: number): number | null {
-  return booked === 0 ? null : Number(totalMicros) / 1_000_000 / booked;
+/** Sum of amounts in micro-dollars; null if any amount is unreadable. */
+function sumMicros(amounts: string[]): bigint | null {
+  let total = 0n;
+  for (const a of amounts) {
+    const m = micros(a);
+    if (m === null) return null;
+    total += m;
+  }
+  return total;
+}
+
+function perBooking(totalMicros: bigint | null, booked: number): number | null {
+  return booked === 0 || totalMicros === null ? null : Number(totalMicros) / 1_000_000 / booked;
 }
 
 export interface Kpis {
@@ -88,12 +106,13 @@ export interface Kpis {
   billedPerBooking: number | null;
 }
 
-function kpisOf(rows: InsightsDay[]): Kpis {
+/** KPIs over `rows`, from summed counts. */
+export function rangeKpis(rows: InsightsDay[]): Kpis {
   const sum = (f: (r: InsightsDay) => number) => rows.reduce((acc, r) => acc + f(r), 0);
   const conversations = sum((r) => r.conversations);
   const booked = sum((r) => r.booked);
-  const cost = rows.reduce((acc, r) => acc + micros(r.cost_usd), 0n);
-  const billed = rows.reduce((acc, r) => acc + micros(r.billed_usd), 0n);
+  const cost = sumMicros(rows.map((r) => r.cost_usd));
+  const billed = sumMicros(rows.map((r) => r.billed_usd));
   return {
     conversations,
     resolution: ratio(sum((r) => r.resolved), conversations),
@@ -104,15 +123,27 @@ function kpisOf(rows: InsightsDay[]): Kpis {
   };
 }
 
-/** The 7 days ending `to` (inclusive) and the 7 before them. */
-export function sevenDayKpis(days: InsightsDay[], to: string): { current: Kpis; previous: Kpis } {
+/**
+ * The 7 days ending `to` (inclusive) and the 7 before them. A window that
+ * reaches before `from` was not fetched, so it is null rather than a
+ * partial sum that would read as a real comparison.
+ */
+export function sevenDayKpis(
+  days: InsightsDay[],
+  from: string,
+  to: string,
+): { current: Kpis | null; previous: Kpis | null } {
+  const start = epochDay(from);
   const end = epochDay(to);
   const within = (lo: number, hi: number) =>
     days.filter((d) => {
       const n = epochDay(d.day);
       return n >= lo && n <= hi;
     });
-  return { current: kpisOf(within(end - 6, end)), previous: kpisOf(within(end - 13, end - 7)) };
+  return {
+    current: start <= end - 6 ? rangeKpis(within(end - 6, end)) : null,
+    previous: start <= end - 13 ? rangeKpis(within(end - 13, end - 7)) : null,
+  };
 }
 
 export type ChartRow = Record<string, string | number | null>;
@@ -148,7 +179,39 @@ export function handoffTotals(days: InsightsDay[]): { reason: string; count: num
     .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
 }
 
-/** Every service period with covers in the range, sorted. */
-export function coverPeriods(days: InsightsDay[]): string[] {
-  return [...new Set(days.flatMap((d) => Object.keys(d.covers_by_period)))].sort();
+/**
+ * Every service period with covers in the range: those in `order` (the
+ * location rules' period order) first, in that order, then the rest
+ * (renamed or removed periods) alphabetically.
+ */
+export function coverPeriods(days: InsightsDay[], order: string[] = []): string[] {
+  const seen = new Set(days.flatMap((d) => Object.keys(d.covers_by_period)));
+  const ranked = order.filter((p, i) => seen.has(p) && order.indexOf(p) === i);
+  const rest = [...seen].filter((p) => !ranked.includes(p)).sort();
+  return [...ranked, ...rest];
+}
+
+/** Chart colours, each at least 3:1 against white: theme sage and accent darks, clear, then a red, blue and violet. */
+export const PALETTE = ["#7E8C76", "#A6864A", "#1D7357", "#E0491A", "#4A6FA5", "#6B5B95"] as const;
+
+/** A colour fixed by the period's name, so a period keeps it across ranges. */
+export function periodColor(period: string): string {
+  let h = 0;
+  for (const ch of period) h = (Math.imul(h, 31) + ch.codePointAt(0)!) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+/** The last non-null value of `key` in a chart series. */
+export function latestValue(rows: ChartRow[], key: string): number | null {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const v = rows[i][key];
+    if (typeof v === "number") return v;
+  }
+  return null;
+}
+
+/** The mean of the non-null values of `key` in a chart series (for day-level figures such as latency). */
+export function seriesMean(rows: ChartRow[], key: string): number | null {
+  const values = rows.map((r) => r[key]).filter((v): v is number => typeof v === "number");
+  return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
 }

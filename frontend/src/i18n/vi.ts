@@ -1824,6 +1824,9 @@ const vi = {
       billed: "Đã tính phí",
       spamShare: "Tỷ lệ cuộc gọi đã sàng lọc bị chặn",
       covers: "Số khách theo ca phục vụ",
+      noData: "Không có dữ liệu trong khoảng này.",
+      summary: "{series}: mới nhất {latest}, trung bình cả khoảng {range}.",
+      totals: "Tổng trong khoảng này: {list}.",
     },
   },
 } as const;

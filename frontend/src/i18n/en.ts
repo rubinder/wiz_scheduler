@@ -1832,6 +1832,9 @@ const en = {
       billed: "Billed",
       spamShare: "Share of screened calls blocked",
       covers: "Covers by service period",
+      noData: "No data in this range.",
+      summary: "{series}: latest {latest}, range average {range}.",
+      totals: "Totals in this range: {list}.",
     },
   },
 } as const;

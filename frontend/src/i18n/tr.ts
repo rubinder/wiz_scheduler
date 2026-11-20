@@ -1824,6 +1824,9 @@ const trLang = {
       billed: "Faturalanan",
       spamShare: "Taranan aramalardan engellenenlerin payı",
       covers: "Servis dönemine göre kişi sayısı",
+      noData: "Bu aralıkta veri yok.",
+      summary: "{series}: en son {latest}, aralık ortalaması {range}.",
+      totals: "Bu aralıktaki toplamlar: {list}.",
     },
   },
 } as const;

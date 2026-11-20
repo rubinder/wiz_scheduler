@@ -1824,6 +1824,9 @@ const de = {
       billed: "Abgerechnet",
       spamShare: "Anteil blockierter geprüfter Anrufe",
       covers: "Gedecke nach Servicezeit",
+      noData: "Keine Daten in diesem Zeitraum.",
+      summary: "{series}: zuletzt {latest}, Durchschnitt im Zeitraum {range}.",
+      totals: "Summen in diesem Zeitraum: {list}.",
     },
   },
 } as const;

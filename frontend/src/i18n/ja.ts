@@ -1824,6 +1824,9 @@ const ja = {
       billed: "請求額",
       spamShare: "審査した電話のうちブロックした割合",
       covers: "サービス時間帯別の客数",
+      noData: "この期間のデータはありません。",
+      summary: "{series}：最新 {latest}、期間平均 {range}。",
+      totals: "この期間の合計：{list}。",
     },
   },
 } as const;

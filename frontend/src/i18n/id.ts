@@ -1824,6 +1824,9 @@ const ind = {
       billed: "Ditagih",
       spamShare: "Porsi panggilan tersaring yang diblokir",
       covers: "Tamu per periode layanan",
+      noData: "Tidak ada data dalam rentang ini.",
+      summary: "{series}: terbaru {latest}, rata-rata rentang {range}.",
+      totals: "Total dalam rentang ini: {list}.",
     },
   },
 } as const;

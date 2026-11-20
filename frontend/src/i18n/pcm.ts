@@ -1824,6 +1824,9 @@ const pcm = {
       billed: "Wetin we charge",
       spamShare: "Part of di checked calls wey we block",
       covers: "Covers for each service time",
+      noData: "No data for dis range.",
+      summary: "{series}: di latest na {latest}, di average for di range na {range}.",
+      totals: "Total for dis range: {list}.",
     },
   },
 } as const;

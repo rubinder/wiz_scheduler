@@ -10,9 +10,14 @@ import {
   formatPoints,
   formatUsdAmount,
   handoffTotals,
+  isDefaultRange,
+  latestValue,
+  PALETTE,
+  periodColor,
   pointsDelta,
   ratio,
   sevenDayKpis,
+  seriesMean,
 } from "./insights";
 
 function row(day: string, extra: Partial<InsightsDay> = {}): InsightsDay {
@@ -123,9 +128,10 @@ describe("sevenDayKpis", () => {
     // outside both windows
     row("2029-12-31", { conversations: 100, resolved: 100 }),
   ];
-  const k = sevenDayKpis(days, "2030-01-14");
+  const k = sevenDayKpis(days, "2029-12-01", "2030-01-14");
 
   it("computes ratios from summed counts, not an average of daily ratios", () => {
+    if (!k.current || !k.previous) throw new Error("both windows are inside the range");
     // 1/1 and 0/9 per day would average to 50%; summed it is 1/10.
     expect(k.current.resolution).toBe(0.1);
     expect(k.current.conversion).toBe(0.3);
@@ -136,11 +142,13 @@ describe("sevenDayKpis", () => {
   });
 
   it("is null where a window's denominator is zero", () => {
+    if (!k.current || !k.previous) throw new Error("both windows are inside the range");
     expect(k.current.spamBlocked).toBeNull();
     expect(k.previous.spamBlocked).toBe(0.1);
   });
 
   it("divides summed money by bookings without float drift in the sum", () => {
+    if (!k.current || !k.previous) throw new Error("both windows are inside the range");
     expect(k.current.costPerBooking).toBeCloseTo(0.1, 10);
     expect(k.current.billedPerBooking).toBeCloseTo(0.1, 10);
     expect(k.previous.costPerBooking).toBeCloseTo(0.15, 10);
@@ -148,7 +156,7 @@ describe("sevenDayKpis", () => {
   });
 
   it("is all null with no rows", () => {
-    const empty = sevenDayKpis([], "2030-01-14");
+    const empty = sevenDayKpis([], "2029-12-01", "2030-01-14");
     expect(empty.current).toEqual({
       conversations: 0,
       resolution: null,
@@ -157,6 +165,33 @@ describe("sevenDayKpis", () => {
       costPerBooking: null,
       billedPerBooking: null,
     });
+  });
+
+  it("has no previous window when the range is 10 days: its 7 days were not fetched", () => {
+    const ten = sevenDayKpis(days, "2030-01-05", "2030-01-14");
+    expect(ten.previous).toBeNull();
+    expect(ten.current?.conversations).toBe(10);
+  });
+
+  it("has a last window but no previous one when the range is exactly 7 days", () => {
+    const seven = sevenDayKpis(days, "2030-01-08", "2030-01-14");
+    expect(seven.previous).toBeNull();
+    expect(seven.current?.resolution).toBe(0.1);
+  });
+
+  it("has neither window when the range is shorter than 7 days", () => {
+    expect(sevenDayKpis(days, "2030-01-09", "2030-01-14")).toEqual({ current: null, previous: null });
+  });
+
+  it("has both windows from exactly 14 days", () => {
+    const both = sevenDayKpis(days, "2030-01-01", "2030-01-14");
+    expect(both.previous?.conversations).toBe(20);
+  });
+
+  it("shows per-booking money as unknown when an amount does not parse", () => {
+    const bad = sevenDayKpis([row("2030-01-14", { booked: 2, cost_usd: "n/a", billed_usd: "1.00" })], "2030-01-01", "2030-01-14");
+    expect(bad.current?.costPerBooking).toBeNull();
+    expect(bad.current?.billedPerBooking).toBe(0.5);
   });
 });
 
@@ -195,13 +230,57 @@ describe("handoffTotals and coverPeriods", () => {
     ]);
   });
 
-  it("lists every service period seen, sorted", () => {
+  it("lists every service period seen, sorted, when there is no rules order", () => {
     expect(coverPeriods(days)).toEqual(["dinner", "lunch"]);
+  });
+
+  it("follows the rules' period order, then the rest alphabetically", () => {
+    const more = [...days, row("2030-01-03", { covers_by_period: { brunch: 1, zz_old: 1 } })];
+    expect(coverPeriods(more, ["lunch", "dinner", "breakfast"])).toEqual(["lunch", "dinner", "brunch", "zz_old"]);
   });
 });
 
 describe("defaultRange", () => {
   it("is the 30 days ending yesterday (UTC), the newest day the nightly job can have written", () => {
     expect(defaultRange("2030-03-01")).toEqual({ from: "2030-01-30", to: "2030-02-28" });
+  });
+});
+
+describe("periodColor", () => {
+  it("is stable per period name, whatever else is in the range", () => {
+    expect(periodColor("dinner")).toBe(periodColor("dinner"));
+    expect(PALETTE).toContain(periodColor("dinner"));
+    expect(PALETTE).toContain(periodColor("late night"));
+  });
+
+  it("uses only colours with at least 3:1 contrast against white", () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5]
+        .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    for (const c of PALETTE) expect(1.05 / (lum(c) + 0.05)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("isDefaultRange", () => {
+  it("is true only for the 30 days ending yesterday", () => {
+    expect(isDefaultRange("2030-01-30", "2030-02-28", "2030-03-01")).toBe(true);
+    expect(isDefaultRange("2030-01-31", "2030-02-28", "2030-03-01")).toBe(false);
+  });
+});
+
+describe("latestValue", () => {
+  it("is the last non-null value of a series, or null", () => {
+    expect(latestValue([{ a: 1 }, { a: 2 }, { a: null }], "a")).toBe(2);
+    expect(latestValue([{ a: null }], "a")).toBeNull();
+  });
+});
+
+describe("seriesMean", () => {
+  it("averages the non-null values of a series, or null when there are none", () => {
+    expect(seriesMean([{ a: 100 }, { a: null }, { a: 300 }], "a")).toBe(200);
+    expect(seriesMean([{ a: null }], "a")).toBeNull();
   });
 });

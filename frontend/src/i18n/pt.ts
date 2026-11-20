@@ -1824,6 +1824,9 @@ const pt = {
       billed: "Faturado",
       spamShare: "Parcela de chamadas triadas bloqueadas",
       covers: "Lugares por turno de serviço",
+      noData: "Sem dados neste período.",
+      summary: "{series}: último {latest}, média do período {range}.",
+      totals: "Totais neste período: {list}.",
     },
   },
 } as const;
