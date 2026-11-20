@@ -70,7 +70,7 @@ async def test_terms_of_service(client: AsyncClient):
     content = data["content"]
     assert "AI HOST SUBSCRIPTION" in content
     assert f"${settings.RESERVATIONS_PRICE_MONTHLY_USD:.2f} per month" in content
-    assert f"${settings.RESERVATIONS_INCLUDED_USAGE_USD:.2f} of usage" in content
+    assert f"${settings.RESERVATIONS_INCLUDED_USAGE_USD:.2f} of billed usage" in content
     assert f"cost multiplied by {settings.RESERVATIONS_USAGE_MARKUP}" in content
     assert f"{settings.VOICE_RELEASE_HOLD_DAYS} days after" in content
 

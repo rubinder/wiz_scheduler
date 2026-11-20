@@ -109,6 +109,18 @@ D. CLOUD INFRASTRUCTURE PROVIDER
 - Safeguards: Encryption at rest and in transit; access restricted to application service; regular backups
 - Legal Basis: Contractual necessity
 
+E. AMAZON WEB SERVICES (AI HOST)
+- Purpose: Phone calls to a restaurant's AI host (Amazon Connect, Amazon Lex, Amazon Polly, AWS Lambda) and the AI host analytics store (Amazon S3, AWS Glue, Amazon Athena), in the United States (region us-east-1)
+- Data Shared: Diner call audio, caller ID numbers, recognized speech and the AI host's spoken replies; the analytics store holds no diner names, phone numbers, email addresses or conversation text (see Section 17)
+- Safeguards: Calls are not recorded; Contact Lens and Lex conversation logs are not turned on; analytics records are deleted after 365 days and can be queried only through a role that requires multi-factor authentication
+- Legal Basis: The restaurant's instructions, as its processor (see Section 17)
+
+F. STRIPE (PAYMENTS)
+- Purpose: Subscription billing and card payments, including the AI host subscription
+- Data Shared: Customer billing contact details, payment card details, invoices, and AI host usage amounts per billing period; no diner data
+- Safeguards: Card details are collected by Stripe Checkout and not stored by WizScheduler; encrypted in transit
+- Legal Basis: Contractual necessity
+
 We do not sell your personal data to advertisers or third parties.
 
 6. DATA RETENTION
@@ -211,6 +223,7 @@ Phone calls to the AI host are handled by Amazon Web Services in the United Stat
 - Calls are not recorded
 - Amazon Connect Contact Lens (call analytics) is not turned on, and Amazon Lex conversation logs are not turned on
 - Amazon Connect's call flow logs, which include the caller ID number, are deleted after 30 days
+- Amazon Connect also keeps its own record of each call, including the caller ID number, for the period AWS sets for Amazon Connect contact records
 - The logs of our AWS Lambda functions record a call identifier and the outcome, not your number or what you said, and are deleted after 14 days
 
 F. RETENTION
@@ -222,10 +235,10 @@ F. RETENTION
 - If the restaurant's WizScheduler account is deleted, its diner data is deleted with it
 
 G. ACCESS AND ERASURE
-To see or erase your data, contact the restaurant. The restaurant can export your data at one of its locations, and erase it, using your phone number. Erasure deletes your conversation transcripts and that location's allow or block list entries for your number, and removes your name, phone number, email address and notes from your reservations there. Entries that apply to all of a restaurant group's locations are removed separately by the group's administrator.
+To see or erase your data, contact the restaurant. The restaurant can export your data at one of its locations, and erase it, using your phone number. Erasure deletes your conversation transcripts and that location's allow or block list entries for your number, and removes your name, phone number, email address and notes from your reservations there. Entries that apply to all of a restaurant group's locations are removed separately by the group's administrator. Conversations are found by the caller ID number they came from, or by their link to a reservation made with your phone number. A web chat that did not lead to a reservation, and a call made with a withheld number, cannot be found by phone number. A conversation that is in progress at the moment of erasure is closed rather than deleted; it is deleted when the restaurant runs the erasure again.
 
 H. ANALYTICS
-We measure how the AI host performs (for example, how many conversations end in a reservation) using anonymous, aggregated data that holds no diner names, phone numbers or email addresses.
+We measure how the AI host performs (for example, how many conversations end in a reservation) in a separate analytics store with Amazon Web Services. It holds one record per conversation, reservation, call screening decision and usage charge, with fields such as channel, outcome, party size, times, turn counts, costs and response times. It holds no diner names, phone numbers, email addresses or confirmation codes, no text written by the diner or the AI host (only the length of each message), and no other key that identifies a diner. Records in it are deleted after 365 days. Only a role that requires multi-factor authentication can query it. Daily totals derived from it are shown to the restaurant in WizScheduler.
 
 I. NO SALE OF DINER DATA
 We do not sell diner data.

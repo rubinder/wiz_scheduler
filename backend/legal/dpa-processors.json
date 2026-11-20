@@ -29,10 +29,10 @@
   },
   {
     "name": "Amazon Web Services",
-    "purpose": "AI host phone calls (Amazon Connect telephony, Amazon Lex speech recognition, Amazon Polly speech synthesis, AWS Lambda) and anonymous AI host analytics (Amazon S3, AWS Glue, Amazon Athena)",
-    "data_processed": "Diner call audio, caller ID numbers, recognized speech and the AI host's spoken replies; analytics data holds no diner names, phone numbers or email addresses",
+    "purpose": "AI host phone calls (Amazon Connect telephony, Amazon Lex speech recognition, Amazon Polly speech synthesis, AWS Lambda) and the AI host analytics store (Amazon S3, AWS Glue, Amazon Athena)",
+    "data_processed": "Diner call audio, caller ID numbers, recognized speech and the AI host's spoken replies; analytics records (one per conversation, reservation, screening decision and charge) hold no diner names, phone numbers, email addresses, confirmation codes or conversation text",
     "location": "United States (us-east-1)",
-    "safeguards": "Calls are not recorded; Contact Lens and Lex conversation logs are not turned on; Connect call flow logs (which include caller ID numbers) are deleted after 30 days; Lambda logs hold no caller numbers or speech and are deleted after 14 days; Lambda calls to WizScheduler use HTTPS"
+    "safeguards": "Calls are not recorded; Contact Lens and Lex conversation logs are not turned on; Connect call flow logs (which include caller ID numbers) are deleted after 30 days, and Connect keeps its own contact records under AWS's retention period; Lambda logs hold no caller numbers or speech and are deleted after 14 days; Lambda calls to WizScheduler use HTTPS; analytics records hold no diner identifiers or conversation text, are deleted after 365 days, and are readable only through a role that requires multi-factor authentication"
   },
   {
     "name": "Stripe",
