@@ -196,19 +196,40 @@ async def spend_today(
     counts all of its cost against the day it started, none against the
     next. Bounded: a conversation runs at most RESERVATION_AGENT_MAX_TURNS
     turns of RESERVATION_AGENT_MAX_TOKENS output, so what a chat carried
-    over midnight spends uncounted on the new day is that much at most."""
+    over midnight spends uncounted on the new day is that much at most.
+
+    Spend survives erasure (decision 93): a diner erasure deletes
+    conversations, and the public demo login can erase its own chats by
+    code, so a sum over conversations alone would let chat, book, erase
+    reset the day forever. The metered AgentUsage row (subscription.meter)
+    outlives its conversation: the FK sets conversation_id NULL and the row
+    keeps location_id, cost_usd and created_at (its first metered turn,
+    within seconds of the conversation's start). So today's spend is the
+    live conversations by start day plus the orphaned usage rows by
+    created_at. Not computed from AgentUsage alone: meter writes no row for
+    a cost that bills to 0.00, a `blocked` conversation or a company with no
+    ownership group, and a live conversation's row lags its cost by the
+    metering savepoint. Applies to every group, not only comped ones."""
     zone = tz if isinstance(tz, ZoneInfo) else ZoneInfo(tz)
     start, end = _local_day_bounds(now, zone)
-    total = (await db.execute(
+    live = (await db.execute(
         select(func.coalesce(func.sum(AgentConversation.cost_usd), 0))
         .where(AgentConversation.location_id == location_id,
                AgentConversation.started_at >= start,
                AgentConversation.started_at < end)
     )).scalar_one()
-    return Decimal(total)
+    erased = (await db.execute(
+        select(func.coalesce(func.sum(AgentUsage.cost_usd), 0))
+        .where(AgentUsage.location_id == location_id,
+               AgentUsage.conversation_id.is_(None),
+               AgentUsage.created_at >= start,
+               AgentUsage.created_at < end)
+    )).scalar_one()
+    return Decimal(live) + Decimal(erased)
 
 
-async def _is_comped_company(db: AsyncSession, company_id: str) -> bool:
+async def is_comped_company(db: AsyncSession, company_id: str) -> bool:
+    """The company's group holds a comped AI host subscription."""
     return (await db.execute(
         select(ReservationSubscription.id)
         .join(Company, Company.ownership_group_id
@@ -217,13 +238,28 @@ async def _is_comped_company(db: AsyncSession, company_id: str) -> bool:
     )).scalar_one_or_none() is not None
 
 
+class CompedCapLimit(Exception):
+    """A comped group's rules asked for a daily cap above COMPED_DAILY_CAP_USD."""
+
+
+async def check_rules_cap(db: AsyncSession, company_id: str, cap: float) -> None:
+    """Refuse a rules write whose daily_spend_cap_usd is above
+    COMPED_DAILY_CAP_USD for a comped group (CompedCapLimit). daily_cap
+    clamps it anyway; a saved cap the location can never reach would only
+    mislead the manager."""
+    ceiling = settings.COMPED_DAILY_CAP_USD
+    if cap > ceiling and await is_comped_company(db, company_id):
+        raise CompedCapLimit(
+            f"A complimentary plan's daily spend cap cannot be above ${ceiling:.2f}")
+
+
 async def daily_cap(db: AsyncSession, company_id: str, location_id: str) -> Decimal:
     """The location's effective daily spend cap: its rules' daily_spend_cap_usd,
     and for a comped group never above COMPED_DAILY_CAP_USD (its usage is
     never invoiced, and a manager can raise the rules cap)."""
     rules, _ = await get_rules(db, company_id, location_id)
     cap = Decimal(str(rules.daily_spend_cap_usd))
-    if await _is_comped_company(db, company_id):
+    if await is_comped_company(db, company_id):
         cap = min(cap, Decimal(str(settings.COMPED_DAILY_CAP_USD)))
     return cap
 

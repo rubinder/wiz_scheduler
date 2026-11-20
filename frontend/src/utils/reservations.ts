@@ -77,6 +77,7 @@ const KNOWN_ERRORS = new Set([
   "no_caller_number",
   "admin_only",
   "number_allowed",
+  "comped_cap_limit",
 ]);
 
 /** Maps an ApiError.data detail ({code, message}) to an i18n key. */

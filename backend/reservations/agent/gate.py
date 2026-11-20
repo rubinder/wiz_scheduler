@@ -11,6 +11,7 @@ import anyio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.database import RLS_COMPANY_IDS
 from backend.models import Location
 from backend.reservations import subscription
@@ -39,6 +40,13 @@ def get_agent_core() -> AgentCore:
 async def greeting(db: AsyncSession, company_id: str, location: Location) -> str:
     rules, _ = await get_rules(db, company_id, location.id)
     return rules.persona.rendered_greeting() or default_greeting(location.name)
+
+
+def is_demo_location(company_id: str, location_id: str) -> bool:
+    """The public demo restaurant, whose manager login every visitor sees
+    (settings.RESERVATIONS_DEMO_COMPANY_ID / RESERVATIONS_DEMO_LOCATION_ID)."""
+    return (company_id == settings.RESERVATIONS_DEMO_COMPANY_ID
+            and location_id == settings.RESERVATIONS_DEMO_LOCATION_ID)
 
 
 def default_greeting(location_name: str) -> str:

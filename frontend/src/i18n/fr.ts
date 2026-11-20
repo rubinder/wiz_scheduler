@@ -1443,6 +1443,9 @@ const fr = {
     weightRequired: "Saisissez un poids de 0 à 1 sur chaque ligne avant d'approuver.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Ceci est un restaurant de démonstration. Utilisez des informations inventées : le compte de démonstration peut voir ce que vous saisissez.",
+    },
     common: {
       notEnabled: "Les réservations ne sont pas activées pour ce compte.",
       loading: "Chargement...",
@@ -1472,6 +1475,7 @@ const fr = {
       phone_required: "Un numéro de téléphone est requis pour cette réservation.",
       code_exhausted: "Impossible de créer un code de confirmation. Veuillez réessayer.",
       admin_only: "Seul un administrateur peut modifier ceci.",
+      comped_cap_limit: "Avec une formule offerte, le plafond de dépenses quotidien ne peut pas dépasser la limite de la formule.",
       generic: "Une erreur s'est produite. Veuillez réessayer.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const fr = {
       persona: "Assistant téléphonique",
       voiceId: "Identifiant de voix Polly",
       greeting: "Message d'accueil",
-      greetingHint: "Doit indiquer aux clients que l'hôte est automatisé : incluez le mot anglais \"automated\" ou \"assistant\". Laissez vide pour le message d'accueil par défaut.",
+      greetingHint: "Doit indiquer aux clients que l'hôte est automatisé : incluez le mot anglais \"automated\". Laissez vide pour le message d'accueil par défaut.",
       facts: "Informations que l'assistant peut donner",
       addFact: "Ajouter une information",
       transferNumber: "Numéro de transfert vers le personnel",
@@ -1650,7 +1654,7 @@ const fr = {
       description: "L'hôte IA des réservations a son propre abonnement, distinct de la planification.",
       cardTitle: "Abonnement à l'hôte IA",
       price: "{price}/mois, {included} d'utilisation inclus, puis notre coût + {markup} %",
-      compedPrice: "Formule de démonstration offerte",
+      compedPrice: "Formule offerte",
       subscribe: "S'abonner",
       redirecting: "Redirection vers le paiement...",
       manage: "Gérer",

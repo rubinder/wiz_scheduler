@@ -1443,6 +1443,9 @@ const vi = {
     weightRequired: "Nhập trọng số từ 0 đến 1 ở mọi dòng trước khi phê duyệt.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Đây là nhà hàng demo. Vui lòng dùng thông tin bịa — tài khoản demo có thể xem những gì bạn nhập.",
+    },
     common: {
       notEnabled: "Tài khoản này chưa bật đặt chỗ.",
       loading: "Đang tải...",
@@ -1472,6 +1475,7 @@ const vi = {
       phone_required: "Đặt chỗ này cần có số điện thoại.",
       code_exhausted: "Không thể tạo mã xác nhận. Vui lòng thử lại.",
       admin_only: "Chỉ quản trị viên mới có thể thay đổi mục này.",
+      comped_cap_limit: "Với gói miễn phí, hạn mức chi tiêu hằng ngày không được vượt quá giới hạn của gói.",
       generic: "Đã xảy ra lỗi. Vui lòng thử lại.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const vi = {
       persona: "Trợ lý điện thoại",
       voiceId: "Mã giọng Polly",
       greeting: "Lời chào",
-      greetingHint: "Phải cho thực khách biết người tiếp đón là tự động: hãy có từ tiếng Anh \"automated\" hoặc \"assistant\". Để trống để dùng lời chào mặc định.",
+      greetingHint: "Phải cho thực khách biết người tiếp đón là tự động: hãy có từ tiếng Anh \"automated\". Để trống để dùng lời chào mặc định.",
       facts: "Thông tin trợ lý có thể chia sẻ",
       addFact: "Thêm thông tin",
       transferNumber: "Số chuyển máy cho nhân viên",
@@ -1650,7 +1654,7 @@ const vi = {
       description: "Lễ tân AI đặt bàn có gói đăng ký riêng, tách biệt với xếp lịch.",
       cardTitle: "Gói đăng ký Lễ tân AI",
       price: "{price}/tháng, gồm {included} mức sử dụng, sau đó là chi phí của chúng tôi + {markup}%",
-      compedPrice: "Gói demo miễn phí",
+      compedPrice: "Gói miễn phí",
       subscribe: "Đăng ký",
       redirecting: "Đang chuyển đến trang thanh toán...",
       manage: "Quản lý",

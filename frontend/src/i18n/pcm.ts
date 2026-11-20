@@ -1443,6 +1443,9 @@ const pcm = {
     weightRequired: "Put weight from 0 reach 1 for every row before you approve.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Dis na demo restaurant. Abeg use details wey you make up — di demo account fit see wetin you type.",
+    },
     common: {
       notEnabled: "Reservation no dey on for this account.",
       loading: "E dey load...",
@@ -1472,6 +1475,7 @@ const pcm = {
       phone_required: "Dis booking need phone number.",
       code_exhausted: "We no fit create confirmation code. Abeg try again.",
       admin_only: "Na only admin fit change dis one.",
+      comped_cap_limit: "For free plan, di daily spend cap no fit pass di plan limit.",
       generic: "Something go wrong. Abeg try again.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const pcm = {
       persona: "Phone helper",
       voiceId: "Polly voice id wey we go use",
       greeting: "Greeting",
-      greetingHint: "E must tell customers say di host na machine: put di English word \"automated\" or \"assistant\" inside. Leave am empty make we use di normal greeting.",
+      greetingHint: "E must tell customers say di host na machine: put di English word \"automated\" inside. Leave am empty make we use di normal greeting.",
       facts: "Things wey assistant fit tell people",
       addFact: "Add fact",
       transferNumber: "Number to transfer to staff",
@@ -1650,7 +1654,7 @@ const pcm = {
       description: "Di reservation AI host get im own subscription, e no join scheduling own.",
       cardTitle: "Di AI host subscription",
       price: "{price} every month, e cover {included} usage, after dat na our cost + {markup}%",
-      compedPrice: "Free demo plan wey we dash you",
+      compedPrice: "Free plan wey we dash you",
       subscribe: "Subscribe",
       redirecting: "We dey carry you go payment...",
       manage: "Manage am",

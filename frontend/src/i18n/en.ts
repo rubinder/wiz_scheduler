@@ -1451,6 +1451,9 @@ const en = {
     weightRequired: "Enter a weight from 0 to 1 on every row before approving.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "This is a demo restaurant. Please use made-up details — the demo account can see what you type.",
+    },
     common: {
       notEnabled: "Reservations are not enabled for this account.",
       loading: "Loading...",
@@ -1480,6 +1483,7 @@ const en = {
       phone_required: "A phone number is required for this booking.",
       code_exhausted: "Could not create a confirmation code. Please try again.",
       admin_only: "Only an admin can change this.",
+      comped_cap_limit: "On a complimentary plan the daily spend cap cannot be above the plan's limit.",
       generic: "Something went wrong. Please try again.",
     },
     rules: {
@@ -1518,7 +1522,7 @@ const en = {
       persona: "Phone assistant",
       voiceId: "Polly voice id",
       greeting: "Greeting",
-      greetingHint: "Must tell diners the host is automated: include the word \"automated\" or \"assistant\". Leave empty to use the default greeting.",
+      greetingHint: "Must tell diners the host is automated: include the word \"automated\". Leave empty to use the default greeting.",
       facts: "Facts the assistant can share",
       addFact: "Add fact",
       transferNumber: "Staff transfer number",
@@ -1658,7 +1662,7 @@ const en = {
       description: "The reservation AI host has its own subscription, separate from scheduling.",
       cardTitle: "AI host subscription",
       price: "{price}/month, includes {included} of usage, then our cost + {markup}%",
-      compedPrice: "Complimentary demo plan",
+      compedPrice: "Complimentary plan",
       subscribe: "Subscribe",
       redirecting: "Redirecting to payment...",
       manage: "Manage",

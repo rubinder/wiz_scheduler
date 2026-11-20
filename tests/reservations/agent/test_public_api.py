@@ -126,6 +126,22 @@ async def test_archived_location_404(client, db_session, seeded_floor, llm):
     assert llm.requests == []
 
 
+async def test_location_info_marks_only_the_demo_location(client, seeded_floor, monkeypatch):
+    assert (await client.get(BASE)).json()["demo"] is False
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_COMPANY_ID", COMPANY_ID)
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_LOCATION_ID", LOCATION_ID)
+    assert (await client.get(BASE)).json()["demo"] is True
+    # The same location id under another company is not the demo.
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_COMPANY_ID", COMPANY2_ID)
+    assert (await client.get(BASE)).json()["demo"] is False
+
+
+async def test_the_demo_location_setting_names_the_seeded_demo_location():
+    from backend import seed
+    assert settings.RESERVATIONS_DEMO_COMPANY_ID == seed.COMPANY_ID
+    assert settings.RESERVATIONS_DEMO_LOCATION_ID == seed.LOCATION_ID
+
+
 async def test_location_info_and_greeting(client, db_session, seeded_floor, llm):
     r = await client.get(BASE)
     assert r.status_code == 200

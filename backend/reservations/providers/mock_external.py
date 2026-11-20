@@ -443,6 +443,22 @@ async def bookings_for_phone(
     return [_booking(r, now) for r in rows]
 
 
+async def refs_created_before(
+    db: AsyncSession, company_id: str, location_id: str, cutoff: datetime,
+) -> list[str]:
+    """The mock bookings at the location created before `cutoff` that still
+    carry diner details (the demo purge, diner_data.purge_demo_location)."""
+    return list((await db.execute(
+        select(MockExternalBooking.id).where(
+            MockExternalBooking.company_id == company_id,
+            MockExternalBooking.location_id == location_id,
+            MockExternalBooking.created_at < cutoff,
+            or_(MockExternalBooking.diner_name.isnot(None),
+                MockExternalBooking.diner_phone.isnot(None)),
+        )
+    )).scalars().all())
+
+
 async def refs_for_code(
     db: AsyncSession, company_id: str, location_id: str, code: str,
 ) -> list[str]:

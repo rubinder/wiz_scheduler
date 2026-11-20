@@ -153,6 +153,29 @@ async def test_bookings_cover_seven_local_days_in_mixed_statuses(db_session, dem
             assert r.held_until == r.start_at and r.confirmation_code
 
 
+async def test_seeded_requests_are_staff_entered_not_ai_host_bookings(db_session, demo):
+    """No seeded row claims the AI host: analytics counts web_agent rows as
+    its bookings, and the seed has no conversation behind any of them."""
+    await _seed(db_session)
+    rows = (await db_session.execute(select(Reservation).where(
+        Reservation.location_id == seed.LOCATION_ID))).scalars().all()
+    assert any(r.status == "pending_approval" for r in rows)
+    assert {r.source for r in rows} == {"staff"}
+
+
+async def test_a_rerun_moves_old_seeded_requests_to_the_staff_source(db_session, demo):
+    await _seed(db_session)
+    await db_session.execute(update(Reservation).where(
+        Reservation.location_id == seed.LOCATION_ID,
+        Reservation.status == "pending_approval").values(source="web_agent"))
+    await db_session.commit()
+    await _seed(db_session)
+    db_session.expire_all()
+    sources = set((await db_session.execute(select(Reservation.source).where(
+        Reservation.location_id == seed.LOCATION_ID))).scalars().all())
+    assert sources == {"staff"}
+
+
 async def test_every_diner_is_fictional(db_session, demo):
     await _seed(db_session)
     rows = (await db_session.execute(select(Reservation).where(

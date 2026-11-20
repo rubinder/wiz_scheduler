@@ -55,6 +55,7 @@ describe("reservations helpers", () => {
 
   it("maps error codes to i18n keys", () => {
     expect(errorKey({ code: "table_has_bookings" })).toBe("reservations.errors.table_has_bookings");
+    expect(errorKey({ code: "comped_cap_limit" })).toBe("reservations.errors.comped_cap_limit");
     expect(errorKey("boom")).toBe("reservations.errors.generic");
     expect(errorKey({ code: "nope" })).toBe("reservations.errors.generic");
     expect(errorKey(null)).toBe("reservations.errors.generic");

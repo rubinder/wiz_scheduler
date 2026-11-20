@@ -76,9 +76,10 @@ STORED = {"stored": True}
 
 
 def discloses_automation(greeting: str) -> bool:
-    """The greeting tells the diner the host is automated."""
-    lowered = greeting.lower()
-    return "automated" in lowered or "assistant" in lowered
+    """The greeting tells the diner the host is automated: it says
+    "automated", case-insensitive. "Assistant" alone does not (a person can
+    be an assistant), so it no longer passes."""
+    return "automated" in greeting.lower()
 
 
 class Persona(BaseModel):
@@ -94,7 +95,7 @@ class Persona(BaseModel):
     def _discloses(cls, v: str, info: ValidationInfo) -> str:
         if v and not (info.context or {}).get("stored") and not discloses_automation(v):
             raise ValueError("the greeting must tell diners the host is automated: "
-                             "include the word 'automated' or 'assistant'")
+                             "include the word 'automated'")
         return v
 
     def rendered_greeting(self) -> str:

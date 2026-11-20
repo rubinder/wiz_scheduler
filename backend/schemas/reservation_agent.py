@@ -20,6 +20,9 @@ class LocationInfoOut(BaseModel):
     location_name: str
     timezone: str
     greeting: str
+    # The public demo restaurant (gate.is_demo_location): the page asks
+    # visitors to use made-up details.
+    demo: bool = False
 
 
 class ConversationOut(BaseModel):

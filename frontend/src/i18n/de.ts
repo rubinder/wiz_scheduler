@@ -1443,6 +1443,9 @@ const de = {
     weightRequired: "Geben Sie vor dem Genehmigen in jeder Zeile eine Gewichtung von 0 bis 1 ein.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Dies ist ein Demo-Restaurant. Bitte verwenden Sie erfundene Angaben – das Demo-Konto kann sehen, was Sie eingeben.",
+    },
     common: {
       notEnabled: "Reservierungen sind für dieses Konto nicht aktiviert.",
       loading: "Wird geladen...",
@@ -1472,6 +1475,7 @@ const de = {
       phone_required: "Für diese Reservierung ist eine Telefonnummer erforderlich.",
       code_exhausted: "Es konnte kein Bestätigungscode erstellt werden. Bitte erneut versuchen.",
       admin_only: "Nur ein Admin kann dies ändern.",
+      comped_cap_limit: "Bei einem kostenlosen Tarif darf das tägliche Ausgabenlimit das Limit des Tarifs nicht überschreiten.",
       generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const de = {
       persona: "Telefonassistent",
       voiceId: "Polly-Stimmen-ID",
       greeting: "Begrüßung",
-      greetingHint: "Muss Gästen sagen, dass der Host automatisiert ist: Fügen Sie das englische Wort \"automated\" oder \"assistant\" ein. Leer lassen für die Standardbegrüßung.",
+      greetingHint: "Muss Gästen sagen, dass der Host automatisiert ist: Fügen Sie das englische Wort \"automated\" ein. Leer lassen für die Standardbegrüßung.",
       facts: "Fakten, die der Assistent nennen darf",
       addFact: "Fakt hinzufügen",
       transferNumber: "Weiterleitungsnummer für das Personal",
@@ -1650,7 +1654,7 @@ const de = {
       description: "Der KI-Gastgeber für Reservierungen hat ein eigenes Abonnement, getrennt von der Dienstplanung.",
       cardTitle: "Abonnement KI-Gastgeber",
       price: "{price}/Monat inkl. {included} Nutzung, danach unsere Kosten + {markup} %",
-      compedPrice: "Kostenloser Demo-Tarif",
+      compedPrice: "Kostenloser Tarif",
       subscribe: "Abonnieren",
       redirecting: "Weiterleitung zur Zahlung...",
       manage: "Verwalten",

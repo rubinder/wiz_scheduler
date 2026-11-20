@@ -26,7 +26,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +49,7 @@ from backend.reservations.models import (
     COMPLETED,
     NO_SHOW,
     SEATED,
+    SOURCE_STAFF,
     SOURCE_WEB_AGENT,
     DiningTable,
     FloorSection,
@@ -339,6 +340,11 @@ async def _book(db: AsyncSession, res_id: str, day: date, index: int, start: dat
         # waiting for the manager when a visitor looks, so it is held until its
         # own time, the latest confirm ever allows.
         res.held_until = res.start_at
+        # Direct write: staff entered, not an AI host booking (no conversation
+        # is behind it, and analytics counts web_agent rows as the host's).
+        # It is held as web_agent above only because hold never makes a staff row
+        # a request.
+        res.source = SOURCE_STAFF
         await db.flush()
         return
     # A past booking is made on a clock an hour before its start: find_slots
@@ -364,6 +370,12 @@ async def _seed_bookings(db: AsyncSession, rules: RulesSchema, zone: ZoneInfo,
     ids = [reservation_id(day, index) for day, index, _, _ in plan]
     existing = set((await db.execute(select(Reservation.id).where(
         Reservation.company_id == COMPANY_ID, Reservation.id.in_(ids)))).scalars().all())
+    # Rows an earlier seed made as web_agent requests move to the staff
+    # source (see _book). Only the seed's own rsv ids, never a visitor's.
+    await db.execute(update(Reservation).where(
+        Reservation.company_id == COMPANY_ID, Reservation.location_id == LOCATION_ID,
+        Reservation.id.like("rsv%"), Reservation.source == SOURCE_WEB_AGENT,
+        Reservation.conversation_id.is_(None)).values(source=SOURCE_STAFF))
     for res_id, (day, index, wall, party) in zip(ids, plan):
         if res_id in existing:
             continue

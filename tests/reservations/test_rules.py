@@ -123,9 +123,17 @@ async def test_a_custom_greeting_must_disclose_the_automated_host():
         Persona(greeting="Ciao! Welcome to Luigi's.")
     with pytest.raises(ValidationError, match="automated"):
         RulesSchema.model_validate({"persona": {"greeting": "Hello there"}})
+    # "Assistant" alone does not say the host is a machine: a person can be one.
+    with pytest.raises(ValidationError, match="automated"):
+        Persona(greeting="Luigi's reservations assistant here.")
     for ok in ("", "Hi, you've reached Luigi's AUTOMATED host.",
-               "Luigi's reservations assistant here."):
+               "Luigi's automated reservations assistant here."):
         assert Persona(greeting=ok).greeting == ok
+
+
+async def test_the_default_greetings_say_automated():
+    from backend.reservations.agent.gate import default_greeting
+    assert "automated" in default_greeting("Luigi's").lower()
 
 
 async def test_stored_rules_with_an_old_greeting_still_read(db_session, seed_location):
@@ -144,9 +152,9 @@ async def test_stored_rules_with_an_old_greeting_still_read(db_session, seed_loc
 async def test_the_prompt_never_carries_a_greeting_without_the_disclosure():
     from backend.reservations.agent.prompt import build_system_prompt
     from backend.reservations.rules import STORED
-    old = RulesSchema.model_validate(
-        {"persona": {"greeting": "Ciao! Welcome to Luigi's."}}, context=STORED)
-    assert "Luigi" not in build_system_prompt("Fixture", "America/New_York", old, "web")
+    for stored in ("Ciao! Welcome to Luigi's.", "Ciao! Luigi's assistant here."):
+        old = RulesSchema.model_validate({"persona": {"greeting": stored}}, context=STORED)
+        assert "Luigi" not in build_system_prompt("Fixture", "America/New_York", old, "web")
     ok = RulesSchema(persona={"greeting": "Luigi's automated host here."})
     assert "Luigi's automated host here." in build_system_prompt(
         "Fixture", "America/New_York", ok, "voice")

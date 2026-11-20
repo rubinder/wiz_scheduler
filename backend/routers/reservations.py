@@ -16,7 +16,7 @@ from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
 from backend.reservations import (
-    booking, diner_data, number_rules, voice_numbers, voice_transfers,
+    booking, diner_data, number_rules, subscription, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.providers import mock_external
@@ -221,6 +221,12 @@ async def write_rules(
         raise HTTPException(status_code=422, detail={
             "code": "mock_provider_not_allowed",
             "message": "The mock booking provider is not enabled here"})
+    try:
+        await subscription.check_rules_cap(db, str(user.company_id),
+                                           body.daily_spend_cap_usd)
+    except subscription.CompedCapLimit as e:
+        raise HTTPException(status_code=422, detail={
+            "code": "comped_cap_limit", "message": str(e)})
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)

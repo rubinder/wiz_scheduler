@@ -1443,6 +1443,9 @@ const ja = {
     weightRequired: "承認する前に、すべての行に0〜1の重みを入力してください。",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "これはデモ用のレストランです。架空の情報をご利用ください。デモアカウントは入力内容を閲覧できます。",
+    },
     common: {
       notEnabled: "このアカウントでは予約が有効になっていません。",
       loading: "読み込み中...",
@@ -1472,6 +1475,7 @@ const ja = {
       phone_required: "この予約には電話番号が必要です。",
       code_exhausted: "確認コードを作成できませんでした。もう一度お試しください。",
       admin_only: "これを変更できるのは管理者のみです。",
+      comped_cap_limit: "無料プランでは、1日の支出上限をプランの上限より高く設定できません。",
       generic: "問題が発生しました。もう一度お試しください。",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const ja = {
       persona: "電話アシスタント",
       voiceId: "Pollyの音声ID",
       greeting: "あいさつ",
-      greetingHint: "ホストが自動であることをお客様に伝える必要があります：英単語 \"automated\" または \"assistant\" を含めてください。空欄にすると既定のあいさつを使います。",
+      greetingHint: "ホストが自動であることをお客様に伝える必要があります：英単語 \"automated\" を含めてください。空欄にすると既定のあいさつを使います。",
       facts: "アシスタントが伝えられる情報",
       addFact: "情報を追加",
       transferNumber: "スタッフへの転送番号",
@@ -1650,7 +1654,7 @@ const ja = {
       description: "予約用AIホストには、シフト作成とは別の専用サブスクリプションがあります。",
       cardTitle: "AIホストのサブスクリプション",
       price: "月額 {price}、{included} 分の利用を含み、超過分は当社コスト + {markup}%",
-      compedPrice: "無料デモプラン",
+      compedPrice: "無料プラン",
       subscribe: "申し込む",
       redirecting: "支払いページへ移動しています...",
       manage: "管理",

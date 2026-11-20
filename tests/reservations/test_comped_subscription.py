@@ -212,3 +212,73 @@ async def test_a_live_stripe_subscription_for_a_comped_group_alerts_the_operator
     await br.handle_agent_event(
         db_session, "customer.subscription.deleted", _agent_subscription("canceled"))
     assert len(sent) == 1
+
+
+# ---------------------------------------------------------------------------
+# Today's spend survives erasure: an erased conversation's metered cost still
+# counts, so chat, book, erase cannot reset the comped ceiling.
+# ---------------------------------------------------------------------------
+
+ERASE_PHONE = "+12125550142"
+
+
+async def _spend_to_the_ceiling_and_book(db_session, monkeypatch) -> datetime:
+    from datetime import timedelta
+    from decimal import Decimal
+
+    from backend.reservations.agent.models import AgentConversation
+    from backend.reservations.models import BOOKED, SOURCE_WEB_AGENT, Reservation
+
+    monkeypatch.setattr(settings, "COMPED_DAILY_CAP_USD", 3.0)
+    now = datetime.now(timezone.utc)
+    conv = AgentConversation(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, channel="web", status="closed",
+        outcome="booked", started_at=now, cost_usd=Decimal("3.00"))
+    db_session.add(conv)
+    await db_session.flush()
+    start = now + timedelta(days=3)
+    db_session.add(Reservation(
+        company_id=COMPANY_ID, location_id=LOCATION_ID, party_size=2, start_at=start,
+        end_at=start + timedelta(hours=2), status=BOOKED, diner_name="Eve",
+        diner_phone=ERASE_PHONE, source=SOURCE_WEB_AGENT, confirmation_code="EVE234",
+        conversation_id=conv.id))
+    conv.reservation_id = None
+    await subscription.meter(db_session, conv, now)
+    await db_session.commit()
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert await subscription.cap_reached(db_session, COMPANY_ID, loc, now, 0)
+    return now
+
+
+async def _conversations_left(db_session) -> int:
+    from sqlalchemy import func
+
+    from backend.reservations.agent.models import AgentConversation
+
+    return (await db_session.execute(
+        select(func.count()).select_from(AgentConversation)
+        .where(AgentConversation.location_id == LOCATION_ID))).scalar_one()
+
+
+async def test_erasing_by_code_does_not_lift_the_comped_ceiling(
+        db_session, comped, monkeypatch):
+    from backend.reservations.diner_data import erase_by_code
+
+    now = await _spend_to_the_ceiling_and_book(db_session, monkeypatch)
+    await erase_by_code(db_session, COMPANY_ID, LOCATION_ID, "EVE234")
+    await db_session.commit()
+    assert await _conversations_left(db_session) == 0
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert await subscription.cap_reached(db_session, COMPANY_ID, loc, now, 0)
+
+
+async def test_erasing_by_phone_does_not_lift_the_comped_ceiling(
+        db_session, comped, monkeypatch):
+    from backend.reservations.diner_data import erase_diner_data
+
+    now = await _spend_to_the_ceiling_and_book(db_session, monkeypatch)
+    await erase_diner_data(db_session, COMPANY_ID, LOCATION_ID, ERASE_PHONE)
+    await db_session.commit()
+    assert await _conversations_left(db_session) == 0
+    loc = await db_session.get(Location, LOCATION_ID)
+    assert await subscription.cap_reached(db_session, COMPANY_ID, loc, now, 0)

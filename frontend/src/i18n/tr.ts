@@ -1443,6 +1443,9 @@ const trLang = {
     weightRequired: "Onaylamadan önce her satıra 0 ile 1 arasında bir ağırlık girin.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Bu bir demo restorandır. Lütfen uydurma bilgiler kullanın — demo hesabı yazdıklarınızı görebilir.",
+    },
     common: {
       notEnabled: "Bu hesap için rezervasyonlar etkin değil.",
       loading: "Yükleniyor...",
@@ -1472,6 +1475,7 @@ const trLang = {
       phone_required: "Bu rezervasyon için telefon numarası gerekli.",
       code_exhausted: "Onay kodu oluşturulamadı. Lütfen tekrar deneyin.",
       admin_only: "Bunu yalnızca bir yönetici değiştirebilir.",
+      comped_cap_limit: "Ücretsiz planda günlük harcama sınırı planın sınırını aşamaz.",
       generic: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const trLang = {
       persona: "Telefon asistanı",
       voiceId: "Polly ses kimliği",
       greeting: "Karşılama",
-      greetingHint: "Misafirlere sunucunun otomatik olduğunu söylemelidir: İngilizce \"automated\" veya \"assistant\" kelimesini ekleyin. Varsayılan karşılama için boş bırakın.",
+      greetingHint: "Misafirlere sunucunun otomatik olduğunu söylemelidir: İngilizce \"automated\" kelimesini ekleyin. Varsayılan karşılama için boş bırakın.",
       facts: "Asistanın paylaşabileceği bilgiler",
       addFact: "Bilgi ekle",
       transferNumber: "Personele aktarma numarası",
@@ -1650,7 +1654,7 @@ const trLang = {
       description: "Rezervasyon YZ karşılayıcısının, vardiya planlamasından ayrı kendi aboneliği vardır.",
       cardTitle: "YZ karşılayıcı aboneliği",
       price: "Aylık {price}, {included} kullanım dahil, sonrası bizim maliyetimiz + %{markup}",
-      compedPrice: "Ücretsiz demo planı",
+      compedPrice: "Ücretsiz plan",
       subscribe: "Abone ol",
       redirecting: "Ödemeye yönlendiriliyor...",
       manage: "Yönet",

@@ -1443,6 +1443,9 @@ const ind = {
     weightRequired: "Masukkan bobot dari 0 sampai 1 di setiap baris sebelum menyetujui.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Ini restoran demo. Gunakan data karangan — akun demo dapat melihat apa yang Anda ketik.",
+    },
     common: {
       notEnabled: "Reservasi tidak diaktifkan untuk akun ini.",
       loading: "Memuat...",
@@ -1472,6 +1475,7 @@ const ind = {
       phone_required: "Nomor telepon wajib untuk reservasi ini.",
       code_exhausted: "Tidak dapat membuat kode konfirmasi. Silakan coba lagi.",
       admin_only: "Hanya admin yang dapat mengubah ini.",
+      comped_cap_limit: "Pada paket gratis, batas pengeluaran harian tidak boleh melebihi batas paket.",
       generic: "Terjadi kesalahan. Silakan coba lagi.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const ind = {
       persona: "Asisten telepon",
       voiceId: "ID suara Polly",
       greeting: "Sapaan",
-      greetingHint: "Harus memberi tahu tamu bahwa host ini otomatis: sertakan kata bahasa Inggris \"automated\" atau \"assistant\". Kosongkan untuk memakai sapaan bawaan.",
+      greetingHint: "Harus memberi tahu tamu bahwa host ini otomatis: sertakan kata bahasa Inggris \"automated\". Kosongkan untuk memakai sapaan bawaan.",
       facts: "Fakta yang boleh disampaikan asisten",
       addFact: "Tambah fakta",
       transferNumber: "Nomor transfer ke staf",
@@ -1650,7 +1654,7 @@ const ind = {
       description: "Host AI reservasi punya langganan sendiri, terpisah dari penjadwalan.",
       cardTitle: "Langganan Host AI",
       price: "{price}/bulan, termasuk penggunaan {included}, lalu biaya kami + {markup}%",
-      compedPrice: "Paket demo gratis",
+      compedPrice: "Paket gratis",
       subscribe: "Berlangganan",
       redirecting: "Mengarahkan ke pembayaran...",
       manage: "Kelola",

@@ -1443,6 +1443,9 @@ const zh = {
     weightRequired: "批准前，请在每一行输入 0 到 1 之间的权重。",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "这是一家演示餐厅。请使用虚构的信息——演示账户可以看到您输入的内容。",
+    },
     common: {
       notEnabled: "此账户未启用预订功能。",
       loading: "加载中...",
@@ -1472,6 +1475,7 @@ const zh = {
       phone_required: "此预订需要电话号码。",
       code_exhausted: "无法生成确认码，请重试。",
       admin_only: "只有管理员可以更改此项。",
+      comped_cap_limit: "免费方案的每日支出上限不能高于方案的限额。",
       generic: "出了点问题，请重试。",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const zh = {
       persona: "电话助理",
       voiceId: "Polly 语音 ID",
       greeting: "问候语",
-      greetingHint: "必须告知食客接待方是自动化助手：请包含英文单词 \"automated\" 或 \"assistant\"。留空则使用默认问候语。",
+      greetingHint: "必须告知食客接待方是自动化的：请包含英文单词 \"automated\"。留空则使用默认问候语。",
       facts: "助理可告知的信息",
       addFact: "添加信息",
       transferNumber: "转接店员的号码",
@@ -1650,7 +1654,7 @@ const zh = {
       description: "预订 AI 接待员有独立的订阅，与排班订阅分开。",
       cardTitle: "AI 接待员订阅",
       price: "每月 {price}，含 {included} 用量，超出部分按我们的成本 + {markup}% 计费",
-      compedPrice: "免费演示方案",
+      compedPrice: "免费方案",
       subscribe: "订阅",
       redirecting: "正在跳转到支付页面...",
       manage: "管理",

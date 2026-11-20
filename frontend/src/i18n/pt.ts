@@ -1443,6 +1443,9 @@ const pt = {
     weightRequired: "Informe um peso de 0 a 1 em cada linha antes de aprovar.",
   },
   reservations: {
+    publicChat: {
+      demoBanner: "Este é um restaurante de demonstração. Use dados inventados — a conta de demonstração pode ver o que você digita.",
+    },
     common: {
       notEnabled: "As reservas não estão ativadas para esta conta.",
       loading: "Carregando...",
@@ -1472,6 +1475,7 @@ const pt = {
       phone_required: "É necessário um número de telefone para esta reserva.",
       code_exhausted: "Não foi possível criar um código de confirmação. Tente novamente.",
       admin_only: "Só um administrador pode alterar isto.",
+      comped_cap_limit: "Em um plano gratuito, o limite de gasto diário não pode ultrapassar o limite do plano.",
       generic: "Algo deu errado. Tente novamente.",
     },
     rules: {
@@ -1510,7 +1514,7 @@ const pt = {
       persona: "Assistente telefônico",
       voiceId: "ID de voz do Polly",
       greeting: "Saudação",
-      greetingHint: "Deve dizer aos clientes que o anfitrião é automatizado: inclua a palavra inglesa \"automated\" ou \"assistant\". Deixe vazio para usar a saudação padrão.",
+      greetingHint: "Deve dizer aos clientes que o anfitrião é automatizado: inclua a palavra inglesa \"automated\". Deixe vazio para usar a saudação padrão.",
       facts: "Informações que o assistente pode compartilhar",
       addFact: "Adicionar informação",
       transferNumber: "Número de transferência para a equipe",
@@ -1650,7 +1654,7 @@ const pt = {
       description: "O anfitrião IA de reservas tem a sua própria assinatura, separada da de escalas.",
       cardTitle: "Assinatura do anfitrião IA",
       price: "{price}/mês, inclui {included} de uso, depois o nosso custo + {markup}%",
-      compedPrice: "Plano de demonstração gratuito",
+      compedPrice: "Plano gratuito",
       subscribe: "Assinar",
       redirecting: "Redirecionando para o pagamento...",
       manage: "Gerenciar",

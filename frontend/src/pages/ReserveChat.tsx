@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 import {
   getLocationInfo, sendTurn, startConversation,
   type Expect, type Hold, type LocationInfo, type Proposal, type TurnInput,
@@ -8,12 +9,15 @@ import {
 import { actionLabel, actionsFor, inputHint, noticeForError, proposalText, reduceTurn, sanitizeTel, startEnded, startErrorFor, type ChatMessage } from "../utils/chat";
 
 // Diner-facing copy is English only and deliberately not in i18n (the AI host
-// agent is English-only by design). Nothing is persisted: no token storage.
+// agent is English-only by design), except the demo restaurant's banner: a
+// privacy warning every visitor must be able to read. Nothing is persisted:
+// no token storage.
 
 const MAX_CHARS = 1000;
 
 export default function ReserveChat() {
   const { slug = "", locationId = "" } = useParams();
+  const { t } = useLanguage();
   const [info, setInfo] = useState<LocationInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -125,6 +129,11 @@ export default function ReserveChat() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col p-4">
       <h1 className="mb-3 text-xl font-semibold">{info?.location_name ?? "Reservations"}</h1>
+      {info?.demo && (
+        <p role="note" className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {t.reservations.publicChat.demoBanner}
+        </p>
+      )}
       <div ref={logRef} role="log" aria-live="polite" aria-label="Conversation" className="flex-1 space-y-2 overflow-y-auto">
         {messages.map((m, i) => (
           <p key={i} className={m.from === "diner" ? "ms-auto w-fit max-w-[85%] rounded bg-blue-600 px-3 py-2 text-white" : "w-fit max-w-[85%] rounded bg-gray-100 px-3 py-2"}>

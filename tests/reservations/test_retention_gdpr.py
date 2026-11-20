@@ -165,3 +165,90 @@ async def test_retention_purges_mock_external_idempotency_keys_after_a_day(
     db_session.expire_all()
     assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:1")) is None
     assert await db_session.get(MockExternalIdempotency, (COMPANY_ID, "c:book:2")) is not None
+
+
+# ---------------------------------------------------------------------------
+# The public demo location (decision 94): its manager login is shown to every
+# visitor, so the daily sweep purges its diner data after 24 hours.
+# ---------------------------------------------------------------------------
+
+
+def _visitor_res(company_id: str, location_id: str, hours: int,
+                 res_id: str | None = None) -> Reservation:
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    return Reservation(
+        id=res_id, company_id=company_id, location_id=location_id, party_size=2,
+        start_at=start, end_at=start + timedelta(hours=2), status=BOOKED,
+        diner_name="Real Person", diner_phone="+447700900123",
+        diner_email="real@person.test", notes="my birthday", source=SOURCE_STAFF,
+        created_at=datetime.now(timezone.utc) - timedelta(hours=hours))
+
+
+async def _visitor_conv(db: AsyncSession, company_id: str, location_id: str,
+                        hours: int) -> str:
+    conv = await recording.start_conversation(
+        db, company_id, location_id, "web", source_key="s" * 64)
+    conv.started_at = datetime.now(timezone.utc) - timedelta(hours=hours)
+    await recording.record_event(db, conv, "user_turn",
+                                 {"content": [{"type": "text", "text": "I'm Real Person"}]})
+    await db.commit()
+    return conv.id
+
+
+def _contact(r: Reservation) -> tuple:
+    return (r.diner_name, r.diner_phone, r.diner_email, r.notes)
+
+
+async def test_the_sweep_purges_the_demo_locations_diner_data_after_a_day(
+    db_session: AsyncSession, seed_location, test_location, monkeypatch
+):
+    from backend.config import settings
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_COMPANY_ID", COMPANY_ID)
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_LOCATION_ID", LOCATION_ID)
+    other_co, other_loc = test_location.company_id, test_location.id
+
+    old, fresh = _visitor_res(COMPANY_ID, LOCATION_ID, 25), _visitor_res(COMPANY_ID, LOCATION_ID, 23)
+    # A seeded fictional booking: deterministic rsv id, example.com email.
+    seeded = _visitor_res(COMPANY_ID, LOCATION_ID, 25, res_id="rsv1a2b3")
+    seeded.diner_name, seeded.diner_email = "Maya Patel", "maya.patel@example.com"
+    elsewhere = _visitor_res(other_co, other_loc, 25)
+    db_session.add_all([old, fresh, seeded, elsewhere])
+    await db_session.commit()
+    ids = {k: r.id for k, r in
+           {"old": old, "fresh": fresh, "seeded": seeded, "elsewhere": elsewhere}.items()}
+    old_conv = await _visitor_conv(db_session, COMPANY_ID, LOCATION_ID, 25)
+    fresh_conv = await _visitor_conv(db_session, COMPANY_ID, LOCATION_ID, 23)
+    elsewhere_conv = await _visitor_conv(db_session, other_co, other_loc, 25)
+
+    summary = await run_data_retention(db_session)
+    assert summary["demo_reservations_scrubbed"] == 1
+    assert summary["demo_conversations_deleted"] == 1
+
+    db_session.expire_all()
+    assert _contact(await db_session.get(Reservation, ids["old"])) == (None,) * 4
+    assert _contact(await db_session.get(Reservation, ids["fresh"]))[0] == "Real Person"
+    assert _contact(await db_session.get(Reservation, ids["seeded"]))[0] == "Maya Patel"
+    assert _contact(await db_session.get(Reservation, ids["elsewhere"]))[0] == "Real Person"
+    assert await db_session.get(AgentConversation, old_conv) is None
+    assert await db_session.get(AgentConversation, fresh_conv) is not None
+    assert await db_session.get(AgentConversation, elsewhere_conv) is not None
+
+
+async def test_the_demo_purge_never_touches_another_companys_location(
+    db_session: AsyncSession, seed_location, test_location, monkeypatch
+):
+    """The demo location id under another company is not the demo."""
+    from backend.config import settings
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_COMPANY_ID", test_location.company_id)
+    monkeypatch.setattr(settings, "RESERVATIONS_DEMO_LOCATION_ID", LOCATION_ID)
+    res = _visitor_res(COMPANY_ID, LOCATION_ID, 25)
+    db_session.add(res)
+    await db_session.commit()
+    rid = res.id
+    conv = await _visitor_conv(db_session, COMPANY_ID, LOCATION_ID, 25)
+
+    summary = await run_data_retention(db_session)
+    assert summary["demo_reservations_scrubbed"] == 0
+    db_session.expire_all()
+    assert _contact(await db_session.get(Reservation, rid))[0] == "Real Person"
+    assert await db_session.get(AgentConversation, conv) is not None

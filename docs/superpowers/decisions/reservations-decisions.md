@@ -425,8 +425,13 @@ Decisions made while building without stopping to ask (owner instruction,
     that and the rules' cap. This came from an automated security review: the
     demo manager can raise `daily_spend_cap_usd` in the rules, and comped usage
     is never invoiced, so the rules cap alone is not a ceiling. The demo's own
-    rules cap is $3 too. Cost if wrong: the demo stops answering after $3 a
-    day, or a raised cap on the demo costs the operator real money.
+    rules cap is $3 too, and a rules save above the ceiling for a comped group
+    is refused with 422 `comped_cap_limit` (`subscription.check_rules_cap`,
+    shown in the rules editor), so the editor never shows a cap the location
+    cannot reach. "Today" survives erasure (decision 93). The billing card's
+    price line for a comped group says "Complimentary plan". Cost if wrong:
+    the demo stops answering after $3 a day, or a raised cap on the demo costs
+    the operator real money.
 
 84. **A comped group gets no phone number.** `voice_numbers` excludes comped
     groups from claiming one. The demo is web chat; a Connect number costs
@@ -440,8 +445,14 @@ Decisions made while building without stopping to ask (owner instruction,
     (`+1212555` then `0100` to `0199`) and emails are `@example.com`, so no number or
     address can reach a real person. The seed is idempotent: rows have fixed
     ids, tables are matched by label so same-label tables an earlier run or a
-    manager made are reused, and a rerun adds only the new days. Cost if
-    wrong: a rerun duplicates tables, or a seeded phone dials someone.
+    manager made are reused, and a rerun adds only the new days. Every seeded
+    booking, the large-party requests included, has the `staff` source: no
+    conversation is behind any of them, and analytics counts `web_agent` rows
+    as AI host bookings. The requests are held as `web_agent` (a staff hold is
+    never a request) and then written as `staff`; a rerun moves rows an
+    earlier seed left as `web_agent` (`rsv` ids, no conversation). Cost if
+    wrong: a rerun duplicates tables, a seeded phone dials someone, or the
+    demo's insights credit the AI host with bookings it never made.
 
 86. **The location rename shows in the scheduling demo too.** The seed sets
     the demo location's name to Fernhollow Kitchen, and that location is the
@@ -458,14 +469,17 @@ Decisions made while building without stopping to ask (owner instruction,
     `ambiguous_code`: erasing one by guess could miss the other, so the
     manager erases by phone instead. When a conversation is still mid-turn the
     mock booking is scrubbed, not deleted, so retrying the same code finds it
-    and finishes. Cost if wrong: a diner's request for one booking takes more
-    than one call.
+    and finishes. Neither erase lowers the location's spend today (decision
+    93). Cost if wrong: a diner's request for one booking takes more than one
+    call.
 
 88. **Parked: phone erase with a mock in-flight chat leaves that chat.** The
     phone path still deletes the mock bookings, so a conversation mid-turn
-    when it runs is left. The mock provider is demo-only and a regular
-    manager cannot switch it on, so this is not a diner risk. Cost if wrong: a
-    mid-turn demo chat survives a phone erase.
+    when it runs is left. This is safe because
+    `RESERVATIONS_MOCK_PROVIDER_ALLOWED` is off in production: no production
+    location can select the mock provider (422 `mock_provider_not_allowed`),
+    so no production chat books through it. Cost if wrong: a mid-turn chat on
+    a non-production mock survives a phone erase.
 
 89. **Each erase writes one audit line, with no code and no phone.**
     `diner_data.erase location=... user=... by=code|phone` plus the counts.
@@ -475,9 +489,11 @@ Decisions made while building without stopping to ask (owner instruction,
 90. **The host tells the diner it is automated, on every channel.** The spoken
     flow greeting says "an automated reservations assistant"; the web default
     greeting says "automated reservations assistant"; a custom greeting is
-    refused on save unless it contains "automated" or "assistant"
-    (`rules.discloses_automation`). Stored greetings that predate the check
-    are not rewritten. The check matches English words only, so a greeting in
+    refused on save unless it contains "automated", case-insensitive
+    (`rules.discloses_automation`). "Assistant" alone no longer passes: a
+    person can be an assistant. Stored greetings that predate the check are
+    not rewritten, but one that fails it is never rendered (the default
+    greeting is). The check matches English words only, so a greeting in
     another language that discloses it is refused: issue #285. Cost if wrong:
     a non-English restaurant must add one English word until #285 lands.
 
@@ -495,6 +511,40 @@ Decisions made while building without stopping to ask (owner instruction,
     is step 1 of the switch-on order. Cost if wrong: the product goes live with
     unapproved privacy and DPA wording.
 
+93. **Today's spend survives erasure.** `subscription.spend_today` is the
+    location's conversations by start day plus the `agent_usage` rows whose
+    conversation is gone (`conversation_id IS NULL`, the FK sets it on
+    delete) by `created_at`, at that location. The demo manager login is
+    shown to every visitor, so with conversations alone chat, book, erase by
+    code, repeat would reset "today" and the comped ceiling would never fire.
+    The usage row keeps its location and cost after the erase, and its
+    `created_at` is the conversation's first metered turn, seconds after it
+    started. Not computed from `agent_usage` alone: `meter` writes no row
+    for a cost that bills to $0.00, a `blocked` conversation or a company
+    with no ownership group, and a live row lags its conversation's cost. It
+    applies to every group, not only comped ones. Cost if wrong: an erased
+    chat that never billed a cent drops out of today (under half a cent),
+    or a chat that crossed local midnight counts on its usage row's day.
+
+94. **The public demo location warns visitors and forgets them daily.** It
+    is `RESERVATIONS_DEMO_COMPANY_ID` / `RESERVATIONS_DEMO_LOCATION_ID`
+    (default `comp0001` / `locn0001`, `backend/seed.py`'s ids; a test keeps
+    them equal, and app code never imports the seed). The public chat config
+    returns `demo: true` there only, and the chat page shows "This is a demo
+    restaurant. Please use made-up details — the demo account can see what
+    you type." in all 19 locales (the rest of the diner page stays English).
+    The daily retention sweep (`run_data_retention`, step 7f,
+    `diner_data.purge_demo_location`) runs the erasure scrub there on what is
+    older than 24 hours: reservations created before then lose their contact
+    fields, conversations started before then are deleted, mock bookings
+    made before then are deleted, and lookup failures go. The seed's
+    fictional bookings (`rsv` id and `@example.com` email) are kept, so the
+    demo still shows a full book without a reseed; a visitor's row that
+    happens to match both holds made-up details anyway. It acts on that
+    location of that company only, and on nothing when it does not exist.
+    Cost if wrong: a visitor who ignores the banner has their details
+    visible to other visitors for up to a day.
+
 ## Before switching reservations on (owner checklist)
 
 ### Switch-on order
@@ -503,10 +553,14 @@ Decisions made while building without stopping to ask (owner instruction,
    it. No agent merges it (decision 92).
 2. Do Stripe, voice and screening per the existing checklist sections.
 3. Set `reservations_enabled`, `agent_reconcile_enabled` and, if wanted,
-   `voice_provisioning_enabled` and `analytics_enabled` to true in one PR.
-   CI applies it. Watch the second voice apply for the
-   `UpdateFlowLoggingBehavior` block (decision 91): it is untested on live
-   Connect.
+   `analytics_enabled` to true in one PR. CI applies it. Voice is separate
+   and takes two applies (terraform/README.md "Voice channel"): first
+   `voice_enabled` true (instance, bot, Lambda, secret, budget), then
+   `voice/publish_lex_bot.sh`, then a second apply with
+   `voice_lex_bot_alias_arn` set, which creates the contact flow. Watch that
+   second apply for the `UpdateFlowLoggingBehavior` block (decision 91): it
+   is untested on live Connect. Only after it set
+   `voice_provisioning_enabled`.
 4. Run the demo seed as a one-off ECS task: `python -m backend.seed_reservations`
    (idempotent, safe to rerun).
 5. Smoke test: open `/r/<demo slug>/<demo location>`, book, then cancel.

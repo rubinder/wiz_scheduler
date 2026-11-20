@@ -64,11 +64,13 @@ later).
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, delete, false, func, not_, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
+from backend.models import Location
 from backend.reservations.agent.models import (
     AgentConversation,
     AgentEvent,
@@ -82,6 +84,10 @@ from backend.reservations.providers import mock_external
 from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.queries import conversation_events
 from backend.reservations.screening_models import NumberRule
+
+
+# The demo location's diner data is purged once this old (purge_demo_location).
+DEMO_PURGE_HOURS = 24
 
 
 class AmbiguousCode(booking.ReservationError):
@@ -353,3 +359,69 @@ async def erase_by_code(
         keep_mock_in_flight=True)
     await db.flush()
     return counts
+
+
+# The demo seed's fictional bookings (backend/seed_reservations.py): an "rsv"
+# id and an example.com email. The purge keeps them, so the demo still shows
+# a full book; a visitor row matching both by chance holds made-up details
+# anyway (the banner asks for them).
+_SEEDED_ID_PREFIX = "rsv"
+_SEEDED_EMAIL_DOMAIN = "@example.com"
+
+
+async def purge_demo_location(db: AsyncSession, now: datetime) -> dict[str, int]:
+    """Purge the public demo location's diner data entered before
+    DEMO_PURGE_HOURS ago (decision 94): its manager login is shown to every
+    visitor, so a real visitor's details must not sit there. The same scrub
+    as erasure (`_erase`), under the same locks: reservations created before
+    the cutoff lose their contact fields (the seed's fictional ones are kept),
+    conversations started before it are deleted (closed if mid-turn), mock
+    bookings made before it are deleted, and lookup failures before it go.
+    Only settings.RESERVATIONS_DEMO_LOCATION_ID of
+    RESERVATIONS_DEMO_COMPANY_ID, never another location: nothing is done
+    when that location does not exist. Flushes; the caller commits."""
+    company_id = settings.RESERVATIONS_DEMO_COMPANY_ID
+    location_id = settings.RESERVATIONS_DEMO_LOCATION_ID
+    zero = {"demo_reservations_scrubbed": 0, "demo_conversations_deleted": 0,
+            "demo_external_bookings_deleted": 0, "demo_lookup_failures_deleted": 0}
+    exists = (await db.execute(select(Location.id).where(
+        Location.id == location_id, Location.company_id == company_id)
+    )).scalar_one_or_none()
+    if exists is None:
+        return zero
+    cutoff = now - timedelta(hours=DEMO_PURGE_HOURS)
+    await _lock(db, company_id, location_id, now)
+    reservation_ids = list((await db.execute(
+        select(Reservation.id).where(
+            Reservation.company_id == company_id,
+            Reservation.location_id == location_id,
+            Reservation.created_at < cutoff,
+            or_(Reservation.diner_name.isnot(None), Reservation.diner_phone.isnot(None),
+                Reservation.diner_email.isnot(None), Reservation.notes.isnot(None)),
+            not_(and_(Reservation.id.startswith(_SEEDED_ID_PREFIX, autoescape=True),
+                      func.coalesce(Reservation.diner_email, "")
+                      .endswith(_SEEDED_EMAIL_DOMAIN, autoescape=True))),
+        )
+    )).scalars().all())
+    conversation_ids = list((await db.execute(
+        select(AgentConversation.id).where(
+            AgentConversation.company_id == company_id,
+            AgentConversation.location_id == location_id,
+            AgentConversation.started_at < cutoff)
+    )).scalars().all())
+    mock_ids = await mock_external.refs_created_before(db, company_id, location_id, cutoff)
+    counts = await _erase(db, company_id, location_id, None, reservation_ids,
+                          conversation_ids, mock_ids)
+    lookups = (await db.execute(
+        delete(ReservationLookupFailure).where(
+            ReservationLookupFailure.company_id == company_id,
+            ReservationLookupFailure.location_id == location_id,
+            ReservationLookupFailure.created_at < cutoff)
+    )).rowcount
+    await db.flush()
+    return {
+        "demo_reservations_scrubbed": counts["reservations_scrubbed"],
+        "demo_conversations_deleted": counts["conversations_deleted"],
+        "demo_external_bookings_deleted": counts["external_bookings_deleted"],
+        "demo_lookup_failures_deleted": lookups,
+    }
