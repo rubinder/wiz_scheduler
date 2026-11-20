@@ -278,6 +278,38 @@ export interface ScreeningStatsOut {
   answered: number;
 }
 
+/** One agent_daily_metrics row: one UTC day at one location. */
+export interface InsightsDay {
+  day: string;
+  conversations: number;
+  resolved: number;
+  booked: number;
+  handed_off: number;
+  abandoned: number;
+  failed: number;
+  /** Conversations that looked for a slot: the booking conversion's denominator. */
+  booking_intent: number;
+  handoff_reasons: Record<string, number>;
+  llm_p50_ms: number | null;
+  llm_p95_ms: number | null;
+  turn_p50_ms: number | null;
+  turn_p95_ms: number | null;
+  /** Decimal strings. */
+  cost_usd: string;
+  billed_usd: string;
+  screened: number;
+  blocked: number;
+  covers_by_period: Record<string, number>;
+}
+
+/** GET /reservations/insights: `from`..`to` inclusive (UTC dates); days without a row are absent. */
+export interface InsightsOut {
+  location_id: string;
+  from: string;
+  to: string;
+  days: InsightsDay[];
+}
+
 /** One diner's data at one location (POST .../diner-data). */
 export interface DinerDataOut {
   reservations: ReservationOut[];

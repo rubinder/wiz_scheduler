@@ -360,3 +360,34 @@ def send_ftc_ingest_alert(summary: dict) -> bool:
         f"the files.</p>",
         "ftc_ingest",
     )
+
+
+def send_analytics_quality_alert(day: str, failures: list[str]) -> bool:
+    """The nightly AI host analytics job (#259 step 10) found data-quality
+    failures for `day`. Its lake partitions were already landed; its
+    agent_daily_metrics were not written. `failures` carry counts and
+    conversation ids only. Always logs one [OPERATOR] line. Never raises."""
+    logger.error("[OPERATOR] analytics_quality_failed day=%s failures=%d", day, len(failures))
+    items = "".join(f"<li>{html.escape(f)}</li>" for f in failures)
+    return _send_operator_email(
+        f"[WizScheduler] AI host analytics failed quality checks for {day}",
+        f"<p>The nightly analytics job landed the lake for {html.escape(day)} but "
+        f"<strong>did not write its daily metrics</strong>:</p><ul>{items}</ul>"
+        f"<p>Fix the cause and rerun "
+        f"<code>python -m backend.scripts.run_agent_analytics --date {html.escape(day)}</code>.</p>",
+        "analytics_quality_failed",
+    )
+
+
+def send_analytics_run_failed_alert(day: str, error_type: str) -> bool:
+    """The nightly AI host analytics job (#259 step 10) raised for `day`.
+    Only the exception's type is sent: a database error can quote row
+    values. Always logs one [OPERATOR] line. Never raises."""
+    logger.error("[OPERATOR] analytics_run_failed day=%s error=%s", day, error_type)
+    return _send_operator_email(
+        f"[WizScheduler] AI host analytics run failed for {day}",
+        f"<p>The nightly analytics job raised <code>{html.escape(error_type)}</code> "
+        f"for {html.escape(day)}; see the task's logs. Its metrics for that day "
+        f"were not written.</p>",
+        "analytics_run_failed",
+    )

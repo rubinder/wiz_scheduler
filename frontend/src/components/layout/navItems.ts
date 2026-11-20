@@ -115,6 +115,11 @@ export const managerNav: NavEntry[] = [
         labelKey: "numberLists",
         requiresReservations: true,
       },
+      {
+        to: "/manager/reservations/insights",
+        labelKey: "insights",
+        requiresReservations: true,
+      },
       { to: "/manager/billing", labelKey: "aiHostBilling", requiresReservations: true },
     ],
   },

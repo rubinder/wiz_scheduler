@@ -2607,6 +2607,117 @@ async def test_delete_og_and_dependents_removes_reservation_rows(
     )).scalar_one_or_none() is None
 
 
+async def test_delete_og_and_dependents_removes_special_hours_and_feedback(
+    db_session: AsyncSession, og_with_card
+):
+    """special_hours_days (locations, shift_templates) and feedback_submissions
+    (companies) hold NO ACTION FKs, so a group with either could not be
+    deleted. tests/test_group_deletion_sweep.py found them."""
+    from datetime import date, time
+    from sqlalchemy import func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models import Location, Region
+    from backend.models.feedback_submission import FeedbackSubmission
+    from backend.models.special_hours_day import SpecialHoursDay
+
+    region = Region(id=_id(), company_id=COMPANY_ID, name="R1")
+    db_session.add(region)
+    await db_session.flush()
+    location = Location(id=_id(), company_id=COMPANY_ID, region_id=region.id,
+                        name="L1", timezone="America/New_York")
+    db_session.add(location)
+    await db_session.flush()
+    db_session.add_all([
+        SpecialHoursDay(company_id=COMPANY_ID, location_id=location.id,
+                        date=date(2026, 12, 24), open_time=time(9),
+                        close_time=time(14), label="Eve"),
+        FeedbackSubmission(company_id=COMPANY_ID, subject="s", message="m",
+                           feedback_type="bug"),
+    ])
+    await db_session.commit()
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    for model in (SpecialHoursDay, FeedbackSubmission):
+        assert (await db_session.execute(
+            select(func.count()).select_from(model)
+            .where(model.company_id == COMPANY_ID)
+        )).scalar() == 0, model.__tablename__
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+
+
+async def test_delete_og_and_dependents_removes_activation_events_and_manager_invites(
+    db_session: AsyncSession, og_with_card
+):
+    """activation_events and manager_invites reference ownership_groups (and
+    manager_invites.accepted_company_id references companies) with NO ACTION
+    FKs. Every group has a 'signup' activation event, so before the fix the
+    day-90 deletion failed for every group."""
+    from sqlalchemy import func
+    from backend.services.billing import delete_og_and_dependents
+    from backend.models.activation_event import ActivationEvent
+    from backend.models.manager_invite import ManagerInvite
+
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    # Another tenant's rows, including an invite that (defensively) points at
+    # this group's company: they must survive, the invite only unlinked.
+    other = OwnershipGroup(id=_id(), name="Other Group")
+    db_session.add(other)
+    await db_session.flush()
+    other_invite_token = f"tok-other-{_id()}"
+    db_session.add_all([
+        ActivationEvent(ownership_group_id=other.id, event="signup"),
+        ManagerInvite(ownership_group_id=other.id, email="o@example.com",
+                      token=other_invite_token, status="accepted",
+                      expires_at=expires, accepted_at=datetime.now(timezone.utc),
+                      accepted_company_id=COMPANY_ID),
+    ])
+    db_session.add_all([
+        ActivationEvent(ownership_group_id=og_with_card.id, event="signup"),
+        ManagerInvite(ownership_group_id=og_with_card.id, email="p@example.com",
+                      token=f"tok-pending-{_id()}", status="pending",
+                      expires_at=expires),
+        ManagerInvite(ownership_group_id=og_with_card.id, email="a@example.com",
+                      token=f"tok-accepted-{_id()}", status="accepted",
+                      expires_at=expires, accepted_at=datetime.now(timezone.utc),
+                      accepted_company_id=COMPANY_ID),
+    ])
+    await db_session.commit()
+    og_id = og_with_card.id
+
+    await delete_og_and_dependents(db_session, og_with_card)
+    await db_session.commit()
+
+    assert (await db_session.execute(
+        select(func.count()).select_from(ActivationEvent)
+        .where(ActivationEvent.ownership_group_id == og_id)
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(func.count()).select_from(ManagerInvite)
+        .where((ManagerInvite.ownership_group_id == og_id)
+               | (ManagerInvite.accepted_company_id == COMPANY_ID))
+    )).scalar() == 0
+    assert (await db_session.execute(
+        select(Company).where(Company.id == COMPANY_ID)
+    )).scalar_one_or_none() is None
+    assert (await db_session.execute(
+        select(OwnershipGroup).where(OwnershipGroup.id == og_id)
+    )).scalar_one_or_none() is None
+    # The other tenant is untouched; its invite is unlinked, not deleted.
+    assert (await db_session.execute(
+        select(func.count()).select_from(ActivationEvent)
+        .where(ActivationEvent.ownership_group_id == other.id)
+    )).scalar() == 1
+    survivor = (await db_session.execute(
+        select(ManagerInvite).where(ManagerInvite.token == other_invite_token)
+    )).scalar_one()
+    assert survivor.ownership_group_id == other.id
+    assert survivor.accepted_company_id is None
+
+
 async def test_delete_og_and_dependents_handles_empty_og(
     db_session: AsyncSession
 ):

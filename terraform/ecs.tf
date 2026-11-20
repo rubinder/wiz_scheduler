@@ -284,6 +284,13 @@ resource "aws_ecs_task_definition" "app" {
           name  = "VOICE_PROVISIONING_ENABLED"
           value = var.voice_provisioning_enabled ? "true" : "false"
         },
+        ] : [], var.analytics_enabled ? [
+        {
+          # Lake bucket for the nightly analytics job (analytics.tf); only
+          # when analytics_enabled, so with it off nothing redeploys.
+          name  = "ANALYTICS_BUCKET"
+          value = aws_s3_bucket.analytics_lake[0].id
+        },
       ] : [])
 
       logConfiguration = {

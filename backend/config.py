@@ -253,6 +253,11 @@ class Settings(BaseSettings):
     PAYROLL_ARCHIVE_BUCKET: str = ""
     PAYROLL_ARCHIVE_PRICE_CENTS: int = 1800
     PAYROLL_ARCHIVE_RETENTION_DAYS: int = 2557
+    # The AI host analytics lake (#259 step 10): the private S3 bucket and
+    # key prefix the nightly job (scripts/run_agent_analytics.py) lands
+    # Parquet under. Empty bucket: the job refuses to run without --local.
+    ANALYTICS_BUCKET: str = ""
+    ANALYTICS_PREFIX: str = "lake/"
     # Retrieval (public, unauthenticated). Per source IP: the in-process
     # limiter answers 429. Per email: at most this many download links an
     # hour, enforced from the token table so it holds across workers, and
