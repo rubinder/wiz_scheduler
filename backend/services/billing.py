@@ -1374,7 +1374,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     self-FK tables (employees.id->employees.id, condensed_roles->condensed_roles,
     shift_schedules->shift_schedules) work correctly in a single statement.
     """
-    from sqlalchemy import delete, select
+    from sqlalchemy import delete, select, update
     from backend.models import (
         Company,
         Employee,
@@ -1524,10 +1524,19 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         # 19. users
         await db.execute(delete(User).where(User.company_id.in_(company_ids)))
         # 19b. manager_invites accepted into these companies — refs companies
-        #      (accepted_company_id, NO ACTION); the group's own invites go
-        #      below, before the OG row.
+        #      (accepted_company_id, NO ACTION). Accepting checks the
+        #      company is in the invite's own group, so these are normally
+        #      the group's own invites (deleted below, before the OG row);
+        #      defensively, another group's invite is never deleted here,
+        #      only unlinked.
+        await db.execute(
+            update(ManagerInvite)
+            .where(ManagerInvite.accepted_company_id.in_(company_ids),
+                   ManagerInvite.ownership_group_id != og.id)
+            .values(accepted_company_id=None))
         await db.execute(delete(ManagerInvite).where(
-            ManagerInvite.accepted_company_id.in_(company_ids)))
+            ManagerInvite.accepted_company_id.in_(company_ids),
+            ManagerInvite.ownership_group_id == og.id))
         # 20. companies
         await db.execute(delete(Company).where(Company.id.in_(company_ids)))
 

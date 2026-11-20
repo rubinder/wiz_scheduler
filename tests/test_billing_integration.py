@@ -2662,6 +2662,19 @@ async def test_delete_og_and_dependents_removes_activation_events_and_manager_in
     from backend.models.manager_invite import ManagerInvite
 
     expires = datetime.now(timezone.utc) + timedelta(days=7)
+    # Another tenant's rows, including an invite that (defensively) points at
+    # this group's company: they must survive, the invite only unlinked.
+    other = OwnershipGroup(id=_id(), name="Other Group")
+    db_session.add(other)
+    await db_session.flush()
+    other_invite_token = f"tok-other-{_id()}"
+    db_session.add_all([
+        ActivationEvent(ownership_group_id=other.id, event="signup"),
+        ManagerInvite(ownership_group_id=other.id, email="o@example.com",
+                      token=other_invite_token, status="accepted",
+                      expires_at=expires, accepted_at=datetime.now(timezone.utc),
+                      accepted_company_id=COMPANY_ID),
+    ])
     db_session.add_all([
         ActivationEvent(ownership_group_id=og_with_card.id, event="signup"),
         ManagerInvite(ownership_group_id=og_with_card.id, email="p@example.com",
@@ -2693,6 +2706,16 @@ async def test_delete_og_and_dependents_removes_activation_events_and_manager_in
     assert (await db_session.execute(
         select(OwnershipGroup).where(OwnershipGroup.id == og_id)
     )).scalar_one_or_none() is None
+    # The other tenant is untouched; its invite is unlinked, not deleted.
+    assert (await db_session.execute(
+        select(func.count()).select_from(ActivationEvent)
+        .where(ActivationEvent.ownership_group_id == other.id)
+    )).scalar() == 1
+    survivor = (await db_session.execute(
+        select(ManagerInvite).where(ManagerInvite.token == other_invite_token)
+    )).scalar_one()
+    assert survivor.ownership_group_id == other.id
+    assert survivor.accepted_company_id is None
 
 
 async def test_delete_og_and_dependents_handles_empty_og(
