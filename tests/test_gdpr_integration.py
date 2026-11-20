@@ -45,7 +45,7 @@ async def test_privacy_policy(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/privacy-policy")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.3"
+    assert data["version"] == "2.4"
     assert "PRIVACY POLICY" in data["content"]
     # #259 draft: diners of a restaurant using the AI host, retained for
     # RETENTION_RESERVATIONS_DAYS.
@@ -63,7 +63,7 @@ async def test_terms_of_service(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/terms")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.2"
+    assert data["version"] == "2.3"
     assert "TERMS OF SERVICE" in data["content"]
     # #259 draft: the AI host subscription's price, included usage, markup
     # and number release hold come from settings.
@@ -84,7 +84,7 @@ async def test_data_processing_agreement(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/dpa")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.3"
+    assert data["version"] == "2.4"
     assert "DATA PROCESSING AGREEMENT" in data["content"]
     # #172: termination timing matches SUBSCRIPTION_GRACE_DAYS, and pay records
     # have a stated retention period.

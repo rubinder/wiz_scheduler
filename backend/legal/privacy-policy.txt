@@ -54,7 +54,7 @@ F. USAGE DATA
 We process your personal data for the following purposes:
 
 A. SCHEDULE GENERATION (PRIMARY USE CASE)
-Your availability, roles, skill levels, seniority, pay rates, affinities, and preferences are sent to Anthropic's Claude AI to generate optimized weekly shift schedules. Data is transmitted via encrypted API calls and is not retained by Anthropic beyond the API request lifecycle. Schedule generation is never used for training AI models.
+Your availability, roles, skill levels, seniority, pay rates, affinities, and preferences are sent to Anthropic's Claude AI to generate optimized weekly shift schedules. Data is transmitted via encrypted API calls through Anthropic's commercial API. Anthropic does not use it to train AI models and keeps it only for the limited period its commercial terms allow (for example for trust and safety review).
 
 B. ACCOUNT MANAGEMENT
 To create and maintain your user account, authenticate sessions via JWT, manage multi-tenant company access, and enforce role-based access controls.
@@ -87,7 +87,7 @@ We share your data with the following third-party processors only when necessary
 A. ANTHROPIC (CLAUDE AI)
 - Purpose: AI-powered schedule generation
 - Data Shared: Employee names, roles, skill levels, availability, affinities, preferences
-- Safeguards: Data transmitted via encrypted API calls; not retained beyond request lifecycle; explicitly not used for model training
+- Safeguards: Data transmitted via encrypted API calls through Anthropic's commercial API; not used for model training; kept by Anthropic only for the limited period its commercial terms allow
 - Legal Basis: Your consent and contractual necessity
 
 B. THIRD-PARTY SCHEDULING PLATFORMS
@@ -222,8 +222,9 @@ E. PHONE CALLS
 Phone calls to the AI host are handled by Amazon Web Services in the United States (region us-east-1): Amazon Connect carries the call, Amazon Lex turns your speech into text, Amazon Polly speaks the AI host's replies, and AWS Lambda passes each turn of the conversation to WizScheduler.
 - Calls are not recorded
 - Amazon Connect Contact Lens (call analytics) is not turned on, and Amazon Lex conversation logs are not turned on
-- Amazon Connect's call flow logs, which include the caller ID number, are deleted after 30 days
-- Amazon Connect also keeps its own record of each call, including the caller ID number, for the period AWS sets for Amazon Connect contact records
+- Amazon Connect's call flow logging is switched off at the start of every call, so it does not record your caller ID number, and any flow logs are deleted after 1 day
+- Amazon Connect keeps its own record of each call, including the caller ID number, for the period AWS sets for Amazon Connect contact records (currently 24 months)
+- What you say is turned into text by Amazon Lex, and the AI host's replies are spoken by Amazon Polly, under AWS's service terms, which allow AWS to use that content to improve its AI services
 - The logs of our AWS Lambda functions record a call identifier and the outcome, not your number or what you said, and are deleted after 14 days
 
 F. RETENTION
@@ -235,10 +236,10 @@ F. RETENTION
 - If the restaurant's WizScheduler account is deleted, its diner data is deleted with it
 
 G. ACCESS AND ERASURE
-To see or erase your data, contact the restaurant. The restaurant can export your data at one of its locations, and erase it, using your phone number. Erasure deletes your conversation transcripts and that location's allow or block list entries for your number, and removes your name, phone number, email address and notes from your reservations there. Entries that apply to all of a restaurant group's locations are removed separately by the group's administrator. Conversations are found by the caller ID number they came from, or by their link to a reservation made with your phone number. A web chat that did not lead to a reservation, and a call made with a withheld number, cannot be found by phone number. A conversation that is in progress at the moment of erasure is closed rather than deleted; it is deleted when the restaurant runs the erasure again.
+To see or erase your data, contact the restaurant. The restaurant can export your data at one of its locations, and erase it, using your phone number; it can also erase a single reservation and its conversations using the reservation's confirmation code. Erasure deletes your conversation transcripts and that location's allow or block list entries for your number, and removes your name, phone number, email address and notes from your reservations there. Entries that apply to all of a restaurant group's locations are removed separately by the group's administrator. Conversations are found by the caller ID number they came from, or by their link to a reservation made with your phone number. A web chat that did not lead to a reservation, and a call made with a withheld number, cannot be found by phone number. A conversation that is in progress at the moment of erasure is closed rather than deleted; it is deleted when the restaurant runs the erasure again.
 
 H. ANALYTICS
-We measure how the AI host performs (for example, how many conversations end in a reservation) in a separate analytics store with Amazon Web Services. It holds one record per conversation, reservation, call screening decision and usage charge, with fields such as channel, outcome, party size, times, turn counts, costs and response times. It holds no diner names, phone numbers, email addresses or confirmation codes, no text written by the diner or the AI host (only the length of each message), and no other key that identifies a diner. Records in it are deleted after 365 days. Only a role that requires multi-factor authentication can query it. Daily totals derived from it are shown to the restaurant in WizScheduler.
+We measure how the AI host performs (for example, how many conversations end in a reservation) in a separate analytics store with Amazon Web Services. It holds one record per conversation, reservation, call screening decision and usage charge, with fields such as channel, outcome, party size, times, turn counts, costs and response times. It holds no diner names, phone numbers, email addresses or confirmation codes, no text written by the diner or the AI host (only the length of each message), and no other key that identifies a diner. Records in it are deleted after 365 days. Only a role that requires multi-factor authentication can query it. The records carry internal identifiers that link to the restaurant's data in WizScheduler until that data is deleted. We use them, and totals derived from them, to run, measure, secure and improve WizScheduler. Daily totals derived from it are shown to the restaurant in WizScheduler.
 
 I. NO SALE OF DINER DATA
 We do not sell diner data.
