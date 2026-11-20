@@ -7,6 +7,7 @@ import type {
   DinerEraseOut,
   FloorIn,
   FloorOut,
+  InsightsOut,
   MarkSpamOut,
   NumberRuleIn,
   NumberRuleOut,
@@ -141,4 +142,12 @@ export function markConversationSpam(conversationId: string): Promise<MarkSpamOu
 export function getScreeningStats(locationId?: string): Promise<ScreeningStatsOut> {
   const qs = locationId ? `?${new URLSearchParams({ location_id: locationId }).toString()}` : "";
   return apiFetch(`/reservations/screening-stats${qs}`);
+}
+
+/** The AI host's daily metrics at one location; `from`/`to` are inclusive UTC dates (default the 30 days ending yesterday). */
+export function getInsights(locationId: string, from?: string, to?: string): Promise<InsightsOut> {
+  const params = new URLSearchParams({ location_id: locationId });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return apiFetch(`/reservations/insights?${params.toString()}`);
 }

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.analytics.insights import InvalidRange, daily_metrics, insights_range
 from backend.config import settings
 from backend.dependencies import get_db, get_location_scope, require_manager
 from backend.models import Location, User
@@ -30,7 +31,8 @@ from backend.reservations.queries import (
 from backend.reservations.rules import RulesSchema, get_rules, save_rules, stored_fields
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerEraseOut, DinerPhoneIn, MarkSpamOut, NumberRuleIn, NumberRuleOut, NumberRulePatch,
+    DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
+    NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
@@ -626,6 +628,28 @@ async def read_screening_stats(
         db, str(user.company_id), scope, location_id, datetime.now(timezone.utc))
     return ScreeningStatsOut(days=number_rules.STATS_DAYS, blocked_list=stats.blocked_list,
                              blocked_ftc=stats.blocked_ftc, answered=stats.answered)
+
+
+@gated.get("/insights", response_model=InsightsOut)
+async def read_insights(
+    location_id: str,
+    start: date | None = Query(default=None, alias="from"),
+    end: date | None = Query(default=None, alias="to"),
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> InsightsOut:
+    """The AI host's daily metrics at one location, `from` to `to` inclusive
+    (UTC dates; default the 30 days ending yesterday, at most 180). History,
+    so an archived location still answers."""
+    await _location(db, scope, user, location_id, include_archived=True)
+    try:
+        start, end = insights_range(start, end, datetime.now(timezone.utc).date())
+    except InvalidRange as e:
+        raise HTTPException(status_code=422, detail={"code": e.code, "message": str(e)})
+    rows = await daily_metrics(db, str(user.company_id), location_id, start, end)
+    return InsightsOut(location_id=location_id, from_=start, to=end,
+                       days=[InsightsDayOut.of(m) for m in rows])
 
 
 router.include_router(gated)
