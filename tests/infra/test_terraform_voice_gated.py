@@ -270,3 +270,13 @@ def test_reservations_env_only_added_when_switch_on() -> None:
     m = re.search(r'variable "reservations_enabled" \{(.*?)\n\}', variables, re.S)
     assert m and "legal" in m.group(1).lower()
     assert "agent_reconcile_enabled" in m.group(1)
+
+
+def test_the_spoken_flow_greeting_discloses_the_automated_host() -> None:
+    """Callers hear the flow's own prompt before any backend turn, so the
+    disclosure must be in it (#259 launch task 5)."""
+    text = (TERRAFORM / "voice" / "contact_flow.json.tftpl").read_text()
+    prompts = re.findall(r'Text\s*=\s*"([^"]*)"', text)
+    assert prompts, "no spoken prompt found"
+    first = prompts[0].lower()
+    assert "automated" in first or "assistant" in first
