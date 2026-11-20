@@ -443,7 +443,23 @@ export default function ReservationsRules() {
                 onChange={(e) => patch({ persona: { ...form.persona, voice_id: e.target.value } })}
               />
             </Field>
-            <Field label={r.rules.greeting} hint={r.rules.greetingHint}>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-1"
+                disabled={!isAdmin}
+                checked={form.disclose_automated}
+                onChange={(e) => patch({ disclose_automated: e.target.checked })}
+              />
+              <span>
+                <span className="glass-label-sm">{r.rules.discloseAutomated}</span>
+                <span className={`block text-xs ${text.muted}`}>{r.rules.discloseAutomatedHint}</span>
+              </span>
+            </label>
+            <Field
+              label={r.rules.greeting}
+              hint={form.disclose_automated ? r.rules.greetingHint : r.rules.greetingHintNoDisclosure}
+            >
               <textarea
                 className={`${input} w-full`}
                 rows={2}

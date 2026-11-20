@@ -56,11 +56,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.dependencies import bind_rls_context, get_db
+from backend.models import Location
 from backend.reservations import screening, voice_numbers
+from backend.reservations.agent import gate
 from backend.reservations.agent import voice_turn as turn_service
 from backend.reservations.agent.core import AgentCore
 from backend.reservations.agent.gate import get_agent_core
@@ -114,8 +117,15 @@ async def voice_screen(
         await bind_rls_context(db, [company_id])
         decision, reason = await screening.screen(
             db, company_id, location_id, body.caller, datetime.now(timezone.utc))
+        greeting = ""
+        if decision == screening.ANSWER:
+            location = (await db.execute(select(Location).where(
+                Location.id == location_id, Location.company_id == company_id)
+            )).scalar_one_or_none()
+            if location is not None:
+                greeting = await gate.greeting(db, company_id, location)
         await db.commit()
-        return {"action": decision, "reason": reason}
+        return {"action": decision, "reason": reason, "greeting": greeting}
     finally:
         try:
             tenant_context.reset(token)

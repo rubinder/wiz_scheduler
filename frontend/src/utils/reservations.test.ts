@@ -105,6 +105,7 @@ describe("rules form conversion", () => {
       ...rules,
       provider: "mock_external" as const,
       mock_external: { max_covers_per_slot: 12, latency_ms: 250, failure_rate: 0.1 },
+      disclose_automated: false,
     };
     const form = payloadToRulesForm(stored);
     expect(form.provider).toBe("mock_external");
@@ -112,12 +113,16 @@ describe("rules form conversion", () => {
     const plain = rulesFormToPayload(form);
     expect(plain).not.toHaveProperty("provider");
     expect(plain).not.toHaveProperty("mock_external");
+    expect(plain).not.toHaveProperty("disclose_automated");
+    expect(form.disclose_automated).toBe(false);
     expect(rulesFormToPayload(form, true)).toEqual(stored);
   });
 
   it("defaults the provider fields for rules saved before them", () => {
     const form = payloadToRulesForm(rules);
     expect(form.provider).toBe("wizscheduler");
+    expect(form.disclose_automated).toBe(true);
+    expect(rulesFormToPayload(form, true).disclose_automated).toBe(true);
     expect(rulesFormToPayload(form, true).mock_external).toEqual({
       max_covers_per_slot: 40,
       latency_ms: 0,

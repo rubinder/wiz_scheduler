@@ -16,9 +16,9 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "cancel table reservations for diners.",
         f"All dates and times are the restaurant's local time ({timezone}).",
     ]
-    if persona.rendered_greeting():
+    if rules.custom_greeting():
         lines.append("Greeting to use when the conversation starts: "
-                     f"{persona.rendered_greeting()}")
+                     f"{rules.custom_greeting()}")
     if persona.facts:
         lines.append("Facts about the restaurant:")
         lines.extend(f"- {fact}" for fact in persona.facts)
@@ -35,6 +35,12 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "using the confirmation code and phone number.",
         "- Keep replies short and friendly.",
     ]
+    if not rules.disclose_automated:
+        # The greeting no longer says so, but the host still never passes
+        # itself off as a person. Added only when off, so the default prompt
+        # stays byte-identical.
+        lines.append("- Never say or imply that you are a person. If asked, say "
+                     "you are an automated assistant.")
     if voice and not rules.voice.voice_reply_max_sentences:
         lines.append("- This is a phone call: keep every reply under two short "
                      "sentences.")

@@ -39,7 +39,8 @@ def get_agent_core() -> AgentCore:
 
 async def greeting(db: AsyncSession, company_id: str, location: Location) -> str:
     rules, _ = await get_rules(db, company_id, location.id)
-    return rules.persona.rendered_greeting() or default_greeting(location.name)
+    return rules.custom_greeting() or default_greeting(location.name,
+                                                       rules.disclose_automated)
 
 
 def is_demo_location(company_id: str, location_id: str) -> bool:
@@ -49,9 +50,13 @@ def is_demo_location(company_id: str, location_id: str) -> bool:
             and location_id == settings.RESERVATIONS_DEMO_LOCATION_ID)
 
 
-def default_greeting(location_name: str) -> str:
-    """Says the host is automated (the disclosure a custom greeting must
-    keep too, rules.Persona). Shared by the web chat and the voice line."""
+def default_greeting(location_name: str, disclose_automated: bool = True) -> str:
+    """Says the host is automated unless the location turned the disclosure
+    off (rules.RulesSchema.disclose_automated). Shared by the web chat and
+    the voice line."""
+    if not disclose_automated:
+        return (f"Hi, you've reached {location_name}'s reservations line. "
+                "How can I help with your reservation?")
     return (f"Hi, you've reached {location_name}'s automated reservations assistant. "
             "How can I help with your reservation?")
 

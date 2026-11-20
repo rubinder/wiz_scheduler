@@ -2,7 +2,10 @@
 contact -> POST {BACKEND_URL}/api/v1/voice/screen -> {"action": ...}.
 
 The contact flow invokes this before the Lex bot (InvokeLambdaFunction,
-STRING_MAP response) and disconnects only on `{"action": "block"}`.
+STRING_MAP response) and disconnects only on `{"action": "block"}`. An
+answer also carries `greeting`, the first thing the caller hears: the
+backend's (which follows the location's automated-assistant disclosure
+setting), or FALLBACK_GREETING, which discloses, whenever it has none.
 
 Event fields (the Connect Lambda event):
 - `Details.ContactData.SystemEndpoint.Address` -> `dialed`;
@@ -37,7 +40,13 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 BACKEND_TIMEOUT_SECONDS = 1.0
-ANSWER = {"action": "answer"}
+# What the caller hears first when the backend gave no greeting (a failure,
+# an unknown number): it discloses the automated host, the safe default.
+# The backend's greeting follows the location's disclosure setting.
+FALLBACK_GREETING = ("Thanks for calling. You have reached an automated reservations "
+                     "assistant. How can I help you?")
+MAX_GREETING_CHARS = 1000
+ANSWER = {"action": "answer", "greeting": FALLBACK_GREETING}
 BLOCK = {"action": "block"}
 
 
@@ -87,6 +96,10 @@ class Screener:
         if action == "block":
             return dict(BLOCK)
         if action == "answer":
+            greeting = data.get("greeting")
+            if isinstance(greeting, str) and greeting.strip() \
+                    and len(greeting) <= MAX_GREETING_CHARS:
+                return {"action": "answer", "greeting": greeting}
             return dict(ANSWER)
         raise ScreenError("malformed reply")
 

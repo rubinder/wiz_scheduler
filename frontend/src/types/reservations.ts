@@ -115,6 +115,8 @@ export interface RulesSchema {
   /** Omitted on save by a regular manager: the server keeps the stored values (403 admin_only on a change). */
   provider?: BookingProviderName;
   mock_external?: MockExternalSettings;
+  /** The greeting says the host is automated (default true). Admin-only, omitted like `provider`. */
+  disclose_automated?: boolean;
 }
 
 export interface RulesOut {

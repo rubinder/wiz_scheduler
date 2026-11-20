@@ -1484,6 +1484,7 @@ const en = {
       code_exhausted: "Could not create a confirmation code. Please try again.",
       admin_only: "Only an admin can change this.",
       comped_cap_limit: "On a complimentary plan the daily spend cap cannot be above {cap}.",
+      greeting_missing_disclosure: "The greeting must tell diners the host is automated (include the word \"automated\"), or an admin must turn the disclosure off.",
       generic: "Something went wrong. Please try again.",
     },
     rules: {
@@ -1523,6 +1524,9 @@ const en = {
       voiceId: "Polly voice id",
       greeting: "Greeting",
       greetingHint: "Must tell diners the host is automated: include the word \"automated\". Leave empty to use the default greeting.",
+      discloseAutomated: "Say it's an automated assistant",
+      discloseAutomatedHint: "On by default. The greeting on web chat and phone tells diners they are talking to an automated assistant. Only an admin can turn this off; if you do, your restaurant is responsible for any disclosure the law requires. Either way the assistant never claims to be a person.",
+      greetingHintNoDisclosure: "Leave empty to use the default greeting.",
       facts: "Facts the assistant can share",
       addFact: "Add fact",
       transferNumber: "Staff transfer number",

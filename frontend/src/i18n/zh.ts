@@ -1476,6 +1476,7 @@ const zh = {
       code_exhausted: "无法生成确认码，请重试。",
       admin_only: "只有管理员可以更改此项。",
       comped_cap_limit: "免费方案的每日支出上限不能高于 {cap}。",
+      greeting_missing_disclosure: "问候语必须告知食客接待方是自动化的（请包含英文单词 \"automated\"），或由管理员关闭此告知。",
       generic: "出了点问题，请重试。",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const zh = {
       voiceId: "Polly 语音 ID",
       greeting: "问候语",
       greetingHint: "必须告知食客接待方是自动化的：请包含英文单词 \"automated\"。留空则使用默认问候语。",
+      discloseAutomated: "说明这是自动助手",
+      discloseAutomatedHint: "默认开启。网页聊天和电话的问候语会告诉食客他们正在与自动助手交谈。只有管理员可以关闭；关闭后，法律要求的任何告知由您的餐厅负责。无论如何，助手都不会自称是真人。",
+      greetingHintNoDisclosure: "留空则使用默认问候语。",
       facts: "助理可告知的信息",
       addFact: "添加信息",
       transferNumber: "转接店员的号码",

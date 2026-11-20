@@ -29,7 +29,9 @@ from backend.reservations.queries import (
     conversation_events, get_conversation, list_between, list_conversations,
     list_pending_approvals, table_labels,
 )
-from backend.reservations.rules import RulesSchema, get_rules, save_rules, stored_fields
+from backend.reservations.rules import (
+    DISCLOSURE_MESSAGE, RulesSchema, get_rules, missing_disclosure, save_rules, stored_fields,
+)
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
     DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
@@ -188,7 +190,7 @@ async def read_rules(
 
 # Rules fields only an admin may change (403 admin_only for a regular
 # manager whose save would change them).
-ADMIN_ONLY_RULES = ("provider", "mock_external")
+ADMIN_ONLY_RULES = ("provider", "mock_external", "disclose_automated")
 
 
 @gated.put("/locations/{location_id}/rules", response_model=RulesOut)
@@ -216,7 +218,11 @@ async def write_rules(
     if scope.restricted and any(getattr(body, k) != stored[k] for k in ADMIN_ONLY_RULES):
         raise HTTPException(status_code=403, detail={
             "code": "admin_only",
-            "message": "Only an admin can change the booking provider"})
+            "message": "Only an admin can change the booking provider "
+                       "or the automated-assistant disclosure"})
+    if missing_disclosure(body):
+        raise HTTPException(status_code=422, detail={
+            "code": "greeting_missing_disclosure", "message": DISCLOSURE_MESSAGE})
     if (body.provider == "mock_external" and stored["provider"] != "mock_external"
             and not settings.RESERVATIONS_MOCK_PROVIDER_ALLOWED):
         raise HTTPException(status_code=422, detail={

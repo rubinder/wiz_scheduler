@@ -1476,6 +1476,7 @@ const ind = {
       code_exhausted: "Tidak dapat membuat kode konfirmasi. Silakan coba lagi.",
       admin_only: "Hanya admin yang dapat mengubah ini.",
       comped_cap_limit: "Pada paket gratis, batas pengeluaran harian tidak boleh melebihi {cap}.",
+      greeting_missing_disclosure: "Sapaan harus memberi tahu tamu bahwa host ini otomatis (sertakan kata bahasa Inggris \"automated\"), atau admin harus mematikan pemberitahuan ini.",
       generic: "Terjadi kesalahan. Silakan coba lagi.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const ind = {
       voiceId: "ID suara Polly",
       greeting: "Sapaan",
       greetingHint: "Harus memberi tahu tamu bahwa host ini otomatis: sertakan kata bahasa Inggris \"automated\". Kosongkan untuk memakai sapaan bawaan.",
+      discloseAutomated: "Sebutkan bahwa ini asisten otomatis",
+      discloseAutomatedHint: "Aktif secara bawaan. Sapaan di chat web dan telepon memberi tahu tamu bahwa mereka berbicara dengan asisten otomatis. Hanya admin yang dapat mematikannya; jika dimatikan, restoran Anda bertanggung jawab atas pemberitahuan apa pun yang diwajibkan hukum. Bagaimanapun, asisten tidak pernah mengaku sebagai manusia.",
+      greetingHintNoDisclosure: "Kosongkan untuk memakai sapaan bawaan.",
       facts: "Fakta yang boleh disampaikan asisten",
       addFact: "Tambah fakta",
       transferNumber: "Nomor transfer ke staf",

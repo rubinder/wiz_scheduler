@@ -89,3 +89,8 @@ class VoiceScreenIn(BaseModel):
 class VoiceScreenOut(BaseModel):
     action: Literal["answer", "block"]
     reason: Literal["allow_list", "block_list", "ftc", "default", "withheld"]
+    # What the caller hears first when the call is answered: the location's
+    # greeting (agent/gate.greeting, which follows its automated-assistant
+    # disclosure setting). "" when blocked or the number is not a location's;
+    # the screen Lambda then supplies its own disclosing fallback.
+    greeting: str = ""

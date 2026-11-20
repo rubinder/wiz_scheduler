@@ -1476,6 +1476,7 @@ const fr = {
       code_exhausted: "Impossible de créer un code de confirmation. Veuillez réessayer.",
       admin_only: "Seul un administrateur peut modifier ceci.",
       comped_cap_limit: "Avec une formule offerte, le plafond de dépenses quotidien ne peut pas dépasser {cap}.",
+      greeting_missing_disclosure: "Le message d'accueil doit indiquer que l'hôte est automatisé (incluez le mot anglais \"automated\"), ou un administrateur doit désactiver cette mention.",
       generic: "Une erreur s'est produite. Veuillez réessayer.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const fr = {
       voiceId: "Identifiant de voix Polly",
       greeting: "Message d'accueil",
       greetingHint: "Doit indiquer aux clients que l'hôte est automatisé : incluez le mot anglais \"automated\". Laissez vide pour le message d'accueil par défaut.",
+      discloseAutomated: "Dire que c'est un assistant automatisé",
+      discloseAutomatedHint: "Activé par défaut. Le message d'accueil du chat web et du téléphone indique aux clients qu'ils parlent à un assistant automatisé. Seul un administrateur peut le désactiver ; dans ce cas, votre restaurant est responsable de toute information exigée par la loi. Dans tous les cas, l'assistant ne prétend jamais être une personne.",
+      greetingHintNoDisclosure: "Laissez vide pour le message d'accueil par défaut.",
       facts: "Informations que l'assistant peut donner",
       addFact: "Ajouter une information",
       transferNumber: "Numéro de transfert vers le personnel",

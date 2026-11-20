@@ -1476,6 +1476,7 @@ const vi = {
       code_exhausted: "Không thể tạo mã xác nhận. Vui lòng thử lại.",
       admin_only: "Chỉ quản trị viên mới có thể thay đổi mục này.",
       comped_cap_limit: "Với gói miễn phí, hạn mức chi tiêu hằng ngày không được vượt quá {cap}.",
+      greeting_missing_disclosure: "Lời chào phải cho thực khách biết người tiếp đón là tự động (hãy có từ tiếng Anh \"automated\"), hoặc quản trị viên phải tắt thông báo này.",
       generic: "Đã xảy ra lỗi. Vui lòng thử lại.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const vi = {
       voiceId: "Mã giọng Polly",
       greeting: "Lời chào",
       greetingHint: "Phải cho thực khách biết người tiếp đón là tự động: hãy có từ tiếng Anh \"automated\". Để trống để dùng lời chào mặc định.",
+      discloseAutomated: "Cho biết đây là trợ lý tự động",
+      discloseAutomatedHint: "Bật theo mặc định. Lời chào trên chat web và điện thoại cho thực khách biết họ đang nói chuyện với một trợ lý tự động. Chỉ quản trị viên mới có thể tắt; nếu tắt, nhà hàng của bạn chịu trách nhiệm về mọi thông báo mà pháp luật yêu cầu. Dù thế nào, trợ lý cũng không bao giờ tự nhận là con người.",
+      greetingHintNoDisclosure: "Để trống để dùng lời chào mặc định.",
       facts: "Thông tin trợ lý có thể chia sẻ",
       addFact: "Thêm thông tin",
       transferNumber: "Số chuyển máy cho nhân viên",

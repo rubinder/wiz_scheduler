@@ -5,8 +5,8 @@ from pydantic import ValidationError
 
 from backend.reservations.rules import (
     DateOverride,
-    Persona,
     RulesSchema,
+    missing_disclosure,
     ServicePeriod,
     get_rules,
     save_rules,
@@ -119,21 +119,45 @@ async def test_section_cover_limits_must_be_positive():
 
 
 async def test_a_custom_greeting_must_disclose_the_automated_host():
+    def rules(greeting: str, **kw):
+        return RulesSchema.model_validate(
+            {"persona": {"greeting": greeting}, "disclose_automated": True, **kw})
     with pytest.raises(ValidationError, match="automated"):
-        Persona(greeting="Ciao! Welcome to Luigi's.")
-    with pytest.raises(ValidationError, match="automated"):
-        RulesSchema.model_validate({"persona": {"greeting": "Hello there"}})
+        rules("Ciao! Welcome to Luigi's.")
     # "Assistant" alone does not say the host is a machine: a person can be one.
     with pytest.raises(ValidationError, match="automated"):
-        Persona(greeting="Luigi's reservations assistant here.")
+        rules("Luigi's reservations assistant here.")
     for ok in ("", "Hi, you've reached Luigi's AUTOMATED host.",
                "Luigi's automated reservations assistant here."):
-        assert Persona(greeting=ok).greeting == ok
+        assert rules(ok).custom_greeting() == ok
+
+
+async def test_with_the_disclosure_off_any_greeting_is_allowed_and_rendered():
+    r = RulesSchema.model_validate(
+        {"persona": {"greeting": "Ciao! Welcome to Luigi's."}, "disclose_automated": False})
+    assert r.custom_greeting() == "Ciao! Welcome to Luigi's."
+    # Turned back on, a hidden greeting is no longer rendered: the default is.
+    assert r.model_copy(update={"disclose_automated": True}).custom_greeting() == ""
+
+
+async def test_the_disclosure_is_on_by_default():
+    assert RulesSchema().disclose_automated is True
+
+
+async def test_a_write_that_omits_the_setting_is_checked_by_the_route_not_the_model():
+    """A regular manager's editor omits the admin-only setting; the route
+    checks the greeting against the stored value after merging."""
+    r = RulesSchema.model_validate({"persona": {"greeting": "Ciao! Welcome to Luigi's."}})
+    assert missing_disclosure(r)
+    assert not missing_disclosure(r.model_copy(update={"disclose_automated": False}))
 
 
 async def test_the_default_greetings_say_automated():
     from backend.reservations.agent.gate import default_greeting
     assert "automated" in default_greeting("Luigi's").lower()
+    assert "automated" in default_greeting("Luigi's", True).lower()
+    off = default_greeting("Luigi's", False)
+    assert "automated" not in off.lower() and "Luigi's" in off
 
 
 async def test_stored_rules_with_an_old_greeting_still_read(db_session, seed_location):
@@ -158,3 +182,9 @@ async def test_the_prompt_never_carries_a_greeting_without_the_disclosure():
     ok = RulesSchema(persona={"greeting": "Luigi's automated host here."})
     assert "Luigi's automated host here." in build_system_prompt(
         "Fixture", "America/New_York", ok, "voice")
+    off = RulesSchema(persona={"greeting": "Ciao! Welcome to Luigi's."},
+                      disclose_automated=False)
+    prompt = build_system_prompt("Fixture", "America/New_York", off, "web")
+    assert "Ciao! Welcome to Luigi's." in prompt
+    # Even with the disclosure off, the host never claims to be a person.
+    assert "Never say or imply that you are a person" in prompt

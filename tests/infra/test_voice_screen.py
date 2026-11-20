@@ -60,7 +60,7 @@ def make(http: FakeHttp, secret: str | None = SECRET,
                                                   ("answer", "answer")])
 def test_maps_backend_action(action: str, expected: str) -> None:
     http = FakeHttp({"action": action, "reason": "block_list"})
-    assert make(http).handle(event()) == {"action": expected}
+    assert make(http).handle(event())["action"] == expected
     [call] = http.calls
     assert call["url"] == URL + "/api/v1/voice/screen"
     assert call["headers"]["X-Voice-Bridge-Secret"] == SECRET
@@ -70,7 +70,7 @@ def test_maps_backend_action(action: str, expected: str) -> None:
 
 def test_withheld_caller_is_sent_as_empty_string() -> None:
     http = FakeHttp({"action": "answer", "reason": "withheld"})
-    assert make(http).handle(event(caller=None)) == {"action": "answer"}
+    assert make(http).handle(event(caller=None)) == screen.ANSWER
     assert http.calls[0]["body"]["caller"] == ""
 
 
@@ -88,19 +88,19 @@ def test_withheld_caller_is_sent_as_empty_string() -> None:
     (200, b"{}"),
 ])
 def test_fails_open(response: Any) -> None:
-    assert make(FakeHttp(response)).handle(event()) == {"action": "answer"}
+    assert make(FakeHttp(response)).handle(event()) == screen.ANSWER
 
 
 @pytest.mark.parametrize("bad", [None, {}, {"Details": None}, "nonsense", 7])
 def test_bad_event_fails_open_without_calling(bad: Any) -> None:
     http = FakeHttp()
-    assert make(http).handle(bad) == {"action": "answer"}
+    assert make(http).handle(bad) == screen.ANSWER
     assert http.calls == []
 
 
 def test_no_secret_or_url_fails_open() -> None:
-    assert make(FakeHttp(), secret=None).handle(event()) == {"action": "answer"}
-    assert make(FakeHttp(), url="").handle(event()) == {"action": "answer"}
+    assert make(FakeHttp(), secret=None).handle(event()) == screen.ANSWER
+    assert make(FakeHttp(), url="").handle(event()) == screen.ANSWER
 
 
 def test_404_drops_cached_secret() -> None:
@@ -112,7 +112,7 @@ def test_404_drops_cached_secret() -> None:
 
     http = FakeHttp((404, b""), {"action": "block", "reason": "ftc"})
     s = screen.Screener(URL, load, http)
-    assert s.handle(event()) == {"action": "answer"}
+    assert s.handle(event()) == screen.ANSWER
     assert s.handle(event()) == {"action": "block"}
     assert len(loads) == 2
 
@@ -132,7 +132,7 @@ def test_module_handler_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(screen, "_SCREENER", None)
     monkeypatch.delenv("BACKEND_URL", raising=False)
     monkeypatch.delenv("SECRET_ARN", raising=False)
-    assert screen.handler(event(), None) == {"action": "answer"}
+    assert screen.handler(event(), None) == screen.ANSWER
 
 
 def test_ci_zip_includes_screen() -> None:
@@ -211,7 +211,7 @@ def test_init_build_failure_leaves_handler_to_build_lazily(
     reload_screen()  # must not raise
     assert screen._SCREENER is None
     # the handler retries the build per call and still fails open meanwhile
-    assert screen.handler(event(), None) == {"action": "answer"}
+    assert screen.handler(event(), None) == screen.ANSWER
     assert screen._SCREENER is None
 
     def ok(arn: str | None) -> Any:
@@ -224,3 +224,16 @@ def test_init_build_failure_leaves_handler_to_build_lazily(
     monkeypatch.setattr(screen, "Screener", build)
     assert screen.handler(event(), None) == {"action": "block"}
     assert screen._SCREENER is not None
+
+
+def test_an_answer_passes_the_backends_greeting_through() -> None:
+    http = FakeHttp({"action": "answer", "reason": "default", "greeting": "Hi, Luigi's here."})
+    assert make(http).handle(event()) == {"action": "answer", "greeting": "Hi, Luigi's here."}
+
+
+@pytest.mark.parametrize("greeting", ["", "   ", None, 5, "x" * 1001])
+def test_a_missing_or_bad_greeting_gets_the_disclosing_fallback(greeting) -> None:
+    http = FakeHttp({"action": "answer", "reason": "default", "greeting": greeting})
+    out = make(http).handle(event())
+    assert out == screen.ANSWER
+    assert "automated" in out["greeting"].lower()

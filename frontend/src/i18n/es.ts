@@ -1476,6 +1476,7 @@ const es = {
       code_exhausted: "No se pudo crear un código de confirmación. Inténtalo de nuevo.",
       admin_only: "Solo un administrador puede cambiar esto.",
       comped_cap_limit: "En un plan gratuito, el límite de gasto diario no puede superar {cap}.",
+      greeting_missing_disclosure: "El saludo debe decir a los comensales que el anfitrión es automatizado (incluye la palabra en inglés \"automated\"), o un administrador debe desactivar el aviso.",
       generic: "Algo salió mal. Inténtalo de nuevo.",
     },
     rules: {
@@ -1515,6 +1516,9 @@ const es = {
       voiceId: "Id de voz de Polly",
       greeting: "Saludo",
       greetingHint: "Debe decir a los comensales que el anfitrión es automatizado: incluye la palabra en inglés \"automated\". Déjalo vacío para usar el saludo predeterminado.",
+      discloseAutomated: "Decir que es un asistente automatizado",
+      discloseAutomatedHint: "Activado por defecto. El saludo del chat web y del teléfono dice a los comensales que hablan con un asistente automatizado. Solo un administrador puede desactivarlo; si lo hace, su restaurante es responsable de cualquier aviso que exija la ley. En cualquier caso, el asistente nunca dice ser una persona.",
+      greetingHintNoDisclosure: "Déjalo vacío para usar el saludo predeterminado.",
       facts: "Datos que el asistente puede compartir",
       addFact: "Añadir dato",
       transferNumber: "Número de transferencia al personal",

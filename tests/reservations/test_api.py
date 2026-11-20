@@ -124,6 +124,46 @@ async def test_rules_put_rejects_a_greeting_that_hides_the_automated_host(
     r = await client.put(f"{BASE}/locations/{LOCATION_ID}/rules", json=rules, headers=h)
     assert r.status_code == 200, r.text
 
+async def test_an_admin_can_turn_the_disclosure_off_and_then_use_any_greeting(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    url = f"{BASE}/locations/{LOCATION_ID}/rules"
+    rules = (await client.get(url, headers=h)).json()["rules"]
+    assert rules["disclose_automated"] is True
+    rules["persona"]["greeting"] = "Ciao! Welcome to Luigi's."
+    rules["disclose_automated"] = False
+    r = await client.put(url, json=rules, headers=h)
+    assert r.status_code == 200, r.text
+    got = (await client.get(url, headers=h)).json()["rules"]
+    assert got["disclose_automated"] is False
+    assert got["persona"]["greeting"] == "Ciao! Welcome to Luigi's."
+    # Turning it back on with that greeting is refused.
+    rules["disclose_automated"] = True
+    r = await client.put(url, json=rules, headers=h)
+    assert r.status_code == 422 and "automated" in r.text
+
+
+async def test_a_regular_manager_cannot_change_the_disclosure_but_keeps_the_admins_choice(
+        client, manager_token, regular_token, seed_location):
+    url = f"{BASE}/locations/{LOCATION_ID}/rules"
+    rules = (await client.get(url, headers=_auth(regular_token))).json()["rules"]
+    r = await client.put(url, json={**rules, "disclose_automated": False},
+                         headers=_auth(regular_token))
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "admin_only"
+
+    # The admin turns it off and sets a plain greeting.
+    off = {**rules, "disclose_automated": False,
+           "persona": {**rules["persona"], "greeting": "Ciao! Welcome to Luigi's."}}
+    assert (await client.put(url, json=off, headers=_auth(manager_token))).status_code == 200
+    # A regular manager's editor omits the setting: the save keeps it off and
+    # the plain greeting passes against the stored setting.
+    mine = {k: v for k, v in off.items() if k != "disclose_automated"}
+    r = await client.put(url, json=mine, headers=_auth(regular_token))
+    assert r.status_code == 200, r.text
+    got = (await client.get(url, headers=_auth(manager_token))).json()["rules"]
+    assert got["disclose_automated"] is False
+
+
 async def test_rules_put_without_voice_keeps_stored_voice(client, manager_token, seed_location):
     h = _auth(manager_token)
     rules = (await client.get(f"{BASE}/locations/{LOCATION_ID}/rules", headers=h)).json()["rules"]

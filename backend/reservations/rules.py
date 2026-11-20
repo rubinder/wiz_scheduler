@@ -74,6 +74,9 @@ ProviderName = Literal["wizscheduler", "mock_external"]
 # existing rules keep reading.
 STORED = {"stored": True}
 
+DISCLOSURE_MESSAGE = ("the greeting must tell diners the host is automated: "
+                      "include the word 'automated', or turn the disclosure off")
+
 
 def discloses_automation(greeting: str) -> bool:
     """The greeting tells the diner the host is automated: it says
@@ -82,26 +85,22 @@ def discloses_automation(greeting: str) -> bool:
     return "automated" in greeting.lower()
 
 
+def missing_disclosure(rules: "RulesSchema") -> bool:
+    """A custom greeting that hides the automated host while the location
+    discloses it."""
+    g = rules.persona.greeting
+    return bool(rules.disclose_automated and g and not discloses_automation(g))
+
+
 class Persona(BaseModel):
     voice_id: str = "Joanna"
-    # Empty: the default greeting (agent/gate.greeting). A custom greeting
-    # must say the host is automated; a stored one that does not (saved
-    # before the rule) reads, but is never rendered: the default is.
+    # Empty: the default greeting (agent/gate.greeting). While the location
+    # discloses the automated host (RulesSchema.disclose_automated), a custom
+    # greeting must say so; a stored one that does not (saved before the rule,
+    # or while the disclosure was off) reads, but is never rendered: the
+    # default is.
     greeting: str = ""
     facts: list[str] = []
-
-    @field_validator("greeting")
-    @classmethod
-    def _discloses(cls, v: str, info: ValidationInfo) -> str:
-        if v and not (info.context or {}).get("stored") and not discloses_automation(v):
-            raise ValueError("the greeting must tell diners the host is automated: "
-                             "include the word 'automated'")
-        return v
-
-    def rendered_greeting(self) -> str:
-        """The custom greeting, or "" (use the default) when it is unset or
-        does not disclose the automated host."""
-        return self.greeting if discloses_automation(self.greeting) else ""
 
 
 def _default_durations() -> list[DurationBand]:
@@ -142,6 +141,11 @@ class RulesSchema(BaseModel):
     # the mock's knobs.
     provider: ProviderName = "wizscheduler"
     mock_external: MockExternalSettings = Field(default_factory=MockExternalSettings)
+    # The greeting (web chat and phone) tells diners the host is an automated
+    # assistant. On by default; an admin may turn it off, and the restaurant
+    # is then responsible for any disclosure the law requires (terms 12.F).
+    # Admin-only. Whether on or off, the host never claims to be a person.
+    disclose_automated: bool = True
 
     @field_validator("durations")
     @classmethod
@@ -164,6 +168,24 @@ class RulesSchema(BaseModel):
         if self.max_party_size < self.max_self_book_party:
             raise ValueError("max_party_size must be >= max_self_book_party")
         return self
+
+    @model_validator(mode="after")
+    def _greeting_discloses(self, info: ValidationInfo) -> "RulesSchema":
+        # Checked here only when the write states disclose_automated; a write
+        # that omits it (a regular manager's editor) keeps the stored value,
+        # and the rules route checks the merged rules (missing_disclosure).
+        if ((info.context or {}).get("stored")
+                or "disclose_automated" not in self.model_fields_set):
+            return self
+        if missing_disclosure(self):
+            raise ValueError(DISCLOSURE_MESSAGE)
+        return self
+
+    def custom_greeting(self) -> str:
+        """The custom greeting, or "" (use the default) when it is unset, or
+        when the location discloses the automated host and it does not."""
+        g = self.persona.greeting
+        return g if (not self.disclose_automated or discloses_automation(g)) else ""
 
     def band_for(self, party_size: int) -> DurationBand:
         for band in self.durations:
