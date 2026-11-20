@@ -399,6 +399,36 @@ so turning voice back on within a week fails on the name; either wait, or
 delete it outright first:
 `aws secretsmanager delete-secret --secret-id wizscheduler/prod/VOICE_BRIDGE_SECRET --force-delete-without-recovery`.
 
+## Analytics lake (#259 step 10) — off by default
+
+`analytics.tf` holds the AI host analytics lake. Every resource is gated on
+`analytics_enabled` (default `false`): with default vars the plan is empty
+and the ECS task definition is unchanged. Turning it on creates:
+
+- the lake bucket `wizscheduler-analytics-lake-<account>` (private,
+  bucket-owner-enforced, AWS-default SSE-S3, TLS only; objects expire after
+  `analytics_retention_days`, default 365);
+- the Athena results bucket `wizscheduler-athena-results-<account>` (same
+  controls, 30-day expiry);
+- the Glue database `wizscheduler_analytics` and one table per lake table,
+  columns generated from `backend/analytics/schemas.py` into
+  `analytics_columns.tf.json`, with partition projection on `dt`;
+- the Athena workgroup `wizscheduler-analytics` (enforced configuration,
+  1 GiB scan cutoff per query);
+- a task-role policy letting the app put, get, list and delete under
+  `lake/` only, and `ANALYTICS_BUCKET` in the task's environment;
+- the policy `wizscheduler-analytics-reader`, attached to nobody; attach it
+  to the owner's IAM user (`analytics/README.md`, "Access");
+- the nightly job at `analytics_schedule` (default `cron(30 6 * * ? *)`),
+  `python -m backend.scripts.run_agent_analytics` on the service's task
+  definition.
+
+Turning it on changes the task definition (the new env var), so the service
+redeploys. Apply the SQL views afterwards with `analytics/apply_views.sh`.
+The lake bucket has no `prevent_destroy`: turning the flag off deletes it,
+and an apply fails while it still holds objects. Empty it first if you mean
+to.
+
 ## Variables Reference
 
 | Variable | Default | Description |

@@ -188,6 +188,26 @@ variable "ftc_ingest_enabled" {
   default     = false
 }
 
+# --- AI host analytics lake (#259 step 10) — everything is behind analytics_enabled ---
+
+variable "analytics_enabled" {
+  description = "Create the analytics lake, Glue tables, Athena workgroup, IAM and the nightly job (analytics.tf), and set ANALYTICS_BUCKET in the ECS task. Off by default; nothing billable exists while false."
+  type        = bool
+  default     = false
+}
+
+variable "analytics_schedule" {
+  description = "EventBridge schedule for the nightly analytics job (D-1 and D-2). Default 06:30 UTC, after the 05:00 agent reconcile."
+  type        = string
+  default     = "cron(30 6 * * ? *)"
+}
+
+variable "analytics_retention_days" {
+  description = "Days the analytics lake keeps each object before S3 expires it."
+  type        = number
+  default     = 365
+}
+
 variable "ftc_ingest_schedule" {
   description = "EventBridge schedule for the FTC ingest. Default Monday 18:00 UTC, after the FTC's noon Eastern publish."
   type        = string
