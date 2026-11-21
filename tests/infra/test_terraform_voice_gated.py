@@ -49,14 +49,26 @@ def test_every_block_is_gated(filename: str, flag: str) -> None:
     assert ungated == [], f"not gated on var.{flag}: {ungated}"
 
 
-@pytest.mark.parametrize("flag", ["voice_enabled", "voice_provisioning_enabled",
-                                  "agent_reconcile_enabled", "ftc_ingest_enabled",
-                                  "analytics_enabled", "reservations_enabled"])
-def test_flags_default_false(flag: str) -> None:
+def _default(flag: str) -> str:
     text = (TERRAFORM / "variables.tf").read_text()
     m = re.search(rf'variable "{flag}" \{{(.*?)\n\}}', text, re.S)
     assert m, f"variable {flag} missing"
-    assert re.search(r"^\s*default\s*=\s*false\s*$", m.group(1), re.M)
+    d = re.search(r"^\s*default\s*=\s*(true|false)\s*$", m.group(1), re.M)
+    assert d, f"variable {flag} has no boolean default"
+    return d.group(1)
+
+
+@pytest.mark.parametrize("flag", ["voice_enabled", "voice_provisioning_enabled",
+                                  "ftc_ingest_enabled", "analytics_enabled"])
+def test_flags_default_false(flag: str) -> None:
+    assert _default(flag) == "false"
+
+
+def test_reservations_and_reconcile_switched_on_together() -> None:
+    """Switched on after legal PR #284 (decision 97); decision 45 keeps the
+    two equal."""
+    assert _default("reservations_enabled") == "true"
+    assert _default("agent_reconcile_enabled") == "true"
 
 
 def test_ecs_task_definition_unchanged_with_voice_off() -> None:

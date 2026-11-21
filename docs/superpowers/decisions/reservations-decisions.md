@@ -580,6 +580,17 @@ Decisions made while building without stopping to ask (owner instruction,
     untrue: analytics is called "pseudonymous", not "anonymous", and
     Anthropic is no longer said to keep nothing after a request. The PR
     stays a draft for the lawyer.
+97. **Switch-on before Stripe and the origin secret (owner, 2026-11-21).**
+    The owner approved PR #284 as their own lawyer and it merged
+    (704fc517); `reservations_enabled` and `agent_reconcile_enabled` were
+    then defaulted to true in `terraform/variables.tf` (CI does not read
+    the gitignored tfvars), with
+    `analytics_enabled` and voice left off. `RESERVATIONS_PRICE_ID` is not
+    set yet, so subscribing answers 503 `not_configured` and no customer
+    location gets a public chat; only the comped demo location does,
+    bounded by `COMPED_DAILY_CAP_USD`. `PUBLIC_ORIGIN_SECRET` is not set, so
+    the two-key rate limits apply (decision 28). Cost if wrong: the demo
+    chat spends up to $3 a day of operator model cost.
 
 ## Before switching reservations on (owner checklist)
 
