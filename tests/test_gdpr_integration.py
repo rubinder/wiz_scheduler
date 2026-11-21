@@ -45,8 +45,13 @@ async def test_privacy_policy(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/privacy-policy")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.3"
+    assert data["version"] == "2.4"
     assert "PRIVACY POLICY" in data["content"]
+    # #259 draft: diners of a restaurant using the AI host, retained for
+    # RETENTION_RESERVATIONS_DAYS.
+    assert "DINERS OF RESTAURANTS THAT USE THE AI HOST" in data["content"]
+    assert settings.RETENTION_RESERVATIONS_DAYS == 365
+    assert "1 year" in data["content"]
 
 
 # ---------------------------------------------------------------------------
@@ -58,8 +63,16 @@ async def test_terms_of_service(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/terms")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.2"
+    assert data["version"] == "2.3"
     assert "TERMS OF SERVICE" in data["content"]
+    # #259 draft: the AI host subscription's price, included usage, markup
+    # and number release hold come from settings.
+    content = data["content"]
+    assert "AI HOST SUBSCRIPTION" in content
+    assert f"${settings.RESERVATIONS_PRICE_MONTHLY_USD:.2f} per month" in content
+    assert f"${settings.RESERVATIONS_INCLUDED_USAGE_USD:.2f} of billed usage" in content
+    assert f"cost multiplied by {settings.RESERVATIONS_USAGE_MARKUP}" in content
+    assert f"{settings.VOICE_RELEASE_HOLD_DAYS} days after" in content
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +84,7 @@ async def test_data_processing_agreement(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/dpa")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.3"
+    assert data["version"] == "2.4"
     assert "DATA PROCESSING AGREEMENT" in data["content"]
     # #172: termination timing matches SUBSCRIPTION_GRACE_DAYS, and pay records
     # have a stated retention period.
@@ -81,6 +94,12 @@ async def test_data_processing_agreement(client: AsyncClient):
     assert "RESPONSIBILITY WHEN NO ARCHIVE IS BOUGHT" in data["content"]
     assert len(data["processors"]) > 0
     assert any(p["name"] == "Anthropic" for p in data["processors"])
+    # #259 draft: AWS carries the AI host's voice channel; Stripe bills.
+    aws = next((p for p in data["processors"]
+                if p["name"] == "Amazon Web Services"), None)
+    assert aws is not None and "us-east-1" in aws["location"]
+    assert any(p["name"] == "Stripe" for p in data["processors"])
+    assert "Diners of the Controller's restaurants" in data["content"]
 
 
 # ---------------------------------------------------------------------------

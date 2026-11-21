@@ -1,7 +1,7 @@
 DATA PROCESSING AGREEMENT FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: November 15, 2026
+Last Updated: November 20, 2026
 
 1. SCOPE AND PURPOSE
 This Data Processing Agreement ("DPA") forms part of the Terms of Service between Suggestival LLC, operating as WizScheduler ("Processor") and the customer organization ("Controller"). It governs the processing of personal data by the Processor on behalf of the Controller in connection with the WizScheduler scheduling service, in accordance with the General Data Protection Regulation (GDPR), CCPA, and other applicable data protection laws.
@@ -20,6 +20,7 @@ A. SCOPE
 - Subject Matter: Provision of AI-powered employee scheduling services.
 - Duration: For the term of the service agreement, plus as required for legal compliance.
 - Nature and Purpose: Storage, retrieval, transmission to AI models, and optimization of employee scheduling data.
+- AI Host (where the Controller subscribes to it): taking, changing, cancelling and looking up reservations with the Controller's diners by web chat and phone, screening phone calls, and passing diners to the Controller's staff.
 
 B. TYPES OF PERSONAL DATA
 - Employee names, email addresses, phone numbers
@@ -30,14 +31,27 @@ B. TYPES OF PERSONAL DATA
 - Pay rate information, overtime signals
 - Check-in activity (location, date, time)
 - Technical data (IP addresses, device identifiers)
+- Diner data, where the Controller uses the AI host: diner names, phone numbers, email addresses (if the Controller records them), party sizes, reservation dates, times, notes, statuses and confirmation codes, transcripts of web chat and phone conversations with the AI host, caller ID numbers, keyed hashes of web chat IP addresses, and the Controller's allow and block list entries for phone numbers
 
 C. CATEGORIES OF DATA SUBJECTS
 - Employees of the Controller's organization
 - Managers and administrators
+- Diners of the Controller's restaurants who contact the restaurant through the AI host, or whose reservations the Controller records in the Service
 
 D. DURATION
 - During active subscription: Data is retained and processed.
 - After termination: When the subscription is cancelled, the account becomes read-only for 90 days, during which the Controller can reactivate it or export its data. At the end of those 90 days all Personal Data is deleted, except as set out in Section 12B.
+
+E. DINER DATA (AI HOST)
+For diner data, as for employee data, the Controller is the controller and the Processor processes it on the Controller's documented instructions. The Controller instructs the following:
+- Retention: conversation transcripts are deleted 1 year after the conversation started; diner names, phone numbers, email addresses and notes are removed from reservations 1 year after the reservation's end time, and the reservation is kept without them for the Controller's statistics; call screening records are deleted after 1 year; allow and block list entries are deleted 1 year after they expire (entries without an expiry stay until the Controller removes them); failed booking lookup records are deleted after 1 day
+- Call screening: before the AI host answers a call, the caller ID number is checked against the Controller's allow and block lists and against the U.S. Federal Trade Commission's published Do Not Call reported-calls data. A number with at least 3 reports in the last 90 days is blocked unless the Controller has allowed it. Calls with a withheld caller ID are answered. Screening records keep only a keyed hash of the caller number
+- Phone calls are not recorded. Amazon Connect Contact Lens and Amazon Lex conversation logs are not turned on. Amazon Connect call flow logging is switched off at the start of every call, so the flow logs do not record caller ID numbers, and any flow logs are deleted after 1 day. Amazon Connect keeps its own contact record of each call, including the caller ID number, for the period AWS sets for Amazon Connect contact records (currently 24 months); that record is held by AWS under its own terms and is outside the retention periods above
+- Automated-assistant disclosure: by default the AI host tells every diner at the start of a web chat or phone call that it is an automated assistant, and a custom greeting set by the Controller must keep that disclosure. The Controller's administrator may turn the disclosure off for a location; the AI host then still never says it is a person and, if asked, says it is an automated assistant. Whether the disclosure is required, and any other notice to, or consent from, diners or callers that applies to the Controller (for example on call handling, automated systems or marketing), is the Controller's responsibility
+- Diner rights requests: diners are not users of the Service, so they make access and erasure requests to the Controller. The Service gives the Controller's managers tools to export and to erase one diner's data at a location by the diner's phone number, and to erase a single reservation and its conversations by its confirmation code. Erasure deletes the diner's conversations and that location's allow and block list entries for the number, and removes the diner's contact details and notes from the reservations; entries that apply to all of the Controller's locations are removed by the Controller's administrator. Conversations are found by the caller ID number they came from, or by their link to a reservation made with that phone number; a web chat that did not lead to a reservation, and a call made with a withheld number, are not found by phone number. A conversation with a turn in progress at the moment of erasure is closed rather than deleted, and is deleted when the erasure is run again. Allow and block list entries that apply to all of the Controller's locations are not removed by a location erasure; removing them, where the Controller decides an erasure request requires it, is the Controller's responsibility. A reservation whose contact details and notes have been removed (by retention or erasure) keeps its party size, dates, times and status, which the Controller agrees no longer identify a diner, and which the Processor keeps for the Controller's statistics and the Service's analytics
+- Analytics: the Processor keeps per-conversation, per-reservation, per-screening-decision and per-charge records of the AI host's performance in an analytics store (Amazon S3, AWS Glue and Amazon Athena, us-east-1). The records hold no diner names, phone numbers, email addresses, confirmation codes, conversation text (only message lengths) or other diner keys, are deleted after 365 days, and can be queried only through a role that requires multi-factor authentication. The records are pseudonymous: they carry internal conversation, reservation and location identifiers that link to the Controller's data in the Service until that data is deleted by retention or erasure. The Controller authorizes the Processor to use these records, and aggregate statistics derived from them, to operate, measure, secure and improve the Service, including after the Controller's account ends for the rest of the records' 365-day life
+- Amazon Lex and Amazon Polly: speech sent to Amazon Lex and the replies sent to Amazon Polly are processed under AWS's service terms, which allow AWS to store and use that content to develop and improve its AI services unless an AWS AI services opt-out policy applies. The Processor has not set an opt-out policy
+- The AI host and its sub-processors (Section 5.A) are used only for a Controller that subscribes to the AI host, and subscribing is the Controller's authorization of them for its diner data
 
 4. OBLIGATIONS OF THE PROCESSOR
 
@@ -101,10 +115,12 @@ The Processor shall notify the Controller without undue delay, and in any case w
 
 A. AUTHORIZED SUB-PROCESSORS
 The Controller authorizes the use of the following sub-processors listed in the processors table of this document:
-- Anthropic (AI schedule generation)
+- Anthropic (AI schedule generation; AI host conversations with diners). Anthropic processes this data through its commercial API, does not use it to train its models, and keeps it only for the limited period its commercial terms allow (for example for trust and safety review)
 - 7shifts, Deputy, Homebase (data export/import)
 - Resend (email delivery)
 - Cloud infrastructure provider (data hosting)
+- Amazon Web Services, region us-east-1 (AI host phone calls and the AI host analytics store: Amazon Connect, Amazon Lex, Amazon Polly, AWS Lambda, Amazon S3, AWS Glue and Amazon Athena)
+- Stripe (subscription billing and card payments, including the AI host subscription), in the United States and the other countries where Stripe operates
 
 B. SUB-PROCESSOR CHANGES
 The Processor shall:
@@ -131,6 +147,8 @@ C. RECIPIENT COUNTRIES
 Personal Data may be transferred to:
 - United States (Anthropic, Resend, cloud infrastructure)
 - Canada (7shifts)
+- United States, region us-east-1 (Amazon Web Services, for the AI host)
+- United States (Stripe)
 - Other jurisdictions as required for service delivery
 
 7. SECURITY MEASURES

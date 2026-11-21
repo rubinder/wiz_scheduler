@@ -1,10 +1,10 @@
 [
   {
     "name": "Anthropic",
-    "purpose": "AI-powered schedule generation via Claude API",
-    "data_processed": "Employee names, roles, skill levels, availability windows, and interpersonal affinity scores",
+    "purpose": "AI-powered schedule generation via Claude API; AI host replies to the Controller's diners (web chat and phone) via Claude API",
+    "data_processed": "Employee names, roles, skill levels, availability windows, and interpersonal affinity scores; for the AI host: diner conversation text and the reservation details the AI host looks up (diner names, phone numbers, party sizes, reservation dates and times)",
     "location": "United States",
-    "safeguards": "Data transmitted via encrypted API calls; not retained beyond request lifecycle; not used for model training"
+    "safeguards": "Data transmitted via encrypted API calls; processed through Anthropic's commercial API; not used for model training; kept by Anthropic only for the limited period its commercial terms allow (for example for trust and safety review)"
   },
   {
     "name": "7shifts",
@@ -26,5 +26,19 @@
     "data_processed": "All application data including user accounts, employee profiles, availability, schedules, and consent records",
     "location": "Configured per deployment",
     "safeguards": "Encryption at rest and in transit; access restricted to application service; regular backups with encryption"
+  },
+  {
+    "name": "Amazon Web Services",
+    "purpose": "AI host phone calls (Amazon Connect telephony, Amazon Lex speech recognition, Amazon Polly speech synthesis, AWS Lambda) and the AI host analytics store (Amazon S3, AWS Glue, Amazon Athena)",
+    "data_processed": "Diner call audio, caller ID numbers, recognized speech and the AI host's spoken replies; analytics records (one per conversation, reservation, screening decision and charge) hold no diner names, phone numbers, email addresses, confirmation codes or conversation text",
+    "location": "United States (us-east-1)",
+    "safeguards": "Calls are not recorded; Contact Lens and Lex conversation logs are not turned on; Connect call flow logging is switched off at the start of every call and any flow logs are deleted after 1 day; Connect keeps its own contact records (including the caller ID number) for the period AWS sets, currently 24 months; Lex and Polly content is processed under AWS's service terms with no AI services opt-out policy set; Lambda logs hold no caller numbers or speech and are deleted after 14 days; Lambda calls to WizScheduler use HTTPS; analytics records hold no diner identifiers or conversation text, are deleted after 365 days, and are readable only through a role that requires multi-factor authentication"
+  },
+  {
+    "name": "Stripe",
+    "purpose": "Subscription billing and card payments, including the AI host subscription",
+    "data_processed": "Customer billing contact details, payment card details, invoices, and AI host usage amounts per billing period; no diner data",
+    "location": "United States and other countries where Stripe operates",
+    "safeguards": "Card details are collected by Stripe Checkout and not stored by WizScheduler; encrypted in transit"
   }
 ]
