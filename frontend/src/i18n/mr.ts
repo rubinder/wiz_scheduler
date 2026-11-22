@@ -1657,7 +1657,7 @@ const mr = {
       title: "AI होस्ट बिलिंग",
       description: "आरक्षण AI होस्टची स्वतःची सदस्यता आहे, जी शेड्युलिंगपासून वेगळी आहे.",
       cardTitle: "AI होस्ट सदस्यता",
-      price: "दरमहा {price}, {included} वापर समाविष्ट, त्यानंतर आमचा खर्च + {markup}%",
+      price: "दरमहा {price}, आमच्या खर्चापैकी {included} समाविष्ट, त्यानंतर आमचा खर्च + {markup}%",
       compedPrice: "मोफत प्लॅन",
       subscribe: "सदस्यता घ्या",
       redirecting: "पेमेंटकडे नेत आहोत...",

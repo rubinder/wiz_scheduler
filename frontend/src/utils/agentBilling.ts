@@ -60,13 +60,13 @@ function priceAmount(amount: number, locale: string): string {
 /** The price line's placeholders, from the API (the server's settings), never hardcoded. */
 export function priceValues(
   s: Pick<ReservationAgentStatus, "price_usd_monthly" | "usage_markup"> & {
-    usage: Pick<AgentUsage, "included_usd">;
+    usage: Pick<AgentUsage, "included_cost_usd">;
   },
   locale: string,
 ): { price: string; included: string; markup: string } {
   return {
     price: priceAmount(s.price_usd_monthly, locale),
-    included: priceAmount(s.usage.included_usd, locale),
+    included: priceAmount(s.usage.included_cost_usd, locale),
     markup: String(Math.round((s.usage_markup - 1) * 100)),
   };
 }

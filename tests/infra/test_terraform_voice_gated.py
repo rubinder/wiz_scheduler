@@ -276,7 +276,8 @@ def test_reservations_env_only_added_when_switch_on() -> None:
     text = (TERRAFORM / "ecs.tf").read_text()
     assert re.search(
         r'var\.reservations_enabled \? \[\s*\{\s*(?:#[^\n]*\s*)*name\s*=\s*"RESERVATIONS_ENABLED"\s*'
-        r'value\s*=\s*"true"\s*\},?\s*\] : \[\]', text)
+        r'value\s*=\s*"true"\s*\},\s*\{\s*(?:#[^\n]*\s*)*name\s*=\s*"RESERVATIONS_PRICE_ID"\s*'
+        r'value\s*=\s*var\.reservations_price_id\s*\},?\s*\] : \[\]', text)
     assert text.count("RESERVATIONS_ENABLED") == 1
     variables = (TERRAFORM / "variables.tf").read_text()
     m = re.search(r'variable "reservations_enabled" \{(.*?)\n\}', variables, re.S)

@@ -51,6 +51,7 @@ from backend.reservations.subscription import (
     ReservationSubscription,
     daily_cap,
     for_group,
+    included_billed,
     period_start_for,
     period_usage,
     spend_today,
@@ -613,8 +614,8 @@ def _cents(amount: Decimal) -> int:
 
 
 def _overage_description(period: str) -> str:
-    included = Decimal(str(settings.RESERVATIONS_INCLUDED_USAGE_USD)).quantize(_CENT)
-    return f"AI host usage over ${included} — {period}"
+    included = Decimal(str(settings.RESERVATIONS_INCLUDED_COST_USD)).quantize(_CENT)
+    return f"AI host usage over the included ${included} of cost — {period}"
 
 
 def _item_metadata(og_id: str, period: str, sub_id: str) -> dict[str, str]:
@@ -798,7 +799,7 @@ async def _overage_for(db: AsyncSession, og_id: str, period_start: datetime) -> 
     """(billed usage, overage) of one period: overage = usage over the
     included amount, never negative."""
     used = await period_usage(db, og_id, period_start)
-    included = Decimal(str(settings.RESERVATIONS_INCLUDED_USAGE_USD))
+    included = included_billed()
     return used, max(Decimal(0), used - included).quantize(_CENT)
 
 
@@ -1858,7 +1859,7 @@ async def status_summary(
     """Subscription state, this period's usage and each location's spend
     today against its cap (the company's active locations)."""
     row = await for_group(db, og_id)
-    included = Decimal(str(settings.RESERVATIONS_INCLUDED_USAGE_USD))
+    included = included_billed()
     period_start = usage_period_start(row, now)
     billed = await period_usage(db, og_id, period_start)
     locations = (await db.execute(
@@ -1887,6 +1888,7 @@ async def status_summary(
             "period_start": period_start.isoformat(),
             "billed_usd": _money(billed),
             "included_usd": _money(included),
+            "included_cost_usd": _money(Decimal(str(settings.RESERVATIONS_INCLUDED_COST_USD))),
             "overage_usd": _money(max(Decimal(0), billed - included)),
         },
         "locations": per_location,

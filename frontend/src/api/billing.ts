@@ -245,7 +245,10 @@ export interface AgentLocationSpend {
 export interface AgentUsage {
   period_start: string;
   billed_usd: number;
+  /** Billed usage the period includes: included_cost_usd at the markup. */
   included_usd: number;
+  /** Our cost the period includes (decision 98); the price line shows this. */
+  included_cost_usd: number;
   overage_usd: number;
 }
 

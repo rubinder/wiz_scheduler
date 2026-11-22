@@ -1657,7 +1657,7 @@ const zh = {
       title: "AI 接待员账单",
       description: "预订 AI 接待员有独立的订阅，与排班订阅分开。",
       cardTitle: "AI 接待员订阅",
-      price: "每月 {price}，含 {included} 用量，超出部分按我们的成本 + {markup}% 计费",
+      price: "每月 {price}，含我们成本中的 {included}，超出部分按我们的成本 + {markup}% 计费",
       compedPrice: "免费方案",
       subscribe: "订阅",
       redirecting: "正在跳转到支付页面...",

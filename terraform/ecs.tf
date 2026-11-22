@@ -298,6 +298,11 @@ resource "aws_ecs_task_definition" "app" {
           name  = "RESERVATIONS_ENABLED"
           value = "true"
         },
+        {
+          # The AI host subscription's Stripe price (decision 98).
+          name  = "RESERVATIONS_PRICE_ID"
+          value = var.reservations_price_id
+        },
       ] : [])
 
       logConfiguration = {

@@ -41,6 +41,14 @@ PREV_START = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
 KIND = "invoice_item_reservation_agent"
 
 
+@pytest.fixture(autouse=True)
+def _included_billed_is_five(monkeypatch):
+    """These tests insert billed usage directly; markup 1.0 makes the
+    included billed amount the included cost, $5.00 (decision 98)."""
+    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 5.0)
+    monkeypatch.setattr(settings, "RESERVATIONS_USAGE_MARKUP", 1.0)
+
+
 class _Page(list):
     def auto_paging_iter(self):
         return iter(list(self))
@@ -217,7 +225,7 @@ async def test_billed_over_the_included_amount_becomes_one_invoice_item(og, db_s
     [made] = items["created"]
     assert made["params"] == {
         "customer": CUSTOMER, "subscription": AGENT_SUB, "amount": 250, "currency": "usd",
-        "description": "AI host usage over $5.00 — 2026-11-10",
+        "description": "AI host usage over the included $5.00 of cost — 2026-11-10",
         "metadata": {"og_id": OG_ID, "period": PERIOD, "kind": KIND, "subscription": AGENT_SUB}}
     assert made["key"] == f"agent-overage-{OG_ID}-{PERIOD}-250"
     [charge] = await _charges(db_session)
@@ -260,7 +268,7 @@ async def test_overage_back_to_zero_deletes_the_item_and_row(og, db_session, fak
     await _add_row(db_session)
     await _usage(db_session, "6.00")
     await _reconcile(db_session, og)
-    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_USAGE_USD", 10.0)
+    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 10.0)
     assert (await _reconcile(db_session, og))["action"] == "deleted"
     assert items["live"] == {} and await _charges(db_session) == []
 
@@ -370,7 +378,7 @@ async def test_the_previous_period_tail_is_trued_up_once(og, db_session, fake, i
     assert out["true_up"] == {"period": prev, "action": "true_up", "amount_usd": 0.5}
     [made] = items["created"]
     assert made["params"]["amount"] == 50 and made["params"]["metadata"]["period"] == prev
-    assert made["params"]["description"] == f"AI host usage over $5.00 — {prev}"
+    assert made["params"]["description"] == f"AI host usage over the included $5.00 of cost — {prev}"
     assert made["key"] == f"agent-overage-{OG_ID}-{prev}-trueup-200"
     assert "true_up" not in await _reconcile(db_session, og)
     assert len(items["created"]) == 1
@@ -679,7 +687,7 @@ async def test_cancellation_bills_every_period_on_one_final_invoice(
     made = {c["params"]["metadata"]["period"]: c for c in items["created"][1:]}
     assert made[PREV]["params"] == {
         "customer": CUSTOMER, "amount": 40, "currency": "usd", "invoice": "in_final_1",
-        "description": f"AI host usage over $5.00 — {PREV}",
+        "description": f"AI host usage over the included $5.00 of cost — {PREV}",
         "metadata": {"og_id": OG_ID, "period": PREV, "kind": KIND, "subscription": AGENT_SUB}}
     assert made[PERIOD]["params"]["amount"] == 350
     assert made[PERIOD]["key"] == f"agent-final-item-in_final_1-{PERIOD}-350"
@@ -784,7 +792,7 @@ async def test_a_leftover_draft_with_nothing_to_bill_is_deleted(og, db_session, 
     await _add_row(db_session)
     await _usage(db_session, "7.50")
     await _leftover_draft(db_session, items, 250)
-    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_USAGE_USD", 10.0)
+    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 10.0)
     fake["subs"][AGENT_SUB]["status"] = "canceled"
     out = await br.finalize_agent_billing(db_session, OG_ID, AGENT_SUB)
     assert out["action"] == "draft_deleted" and out["amount_usd"] == 0.0

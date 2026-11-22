@@ -1657,7 +1657,7 @@ const ja = {
       title: "AIホストの請求",
       description: "予約用AIホストには、シフト作成とは別の専用サブスクリプションがあります。",
       cardTitle: "AIホストのサブスクリプション",
-      price: "月額 {price}、{included} 分の利用を含み、超過分は当社コスト + {markup}%",
+      price: "月額 {price}、当社コスト {included} 分を含み、超過分は当社コスト + {markup}%",
       compedPrice: "無料プラン",
       subscribe: "申し込む",
       redirecting: "支払いページへ移動しています...",

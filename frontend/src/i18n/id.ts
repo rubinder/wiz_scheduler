@@ -1657,7 +1657,7 @@ const ind = {
       title: "Tagihan Host AI",
       description: "Host AI reservasi punya langganan sendiri, terpisah dari penjadwalan.",
       cardTitle: "Langganan Host AI",
-      price: "{price}/bulan, termasuk penggunaan {included}, lalu biaya kami + {markup}%",
+      price: "{price}/bulan, termasuk biaya kami senilai {included}, lalu biaya kami + {markup}%",
       compedPrice: "Paket gratis",
       subscribe: "Berlangganan",
       redirecting: "Mengarahkan ke pembayaran...",

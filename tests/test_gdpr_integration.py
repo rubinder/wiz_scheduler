@@ -63,14 +63,16 @@ async def test_terms_of_service(client: AsyncClient):
     resp = await client.get("/api/v1/gdpr/terms")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "2.3"
+    assert data["version"] == "2.4"
     assert "TERMS OF SERVICE" in data["content"]
     # #259 draft: the AI host subscription's price, included usage, markup
     # and number release hold come from settings.
     content = data["content"]
     assert "AI HOST SUBSCRIPTION" in content
     assert f"${settings.RESERVATIONS_PRICE_MONTHLY_USD:.2f} per month" in content
-    assert f"${settings.RESERVATIONS_INCLUDED_USAGE_USD:.2f} of billed usage" in content
+    assert f"${settings.RESERVATIONS_INCLUDED_COST_USD:.2f} of our cost" in content
+    included_billed = settings.RESERVATIONS_INCLUDED_COST_USD * settings.RESERVATIONS_USAGE_MARKUP
+    assert f"(${included_billed:.2f} of billed usage)" in content
     assert f"cost multiplied by {settings.RESERVATIONS_USAGE_MARKUP}" in content
     assert f"{settings.VOICE_RELEASE_HOLD_DAYS} days after" in content
 

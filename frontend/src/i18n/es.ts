@@ -1657,7 +1657,7 @@ const es = {
       title: "Facturación del anfitrión IA",
       description: "El anfitrión IA de reservas tiene su propia suscripción, independiente de la de horarios.",
       cardTitle: "Suscripción al anfitrión IA",
-      price: "{price}/mes, incluye {included} de uso y después nuestro coste + {markup} %",
+      price: "{price}/mes, incluye {included} de nuestro coste y después nuestro coste + {markup} %",
       compedPrice: "Plan gratuito",
       subscribe: "Suscribirse",
       redirecting: "Redirigiendo al pago...",

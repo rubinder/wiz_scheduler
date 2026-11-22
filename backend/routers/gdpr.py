@@ -330,7 +330,7 @@ async def privacy_policy() -> dict:
 @router.get("/terms")
 async def terms_of_service() -> dict:
     return {
-        "version": "2.3",
+        "version": "2.4",
         "effective_date": "2026-12-15",
         "content": _legal_text("terms.txt"),
     }

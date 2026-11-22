@@ -78,6 +78,12 @@ def billed_amount(cost: Decimal) -> Decimal:
     return (Decimal(cost) * markup).quantize(_CENT, rounding=ROUND_HALF_UP)
 
 
+def included_billed() -> Decimal:
+    """Billed usage a period includes: RESERVATIONS_INCLUDED_COST_USD of our
+    cost, at the markup (decision 98)."""
+    return billed_amount(Decimal(str(settings.RESERVATIONS_INCLUDED_COST_USD)))
+
+
 def _utc_month_start(at: datetime) -> datetime:
     return at.astimezone(timezone.utc).replace(
         day=1, hour=0, minute=0, second=0, microsecond=0)

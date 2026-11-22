@@ -1657,7 +1657,7 @@ const ar = {
       title: "فوترة المضيف الذكي",
       description: "للمضيف الذكي للحجوزات اشتراك خاص به، منفصل عن اشتراك الجدولة.",
       cardTitle: "اشتراك المضيف الذكي",
-      price: "{price} شهريًا، يشمل {included} من الاستخدام، ثم تكلفتنا + {markup}%",
+      price: "{price} شهريًا، يشمل {included} من تكلفتنا، ثم تكلفتنا + {markup}%",
       compedPrice: "خطة مجانية",
       subscribe: "اشترك",
       redirecting: "جارٍ التحويل إلى الدفع...",

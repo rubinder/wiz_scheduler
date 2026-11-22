@@ -1,7 +1,7 @@
 TERMS OF SERVICE FOR WIZSCHEDULER
 
 Effective Date: April 5, 2026
-Last Updated: November 20, 2026
+Last Updated: November 21, 2026
 
 1. ACCEPTANCE OF TERMS
 By accessing or using WizScheduler ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, you may not use the Service. These Terms apply to all users, including managers, employees, and administrators.
@@ -165,7 +165,7 @@ E. OPTIONAL PAYROLL ARCHIVE
 
 F. AI HOST SUBSCRIPTION
 - The AI host takes reservations from your diners by web chat and by phone. It is an optional subscription, separate from your scheduling plan, at $10.00 per month for your account
-- Usage is billed at our cost multiplied by 1.5, rounded to the cent for each conversation. The first $5.00 of billed usage (our cost multiplied by 1.5) in each billing period is included; billed usage beyond it is charged
+- Usage is billed at our cost multiplied by 1.5, rounded to the cent for each conversation. The first $5.00 of our cost in each billing period ($7.50 of billed usage) is included; billed usage beyond it is charged
 - Usage covers the AI model cost of each conversation and, on phone calls, call minutes, speech recognition (Amazon Lex) and speech synthesis (Amazon Polly). Every conversation that reaches the AI host is usage, whether or not it ends in a reservation. Calls blocked by call screening are not usage. Outbound minutes of calls passed to your staff, and the daily cost of your AI host phone numbers, are not billed as usage
 - Each location has a daily spend cap, measured as our cost before the 1.5 multiplier, per local day. It is $20.00 unless a manager of the location changes it (the minimum is $1.00). Once a location reaches its cap, the AI host closes new and ongoing conversations there for the rest of that day and refers diners to the restaurant. Conversations already in progress when the cap is reached can take that day's spend over the cap; that usage is billed
 - While the subscription is active, each active location has an AI host phone number. When the subscription ends or stops answering (for example after it is cancelled, or once payment retries have run out), the AI host stops answering and each location's number is released 7 days after that. If you resubscribe within those 7 days, you keep the number
