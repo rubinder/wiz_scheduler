@@ -42,11 +42,16 @@ logger = logging.getLogger("wizscheduler.stripe_reconcile")
 # Every event backend/routers/webhooks.py handles.
 REQUIRED_WEBHOOK_EVENTS = frozenset({
     "checkout.session.completed",
+    # The AI host subscription's row and Ruling W (#259); the live endpoint
+    # is subscribed to these since 2026-11-22.
+    "customer.subscription.created",
     "customer.subscription.deleted",
     "customer.subscription.updated",
+    "invoice.marked_uncollectible",
     "invoice.payment_failed",
     "invoice.payment_succeeded",
     "invoice.upcoming",
+    "invoice.voided",
     "payment_method.attached",
 })
 # Stripe will never bill these again.
