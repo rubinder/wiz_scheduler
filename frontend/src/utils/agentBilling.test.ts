@@ -119,7 +119,7 @@ describe("checkout return", () => {
 
 describe("price line values", () => {
   it("comes from the API: monthly price, included usage, markup as a percentage over cost", () => {
-    expect(priceValues({ price_usd_monthly: 10, usage_markup: 1.5, usage: { included_usd: 5 } }, "en")).toEqual({
+    expect(priceValues({ price_usd_monthly: 10, usage_markup: 1.5, usage: { included_cost_usd: 5 } }, "en")).toEqual({
       price: "$10",
       included: "$5",
       markup: "50",
@@ -127,7 +127,7 @@ describe("price line values", () => {
   });
 
   it("keeps cents when an amount has them and rounds the markup percentage", () => {
-    expect(priceValues({ price_usd_monthly: 12.5, usage_markup: 1.333, usage: { included_usd: 2.25 } }, "en")).toEqual({
+    expect(priceValues({ price_usd_monthly: 12.5, usage_markup: 1.333, usage: { included_cost_usd: 2.25 } }, "en")).toEqual({
       price: "$12.50",
       included: "$2.25",
       markup: "33",

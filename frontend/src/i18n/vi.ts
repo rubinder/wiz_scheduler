@@ -1657,7 +1657,7 @@ const vi = {
       title: "Thanh toán Lễ tân AI",
       description: "Lễ tân AI đặt bàn có gói đăng ký riêng, tách biệt với xếp lịch.",
       cardTitle: "Gói đăng ký Lễ tân AI",
-      price: "{price}/tháng, gồm {included} mức sử dụng, sau đó là chi phí của chúng tôi + {markup}%",
+      price: "{price}/tháng, gồm {included} chi phí của chúng tôi, sau đó là chi phí của chúng tôi + {markup}%",
       compedPrice: "Gói miễn phí",
       subscribe: "Đăng ký",
       redirecting: "Đang chuyển đến trang thanh toán...",

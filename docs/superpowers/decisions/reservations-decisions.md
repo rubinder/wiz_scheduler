@@ -591,6 +591,22 @@ Decisions made while building without stopping to ask (owner instruction,
     bounded by `COMPED_DAILY_CAP_USD`. `PUBLIC_ORIGIN_SECRET` is not set, so
     the two-key rate limits apply (decision 28). Cost if wrong: the demo
     chat spends up to $3 a day of operator model cost.
+98. **$5.00 of our cost is included each period, not $5.00 of billed usage
+    (owner, 2026-11-21).** `RESERVATIONS_INCLUDED_COST_USD=5.00` replaces
+    `RESERVATIONS_INCLUDED_USAGE_USD`; the included billed usage is that cost
+    times the markup ($7.50 at 1.5, `subscription.included_billed`), and
+    overage is billed usage beyond it. The invoice line reads "AI host usage
+    over the included $5.00 of cost", the billing card "includes $5 of our
+    cost, then our cost + 50%", and terms 2.4 section F says the same. The
+    Stripe product is AI Host (`prod_Vfl8LhIYGCAjKS`), price
+    `price_1UePcAB7IPUEjgxs4Ij6egNp` ($10/month licensed), set as
+    `RESERVATIONS_PRICE_ID` through `var.reservations_price_id`. Estimate
+    for customers: a 2-minute, 5-turn call costs about $0.075 (Connect and
+    telephony $0.040, Lex $0.020, Polly $0.012, model about $0.003), so the
+    included $5.00 covers about 65 such calls, or over 1,000 web chats.
+    Cost if wrong: at the old rule a heavy month under-billed nothing; at
+    this one the owner's margin at the included limit is about $3.50 a month
+    before the number's daily fee.
 
 ## Before switching reservations on (owner checklist)
 

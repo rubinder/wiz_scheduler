@@ -182,6 +182,12 @@ variable "reservations_enabled" {
   default     = true
 }
 
+variable "reservations_price_id" {
+  description = "Stripe Price ID of the AI host subscription ($10/month licensed, product AI Host). Sets RESERVATIONS_PRICE_ID when reservations_enabled; empty answers the subscribe routes 503 not_configured."
+  type        = string
+  default     = "price_1UePcAB7IPUEjgxs4Ij6egNp"
+}
+
 variable "agent_reconcile_enabled" {
   description = "Run the daily AI host billing reconcile (agent_reconcile_schedule.tf). On with RESERVATIONS_ENABLED (decision 97)."
   type        = bool

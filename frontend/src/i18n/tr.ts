@@ -1657,7 +1657,7 @@ const trLang = {
       title: "YZ karşılayıcı faturalandırması",
       description: "Rezervasyon YZ karşılayıcısının, vardiya planlamasından ayrı kendi aboneliği vardır.",
       cardTitle: "YZ karşılayıcı aboneliği",
-      price: "Aylık {price}, {included} kullanım dahil, sonrası bizim maliyetimiz + %{markup}",
+      price: "Aylık {price}, maliyetimizin {included} kadarı dahil, sonrası bizim maliyetimiz + %{markup}",
       compedPrice: "Ücretsiz plan",
       subscribe: "Abone ol",
       redirecting: "Ödemeye yönlendiriliyor...",

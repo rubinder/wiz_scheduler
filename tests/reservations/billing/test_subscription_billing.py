@@ -580,7 +580,7 @@ async def test_status_reports_usage_and_spend_against_cap(
         cancel_at_period_end=True))
     # Metered earlier in the period: an orphaned usage row (an erased
     # conversation) metered today would count toward today's spend.
-    for billed in ("4.00", "2.50"):
+    for billed in ("6.00", "2.50"):
         db_session.add(AgentUsage(company_id=COMPANY_ID, ownership_group_id=OG_ID,
                                   location_id=LOCATION_ID, cost_usd=Decimal("1"),
                                   billed_usd=Decimal(billed), period_start=start,
@@ -596,9 +596,11 @@ async def test_status_reports_usage_and_spend_against_cap(
     assert body["status"] == "active"
     assert body["answering"] is True
     assert body["cancel_at_period_end"] is True
-    assert body["usage"]["billed_usd"] == 6.5
-    assert body["usage"]["included_usd"] == 5.0
-    assert body["usage"]["overage_usd"] == 1.5
+    # $5.00 of cost is included: $7.50 of billed usage at the 1.5 markup.
+    assert body["usage"]["billed_usd"] == 8.5
+    assert body["usage"]["included_usd"] == 7.5
+    assert body["usage"]["included_cost_usd"] == 5.0
+    assert body["usage"]["overage_usd"] == 1.0
     # The billing card's price line is rendered from these, not hardcoded.
     assert body["price_usd_monthly"] == 10.0
     assert body["usage_markup"] == 1.5
@@ -1267,3 +1269,11 @@ async def test_subscription_deleted_runs_final_billing_before_the_voice_step(
     assert r.status_code == 200
     assert r.json()["reservation_agent"]["final"] == {"og": OG_ID}
     assert order == ["finalize", "voice"]
+
+
+async def test_included_billed_is_the_included_cost_at_the_markup(monkeypatch):
+    """Decision 98: $5.00 of our cost is included, $7.50 of billed usage."""
+    from backend.reservations.subscription import included_billed
+    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 5.0)
+    monkeypatch.setattr(settings, "RESERVATIONS_USAGE_MARKUP", 1.5)
+    assert included_billed() == Decimal("7.50")
