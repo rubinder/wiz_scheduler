@@ -164,9 +164,12 @@ export default function Billing() {
               <p className={`text-sm ${text.secondary}`}>
                 {isComped(agent.status) ? b.compedPrice : fill(b.price, priceValues(agent, lang))}
               </p>
-              {!isComped(agent.status) && agent.estimated_included_calls > 0 && (
+              {!isComped(agent.status) && agent.estimated_included_calls.two_minute > 0 && (
                 <p className={`text-xs ${text.secondary}`}>
-                  {fill(b.callsEstimate, { calls: String(agent.estimated_included_calls) })}
+                  {fill(b.callsEstimate, {
+                    short: String(agent.estimated_included_calls.one_minute),
+                    calls: String(agent.estimated_included_calls.two_minute),
+                  })}
                 </p>
               )}
             </div>
