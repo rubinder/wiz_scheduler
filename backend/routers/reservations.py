@@ -21,6 +21,7 @@ from backend.reservations import (
     booking, diner_data, number_rules, subscription, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
+from backend.reservations.flags import require_reservations_enabled
 from backend.reservations.flows import Flows, flows_problems
 from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
@@ -51,11 +52,6 @@ from backend.services.location_scope import LocationScope
 logger = logging.getLogger(__name__)
 
 
-def require_reservations_enabled() -> None:
-    if not settings.RESERVATIONS_ENABLED:
-        raise HTTPException(status_code=404, detail="Not found")
-
-
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 gated = APIRouter(dependencies=[Depends(require_reservations_enabled)])
 
@@ -66,6 +62,7 @@ async def read_config(_: User = Depends(require_manager)) -> ReservationsConfigO
     return ReservationsConfigOut(
         enabled=settings.RESERVATIONS_ENABLED,
         mock_provider_allowed=settings.RESERVATIONS_MOCK_PROVIDER_ALLOWED,
+        voice_enabled=settings.VOICE_PROVISIONING_ENABLED,
         conversation_outcomes=list(OUTCOMES))
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {

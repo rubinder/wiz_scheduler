@@ -319,6 +319,23 @@ class Settings(BaseSettings):
     VOICE_COST_LEX_PER_SPEECH_REQUEST_USD: float = 0.004
     VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD: float = 16.0
     VOICE_COST_MAX_SECONDS_PER_TURN: float = 120
+    # Call capacity (decision 103, reservations/voice_capacity.py). The
+    # Connect concurrent-calls quota is raised step-wise toward
+    # max(BASE + PER_COMPANY x voice companies, 30-day platform peak x
+    # FORECAST_MULTIPLIER, sum of company allocations); targets above
+    # AUTO_REQUEST_MAX are never auto-filed (the operator gets a support-case
+    # text). Each company may hold at most its allocation of simultaneous
+    # calls (default DEFAULT_COMPANY_ALLOCATION). The quota is looked up by
+    # VOICE_QUOTA_NAME, never by code. A call with no turn for
+    # VOICE_CALL_IDLE_SECONDS is taken to have hung up.
+    VOICE_QUOTA_BASE_CALLS: int = 10
+    VOICE_QUOTA_CALLS_PER_COMPANY: int = 10
+    VOICE_QUOTA_FORECAST_MULTIPLIER: float = 1.5
+    VOICE_QUOTA_AUTO_REQUEST_MAX: int = 200
+    VOICE_DEFAULT_COMPANY_ALLOCATION: int = 10
+    VOICE_QUOTA_NAME: str = "Concurrent active calls per instance"
+    VOICE_CALL_IDLE_SECONDS: int = 180
+    RETENTION_VOICE_CAPACITY_DAYS: int = 400
     # Call screening (#259 step 7): a caller is blocked as spam once the FTC
     # complaint list has at least SPAM_MIN_REPORTS reports of the number over
     # the last SPAM_WINDOW_DAYS report dates (reservations.screening).

@@ -59,6 +59,7 @@ from backend.config import settings
 from backend.database import cross_tenant_session
 from backend.models.company import Company
 from backend.models.location import Location
+from backend.reservations import voice_capacity
 from backend.reservations.subscription import ANSWERING_STATUSES, for_group
 from backend.reservations.subscription_models import COMPED, ReservationSubscription
 from backend.reservations.voice_number_models import VOICE_STATUSES, VoiceNumber
@@ -329,6 +330,18 @@ async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = 
             within = max_claims is None or i < max_claims
             status = await _provision(db, row_id) if claim and within else "requested"
             (out["claimed"] if status == "active" else out["pending"]).append(loc_id)
+    if to_provision and claim:
+        # More voice locations may need more concurrent calls (decision 103).
+        # Not from the webhook (claim=False): checkout confirm and the
+        # nightly run cover it.
+        # Its own session, so its commits and rollbacks never expire the
+        # caller's objects.
+        try:
+            async with AsyncSession(db.bind, expire_on_commit=False) as own:
+                await voice_capacity.ensure_quota(own, now,
+                                                  reason=f"new numbers for group {og_id}")
+        except Exception:  # noqa: BLE001 - the nightly step retries
+            logger.exception("voice quota step failed for og %s", og_id)
     return out
 
 

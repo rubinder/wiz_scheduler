@@ -234,6 +234,28 @@ async def get_rules(
     return RulesSchema.model_validate(row.rules, context=STORED), row.version
 
 
+async def get_agent_rules(
+    db: AsyncSession, company_id: str, location_id: str
+) -> tuple[RulesSchema, int]:
+    """get_rules for the AI host's channels (decision 103): a location without
+    its own staff_transfer_number uses the company's
+    default_staff_transfer_number, so one operator can cover many locations.
+    Only while voice is on (VOICE_PROVISIONING_ENABLED): with voice off the
+    web chat reads the location's own number, as before. Never saved back:
+    the rules editor reads get_rules."""
+    from backend.config import settings
+    from backend.reservations.voice_capacity_models import VoiceCompanySettings
+
+    rules, version = await get_rules(db, company_id, location_id)
+    if not rules.staff_transfer_number and settings.VOICE_PROVISIONING_ENABLED:
+        default = (await db.execute(
+            select(VoiceCompanySettings.default_staff_transfer_number)
+            .where(VoiceCompanySettings.company_id == company_id))).scalar_one_or_none()
+        if default:
+            rules = rules.model_copy(update={"staff_transfer_number": default})
+    return rules, version
+
+
 async def save_rules(
     db: AsyncSession, company_id: str, location_id: str, rules: RulesSchema
 ) -> int:

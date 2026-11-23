@@ -210,6 +210,25 @@ async def setup_database(monkeypatch):
         await conn.run_sync(Base.metadata.drop_all)
 
 
+class _NoAwsQuotas:
+    """Service Quotas / CloudWatch are never called in tests (decision 103);
+    a test that needs them installs its own fake."""
+
+    async def _refuse(self, *args, **kwargs):
+        raise RuntimeError("AWS is not called in tests")
+
+    applied_quota = request_increase = request_status = peak_concurrent_calls = _refuse
+
+
+@pytest.fixture(autouse=True)
+def no_aws_quota_client():
+    from backend.services import voice_quotas
+
+    voice_quotas.set_quota_client(_NoAwsQuotas())
+    yield
+    voice_quotas.set_quota_client(None)
+
+
 @pytest.fixture(autouse=True)
 def reset_in_process_rate_limiters():
     """Reset in-memory rate-limit counters between tests so state from one

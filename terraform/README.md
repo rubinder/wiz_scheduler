@@ -334,6 +334,26 @@ Monday 18:00 UTC, after the FTC's noon Eastern publish). Turn it on with
 the `FTC_DNC_CSV_URL` file URL is live. It needs no voice resources, so it
 can run ahead of the phone line to fill the list.
 
+### Call capacity (decision 103)
+
+Also gated on `voice_enabled`: an ECS task-role policy
+(`voice_ecs_quotas`) with `servicequotas:GetServiceQuota` and
+`RequestServiceQuotaIncrease` on this account's Amazon Connect quotas
+(`arn:aws:servicequotas:*:<account>:connect/*`), plus `ListServiceQuotas`,
+`ListRequestedServiceQuotaChangeHistoryByQuota` and
+`cloudwatch:GetMetricStatistics`, which take no resource (`*`);
+and a CloudWatch alarm (`voice_concurrent_calls`) on the instance's
+`ConcurrentCallsPercentage` above 80% to the `ops-alerts` SNS topic. The
+app's daily capacity step (`backend/reservations/voice_capacity.py`, inside
+`run_agent_overage_reconcile`, a no-op until `voice_provisioning_enabled`)
+records each day's peak simultaneous calls and requests a higher
+"Concurrent active calls per instance" quota when the target needs it
+(quota increases are free); targets above 200 are mailed to the operator as
+a support-case text, since the AWS Support API needs a paid plan. A
+company's capacity request is approved with
+`python -m backend.scripts.approve_capacity_request <id> [--allocation N |
+--decline]` as a one-off ECS task, like the other scripts.
+
 ### Turning voice on
 
 The aws provider 5.x has no Lex V2 bot alias resource, its
@@ -360,6 +380,10 @@ applies:
 5. Only then set `TF_VAR_voice_provisioning_enabled: "true"`: the app starts
    claiming numbers, each billed daily. With it off (the default) the app
    claims and releases nothing.
+6. Check the Service Quotas console lists an Amazon Connect quota named
+   "Concurrent active calls per instance" (else set `VOICE_QUOTA_NAME`), and
+   confirm the `ops-alerts` SNS email subscription so the concurrent-calls
+   alarm reaches you.
 
 The contact flow sets Lex session attributes `contact_id`, `dialed` and
 `caller`, then, on every exit from the bot, transfers to

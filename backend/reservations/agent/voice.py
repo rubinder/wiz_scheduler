@@ -29,6 +29,8 @@ ENDED_TEXT = "Thanks for calling. Goodbye."
 NO_TRANSFER_TEXT = ("Sorry, there's no one available to take your call right now. "
                     "Please call back a little later. Goodbye.")
 BUSY_TEXT = "Sorry, our booking line is busy right now. Please call back a little later."
+# The company is at its call allocation (decision 103): staff take the call.
+CAPACITY_TEXT = "Sorry, our booking line is busy right now. Let me get someone to help."
 
 _ELICIT = ("party_size", "phone_number", "confirmation_code")
 # Digits only: confirmation codes have letters, so they are spoken.
@@ -41,6 +43,16 @@ def busy_text(staff_number: str | None) -> str:
         return (f"Sorry, our booking line is busy right now. Please call the "
                 f"restaurant at {staff_number}. Goodbye.")
     return f"{BUSY_TEXT} Goodbye."
+
+
+def capacity_busy(staff_number: str | None) -> dict[str, Any]:
+    """A new call while the company holds its allocation of calls: a
+    transfer to staff, or the busy close when there is no staff number."""
+    if staff_number:
+        return {"text": CAPACITY_TEXT, "expect": "text",
+                "hints": {"elicit": None, "dtmf": False}, "confirm_prompt": None,
+                "end_call": False, "transfer_to": staff_number, "reason": "capacity"}
+    return close(busy_text(None), "capacity")
 
 
 def _ordinal(n: int) -> str:

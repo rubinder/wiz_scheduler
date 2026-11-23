@@ -61,7 +61,7 @@ from backend.reservations.providers import (
     Transient,
     provider_for,
 )
-from backend.reservations.rules import RulesSchema, get_rules
+from backend.reservations.rules import RulesSchema, get_agent_rules, get_rules
 from backend.services.archive import active
 
 logger = logging.getLogger(__name__)
@@ -484,7 +484,7 @@ async def _handoff_to_staff(db: AsyncSession, conv: AgentConversation,
                             inp: dict[str, Any], now: datetime) -> ToolOutcome:
     reason = inp.get("reason")
     reason = reason if isinstance(reason, str) else ""
-    rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+    rules, _ = await get_agent_rules(db, conv.company_id, conv.location_id)
     await recording.record_event(db, conv, "handoff", {"reason": reason})
     key = "transfer_number" if conv.channel == "voice" else "phone"
     return ToolOutcome({"handed_off": True, key: rules.staff_transfer_number},

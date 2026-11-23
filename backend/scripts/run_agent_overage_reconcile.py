@@ -10,6 +10,11 @@ Then the voice numbers step (reservations.voice_numbers.run_daily): retry
 claims that failed, catch a missed subscription change, and release numbers
 whose 7-day hold is over. A no-op while VOICE_PROVISIONING_ENABLED is off.
 
+Then the call capacity step (reservations.voice_capacity.run_daily, decision
+103): yesterday's peak simultaneous calls, the allocation down-shift, and the
+Amazon Connect concurrent-calls quota check. Also a no-op while
+VOICE_PROVISIONING_ENABLED is off.
+
 Run manually:
     python -m backend.scripts.run_agent_overage_reconcile
 
@@ -26,6 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def main() -> None:
     from backend.database import async_session_factory
+    from backend.reservations.voice_capacity import run_daily as run_voice_capacity
     from backend.reservations.voice_numbers import run_daily as run_voice_numbers
     from backend.services.billing_reservations import reconcile_all_agent_subscriptions
     from backend.services.operator_alerts import _send_operator_email
@@ -52,6 +58,22 @@ async def main() -> None:
             "[WizScheduler] AI host voice numbers need a look",
             f"<p>The daily voice number run could not finish these:</p><ul>{items}</ul>",
             "voice_numbers",
+        )
+
+    try:
+        async with async_session_factory() as db:
+            capacity = await run_voice_capacity(db)
+    except Exception as e:  # noqa: BLE001 - mailed, the run still ends cleanly
+        logging.exception("voice capacity run failed")
+        capacity = {"errors": [{"step": "run", "error": f"{type(e).__name__}: {str(e)[:200]}"}]}
+    print(json.dumps({"voice_capacity": capacity}, indent=2, default=str))
+    if capacity.get("errors"):
+        items = "".join(f"<li>{html.escape(json.dumps(e, default=str))}</li>"
+                        for e in capacity["errors"])
+        _send_operator_email(
+            "[WizScheduler] AI host call capacity run needs a look",
+            f"<p>The daily call capacity run could not finish these steps:</p><ul>{items}</ul>",
+            "voice_capacity",
         )
 
 

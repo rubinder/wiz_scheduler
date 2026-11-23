@@ -355,6 +355,9 @@ class ReservationsConfigOut(BaseModel):
     enabled: bool
     # Whether the rules editor may offer the mock external provider.
     mock_provider_allowed: bool = False
+    # The AI host phone line is on (VOICE_PROVISIONING_ENABLED); the call
+    # capacity card shows only then (decision 103).
+    voice_enabled: bool = False
     # Mirrors agent/models.py OUTCOMES; the conversations filter reads it.
     conversation_outcomes: list[str]
 

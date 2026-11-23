@@ -268,6 +268,8 @@ export interface ReservationsConfig {
   enabled: boolean;
   /** Whether the rules editor may offer the mock external provider. */
   mock_provider_allowed?: boolean;
+  /** The AI host phone line is on; the call capacity card shows only then. */
+  voice_enabled?: boolean;
   conversation_outcomes: string[];
 }
 

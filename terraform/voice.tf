@@ -481,6 +481,68 @@ resource "aws_iam_role_policy" "voice_ecs_connect" {
   policy = data.aws_iam_policy_document.voice_ecs_connect[0].json
 }
 
+# --- ECS task permissions for call capacity (backend/services/voice_quotas.py) ---
+# Decision 103. GetServiceQuota and RequestServiceQuotaIncrease take a quota
+# resource (arn:aws:servicequotas:<region>:<account>:connect/<quota code>), so
+# they are scoped to Amazon Connect quotas in this account. The list calls
+# and CloudWatch GetMetricStatistics take no resource, so they are "*".
+# Quota changes are free and only go up; the AWS Support API is never
+# granted.
+
+data "aws_iam_policy_document" "voice_ecs_quotas" {
+  count = var.voice_enabled ? 1 : 0
+
+  statement {
+    sid = "ConnectQuotas"
+    actions = [
+      "servicequotas:GetServiceQuota",
+      "servicequotas:RequestServiceQuotaIncrease",
+    ]
+    resources = ["arn:aws:servicequotas:*:${data.aws_caller_identity.current.account_id}:connect/*"]
+  }
+
+  statement {
+    sid = "ListQuotasAndReadCallMetrics"
+    actions = [
+      "servicequotas:ListServiceQuotas",
+      "servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota",
+      "cloudwatch:GetMetricStatistics",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "voice_ecs_quotas" {
+  count = var.voice_enabled ? 1 : 0
+
+  name   = "${var.app_name}-voice-call-capacity"
+  role   = aws_iam_role.ecs_task.id
+  policy = data.aws_iam_policy_document.voice_ecs_quotas[0].json
+}
+
+# Concurrent calls above 80% of the instance's quota: raise it before calls
+# are refused (the daily capacity step also does, decision 103).
+resource "aws_cloudwatch_metric_alarm" "voice_concurrent_calls" {
+  count = var.voice_enabled ? 1 : 0
+
+  alarm_name          = "${var.app_name}-voice-concurrent-calls"
+  alarm_description   = "Amazon Connect concurrent calls above 80% of the instance quota"
+  namespace           = "AWS/Connect"
+  metric_name         = "ConcurrentCallsPercentage"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 80
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions = {
+    InstanceId  = aws_connect_instance.voice[0].id
+    MetricGroup = "VoiceCalls"
+  }
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+}
+
 # --- Budget -------------------------------------------------------------------
 # Alerts, never stops anything: a budget cannot cap spend.
 

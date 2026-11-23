@@ -64,6 +64,21 @@ answers 404 while it is off.
 - `backend/services/connect_numbers.py`: Amazon Connect number API wrapper.
 - `infra/voice/bridge/handler.py`: the Lex V2 code-hook Lambda.
 
+## Call capacity entry points (decision 103)
+
+- `backend/reservations/voice_capacity.py`: `at_allocation` (the one
+  answer to "may this company take another call?", asked by the voice
+  bridge), `ensure_quota`, `record_peaks`, `down_shift`, `run_daily`,
+  `request_capacity`, `approve_request`/`decline_request`,
+  `capacity_summary`.
+- `backend/services/voice_quotas.py`: the Service Quotas / CloudWatch
+  anti-corruption layer (`QuotaClient`, swapped in tests).
+- `backend/reservations/rules.get_agent_rules`: rules with the company's
+  default staff number filled in; every AI host path that reads the
+  transfer number uses it, the rules editor never does.
+- Router `backend/routers/voice_capacity.py` (admins); operator approval is
+  `backend/scripts/approve_capacity_request.py`.
+
 ## Call screening entry points
 
 - `backend/reservations/screening.py`: `decide`, the one screening verdict

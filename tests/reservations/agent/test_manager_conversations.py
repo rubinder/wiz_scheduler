@@ -190,4 +190,5 @@ async def test_config_lists_conversation_outcomes(client, manager_token, seed_lo
     r = await client.get(f"{BASE}/config", headers=_auth(manager_token))
     assert r.status_code == 200
     assert r.json() == {"enabled": True, "mock_provider_allowed": False,
+                        "voice_enabled": False,
                         "conversation_outcomes": list(OUTCOMES)}

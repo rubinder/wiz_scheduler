@@ -676,7 +676,7 @@ async def test_failed_confirm_style_read_falls_back_and_the_turn_still_works(
 
     now = datetime.now(timezone.utc)
     await _post(client, _body(0))
-    monkeypatch.setattr(voice_turn, "get_rules", _broken)
+    monkeypatch.setattr(voice_turn, "get_agent_rules", _broken)
     llm.push(*_hold_script(now))
     r = await _post(client, _body(1, text_="table for two next week"))
     assert r.status_code == 200
