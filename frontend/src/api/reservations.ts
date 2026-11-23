@@ -6,6 +6,7 @@ import type {
   DinerDataOut,
   DinerCodeEraseOut,
   DinerEraseOut,
+  FloorDraftOut,
   FloorIn,
   FloorOut,
   InsightsOut,
@@ -36,6 +37,25 @@ export function getFloor(locationId: string): Promise<FloorOut> {
 
 export function saveFloor(locationId: string, floor: FloorIn): Promise<FloorOut> {
   return apiFetch(`${base(locationId)}/floor`, { method: "PUT", body: JSON.stringify(floor) });
+}
+
+/** Start an AI floor draft from photos and/or PDF blueprints (decision 101). */
+export function createFloorDraft(
+  locationId: string,
+  files: { file: File; caption: string }[],
+  notes: string,
+): Promise<FloorDraftOut> {
+  const form = new FormData();
+  for (const f of files) {
+    form.append("files", f.file);
+    form.append("captions", f.caption);
+  }
+  form.append("notes", notes);
+  return apiFetch(`${base(locationId)}/floor/ai-drafts`, { method: "POST", body: form });
+}
+
+export function getFloorDraft(locationId: string, draftId: string): Promise<FloorDraftOut> {
+  return apiFetch(`${base(locationId)}/floor/ai-drafts/${draftId}`);
 }
 
 export function getRules(locationId: string): Promise<RulesOut> {

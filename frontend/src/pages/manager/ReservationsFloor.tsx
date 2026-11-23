@@ -3,9 +3,12 @@ import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
 import { getConfig, getFloor, saveFloor } from "../../api/reservations";
+import FloorDraftModal from "../../components/shared/FloorDraftModal";
+import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
-import type { FloorOut } from "../../types/reservations";
+import type { FloorDraftOut, FloorOut } from "../../types/reservations";
+import { applyDraft } from "../../utils/floorDraft";
 import {
   CANVAS,
   clampTable,
@@ -86,7 +89,8 @@ function NumberInput({
 }
 
 export default function ReservationsFloor() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const { isAdmin } = useAuth();
   const r = t.reservations;
   const f = r.floor;
 
@@ -102,6 +106,10 @@ export default function ReservationsFloor() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<{ text: string; detail: string } | null>(null);
+  const [draftOpen, setDraftOpen] = useState(false);
+  /** The AI draft loaded into the editor, until it is saved or the location changes. */
+  const [aiDraft, setAiDraft] = useState<FloorDraftOut | null>(null);
+  const draftCount = useRef(0);
   const currentLocation = useRef("");
   const newUid = useRef(0);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -157,6 +165,8 @@ export default function ReservationsFloor() {
     setSaved(false);
     setSaveError(null);
     setLoadError("");
+    setAiDraft(null);
+    setDraftOpen(false);
     getFloor(locationId)
       .then((out) => {
         if (!cancelled) applyLoaded(out);
@@ -279,6 +289,18 @@ export default function ReservationsFloor() {
     }
   };
 
+  const onDraft = (d: FloorDraftOut) => {
+    setDraftOpen(false);
+    if (!d.result) return;
+    if (floor && floor.tables.length > 0 && !window.confirm(f.ai.replaceConfirm)) return;
+    draftCount.current += 1;
+    const result = d.result;
+    edit((fl) => applyDraft(fl, result, `ai:${draftCount.current}:`));
+    setSelected(null);
+    setSaveError(null);
+    setAiDraft(d);
+  };
+
   const onLocationChange = (id: string) => {
     if (dirty && !window.confirm(f.discardConfirm)) return;
     setLocationId(id);
@@ -296,6 +318,7 @@ export default function ReservationsFloor() {
       if (currentLocation.current !== forLocation) return;
       applyLoaded(out, selectedLabel);
       setSaved(true);
+      setAiDraft(null);
     } catch (e) {
       if (currentLocation.current !== forLocation) return;
       // The edits stay in `floor`; only the error is shown.
@@ -353,10 +376,35 @@ export default function ReservationsFloor() {
 
       {floor && (
         <>
-          {dirty && (
-            <div className="glass-alert-warning" role="status">
-              {f.unsaved}
+          {aiDraft && dirty ? (
+            <div className="glass-alert-warning space-y-1" role="status">
+              <p className="font-semibold">{f.ai.applied}</p>
+              <p className="text-sm">
+                {aiDraft.confidence && f.ai.confidence.replace("{level}", f.ai[aiDraft.confidence])}
+                {aiDraft.confidence && aiDraft.cost_usd !== null && " · "}
+                {aiDraft.cost_usd !== null &&
+                  f.ai.charged.replace(
+                    "{amount}",
+                    new Intl.NumberFormat(lang, { style: "currency", currency: "USD" }).format(aiDraft.cost_usd),
+                  )}
+              </p>
+              {aiDraft.warnings.length > 0 && (
+                <>
+                  <p className="text-sm">{f.ai.warningsHeading}</p>
+                  <ul className="list-disc ps-5 text-sm">
+                    {aiDraft.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
+          ) : (
+            dirty && (
+              <div className="glass-alert-warning" role="status">
+                {f.unsaved}
+              </div>
+            )
           )}
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -364,6 +412,14 @@ export default function ReservationsFloor() {
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" className="glass-btn-secondary text-sm" onClick={addTable}>
                   + {f.addTable}
+                </button>
+                <button
+                  type="button"
+                  className="glass-btn-secondary text-sm"
+                  disabled={saving}
+                  onClick={() => setDraftOpen(true)}
+                >
+                  {f.ai.button}
                 </button>
                 <span className={`text-xs ${text.muted}`}>{f.keyboardHint}</span>
               </div>
@@ -687,6 +743,14 @@ export default function ReservationsFloor() {
           <button type="button" className="glass-btn-primary" disabled={saving} onClick={onSave}>
             {saving ? r.common.saving : r.common.save}
           </button>
+          {draftOpen && (
+            <FloorDraftModal
+              locationId={locationId}
+              isAdmin={isAdmin}
+              onDraft={onDraft}
+              onClose={() => setDraftOpen(false)}
+            />
+          )}
         </>
       )}
     </div>
