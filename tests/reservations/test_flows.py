@@ -219,11 +219,11 @@ def test_custom_flow_replaces_the_default_call_flow_but_keeps_fixed_policies() -
 
 def test_script_says_the_greeting_asked_the_first_question_only_without_a_custom_greeting() -> None:
     text = build_system_prompt("Fixture", "America/New_York", _rules(web=_flow()), "web")
-    assert "The greeting already asked step \"greet\"" in text
+    assert "The greeting already said step \"greet\"" in text
     custom = RulesSchema(flows={"web": _flow()},
                          persona={"greeting": "Hi, automated host here"})
     text = build_system_prompt("Fixture", "America/New_York", custom, "web")
-    assert "The greeting already asked" not in text
+    assert "The greeting already said" not in text
     assert 'Start at step "greet"' in text
 
 
@@ -253,3 +253,12 @@ def test_flow_greeting_for_a_start_that_asks_nothing() -> None:
     assert flow_greeting("Harbor", _rules(web=f), "web") == (
         "Hi, you've reached Harbor's automated reservations assistant. "
         "We open at five.")
+
+
+def test_a_say_start_is_not_called_a_question() -> None:
+    f = _flow(start="intro")
+    f["steps"].insert(0, {"id": "intro", "title": "Intro", "kind": "say",
+                          "message": "We open at five.", "next": "greet"})
+    text = build_system_prompt("Fixture", "America/New_York", _rules(web=f), "web")
+    assert "The greeting already said step \"intro\"" in text
+    assert "question" not in text.split("Policies:")[0].split("Conversation script")[1].split("- Step")[0]

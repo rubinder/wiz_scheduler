@@ -670,7 +670,7 @@ Decisions made while building without stopping to ask (owner instruction,
     Greeting: a custom greeting still wins; otherwise a custom flow whose
     start step is `ask`, `choice` or `say` opens with the usual introduction
     and that step's line, and the script then says the greeting already
-    asked it. Any other start keeps the default greeting.
+    said it. Any other start keeps the default greeting.
     `gate.greeting` now takes the channel for this. Validation runs in the
     rules route only when `flows` changes: 422 `invalid_flow` with
     `problems` of `{channel, code, step, field}` (missing_start,

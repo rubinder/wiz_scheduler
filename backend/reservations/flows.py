@@ -238,8 +238,8 @@ def compile_script(flow: Flow, *, greeting_asks_start: bool) -> list[str]:
     """The prompt lines for a flow: byte-identical for the same flow, in the
     stored step order, so the prompt cache keeps hitting."""
     if greeting_asks_start:
-        start = (f"The greeting already asked step {_q(flow.start)}'s question; treat "
-                 "the diner's first message as the answer unless it is about "
+        start = (f"The greeting already said step {_q(flow.start)}; treat the "
+                 "diner's first message as the reply to it unless it is about "
                  "something else.")
     else:
         start = f"Start at step {_q(flow.start)}."
