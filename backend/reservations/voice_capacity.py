@@ -34,6 +34,7 @@ from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.config import settings
 from backend.models import Location, User
@@ -327,6 +328,9 @@ def _move(row: VoiceQuotaRequest, status: str, now: datetime) -> None:
     7-day rules read updated_at)."""
     row.status = status
     row.updated_at = now
+    # Marked even when unchanged, or the column's onupdate (the wall clock)
+    # would replace it.
+    flag_modified(row, "updated_at")
 
 
 def support_case_text(applied: int | None, desired: int) -> str:
