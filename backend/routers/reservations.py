@@ -19,6 +19,7 @@ from backend.reservations import (
     booking, diner_data, number_rules, subscription, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
+from backend.reservations.flows import flows_problems
 from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -40,6 +41,7 @@ from backend.schemas.reservations import (
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
 from backend.services.archive import active
+from backend.services.manager_permissions import is_admin_manager
 from backend.services.location_scope import LocationScope
 
 
@@ -190,7 +192,7 @@ async def read_rules(
 
 # Rules fields only an admin may change (403 admin_only for a regular
 # manager whose save would change them).
-ADMIN_ONLY_RULES = ("provider", "mock_external", "disclose_automated")
+ADMIN_ONLY_RULES = ("provider", "mock_external", "disclose_automated", "flow_editor_ids")
 
 
 @gated.put("/locations/{location_id}/rules", response_model=RulesOut)
@@ -210,16 +212,29 @@ async def write_rules(
     # Fields a client may omit keep their stored values: the voice knobs (a
     # client that predates them must not reset them) and the admin-only
     # booking provider fields (a regular manager's editor does not send them).
+    # The conversation flows likewise: the rules editor does not send them.
     stored = await stored_fields(db, str(user.company_id), location_id,
-                                 ("voice",) + ADMIN_ONLY_RULES)
+                                 ("voice", "flows") + ADMIN_ONLY_RULES)
     kept = {k: v for k, v in stored.items() if k not in body.model_fields_set}
     if kept:
         body = body.model_copy(update=kept)
     if scope.restricted and any(getattr(body, k) != stored[k] for k in ADMIN_ONLY_RULES):
         raise HTTPException(status_code=403, detail={
             "code": "admin_only",
-            "message": "Only an admin can change the booking provider "
-                       "or the automated-assistant disclosure"})
+            "message": "Only an admin can change the booking provider, "
+                       "the automated-assistant disclosure or the flow editors"})
+    if body.flows != stored["flows"]:
+        # Decision 102: admins, and regular managers an admin listed.
+        if not is_admin_manager(user) and str(user.id) not in stored["flow_editor_ids"]:
+            raise HTTPException(status_code=403, detail={
+                "code": "flow_edit_not_allowed",
+                "message": "Only an admin, or a manager an admin allowed, can "
+                           "change this location's conversation flows"})
+        problems = flows_problems(body.flows)
+        if problems:
+            raise HTTPException(status_code=422, detail={
+                "code": "invalid_flow", "message": "The conversation flow has problems",
+                "problems": problems})
     if missing_disclosure(body):
         raise HTTPException(status_code=422, detail={
             "code": "greeting_missing_disclosure", "message": DISCLOSURE_MESSAGE})

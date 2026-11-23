@@ -129,7 +129,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
             await db.commit()
             return reply
         if body.text is None and body.action is None:
-            reply = voice.greeting(await gate.greeting(db, company_id, location))
+            reply = voice.greeting(await gate.greeting(db, company_id, location, "voice"))
             await recording.remember_reply(db, conv, body.seq, reply)
             await db.commit()
             return reply

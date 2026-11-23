@@ -10,6 +10,7 @@ from pydantic import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.reservations.flows import Flows
 from backend.reservations.models import ReservationRules
 
 
@@ -146,6 +147,12 @@ class RulesSchema(BaseModel):
     # is then responsible for any disclosure the law requires (terms 12.F).
     # Admin-only. Whether on or off, the host never claims to be a person.
     disclose_automated: bool = True
+    # Custom conversation flows per channel (decision 102); null keeps the
+    # default flow. Validated by the rules route (flows.flow_problems).
+    flows: Flows = Field(default_factory=Flows)
+    # Regular managers an admin allowed to edit `flows` at this location.
+    # Admin-only.
+    flow_editor_ids: list[str] = []
 
     @field_validator("durations")
     @classmethod

@@ -171,7 +171,7 @@ async def _busy(db: AsyncSession, scope: PublicScope) -> str:
 
 
 async def _greeting(db: AsyncSession, scope: PublicScope) -> str:
-    return await gate.greeting(db, scope.company_id, scope.location)
+    return await gate.greeting(db, scope.company_id, scope.location, "web")
 
 
 router = APIRouter(

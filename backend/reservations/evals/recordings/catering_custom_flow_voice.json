@@ -1,0 +1,46 @@
+{
+  "diner_lines": [
+    "Hi, do you do catering for an office lunch?"
+  ],
+  "recognizer": "exact",
+  "responses": [
+    {
+      "content": [
+        {
+          "id": "tu_x",
+          "input": {
+            "reason": "catering"
+          },
+          "name": "handoff_to_staff",
+          "type": "tool_use"
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    },
+    {
+      "content": [
+        {
+          "text": "Catering is handled by our staff. Let me put you through.",
+          "type": "text"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "usage": {
+        "cache_read_tokens": 900,
+        "cache_write_tokens": 300,
+        "input_tokens": 1200,
+        "output_tokens": 80
+      }
+    }
+  ],
+  "scenario_id": "catering_custom_flow_voice",
+  "seed": null,
+  "source": "hand-authored",
+  "version": 1
+}
