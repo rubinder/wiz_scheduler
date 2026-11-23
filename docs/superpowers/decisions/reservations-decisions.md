@@ -607,6 +607,15 @@ Decisions made while building without stopping to ask (owner instruction,
     Cost if wrong: at the old rule a heavy month under-billed nothing; at
     this one the owner's margin at the included limit is about $3.50 a month
     before the number's daily fee.
+99. **The billing card shows about how many 1- and 2-minute calls the
+    included cost covers (owner, 2026-11-22).** `billing_reservations.estimated_included_calls`
+    prices a typical call (1 minute and 3 turns, or 2 minutes and 5 turns; 150 spoken characters a
+    reply, 6,000 cached / 800 new input / 200 output tokens a turn) with the
+    same settings usage is billed with, divides the included cost by it and
+    rounds down to a multiple of 5 (120 one-minute calls at $0.040, 65
+    two-minute calls at $0.074, at today's prices).
+    It is an estimate for customers, not a quota. Cost if wrong: real calls
+    run longer or shorter and the number is off; it never caps anything.
 
 ## Before switching reservations on (owner checklist)
 

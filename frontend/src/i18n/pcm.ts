@@ -1658,6 +1658,7 @@ const pcm = {
       description: "Di reservation AI host get im own subscription, e no join scheduling own.",
       cardTitle: "Di AI host subscription",
       price: "{price} every month, e cover {included} of our cost, after dat na our cost + {markup}%",
+      callsEstimate: "E fit cover about {short} one-minute calls or {calls} two-minute calls every month.",
       compedPrice: "Free plan wey we dash you",
       subscribe: "Subscribe",
       redirecting: "We dey carry you go payment...",
