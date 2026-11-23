@@ -3,6 +3,7 @@
 The model is faked: `floor_ai.draft_model` is swapped for a scripted client,
 and the background job's sessions come from the test engine."""
 
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -52,13 +53,27 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+# What the fake's count_tokens reports: a worst case of
+# 50k x $4/M + 16k x $20/M = $0.52, under the $1.00 floor.
+COUNTED = 50_000
+
+
 class FakeModel:
     def __init__(self, reply: "floor_ai.ModelReply | Exception") -> None:
         self.reply = reply
         self.calls: list[dict] = []
+        self.counted: "int | Exception" = COUNTED
+        self.delay = 0.0
+
+    async def count_tokens(self, *, system: str, content: list[dict]) -> int:
+        if isinstance(self.counted, Exception):
+            raise self.counted
+        return self.counted
 
     async def draft(self, *, system: str, content: list[dict]) -> "floor_ai.ModelReply":
         self.calls.append({"system": system, "content": content})
+        if self.delay:
+            await asyncio.sleep(self.delay)
         if isinstance(self.reply, Exception):
             raise self.reply
         return self.reply
@@ -201,7 +216,8 @@ async def test_a_failed_call_is_not_charged(client, db_session, manager_token,
     daily = (await db_session.execute(select(TokenUsageDaily).execution_options(
         populate_existing=True))).scalar_one_or_none()
     if code == "model_error":
-        assert daily is None
+        # No usage from a call that raised: the counted input is recorded.
+        assert daily is not None and daily.cost_usd == pytest.approx(COUNTED * 4 / 1_000_000)
     else:
         assert daily is not None and daily.cost_usd == pytest.approx(COST)
     monthly = (await db_session.execute(select(TokenUsage))).scalar_one_or_none()
@@ -348,6 +364,242 @@ async def test_drafts_running_elsewhere_in_the_group_need_their_own_credit(
     await db_session.commit()
     r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
     assert r.status_code == 202, r.text
+
+
+# --- worst-case estimate ----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_balance_must_cover_the_counted_worst_case(
+    client, db_session, manager_token, seed_location, model
+):
+    """A big blueprint can cost more than the $1.00 floor: the request is
+    counted first, and the balance must cover its input plus max_tokens."""
+    model.counted = 500_000  # $2.00 input + $0.32 output
+    await _credits(db_session, 2.0)
+    r = await _post(client, manager_token, _files(("p.pdf", PDF, "application/pdf")))
+    assert r.status_code == 402
+    detail = r.json()["detail"]
+    assert detail["code"] == "ai_credits_required"
+    assert detail["estimate_usd"] == pytest.approx(2.32)
+    assert model.calls == []
+
+    og = await _og(db_session)
+    og.ai_credits_usd = 2.5
+    await db_session.commit()
+    r = await _post(client, manager_token, _files(("p.pdf", PDF, "application/pdf")))
+    assert r.status_code == 202, r.text
+    row = (await db_session.execute(select(FloorPlanDraft).execution_options(
+        populate_existing=True))).scalar_one()
+    assert float(row.reserved_usd) == pytest.approx(2.32)
+
+
+@pytest.mark.asyncio
+async def test_in_flight_drafts_reserve_their_own_estimate(
+    client, db_session, manager_token, seed_location, seed_region, model
+):
+    from backend.models import Location
+
+    await _credits(db_session, 4.0)
+    other = Location(company_id=COMPANY_ID, region_id=seed_region.id, name="Uptown",
+                     timezone="America/New_York")
+    db_session.add(other)
+    await db_session.commit()
+    busy = await _row(db_session, location=other.id, status="running")
+    busy.reserved_usd = 3.5
+    await db_session.commit()
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 402, r.text  # 3.50 + 1.00 > 4.00
+
+
+@pytest.mark.asyncio
+async def test_503_when_the_request_cannot_be_counted(
+    client, db_session, manager_token, seed_location, model
+):
+    """Fail closed: no estimate, no call."""
+    await _credits(db_session, 10.0)
+    model.counted = RuntimeError("count failed")
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 503
+    assert r.json()["detail"]["code"] == "estimate_unavailable"
+    assert model.calls == []
+    assert (await db_session.execute(select(FloorPlanDraft))).first() is None
+
+
+@pytest.mark.asyncio
+async def test_pdfs_are_capped_at_50_pages(client, db_session, manager_token, seed_location, model):
+    await _credits(db_session, 10.0)
+    pages = b"".join(b"%d 0 obj << /Type /Page /Parent 2 0 R >> endobj\n" % i for i in range(30))
+    pdf = PDF + b"1 0 obj << /Type /Pages /Count 30 >> endobj\n" + pages
+    r = await _post(client, manager_token, _files(("a.pdf", pdf, "application/pdf"),
+                                                  ("b.pdf", pdf, "application/pdf")))
+    assert r.status_code == 422
+    assert r.json()["detail"]["code"] == "too_many_pages"
+    r = await _post(client, manager_token, _files(("a.pdf", pdf, "application/pdf")))
+    assert r.status_code == 202, r.text
+
+
+def test_pdf_page_count():
+    assert floor_ai.pdf_page_count(PDF + b"<< /Type /Pages /Count 2 >> << /Type /Page >> "
+                                         b"<</Type/Page/Parent 1 0 R>>") == 2
+
+
+# --- failure limit ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_429_after_three_failed_drafts_today(
+    client, db_session, manager_token, seed_location, model
+):
+    await _credits(db_session, 10.0)
+    for _ in range(2):
+        row = await _row(db_session, status="failed")
+        row.error_code = "unreadable"
+    await _row(db_session, status="failed", age=timedelta(days=1, hours=1))
+    await db_session.commit()
+    model.reply = _reply(stop="refusal")
+    # The third failure today (it finishes before the response is read).
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "too_many_failed_drafts"
+    assert len(model.calls) == 1
+
+
+# --- the model call's deadline -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_call_past_the_deadline_fails_uncharged(
+    client, db_session, manager_token, seed_location, model, monkeypatch
+):
+    monkeypatch.setattr(floor_ai, "MODEL_DEADLINE_S", 0.05)
+    model.delay = 1.0
+    await _credits(db_session, 10.0)
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    body = (await client.get(
+        f"{BASE}/locations/{LOCATION_ID}/floor/ai-drafts/{r.json()['id']}",
+        headers=_auth(manager_token))).json()
+    assert body["status"] == "failed" and body["error_code"] == "timeout"
+    assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)
+    daily = (await db_session.execute(select(TokenUsageDaily))).scalar_one()
+    assert daily.cost_usd == pytest.approx(COUNTED * 4 / 1_000_000)
+
+
+def test_the_deadline_ends_before_the_slot_is_released():
+    assert floor_ai.MODEL_DEADLINE_S <= floor_ai.DRAFT_TIMEOUT.total_seconds() - 30
+
+
+def test_the_sdk_client_does_not_retry(monkeypatch):
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    assert floor_ai.AnthropicFloorDraftModel()._sdk().max_retries == 0
+
+
+# --- resuming ---------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_latest_is_the_newest_draft_at_the_location(
+    client, db_session, manager_token, seed_location, seed_region
+):
+    from backend.models import Location
+
+    h = _auth(manager_token)
+    url = f"{BASE}/locations/{LOCATION_ID}/floor/ai-drafts/latest"
+    assert (await client.get(url, headers=h)).status_code == 404
+    other = Location(company_id=COMPANY_ID, region_id=seed_region.id, name="Uptown",
+                     timezone="America/New_York")
+    db_session.add(other)
+    await db_session.commit()
+    await _row(db_session, status="done", age=timedelta(minutes=30))
+    newest = await _row(db_session, status="running", age=timedelta(minutes=1))
+    await _row(db_session, location=other.id, status="queued")
+    body = (await client.get(url, headers=h)).json()
+    assert body["id"] == newest.id and body["status"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_latest_reads_a_stuck_draft_as_timed_out(client, db_session, manager_token,
+                                                       seed_location):
+    await _row(db_session, status="running", age=timedelta(minutes=6))
+    body = (await client.get(f"{BASE}/locations/{LOCATION_ID}/floor/ai-drafts/latest",
+                             headers=_auth(manager_token))).json()
+    assert body["status"] == "failed" and body["error_code"] == "timeout"
+
+
+# --- location scope -----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_regular_manager_drafts_only_at_their_locations(
+    client, db_session, regular_token, seed_location, model
+):
+    from tests.conftest import OTHER_LOCATION_ID
+
+    await _credits(db_session, 10.0)
+    r = await _post(client, regular_token, _files(("a.jpg", JPEG, "image/jpeg")),
+                    location=OTHER_LOCATION_ID)
+    assert r.status_code == 404
+    assert model.calls == []
+    r = await _post(client, regular_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+
+
+# --- before the body is parsed ---------------------------------------------------
+
+
+async def _raw_post(headers: list[tuple[bytes, bytes]]) -> tuple[int, dict, bool]:
+    """POST straight into the ASGI app, no auth, and report whether the body
+    was ever read."""
+    from backend.main import app
+
+    read = False
+    sent: dict = {}
+
+    async def receive():
+        nonlocal read
+        read = True
+        return {"type": "http.request", "body": b"x" * 1024, "more_body": False}
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            sent["status"] = message["status"]
+        elif message["type"] == "http.response.body":
+            sent["body"] = sent.get("body", b"") + message.get("body", b"")
+
+    path = f"/api/v1/reservations/locations/{LOCATION_ID}/floor/ai-drafts"
+    scope = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+        "method": "POST", "scheme": "http", "server": ("test", 80), "client": ("1.2.3.4", 1),
+        "path": path, "raw_path": path.encode(), "root_path": "", "query_string": b"",
+        "headers": [(b"content-type", b"multipart/form-data; boundary=x"), *headers],
+    }
+    await app(scope, receive, send)
+    return sent["status"], json.loads(sent["body"]), read
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_body_is_refused_before_it_is_read():
+    status, body, read = await _raw_post(
+        [(b"content-length", str(floor_ai.MAX_TOTAL_BYTES + 2 * 1024 * 1024).encode())])
+    assert status == 413 and body["detail"]["code"] == "file_too_large"
+    assert read is False
+
+
+@pytest.mark.asyncio
+async def test_a_body_without_a_length_is_refused():
+    status, body, read = await _raw_post([(b"transfer-encoding", b"chunked")])
+    assert status == 411 and body["detail"]["code"] == "length_required"
+    assert read is False
+
+
+def test_suffixed_labels_fit_the_label_limit():
+    long = "Window booth by bar"  # 19 characters
+    floor, _ = floor_ai.postprocess(_raw([_table(long), _table(long), _table(long)]))
+    labels = [t.label for t in floor.tables]
+    assert len(set(labels)) == 3
+    assert all(len(lbl) <= floor_ai.MAX_LABEL_CHARS for lbl in labels)
 
 
 # --- reading uploads ----------------------------------------------------------
@@ -554,7 +806,7 @@ async def test_a_late_result_after_timeout_is_not_charged(db_session, seed_locat
     await _credits(db_session, 10.0)
     row = await _row(db_session, status="queued", age=timedelta(minutes=6))
     files = floor_ai.validate_inputs([(JPEG, "")], "")
-    await floor_ai.run_draft(row.id, files, "")
+    await floor_ai.run_draft(row.id, files, "", COUNTED)
     fresh = (await db_session.execute(select(FloorPlanDraft).where(
         FloorPlanDraft.id == row.id).execution_options(populate_existing=True))).scalar_one()
     assert fresh.status == "failed" and fresh.error_code == "timeout"

@@ -1,7 +1,8 @@
 """AI floor-plan drafts (decision 101).
 
 floor_plan_drafts: one row per "Draft from photos (AI)" request: status, the
-proposed floor (FloorIn JSON), warnings, confidence, the at-cost charge and
+proposed floor (FloorIn JSON), warnings, confidence, the credit reserved
+while in flight, the at-cost charge and
 an error code. The uploaded files and notes are never stored. Company-keyed,
 so it gets 0058's three policies (app, analytics, admin), as in 0065. Both
 foreign keys cascade: a draft is a 7-day cache, so a hard delete of its
@@ -35,6 +36,7 @@ def upgrade() -> None:
         sa.Column("warnings", postgresql.JSONB(), nullable=False,
                   server_default=sa.text("'[]'::jsonb")),
         sa.Column("confidence", sa.String(6), nullable=True),
+        sa.Column("reserved_usd", sa.Numeric(10, 4), nullable=True),
         sa.Column("cost_usd", sa.Numeric(10, 4), nullable=True),
         sa.Column("error_code", sa.String(32), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,

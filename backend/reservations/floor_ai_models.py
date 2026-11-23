@@ -41,6 +41,9 @@ class FloorPlanDraft(Base):
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     warnings: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     confidence: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    # The credit this draft holds back while in flight: its counted worst
+    # case, at least FLOOR_PLAN_AI_MIN_CREDITS_USD.
+    reserved_usd: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     # What was debited from AI credits (at cost); NULL when nothing was.
     cost_usd: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -17,14 +17,16 @@ not charged. Files and notes live only in memory for the call.
 touches the Anthropic SDK. Everything else sees `ModelReply`.
 """
 
+import asyncio
 import base64
 import json
+import re
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -43,6 +45,8 @@ MAX_FILES = 10
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # Claude's per-image limit
 MAX_PDF_BYTES = 20 * 1024 * 1024
 MAX_TOTAL_BYTES = 30 * 1024 * 1024  # under the API's 32 MB request limit
+# Multipart boundaries, part headers, captions and notes on top of the files.
+MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 MAX_CAPTION_CHARS = 300
 MAX_NOTES_CHARS = 2000
 MAX_TABLES = 200
@@ -50,7 +54,10 @@ MAX_SEATS = 30
 # A queued or running row older than this reads as failed/timeout: the
 # worker that ran it is gone (deploy, crash) or the call hung.
 DRAFT_TIMEOUT = timedelta(minutes=5)
-MODEL_TIMEOUT_S = 240.0
+# The model call ends 30 s before the draft would read as timed out, so
+# nothing finishes (or is charged) after the in-flight check freed the slot.
+MODEL_DEADLINE_S = DRAFT_TIMEOUT.total_seconds() - 30
+MAX_PDF_PAGES = 50
 
 CANVAS_W = 40.0
 CANVAS_H = 25.0
@@ -78,6 +85,14 @@ class DraftInputInvalid(Exception):
 
 class DraftInProgress(Exception):
     """The location already has a queued or running draft (409)."""
+
+
+class DraftLimited(Exception):
+    """Too many uncharged failed drafts today for the group (429)."""
+
+
+class DraftEstimateUnavailable(Exception):
+    """The request could not be counted, so its cost is unknown (503)."""
 
 
 class DraftBlocked(Exception):
@@ -115,6 +130,8 @@ class Upload(Protocol):
 
 
 class FloorDraftModel(Protocol):
+    async def count_tokens(self, *, system: str, content: list[dict[str, Any]]) -> int: ...
+
     async def draft(self, *, system: str, content: list[dict[str, Any]]) -> ModelReply: ...
 
 
@@ -132,6 +149,17 @@ def sniff_media_type(data: bytes) -> str | None:
     if data.startswith(b"%PDF-"):
         return PDF_TYPE
     return None
+
+
+_PAGE = re.compile(rb"/Type\s*/Page(?![A-Za-z])")
+
+
+def pdf_page_count(data: bytes) -> int:
+    """Pages in a PDF, counted from its page objects without a PDF library
+    (none is installed). A file whose pages sit in compressed object streams
+    counts low; count_tokens still prices those, so this is a cheap first
+    cap, not the only one."""
+    return len(_PAGE.findall(data))
 
 
 def validate_inputs(files: list[tuple[bytes, str]], notes: str) -> list[DraftFile]:
@@ -161,6 +189,10 @@ def validate_inputs(files: list[tuple[bytes, str]], notes: str) -> list[DraftFil
             raise DraftInputInvalid(
                 "file_too_large", 413, f"at most {MAX_TOTAL_BYTES // (1024 * 1024)} MB in total")
         out.append(DraftFile(media_type=media_type, data=data, caption=caption.strip()))
+    pages = sum(pdf_page_count(f.data) for f in out if f.media_type == PDF_TYPE)
+    if pages > MAX_PDF_PAGES:
+        raise DraftInputInvalid(
+            "too_many_pages", 422, f"PDFs: at most {MAX_PDF_PAGES} pages in total")
     return out
 
 
@@ -330,22 +362,33 @@ class AnthropicFloorDraftModel:
             import anthropic
 
             self._client = anthropic.AsyncAnthropic(
-                api_key=settings.ANTHROPIC_API_KEY, max_retries=1)
+                api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
         return self._client
+
+    def _request(self, system: str, content: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "model": settings.FLOOR_PLAN_AI_MODEL,
+            "system": system,
+            "messages": [{"role": "user", "content": content}],
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "medium",
+                              "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+        }
+
+    async def count_tokens(self, *, system: str, content: list[dict[str, Any]]) -> int:
+        """Input tokens of exactly the request `draft` sends (free)."""
+        counted = await self._sdk().messages.count_tokens(
+            **self._request(system, content), timeout=60.0)
+        return int(counted.input_tokens)
 
     async def draft(self, *, system: str, content: list[dict[str, Any]]) -> ModelReply:
         # No server-side refusal fallback: a fallback model bills at its own
         # prices, which the at-cost charge would misstate. A refusal fails
         # the draft uncharged instead.
         async with self._sdk().messages.stream(
-            model=settings.FLOOR_PLAN_AI_MODEL,
+            **self._request(system, content),
             max_tokens=settings.FLOOR_PLAN_AI_MAX_TOKENS,
-            system=system,
-            messages=[{"role": "user", "content": content}],
-            thinking={"type": "adaptive"},
-            output_config={"effort": "medium",
-                           "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
-            timeout=MODEL_TIMEOUT_S,
+            timeout=MODEL_DEADLINE_S,
         ) as stream:
             message = await stream.get_final_message()
         text = "".join(b.text for b in message.content if getattr(b, "type", "") == "text")
@@ -362,6 +405,28 @@ def draft_model() -> FloorDraftModel:
     if _model is None:
         _model = AnthropicFloorDraftModel()
     return _model
+
+
+def input_cost_usd(input_tokens: int) -> float:
+    return round(input_tokens * settings.FLOOR_PLAN_AI_INPUT_USD_PER_MTOK / 1_000_000, 6)
+
+
+def worst_case_usd(input_tokens: int) -> float:
+    """The most a call with this input can cost: the input plus a full
+    FLOOR_PLAN_AI_MAX_TOKENS of output."""
+    return round(input_cost_usd(input_tokens) + settings.FLOOR_PLAN_AI_MAX_TOKENS
+                 * settings.FLOOR_PLAN_AI_OUTPUT_USD_PER_MTOK / 1_000_000, 6)
+
+
+async def count_input_tokens(files: list[DraftFile], notes: str) -> int:
+    """Input tokens of the exact request. Raises DraftEstimateUnavailable:
+    without a count the cost is unknown, and the gate fails closed."""
+    try:
+        return await draft_model().count_tokens(system=SYSTEM_PROMPT,
+                                                content=build_content(files, notes))
+    except Exception as exc:
+        logger.exception("floor_ai.count_failed")
+        raise DraftEstimateUnavailable() from exc
 
 
 def draft_cost_usd(usage: dict[str, int]) -> float:
@@ -414,6 +479,12 @@ def _num(v: Any) -> float:
 
 def _text(v: Any, limit: int) -> str:
     return (v if isinstance(v, str) else "").strip()[:limit]
+
+
+def _suffixed(base: str, n: int) -> str:
+    """`base (n)`, with base cut so the whole fits MAX_LABEL_CHARS."""
+    suffix = f" ({n})"
+    return base[:MAX_LABEL_CHARS - len(suffix)].rstrip() + suffix
 
 
 def postprocess(raw: Any) -> tuple[FloorIn, list[str]]:
@@ -471,9 +542,9 @@ def postprocess(raw: Any) -> tuple[FloorIn, list[str]]:
             label = f"T{n}"
         if label in used:
             base, n = label, 2
-            while f"{base} ({n})" in used:
+            while (cand := _suffixed(base, n)) in used:
                 n += 1
-            label = f"{base} ({n})"
+            label = cand
             warnings.append(f"Renamed a second table labelled {base} to {label}.")
         used.add(label)
         section_key = t.get("section_key")
@@ -508,7 +579,8 @@ def postprocess(raw: Any) -> tuple[FloorIn, list[str]]:
 
 
 async def create_draft(
-    db: AsyncSession, company_id: str, location_id: str, now: datetime | None = None,
+    db: AsyncSession, company_id: str, location_id: str, estimate_usd: float,
+    now: datetime | None = None,
 ) -> FloorPlanDraft:
     """Add a queued draft, under the group's and the location's row locks so
     simultaneous requests take turns (group first, then location).
@@ -517,8 +589,11 @@ async def create_draft(
     draft there is younger than DRAFT_TIMEOUT. Across the group, the balance
     (purchased plus included credit) must cover a worst-case draft for each
     one in flight plus this one, or DraftBlocked("ai_credits_required"): a
-    balance that covers one draft cannot start one per location. The
-    caller rolls back on either."""
+    balance that covers one draft cannot start one per location. Each draft
+    reserves its worst case (`estimate_usd`, from count_tokens) or
+    FLOOR_PLAN_AI_MIN_CREDITS_USD, whichever is more. After
+    FLOOR_PLAN_AI_MAX_FAILED_PER_DAY uncharged failures today (UTC) the
+    group gets DraftLimited. The caller rolls back on any of them."""
     now = now or datetime.now(timezone.utc)
     og_id = await billing.lock_ownership_group(db, company_id)
     if og_id is None:
@@ -535,23 +610,34 @@ async def create_draft(
     ).limit(1))).scalar_one_or_none()
     if busy is not None:
         raise DraftInProgress(busy)
-    group_in_flight = (await db.execute(select(func.count()).select_from(FloorPlanDraft).where(
-        FloorPlanDraft.company_id.in_(
-            select(Company.id).where(Company.ownership_group_id == og_id)),
-        *in_flight,
+    group = FloorPlanDraft.company_id.in_(
+        select(Company.id).where(Company.ownership_group_id == og_id))
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    failed_today = (await db.execute(select(func.count()).select_from(FloorPlanDraft).where(
+        group, FloorPlanDraft.created_at >= day_start,
+        or_(FloorPlanDraft.status == FAILED,
+            and_(FloorPlanDraft.status.in_((QUEUED, RUNNING)),
+                 FloorPlanDraft.created_at <= now - DRAFT_TIMEOUT)),
     ))).scalar_one()
+    if failed_today >= settings.FLOOR_PLAN_AI_MAX_FAILED_PER_DAY:
+        raise DraftLimited()
+    floor_usd = settings.FLOOR_PLAN_AI_MIN_CREDITS_USD
+    reserved_elsewhere = (await db.execute(select(
+        func.coalesce(func.sum(func.coalesce(FloorPlanDraft.reserved_usd, floor_usd)), 0)
+    ).where(group, *in_flight))).scalar_one()
+    reserve = max(floor_usd, estimate_usd)
     status = await billing.check_ai_credits(db, company_id)
     balance = status["purchased_credits_usd"] + status["included_remaining_usd"]
-    needed = settings.FLOOR_PLAN_AI_MIN_CREDITS_USD * (group_in_flight + 1)
+    needed = float(reserved_elsewhere) + reserve
     if balance < needed:
-        # A draft can cost up to the minimum; a few cents must not buy one.
+        # A few cents must not buy a draft that can cost dollars.
         raise DraftBlocked(
             "ai_credits_required",
-            f"An AI floor draft needs ${settings.FLOOR_PLAN_AI_MIN_CREDITS_USD:.2f} of AI "
-            "credits, more while other drafts are running. Buy a credit pack to continue.",
-            {"min_credits_usd": round(needed, 2)})
+            f"This AI floor draft can cost up to ${reserve:.2f}, and it needs that much "
+            "AI credit (more while other drafts are running). Buy a credit pack to continue.",
+            {"estimate_usd": round(estimate_usd, 2), "min_credits_usd": round(needed, 2)})
     row = FloorPlanDraft(company_id=company_id, location_id=location_id,
-                         status=QUEUED, warnings=[])
+                         status=QUEUED, warnings=[], reserved_usd=reserve)
     db.add(row)
     await db.flush()
     return row
@@ -559,6 +645,27 @@ async def create_draft(
 
 def _timed_out(row: FloorPlanDraft, now: datetime) -> bool:
     return row.status in (QUEUED, RUNNING) and now - row.created_at > DRAFT_TIMEOUT
+
+
+def _as_read(db: AsyncSession, row: FloorPlanDraft | None, now: datetime) -> FloorPlanDraft | None:
+    if row is not None and _timed_out(row, now):
+        db.expunge(row)
+        row.status, row.error_code = FAILED, "timeout"
+    return row
+
+
+async def get_latest_draft(
+    db: AsyncSession, company_id: str, location_id: str, now: datetime | None = None,
+) -> FloorPlanDraft | None:
+    """The location's newest draft (the modal resumes it), read like get_draft."""
+    row = (await db.execute(
+        select(FloorPlanDraft).where(
+            FloorPlanDraft.company_id == company_id,
+            FloorPlanDraft.location_id == location_id,
+        ).order_by(FloorPlanDraft.created_at.desc(), FloorPlanDraft.id.desc()).limit(1)
+        .execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    return _as_read(db, row, now or datetime.now(timezone.utc))
 
 
 async def get_draft(
@@ -575,14 +682,11 @@ async def get_draft(
             FloorPlanDraft.location_id == location_id,
         ).execution_options(populate_existing=True)
     )).scalar_one_or_none()
-    if row is not None and _timed_out(row, now):
-        db.expunge(row)
-        row.status, row.error_code = FAILED, "timeout"
-    return row
+    return _as_read(db, row, now)
 
 
 async def run_draft(
-    draft_id: str, files: list[DraftFile], notes: str,
+    draft_id: str, files: list[DraftFile], notes: str, input_tokens: int,
 ) -> None:
     """The background part: call the model, store the draft, charge at cost.
     Runs on its own session after the response. Never raises."""
@@ -599,8 +703,12 @@ async def run_draft(
 
             error, reply = None, None
             try:
-                reply = await draft_model().draft(system=SYSTEM_PROMPT,
-                                                  content=build_content(files, notes))
+                reply = await asyncio.wait_for(
+                    draft_model().draft(system=SYSTEM_PROMPT, content=build_content(files, notes)),
+                    MODEL_DEADLINE_S)
+            except asyncio.TimeoutError:
+                logger.warning("floor_ai.deadline draft=%s", draft_id)
+                error = "timeout"
             except Exception:
                 logger.exception("floor_ai.model_error draft=%s", draft_id)
                 error = "model_error"
@@ -628,13 +736,17 @@ async def run_draft(
             row.finished_at = now
             if floor is None:
                 row.status, row.error_code = FAILED, error or "unreadable"
+                # Not charged, but the call cost us: the daily cap counts it.
+                # A call that raised or ran out of time reports no usage, so
+                # the counted input stands in for it.
                 if reply is not None:
-                    # Not charged, but the call cost us: the daily cap counts it.
-                    await billing.record_uncharged_ai_cost(
-                        db, company_id, draft_cost_usd(reply.usage),
-                        input_tokens=reply.usage.get("input_tokens", 0),
-                        output_tokens=reply.usage.get("output_tokens", 0),
-                        feature="floor_plan_draft")
+                    cost, used_in = draft_cost_usd(reply.usage), reply.usage.get("input_tokens", 0)
+                    used_out = reply.usage.get("output_tokens", 0)
+                else:
+                    cost, used_in, used_out = input_cost_usd(input_tokens), input_tokens, 0
+                await billing.record_uncharged_ai_cost(
+                    db, company_id, cost, input_tokens=used_in, output_tokens=used_out,
+                    feature="floor_plan_draft")
                 await db.commit()
                 return
             charged = await billing.charge_ai_credits_at_cost(

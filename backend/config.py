@@ -408,6 +408,8 @@ class Settings(BaseSettings):
     # images or a long blueprint ($0.68) plus FLOOR_PLAN_AI_MAX_TOKENS of
     # output ($0.32). The debit is still the actual cost.
     FLOOR_PLAN_AI_MIN_CREDITS_USD: float = 1.00
+    # Uncharged failed drafts a group may run per UTC day before 429.
+    FLOOR_PLAN_AI_MAX_FAILED_PER_DAY: int = 3
     RETENTION_FLOOR_PLAN_DRAFTS_DAYS: int = 7
     # Hard daily spend ceiling per location for a comped group (#259 step
     # 11): its usage is never invoiced, so the operator pays it. The location's
