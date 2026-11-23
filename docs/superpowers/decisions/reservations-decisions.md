@@ -656,7 +656,8 @@ Decisions made while building without stopping to ask (owner instruction,
 - Once the endpoint is subscribed to `customer.subscription.created`,
   `invoice.voided` and `invoice.marked_uncollectible`, add them to
   `stripe_reconcile.REQUIRED_WEBHOOK_EVENTS` (adding them before would raise
-  a reconcile alert every run).
+  a reconcile alert every run). Done 2026-11-22: the live endpoint has all
+  ten events and the reconcile requires them.
 - Schedule `python -m backend.scripts.run_agent_overage_reconcile` daily
   (step 6 infra): it re-syncs every agent subscription, bills overage, and
   sends the final invoice of one whose deletion webhook was missed.
