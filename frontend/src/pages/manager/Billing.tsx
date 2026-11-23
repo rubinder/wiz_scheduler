@@ -6,6 +6,7 @@ import { ApiError } from "../../api/client";
 import { getConfig } from "../../api/reservations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { text } from "../../theme";
+import CallCapacityCard from "./CallCapacityCard";
 import {
   agentStatusKey,
   canSubscribe,
@@ -270,6 +271,8 @@ export default function Billing() {
           )}
         </section>
       )}
+
+      {agent?.answering && !isComped(agent.status) && <CallCapacityCard />}
     </div>
   );
 }
