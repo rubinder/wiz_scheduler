@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
 import { listManagers } from "../../api/managers";
-import { getConfig, getRules, saveRules } from "../../api/reservations";
+import { getConfig, getRules, saveFlows } from "../../api/reservations";
 import FlowDiagram from "../../components/reservations/FlowDiagram";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -17,15 +17,13 @@ import type {
   FlowStepKind,
   RulesSchema,
 } from "../../types/reservations";
-import { flowProblems, flowReducer } from "../../utils/conversationFlow";
+import { flowProblems, flowReducer, stepLabel } from "../../utils/conversationFlow";
 import type { FlowAction } from "../../utils/conversationFlow";
 import { border, text } from "../../theme";
 
 const KINDS: FlowStepKind[] = ["ask", "choice", "book", "change_or_cancel", "say", "handoff", "end"];
 const COLLECTS: FlowCollect[] = ["party_size", "date_time", "name", "phone", "occasion", "free_text"];
 const CHANNELS: FlowChannel[] = ["web", "voice"];
-/** Rules fields a regular manager's save omits; the server keeps the stored values. */
-const ADMIN_ONLY = ["provider", "mock_external", "disclose_automated", "flow_editor_ids"] as const;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -124,13 +122,20 @@ export default function ReservationsFlow() {
   const locationManagers = managers.filter(
     (m) => m.manager_type === "regular" && m.assigned_locations.some((l) => l.id === locationId),
   );
+  // Listed editors who are no longer regular managers here: shown so an
+  // admin can remove them (the server also drops them on the next save).
+  const staleEditors = editors.filter((id) => !locationManagers.some((m) => m.id === id));
+  const managerName = (id: string) => {
+    const m = managers.find((x) => x.id === id);
+    return m ? m.full_name || m.email : id;
+  };
 
   const act = (action: FlowAction) => {
     setSaved(false);
     setRemote([]);
     dispatch(action);
   };
-  const stepName = (id: string) => flow?.steps.find((s) => s.id === id)?.title.trim() || f.untitled;
+  const stepName = (id: string) => (flow ? stepLabel(flow, id, f.untitled) : f.untitled);
   const problemText = (p: FlowProblem) => (f.problems as Record<string, string>)[p.code] ?? r.errors.generic;
 
   const onSave = async () => {
@@ -139,13 +144,14 @@ export default function ReservationsFlow() {
     setSaving(true);
     setSaveError("");
     setSaved(false);
-    const payload: Record<string, unknown> = { ...rules, flows };
-    if (isAdmin) payload.flow_editor_ids = editors;
-    else for (const k of ADMIN_ONLY) delete payload[k];
+    // Only the flows (and the editors, for an admin): the server keeps every
+    // other rules field as stored, so a colleague's rules edit is never undone.
+    const body = { flows: { web: flows.web, voice: flows.voice }, ...(isAdmin ? { flow_editor_ids: editors } : {}) };
     try {
-      const out = await saveRules(forLocation, payload as unknown as RulesSchema);
+      const out = await saveFlows(forLocation, body);
       if (currentLocation.current !== forLocation) return;
       setRules(out.rules);
+      setEditors(out.rules.flow_editor_ids ?? []);
       setSaved(true);
     } catch (e) {
       if (currentLocation.current !== forLocation) return;
@@ -466,6 +472,25 @@ export default function ReservationsFlow() {
             <section className="glass-card space-y-2 p-4">
               <h2 className={`text-lg font-semibold ${text.heading}`}>{f.editors}</h2>
               <p className={`text-sm ${text.muted}`}>{f.editorsHint}</p>
+              {staleEditors.length > 0 && (
+                <ul className="space-y-1">
+                  {staleEditors.map((id) => (
+                    <li key={id}>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => {
+                            setSaved(false);
+                            setEditors(editors.filter((x) => x !== id));
+                          }}
+                        />
+                        {f.staleEditor.replace("{name}", managerName(id))}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {locationManagers.length === 0 ? (
                 <p className={`text-sm ${text.secondary}`}>{f.noEditors}</p>
               ) : (

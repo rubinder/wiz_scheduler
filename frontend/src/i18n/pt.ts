@@ -1880,6 +1880,7 @@ const pt = {
       editors: "Editores de fluxo permitidos",
       editorsHint: "Gerentes deste local que podem editar os seus fluxos. Administradores sempre podem.",
       noEditors: "Este local não tem gerentes regulares.",
+      staleEditor: "{name} já não é gerente regular deste local. Desmarque para remover.",
       readOnly: "Só um administrador, ou um gerente autorizado por um administrador, pode editar os fluxos deste local.",
       problemsTitle: "Corrija isto antes de guardar:",
       kinds: {

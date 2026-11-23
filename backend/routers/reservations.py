@@ -19,7 +19,7 @@ from backend.reservations import (
     booking, diner_data, number_rules, subscription, voice_numbers, voice_transfers,
 )
 from backend.reservations.agent.models import OUTCOMES
-from backend.reservations.flows import flows_problems
+from backend.reservations.flows import Flows, flows_problems
 from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
 from backend.reservations.floor import (
@@ -34,14 +34,14 @@ from backend.reservations.rules import (
     DISCLOSURE_MESSAGE, RulesSchema, get_rules, missing_disclosure, save_rules, stored_fields,
 )
 from backend.schemas.reservations import (
-    BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
+    BookingIn, ConversationDetailOut, FlowsIn, ConversationOut, DinerDataOut,
     DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
     NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
 )
 from backend.services.archive import active
-from backend.services.manager_permissions import is_admin_manager
+from backend.services.manager_permissions import is_admin_manager, regular_manager_ids_at
 from backend.services.location_scope import LocationScope
 
 
@@ -195,6 +195,36 @@ async def read_rules(
 ADMIN_ONLY_RULES = ("provider", "mock_external", "disclose_automated", "flow_editor_ids")
 
 
+async def _checked_flow_write(
+    db: AsyncSession, user: User, location_id: str, stored_flows: Flows,
+    stored_editors: list[str], flows: Flows, editors: list[str],
+) -> list[str]:
+    """Checks a write of the flows and flow editors (decision 102) against
+    what is stored, and returns the editors to save: stored ids that are no
+    longer regular managers of the location are dropped, new ones must be.
+    The admin-only check on the editors is the caller's."""
+    if flows != stored_flows:
+        # Admins, and regular managers an admin listed.
+        if not is_admin_manager(user) and str(user.id) not in stored_editors:
+            raise HTTPException(status_code=403, detail={
+                "code": "flow_edit_not_allowed",
+                "message": "Only an admin, or a manager an admin allowed, can "
+                           "change this location's conversation flows"})
+        problems = flows_problems(flows)
+        if problems:
+            raise HTTPException(status_code=422, detail={
+                "code": "invalid_flow", "message": "The conversation flow has problems",
+                "problems": problems})
+    valid = await regular_manager_ids_at(db, str(user.company_id), location_id)
+    bad = [i for i in editors if i not in stored_editors and i not in valid]
+    if bad:
+        raise HTTPException(status_code=422, detail={
+            "code": "invalid_flow_editor",
+            "message": "Flow editors must be regular managers of this location",
+            "ids": bad})
+    return [i for i in dict.fromkeys(editors) if i in valid]
+
+
 @gated.put("/locations/{location_id}/rules", response_model=RulesOut)
 async def write_rules(
     location_id: str,
@@ -223,18 +253,10 @@ async def write_rules(
             "code": "admin_only",
             "message": "Only an admin can change the booking provider, "
                        "the automated-assistant disclosure or the flow editors"})
-    if body.flows != stored["flows"]:
-        # Decision 102: admins, and regular managers an admin listed.
-        if not is_admin_manager(user) and str(user.id) not in stored["flow_editor_ids"]:
-            raise HTTPException(status_code=403, detail={
-                "code": "flow_edit_not_allowed",
-                "message": "Only an admin, or a manager an admin allowed, can "
-                           "change this location's conversation flows"})
-        problems = flows_problems(body.flows)
-        if problems:
-            raise HTTPException(status_code=422, detail={
-                "code": "invalid_flow", "message": "The conversation flow has problems",
-                "problems": problems})
+    editors = await _checked_flow_write(
+        db, user, location_id, stored["flows"], stored["flow_editor_ids"],
+        body.flows, body.flow_editor_ids)
+    body = body.model_copy(update={"flow_editor_ids": editors})
     if missing_disclosure(body):
         raise HTTPException(status_code=422, detail={
             "code": "greeting_missing_disclosure", "message": DISCLOSURE_MESSAGE})
@@ -252,6 +274,31 @@ async def write_rules(
     version = await save_rules(db, str(user.company_id), location_id, body)
     await db.commit()
     return RulesOut(rules=body, version=version)
+
+
+@gated.put("/locations/{location_id}/flows", response_model=RulesOut)
+async def write_flows(
+    location_id: str,
+    body: FlowsIn,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> RulesOut:
+    """Only the flows and flow editors: every other stored rules field is
+    kept, so the flow page never reverts a colleague's rules edit."""
+    await _location(db, scope, user, location_id)
+    rules, _ = await get_rules(db, str(user.company_id), location_id)
+    editors = rules.flow_editor_ids if body.flow_editor_ids is None else body.flow_editor_ids
+    if editors != rules.flow_editor_ids and not is_admin_manager(user):
+        raise HTTPException(status_code=403, detail={
+            "code": "admin_only", "message": "Only an admin can change the flow editors"})
+    editors = await _checked_flow_write(db, user, location_id, rules.flows,
+                                        rules.flow_editor_ids, body.flows, editors)
+    rules = rules.model_copy(update={"flows": body.flows, "flow_editor_ids": editors})
+    version = await save_rules(db, str(user.company_id), location_id, rules)
+    await db.commit()
+    rules = await subscription.rules_as_shown(db, str(user.company_id), rules)
+    return RulesOut(rules=rules, version=version)
 
 
 @gated.get("/locations/{location_id}/slots", response_model=list[SlotOut])

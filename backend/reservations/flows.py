@@ -13,6 +13,7 @@ else (targets, reachability, limits) so the rules route can answer 422
 
 import json
 import re
+import unicodedata
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
@@ -23,8 +24,13 @@ MAX_LABEL = 80
 MAX_TITLE = 80
 MIN_OPTIONS, MAX_OPTIONS = 2, 6
 STEP_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
-# C0 controls, DEL and C1 controls.
-_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# Controls (Cc), format characters (Cf: bidi overrides, zero-width) and
+# the line and paragraph separators (Zl, Zp, U+2028/U+2029).
+_REJECTED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+
+def _has_control(text: str) -> bool:
+    return any(unicodedata.category(c) in _REJECTED_CATEGORIES for c in text)
 
 Collect = Literal["party_size", "date_time", "name", "phone", "occasion", "free_text"]
 
@@ -178,7 +184,7 @@ def flow_problems(flow: Flow) -> list[dict]:
                 problems.append(_problem("empty_text", s.id, field))
             if len(value) > limit:
                 problems.append(_problem("too_long", s.id, field))
-            if _CONTROL.search(value):
+            if _has_control(value):
                 problems.append(_problem("control_chars", s.id, field))
     if not any(s.kind in TERMINAL_KINDS for s in flow.steps):
         problems.append(_problem("no_terminal"))

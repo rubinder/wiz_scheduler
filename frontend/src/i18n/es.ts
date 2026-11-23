@@ -1880,6 +1880,7 @@ const es = {
       editors: "Editores de flujo permitidos",
       editorsHint: "Gerentes de esta ubicación que pueden editar sus flujos. Los administradores siempre pueden.",
       noEditors: "Esta ubicación no tiene gerentes regulares.",
+      staleEditor: "{name} ya no es gerente regular de esta ubicación. Desmarca para quitarlo.",
       readOnly: "Solo un administrador, o un gerente autorizado por un administrador, puede editar los flujos de esta ubicación.",
       problemsTitle: "Corrige esto antes de guardar:",
       kinds: {

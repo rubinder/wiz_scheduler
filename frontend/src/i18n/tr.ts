@@ -1880,6 +1880,7 @@ const trLang = {
       editors: "İzin verilen akış düzenleyicileri",
       editorsHint: "Bu konumun akışlarını düzenleyebilecek yöneticileri. Yöneticiler (admin) her zaman düzenleyebilir.",
       noEditors: "Bu konumun normal yöneticisi yok.",
+      staleEditor: "{name} artık bu konumun normal yöneticisi değil. Kaldırmak için işareti kaldırın.",
       readOnly: "Bu konumun akışlarını yalnızca bir admin ya da adminin izin verdiği bir yönetici düzenleyebilir.",
       problemsTitle: "Kaydetmeden önce bunları düzeltin:",
       kinds: {

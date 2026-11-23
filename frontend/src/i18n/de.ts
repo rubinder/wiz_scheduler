@@ -1880,6 +1880,7 @@ const de = {
       editors: "Erlaubte Ablauf-Bearbeiter",
       editorsHint: "Manager dieses Standorts, die seine Abläufe bearbeiten dürfen. Admins dürfen es immer.",
       noEditors: "Dieser Standort hat keine regulären Manager.",
+      staleEditor: "{name} ist kein regulärer Manager dieses Standorts mehr. Zum Entfernen abwählen.",
       readOnly: "Nur ein Admin oder ein von einem Admin erlaubter Manager kann die Abläufe dieses Standorts bearbeiten.",
       problemsTitle: "Vor dem Speichern beheben:",
       kinds: {

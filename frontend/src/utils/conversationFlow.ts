@@ -14,9 +14,9 @@ export const MAX_TITLE = 80;
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 6;
 const STEP_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-// C0 controls, DEL and C1 controls.
-// eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+// Controls (Cc), format characters (Cf: bidi overrides, zero-width) and the
+// line and paragraph separators (Zl, Zp), as the server rejects them.
+const CONTROL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const TERMINAL: ReadonlySet<FlowStepKind> = new Set(["book", "handoff", "end", "change_or_cancel"]);
 
 /**
@@ -150,6 +150,8 @@ export const NODE_H = 56;
 const GAP_X = 32;
 const GAP_Y = 48;
 const PAD = 16;
+/** Room on the right for arrows that curve round the side (back links, self-loops). */
+const RIGHT_MARGIN = 40;
 
 export interface LayoutNode {
   id: string;
@@ -187,11 +189,12 @@ export function layoutFlow(flow: Flow): FlowLayout {
     rows.set(layer, [...(rows.get(layer) ?? []), s.id]);
   }
   const widest = Math.max(1, ...[...rows.values()].map((r) => r.length));
-  const width = PAD * 2 + widest * NODE_W + (widest - 1) * GAP_X;
+  const inner = PAD * 2 + widest * NODE_W + (widest - 1) * GAP_X;
+  const width = inner + RIGHT_MARGIN;
   const nodes: LayoutNode[] = [];
   for (const [layer, ids] of [...rows.entries()].sort((a, b) => a[0] - b[0])) {
     const rowWidth = ids.length * NODE_W + (ids.length - 1) * GAP_X;
-    const left = (width - rowWidth) / 2;
+    const left = (inner - rowWidth) / 2;
     ids.forEach((id, i) => nodes.push({ id, layer, x: left + i * (NODE_W + GAP_X), y: PAD + layer * (NODE_H + GAP_Y) }));
   }
   const ids = new Set(nodes.map((n) => n.id));
@@ -208,9 +211,22 @@ export function layoutFlow(flow: Flow): FlowLayout {
   return { nodes, edges, width, height };
 }
 
+/** A step's label in dropdowns and the diagram: its title, or "3. Untitled step". */
+export function stepLabel(flow: Flow, id: string, untitled: string): string {
+  const index = flow.steps.findIndex((s) => s.id === id);
+  const title = index >= 0 ? flow.steps[index].title.trim() : "";
+  return title || `${index + 1}. ${untitled}`;
+}
+
 // ── Editor state ──
 
-export type FlowEditorState = Record<FlowChannel, Flow | null>;
+/**
+ * The flow per channel (null = default), and the custom drafts set aside
+ * by switching to the default, so switching back loses no unsaved edits.
+ */
+export type FlowEditorState = Record<FlowChannel, Flow | null> & {
+  stash?: Partial<Record<FlowChannel, Flow>>;
+};
 
 type StepPatch = Partial<{ title: string; prompt: string; collect: string; next: string | null; message: string; reason: string }>;
 
@@ -336,10 +352,15 @@ export function flowReducer(state: FlowEditorState, action: FlowAction): FlowEdi
   switch (action.type) {
     case "load":
       return action.state;
-    case "useDefault":
-      return { ...state, [action.channel]: null };
+    case "useDefault": {
+      const draft = state[action.channel];
+      if (!draft) return state;
+      return { ...state, [action.channel]: null, stash: { ...state.stash, [action.channel]: draft } };
+    }
     case "useCustom":
-      return state[action.channel] ? state : { ...state, [action.channel]: defaultFlow() };
+      return state[action.channel]
+        ? state
+        : { ...state, [action.channel]: state.stash?.[action.channel] ?? defaultFlow() };
     case "loadDefault":
       return { ...state, [action.channel]: defaultFlow() };
     case "copyWebToVoice":

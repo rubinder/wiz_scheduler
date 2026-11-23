@@ -1880,6 +1880,7 @@ const pcm = {
       editors: "Managers wey fit edit di flow",
       editorsHint: "Managers for dis place wey fit edit im flows. Admins fit do am anytime.",
       noEditors: "Dis place no get regular manager.",
+      staleEditor: "{name} no be regular manager for dis place again. Comot di tick to remove am.",
       readOnly: "Na only admin, or manager wey admin allow, fit edit dis place flows.",
       problemsTitle: "Fix dis ones before you save:",
       kinds: {

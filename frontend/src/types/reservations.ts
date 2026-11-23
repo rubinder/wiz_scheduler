@@ -163,6 +163,12 @@ export interface Flows {
   voice: Flow | null;
 }
 
+/** PUT .../flows. `flow_editor_ids` is admin-only; omitted, the stored list is kept. */
+export interface FlowsIn {
+  flows: Flows;
+  flow_editor_ids?: string[];
+}
+
 /** One `invalid_flow` problem (the server's `problems`, or the editor's mirror). */
 export interface FlowProblem {
   code: string;

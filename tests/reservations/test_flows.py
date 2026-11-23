@@ -262,3 +262,10 @@ def test_a_say_start_is_not_called_a_question() -> None:
     text = build_system_prompt("Fixture", "America/New_York", _rules(web=f), "web")
     assert "The greeting already said step \"intro\"" in text
     assert "question" not in text.split("Policies:")[0].split("Conversation script")[1].split("- Step")[0]
+
+
+@pytest.mark.parametrize("bad", ["a b", "a b", "a‮b", "a​b", "a﻿b"])
+def test_format_and_separator_characters_are_rejected(bad: str) -> None:
+    f = _flow()
+    _step(f, "when")["prompt"] = bad
+    assert "control_chars" in _codes(f)

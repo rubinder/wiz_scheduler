@@ -8,6 +8,7 @@ import type {
   DinerEraseOut,
   FloorIn,
   FloorOut,
+  FlowsIn,
   InsightsOut,
   MarkSpamOut,
   NumberRuleIn,
@@ -44,6 +45,11 @@ export function getRules(locationId: string): Promise<RulesOut> {
 
 export function saveRules(locationId: string, rules: RulesSchema): Promise<RulesOut> {
   return apiFetch(`${base(locationId)}/rules`, { method: "PUT", body: JSON.stringify(rules) });
+}
+
+/** Only the conversation flows (and, for an admin, the flow editors); the server keeps every other rules field. */
+export function saveFlows(locationId: string, body: FlowsIn): Promise<RulesOut> {
+  return apiFetch(`${base(locationId)}/flows`, { method: "PUT", body: JSON.stringify(body) });
 }
 
 /** Staff view by default; applyCutoff previews what diners see. */

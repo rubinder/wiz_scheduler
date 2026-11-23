@@ -115,3 +115,83 @@ async def test_the_web_chat_greeting_opens_with_the_flows_first_question(
         voice = await gate.greeting(db, seed_location.company_id, seed_location, "voice")
     assert web.endswith("Table, or catering?")
     assert voice.endswith("event or private party?")
+
+
+# ── PUT /flows: only flows and editors, everything else as stored ──
+
+FLOWS_URL = f"/api/v1/reservations/locations/{LOCATION_ID}/flows"
+
+
+async def test_the_flows_route_keeps_rules_a_colleague_changed_meanwhile(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    opened = await _rules(client, manager_token)  # the flow page's copy
+    changed = {**opened, "closures": ["2030-01-01"],
+               "persona": {**opened["persona"], "greeting": "Hi, automated host here"}}
+    assert (await client.put(URL, json=changed, headers=h)).status_code == 200
+    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None}}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["version"] == 2
+    got = await _rules(client, manager_token)
+    assert got["flows"]["web"]["start"] == "greet"
+    assert got["closures"] == ["2030-01-01"]
+    assert got["persona"]["greeting"] == "Hi, automated host here"
+
+
+async def test_the_flows_route_checks_permissions_and_the_flow(
+        client, manager_token, regular_token, seed_location):
+    body = {"flows": {"web": _flow()}}
+    r = await client.put(FLOWS_URL, json=body, headers=_auth(regular_token))
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "flow_edit_not_allowed"
+    r = await client.put(FLOWS_URL, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
+                         headers=_auth(regular_token))
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "admin_only"
+    r = await client.put(FLOWS_URL, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
+                         headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    # The admin omits the list on the next save: it is kept.
+    r = await client.put(FLOWS_URL, json={"flows": {"voice": _flow()}},
+                         headers=_auth(manager_token))
+    assert r.json()["rules"]["flow_editor_ids"] == [REGULAR_MANAGER_ID]
+    r = await client.put(FLOWS_URL, json=body, headers=_auth(regular_token))
+    assert r.status_code == 200, r.text
+    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(start="nope")}},
+                         headers=_auth(regular_token))
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_flow"
+
+
+# ── flow_editor_ids ──
+
+@pytest.mark.parametrize("url", [URL, FLOWS_URL])
+async def test_flow_editors_must_be_regular_managers_of_the_location(
+        client, manager_token, regular_token, seed_location, url):
+    from tests.conftest import MANAGER_USER_ID
+
+    rules = await _rules(client, manager_token)
+    for bad in (["nosuchid"], [MANAGER_USER_ID]):  # unknown; an admin
+        body = ({**rules, "flow_editor_ids": bad} if url == URL
+                else {"flows": rules["flows"], "flow_editor_ids": bad})
+        r = await client.put(url, json=body, headers=_auth(manager_token))
+        assert r.status_code == 422, (url, bad)
+        assert r.json()["detail"]["code"] == "invalid_flow_editor"
+
+
+async def test_an_unassigned_editor_is_dropped_on_the_next_save(
+        client, manager_token, regular_token, seed_location, db_session):
+    from sqlalchemy import delete
+
+    from backend.models import ManagerLocation
+
+    rules = await _rules(client, manager_token)
+    await client.put(URL, json={**rules, "flow_editor_ids": [REGULAR_MANAGER_ID]},
+                     headers=_auth(manager_token))
+    await db_session.execute(delete(ManagerLocation).where(
+        ManagerLocation.manager_id == REGULAR_MANAGER_ID))
+    await db_session.commit()
+    # Still listed, so the editor can show it as stale ...
+    rules = await _rules(client, manager_token)
+    assert rules["flow_editor_ids"] == [REGULAR_MANAGER_ID]
+    # ... and any save drops it rather than refusing.
+    r = await client.put(URL, json=rules, headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert r.json()["rules"]["flow_editor_ids"] == []

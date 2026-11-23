@@ -1880,6 +1880,7 @@ const vi = {
       editors: "Người được phép sửa luồng",
       editorsHint: "Quản lý của địa điểm này được phép sửa luồng. Quản trị viên luôn có quyền.",
       noEditors: "Địa điểm này không có quản lý thường.",
+      staleEditor: "{name} không còn là quản lý thường của địa điểm này. Bỏ chọn để xóa.",
       readOnly: "Chỉ quản trị viên, hoặc quản lý được quản trị viên cho phép, mới có thể sửa luồng của địa điểm này.",
       problemsTitle: "Hãy sửa những điều này trước khi lưu:",
       kinds: {

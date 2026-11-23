@@ -1888,6 +1888,7 @@ const en = {
       editors: "Allowed flow editors",
       editorsHint: "Managers of this location who may edit its flows. Admins always can.",
       noEditors: "This location has no regular managers.",
+      staleEditor: "{name} is no longer a regular manager of this location. Uncheck to remove.",
       readOnly: "Only an admin, or a manager an admin allowed, can edit this location's flows.",
       problemsTitle: "Fix these before saving:",
       kinds: {

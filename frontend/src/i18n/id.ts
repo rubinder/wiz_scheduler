@@ -1880,6 +1880,7 @@ const ind = {
       editors: "Editor alur yang diizinkan",
       editorsHint: "Manajer lokasi ini yang boleh mengedit alurnya. Admin selalu boleh.",
       noEditors: "Lokasi ini tidak punya manajer reguler.",
+      staleEditor: "{name} bukan lagi manajer reguler di lokasi ini. Hapus centang untuk menghapus.",
       readOnly: "Hanya admin, atau manajer yang diizinkan admin, yang dapat mengedit alur lokasi ini.",
       problemsTitle: "Perbaiki ini sebelum menyimpan:",
       kinds: {

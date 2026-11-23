@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Flow, FlowStep } from "../types/reservations";
-import { defaultFlow, flowProblems, flowReducer, layoutFlow } from "./conversationFlow";
+import { NODE_W, defaultFlow, flowProblems, flowReducer, layoutFlow, stepLabel } from "./conversationFlow";
 import type { FlowEditorState } from "./conversationFlow";
 
 function flow(): Flow {
@@ -77,6 +77,14 @@ describe("flowProblems (mirror of backend flows.flow_problems)", () => {
     );
   });
 
+  it("rejects format and separator characters (Cf, Zl, Zp)", () => {
+    for (const bad of ["a\u2028b", "a\u2029b", "a\u202eb", "a\u200bb", "a\ufeffb"]) {
+      const f = flow();
+      (step(f, "when") as { prompt: string }).prompt = bad;
+      expect(codes(f)).toContain("control_chars");
+    }
+  });
+
   it("caps the flow at 30 steps", () => {
     const f = flow();
     for (let i = 0; i < 26; i++) f.steps.push({ id: `x${i}`, title: "", kind: "end", message: "x" });
@@ -119,6 +127,12 @@ describe("layoutFlow", () => {
     expect(out.nodes.find((n) => n.id === "orphan")?.layer).toBe(3);
   });
 
+  it("leaves a right margin for back-arrows and self-loops", () => {
+    const out = layoutFlow(flow());
+    const right = Math.max(...out.nodes.map((n) => n.x + NODE_W));
+    expect(out.width - right).toBeGreaterThanOrEqual(40);
+  });
+
   it("ignores edges to missing steps and terminates on cycles", () => {
     const f = flow();
     (step(f, "when") as { next: string }).next = "greet";
@@ -126,6 +140,15 @@ describe("layoutFlow", () => {
     const out = layoutFlow(f);
     expect(out.edges.some((e) => e.to === "ghost")).toBe(false);
     expect(out.nodes).toHaveLength(4);
+  });
+});
+
+describe("stepLabel", () => {
+  it("is the title, or the step number with the fallback when untitled", () => {
+    const f = flow();
+    (step(f, "book") as { title: string }).title = "  ";
+    expect(stepLabel(f, "greet", "Untitled step")).toBe("Greet");
+    expect(stepLabel(f, "book", "Untitled step")).toBe("3. Untitled step");
   });
 });
 
@@ -137,6 +160,14 @@ describe("flowReducer", () => {
     expect(s.web).toEqual(defaultFlow());
     s = flowReducer(s, { type: "useDefault", channel: "web" });
     expect(s.web).toBeNull();
+  });
+
+  it("keeps unsaved custom edits across a switch to the default flow and back", () => {
+    let s = flowReducer(state(), { type: "updateStep", channel: "voice", id: "when", patch: { title: "Edited" } });
+    s = flowReducer(s, { type: "useDefault", channel: "voice" });
+    expect(s.voice).toBeNull();
+    s = flowReducer(s, { type: "useCustom", channel: "voice" });
+    expect(step(s.voice!, "when").title).toBe("Edited");
   });
 
   it("copies the web flow to voice as an independent copy", () => {

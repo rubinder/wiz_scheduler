@@ -52,10 +52,12 @@ export default function FlowDiagram({ flow, label, title }: Props) {
             lx = (x1 + x2) / 2;
             ly = my;
           } else {
+            // Back up, across a layer, or a self-loop (offset ends so it has a shape).
+            const self = a.id === b.id;
             const x1 = a.x + NODE_W;
-            const y1 = a.y + NODE_H / 2;
+            const y1 = a.y + (self ? NODE_H * 0.3 : NODE_H / 2);
             const x2 = b.x + NODE_W;
-            const y2 = b.y + NODE_H / 2;
+            const y2 = b.y + (self ? NODE_H * 0.7 : NODE_H / 2);
             const bulge = Math.max(x1, x2) + 28;
             d = `M ${x1} ${y1} C ${bulge} ${y1}, ${bulge} ${y2}, ${x2} ${y2}`;
             lx = bulge - 4;

@@ -1880,6 +1880,7 @@ const fr = {
       editors: "Éditeurs de déroulé autorisés",
       editorsHint: "Les responsables de cet établissement qui peuvent modifier ses déroulés. Les administrateurs le peuvent toujours.",
       noEditors: "Cet établissement n'a pas de responsable standard.",
+      staleEditor: "{name} n'est plus responsable standard de cet établissement. Décochez pour le retirer.",
       readOnly: "Seul un administrateur, ou un responsable autorisé par un administrateur, peut modifier les déroulés de cet établissement.",
       problemsTitle: "Corrigez ceci avant d'enregistrer :",
       kinds: {

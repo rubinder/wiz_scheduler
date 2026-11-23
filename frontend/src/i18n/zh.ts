@@ -1880,6 +1880,7 @@ const zh = {
       editors: "允许编辑流程的经理",
       editorsHint: "可以编辑本门店流程的门店经理。管理员始终可以编辑。",
       noEditors: "本门店没有普通经理。",
+      staleEditor: "{name} 已不再是本门店的普通经理。取消勾选即可移除。",
       readOnly: "只有管理员或经管理员允许的经理才能编辑本门店的流程。",
       problemsTitle: "保存前请修正以下问题：",
       kinds: {
