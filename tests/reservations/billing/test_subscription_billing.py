@@ -604,6 +604,7 @@ async def test_status_reports_usage_and_spend_against_cap(
     # The billing card's price line is rendered from these, not hardcoded.
     assert body["price_usd_monthly"] == 10.0
     assert body["usage_markup"] == 1.5
+    assert body["estimated_included_calls"] == {"one_minute": 120, "two_minute": 65}
     [loc] = body["locations"]
     assert loc["location_id"] == LOCATION_ID
     assert loc["spend_today_usd"] == 1.23
@@ -1277,3 +1278,15 @@ async def test_included_billed_is_the_included_cost_at_the_markup(monkeypatch):
     monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 5.0)
     monkeypatch.setattr(settings, "RESERVATIONS_USAGE_MARKUP", 1.5)
     assert included_billed() == Decimal("7.50")
+
+
+async def test_included_calls_estimate_follows_the_billed_prices(monkeypatch):
+    """Decision 99: about $0.074 a 2-minute call and $0.040 a 1-minute call
+    at the default prices, so $5.00 of included cost covers 67 and 124,
+    shown rounded down to 65 and 120."""
+    from backend.services.billing_reservations import estimated_call_cost, estimated_included_calls
+    assert Decimal("0.07") < estimated_call_cost(2, 5) < Decimal("0.08")
+    assert Decimal("0.035") < estimated_call_cost(1, 3) < Decimal("0.045")
+    assert estimated_included_calls() == {"one_minute": 120, "two_minute": 65}
+    monkeypatch.setattr(settings, "RESERVATIONS_INCLUDED_COST_USD", 10.0)
+    assert estimated_included_calls() == {"one_minute": 245, "two_minute": 135}

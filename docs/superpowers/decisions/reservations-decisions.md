@@ -607,6 +607,45 @@ Decisions made while building without stopping to ask (owner instruction,
     Cost if wrong: at the old rule a heavy month under-billed nothing; at
     this one the owner's margin at the included limit is about $3.50 a month
     before the number's daily fee.
+99. **The billing card shows about how many 1- and 2-minute calls the
+    included cost covers (owner, 2026-11-22).** `billing_reservations.estimated_included_calls`
+    prices a typical call (1 minute and 3 turns, or 2 minutes and 5 turns; 150 spoken characters a
+    reply, 6,000 cached / 800 new input / 200 output tokens a turn) with the
+    same settings usage is billed with, divides the included cost by it and
+    rounds down to a multiple of 5 (120 one-minute calls at $0.040, 65
+    two-minute calls at $0.074, at today's prices).
+    It is an estimate for customers, not a quota. Cost if wrong: real calls
+    run longer or shorter and the number is off; it never caps anything.
+
+100. **The call opens with "table or event", then date, time and party
+    together; events go to staff (owner, 2026-11-22).** The default greeting
+    now asks the first question itself: "Hi, you've reached {name}'s
+    automated reservations assistant. Are you booking a table, or is this
+    about an event or private party?" (disclosure off: "...{name}'s
+    reservations line. ..."). One wording serves web and voice because
+    `default_greeting` does not know the channel and the callers share it;
+    "is this about" reads right in both. The screen Lambda's
+    `FALLBACK_GREETING` and the contact flow's `greet-fallback` say the same
+    disclosing text. Custom greetings are untouched; the prompt's "Call flow"
+    block tells the host to find out table-or-event unless the diner already
+    said. Order on both channels: (a) table or event; (b) for a table, date,
+    approximate time and party size in ONE question, then `find_slots`;
+    (c) name and phone only after a slot is chosen; never re-ask what the
+    diner said. Events, private parties, buyouts, catering, set menus,
+    anything the rules cannot express and anything over the self-book limit
+    call `handoff_to_staff` with reason `event` before any details are
+    collected (voice transfers to `staff_transfer_number`; web shows the
+    restaurant's number; with no number the existing no-number path applies).
+    The host never asks which location: each number and each web chat
+    belongs to one location, and a company-wide router would need a
+    multi-location number, which does not exist. A diner asking for another
+    location is handed off with reason `other_location`. The prompt bytes
+    changed, so the golden hashes in `test_voice_knobs.py` were updated on
+    purpose; the recordings carry no prompt and stay valid. New scenario
+    `event_request_voice` (hand-built recording, no live call). Cost if
+    wrong: a diner who wanted a table and says "party" loosely may be sent to
+    staff; the handoff is one call away from a booking, and the staff line
+    is where an event belongs anyway.
 101. **AI floor-plan draft from photos or a blueprint (owner, 2026-11-22).**
     A manager who can edit the floor uploads 1-10 photos (JPEG, PNG, WEBP,
     5 MB each) and/or PDF blueprints (20 MB each), 30 MB in all, with an

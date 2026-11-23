@@ -449,6 +449,21 @@ async def test_web_and_voice_prompts_differ_and_are_stable():
     assert "larger than 6, call handoff_to_staff" in voice
 
 
+@pytest.mark.parametrize("channel", ["web", "voice"])
+async def test_prompt_carries_the_call_flow_on_both_channels(channel):
+    """Decision 100: table or event first, date/time/party in one question,
+    contact details last, events and other locations to staff."""
+    prompt = build_system_prompt("Luigi's", "America/New_York",
+                                 RulesSchema(max_self_book_party=6), channel)
+    assert "regular table or an event" in prompt
+    assert "date, approximate time and party size together in one question" in prompt
+    assert "only after the diner has chosen a slot" in prompt
+    assert "Never ask for something the diner already said" in prompt
+    assert 'handoff_to_staff with reason "event"' in prompt
+    assert 'handoff_to_staff with reason "other_location"' in prompt
+    assert "never ask which location" in prompt
+
+
 async def test_voice_conversation_gets_the_voice_prompt(db_session, seeded_floor):
     conv = await recording.start_conversation(db_session, COMPANY_ID, LOCATION_ID,
                                               "voice", caller_number=PHONE)

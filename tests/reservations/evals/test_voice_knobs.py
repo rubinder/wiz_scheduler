@@ -15,11 +15,11 @@ from backend.reservations.evals import run, store
 from backend.reservations.rules import RulesSchema, VoiceKnobs
 from tests.reservations.evals.test_run import _url
 
-# sha256 of the prompts as rendered before the knobs existed, for the fixture
+# sha256 of the default prompts (no knobs set) for the fixture
 # location below. A change here means CI replay recordings may go stale.
 GOLDEN = {
-    "web": "9cb57cc288f3e8e13e3ec15dd69f40971ea6b0d0a88e5de09e105b083e59f9fd",
-    "voice": "93241bed088a470546ca0c58afe35ce91dd5db163a63ab2bdd2e29a9e958df2f",
+    "web": "4d811bbc9e562b6116984ded92613e0ebf0b2070a2708c13f55b9ad97d3e5e64",
+    "voice": "17b60e3603b19abd475ec53e86b41c058e9a842382e9927b353dffbefb21fff6",
 }
 
 

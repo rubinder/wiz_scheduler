@@ -1709,6 +1709,7 @@ const pt = {
       description: "O anfitrião IA de reservas tem a sua própria assinatura, separada da de escalas.",
       cardTitle: "Assinatura do anfitrião IA",
       price: "{price}/mês, inclui {included} do nosso custo, depois o nosso custo + {markup}%",
+      callsEstimate: "Isso cobre cerca de {short} chamadas de um minuto ou {calls} de dois minutos por mês.",
       compedPrice: "Plano gratuito",
       subscribe: "Assinar",
       redirecting: "Redirecionando para o pagamento...",

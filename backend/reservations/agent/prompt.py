@@ -34,6 +34,23 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "- To change or cancel a booking, first verify it with lookup_booking "
         "using the confirmation code and phone number.",
         "- Keep replies short and friendly.",
+        "",
+        "Call flow:",
+        "- First find out whether the diner wants a regular table or an event "
+        "(the default greeting already asks), unless the diner has already said. "
+        "If the diner wants to change or cancel a booking, go straight to that.",
+        "- Regular table: ask for the date, approximate time and party size "
+        "together in one question, then call find_slots.",
+        "- Ask for the diner's name and phone number only after the diner has "
+        "chosen a slot.",
+        "- Never ask for something the diner already said.",
+        "- Events, private parties, buyouts, catering, set menus and any special "
+        "arrangement the booking rules cannot express are for the staff: say one "
+        "short sentence, then call handoff_to_staff with reason \"event\". Do not "
+        "collect booking details first.",
+        "- This line is for one location and you never ask which location. If the "
+        "diner wants a different location, call handoff_to_staff with reason "
+        "\"other_location\".",
     ]
     if not rules.disclose_automated:
         # The greeting no longer says so, but the host still never passes

@@ -831,7 +831,7 @@ async def _reconcile_current(
     # A failed create leaves the old row deleted (the caller commits on a
     # Stripe error), so nothing claims an item Stripe no longer has.
     item_id = _create_invoice_item(og_id, customer, sub_id, period, cents,
-                                   f"agent-overage-{og_id}-{period}-{cents}", deleted)
+                                   f"agent-overage-{og_id}-{sub_id}-{period}-{cents}", deleted)
     db.add(_new_charge(og_id, sub_id, period, target, item_id))
     await db.flush()
     return {"action": "updated" if pending else "created", "amount_usd": float(target)}
@@ -858,7 +858,7 @@ async def _true_up_previous(
         return None
     _delete_orphans(customer, sub_id, period, {c.stripe_object_id for c in charges}, deleted)
     item_id = _create_invoice_item(og_id, customer, sub_id, period, _cents(delta),
-                                   f"agent-overage-{og_id}-{period}-trueup-{_cents(overage)}",
+                                   f"agent-overage-{og_id}-{sub_id}-{period}-trueup-{_cents(overage)}",
                                    deleted)
     db.add(_new_charge(og_id, sub_id, period, delta, item_id))
     await db.flush()
@@ -1853,6 +1853,39 @@ def _money(value: Decimal) -> float:
     return float(Decimal(value).quantize(_CENT))
 
 
+# The billing card's "about N one-minute or M two-minute calls" estimate
+# (decision 99): a 1-minute call is 3 turns, a 2-minute call 5; each reply is about 150 spoken
+# characters and each turn reads about 6,000 cached prompt tokens, 800 new
+# input tokens and writes 200. Prices are the ones usage is billed with.
+ESTIMATE_CALLS = {"one_minute": (1, 3), "two_minute": (2, 5)}  # (minutes, turns)
+ESTIMATE_REPLY_CHARS = 150
+ESTIMATE_TURN_TOKENS = {"cache_read": 6000, "input": 800, "output": 200}
+
+
+def estimated_call_cost(minutes: int = 2, turns: int = 5) -> Decimal:
+    """Our cost of one typical phone call of `minutes` and `turns`."""
+    s = settings
+    per_min = s.VOICE_COST_CONNECT_PER_MIN_USD + s.VOICE_COST_TELEPHONY_INBOUND_PER_MIN_USD
+    per_turn = (s.VOICE_COST_LEX_PER_SPEECH_REQUEST_USD
+                + ESTIMATE_REPLY_CHARS * s.VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD / 1e6
+                + (ESTIMATE_TURN_TOKENS["cache_read"] * s.RESERVATION_AGENT_CACHE_READ_USD_PER_MTOK
+                   + ESTIMATE_TURN_TOKENS["input"] * s.RESERVATION_AGENT_INPUT_USD_PER_MTOK
+                   + ESTIMATE_TURN_TOKENS["output"] * s.RESERVATION_AGENT_OUTPUT_USD_PER_MTOK) / 1e6)
+    return Decimal(str(per_min * minutes + per_turn * turns))
+
+
+def estimated_included_calls() -> dict[str, int]:
+    """About how many typical calls of each length the included cost covers,
+    rounded down to a multiple of 5 so it never overpromises."""
+    included = Decimal(str(settings.RESERVATIONS_INCLUDED_COST_USD))
+    out: dict[str, int] = {}
+    for name, (minutes, turns) in ESTIMATE_CALLS.items():
+        cost = estimated_call_cost(minutes, turns)
+        calls = int(included / cost) if cost > 0 else 0
+        out[name] = calls - calls % 5
+    return out
+
+
 async def status_summary(
     db: AsyncSession, og_id: str, company_id: str, now: datetime,
 ) -> dict:
@@ -1879,6 +1912,7 @@ async def status_summary(
         "configured": bool(settings.RESERVATIONS_PRICE_ID),
         "price_usd_monthly": _money(Decimal(str(settings.RESERVATIONS_PRICE_MONTHLY_USD))),
         "usage_markup": float(settings.RESERVATIONS_USAGE_MARKUP),
+        "estimated_included_calls": estimated_included_calls(),
         "status": row.status if row else None,
         "answering": bool(row and row.status in ANSWERING_STATUSES),
         "current_period_start": row.current_period_start.isoformat() if row and row.current_period_start else None,

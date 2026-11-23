@@ -1709,6 +1709,7 @@ const de = {
       description: "Der KI-Gastgeber für Reservierungen hat ein eigenes Abonnement, getrennt von der Dienstplanung.",
       cardTitle: "Abonnement KI-Gastgeber",
       price: "{price}/Monat inkl. {included} unserer Kosten, danach unsere Kosten + {markup} %",
+      callsEstimate: "Das reicht für etwa {short} einminütige oder {calls} zweiminütige Anrufe pro Monat.",
       compedPrice: "Kostenloser Tarif",
       subscribe: "Abonnieren",
       redirecting: "Weiterleitung zur Zahlung...",

@@ -1717,6 +1717,7 @@ const en = {
       description: "The reservation AI host has its own subscription, separate from scheduling.",
       cardTitle: "AI host subscription",
       price: "{price}/month, includes {included} of our cost, then our cost + {markup}%",
+      callsEstimate: "That covers about {short} one-minute or {calls} two-minute phone calls a month.",
       compedPrice: "Complimentary plan",
       subscribe: "Subscribe",
       redirecting: "Redirecting to payment...",

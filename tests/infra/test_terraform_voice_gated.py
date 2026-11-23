@@ -294,5 +294,7 @@ def test_the_spoken_flow_greeting_follows_the_screen_and_falls_back_disclosing()
     assert 'Attributes    = { greeting = "$.External.greeting" }' in text
     fallback = re.search(r'Identifier = "greet-fallback".*?greeting = "([^"]*)"', text, re.S)
     assert fallback and "automated" in fallback.group(1).lower()
+    # It asks the call's first question, the same as the screen's fallback.
+    assert "booking a table" in fallback.group(1) and "event" in fallback.group(1)
     assert '{ NextAction = "greet-fallback", ErrorType = "NoMatchingError" }' in text
     assert text.index('Identifier = "no-flow-logs"') < text.index('Identifier = "greet"')
