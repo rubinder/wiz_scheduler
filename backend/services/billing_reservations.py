@@ -1853,6 +1853,38 @@ def _money(value: Decimal) -> float:
     return float(Decimal(value).quantize(_CENT))
 
 
+# The billing card's "about N two-minute calls" estimate (decision 99): a
+# typical call is 2 minutes and 5 turns; each reply is about 150 spoken
+# characters and each turn reads about 6,000 cached prompt tokens, 800 new
+# input tokens and writes 200. Prices are the ones usage is billed with.
+ESTIMATE_CALL_MINUTES = 2
+ESTIMATE_CALL_TURNS = 5
+ESTIMATE_REPLY_CHARS = 150
+ESTIMATE_TURN_TOKENS = {"cache_read": 6000, "input": 800, "output": 200}
+
+
+def estimated_call_cost() -> Decimal:
+    """Our cost of one typical 2-minute, 5-turn phone call."""
+    s = settings
+    per_min = s.VOICE_COST_CONNECT_PER_MIN_USD + s.VOICE_COST_TELEPHONY_INBOUND_PER_MIN_USD
+    per_turn = (s.VOICE_COST_LEX_PER_SPEECH_REQUEST_USD
+                + ESTIMATE_REPLY_CHARS * s.VOICE_COST_POLLY_NEURAL_PER_MILLION_CHARS_USD / 1e6
+                + (ESTIMATE_TURN_TOKENS["cache_read"] * s.RESERVATION_AGENT_CACHE_READ_USD_PER_MTOK
+                   + ESTIMATE_TURN_TOKENS["input"] * s.RESERVATION_AGENT_INPUT_USD_PER_MTOK
+                   + ESTIMATE_TURN_TOKENS["output"] * s.RESERVATION_AGENT_OUTPUT_USD_PER_MTOK) / 1e6)
+    return Decimal(str(per_min * ESTIMATE_CALL_MINUTES + per_turn * ESTIMATE_CALL_TURNS))
+
+
+def estimated_included_calls() -> int:
+    """About how many typical calls the included cost covers, rounded down
+    to a multiple of 5 so it never overpromises."""
+    cost = estimated_call_cost()
+    if cost <= 0:
+        return 0
+    calls = int(Decimal(str(settings.RESERVATIONS_INCLUDED_COST_USD)) / cost)
+    return calls - calls % 5
+
+
 async def status_summary(
     db: AsyncSession, og_id: str, company_id: str, now: datetime,
 ) -> dict:
@@ -1879,6 +1911,7 @@ async def status_summary(
         "configured": bool(settings.RESERVATIONS_PRICE_ID),
         "price_usd_monthly": _money(Decimal(str(settings.RESERVATIONS_PRICE_MONTHLY_USD))),
         "usage_markup": float(settings.RESERVATIONS_USAGE_MARKUP),
+        "estimated_included_calls": estimated_included_calls(),
         "status": row.status if row else None,
         "answering": bool(row and row.status in ANSWERING_STATUSES),
         "current_period_start": row.current_period_start.isoformat() if row and row.current_period_start else None,

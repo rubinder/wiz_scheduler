@@ -259,6 +259,8 @@ export interface ReservationAgentStatus {
   price_usd_monthly: number;
   /** Usage (model cost, plus call minutes and speech on voice) is billed at cost x this (1.5 = cost + 50%). */
   usage_markup: number;
+  /** About how many 2-minute calls the included cost covers (decision 99). */
+  estimated_included_calls: number;
   /** Stripe subscription status, or null when the group never subscribed. */
   status: string | null;
   answering: boolean;

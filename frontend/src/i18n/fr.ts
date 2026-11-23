@@ -1658,6 +1658,7 @@ const fr = {
       description: "L'hôte IA des réservations a son propre abonnement, distinct de la planification.",
       cardTitle: "Abonnement à l'hôte IA",
       price: "{price}/mois, {included} de notre coût inclus, puis notre coût + {markup} %",
+      callsEstimate: "Cela couvre environ {calls} appels de deux minutes par mois.",
       compedPrice: "Formule offerte",
       subscribe: "S'abonner",
       redirecting: "Redirection vers le paiement...",
