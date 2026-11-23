@@ -330,8 +330,10 @@ async def ensure_for_group(db: AsyncSession, og_id: str, now: datetime | None = 
             within = max_claims is None or i < max_claims
             status = await _provision(db, row_id) if claim and within else "requested"
             (out["claimed"] if status == "active" else out["pending"]).append(loc_id)
-    if to_provision:
+    if to_provision and claim:
         # More voice locations may need more concurrent calls (decision 103).
+        # Not from the webhook (claim=False): checkout confirm and the
+        # nightly run cover it.
         # Its own session, so its commits and rollbacks never expire the
         # caller's objects.
         try:

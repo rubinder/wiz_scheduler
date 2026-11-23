@@ -60,8 +60,12 @@ async def main() -> None:
             "voice_numbers",
         )
 
-    async with async_session_factory() as db:
-        capacity = await run_voice_capacity(db)
+    try:
+        async with async_session_factory() as db:
+            capacity = await run_voice_capacity(db)
+    except Exception as e:  # noqa: BLE001 - mailed, the run still ends cleanly
+        logging.exception("voice capacity run failed")
+        capacity = {"errors": [{"step": "run", "error": f"{type(e).__name__}: {str(e)[:200]}"}]}
     print(json.dumps({"voice_capacity": capacity}, indent=2, default=str))
     if capacity.get("errors"):
         items = "".join(f"<li>{html.escape(json.dumps(e, default=str))}</li>"

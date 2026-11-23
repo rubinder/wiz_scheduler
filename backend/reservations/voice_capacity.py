@@ -32,7 +32,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -69,7 +69,7 @@ class CapacityRequestPending(CapacityRequestError):
 
 
 class UnknownLocation(CapacityRequestError):
-    """A location that is not one of the company's active locations."""
+    """Not one of the company's active locations with a phone line."""
 
 
 # -- mail ---------------------------------------------------------------------
@@ -91,9 +91,20 @@ def _send(to: list[str], subject: str, body_html: str) -> None:
         logger.exception("voice capacity email failed")
 
 
+# (UTC day, subject, body) already mailed by this process: the same alert
+# goes once a day, however many runs or checkouts repeat it.
+_sent_today: set[tuple[str, str, str]] = set()
+
+
 def _mail_operator(subject: str, body_html: str) -> None:
     from backend.services.operator_alerts import _send_operator_email
 
+    key = (datetime.now(timezone.utc).date().isoformat(), subject, body_html)
+    if key in _sent_today:
+        return
+    if len(_sent_today) > 1000:
+        _sent_today.clear()
+    _sent_today.add(key)
     _send_operator_email(f"[WizScheduler] {subject}", body_html, "voice_capacity")
 
 
@@ -172,6 +183,13 @@ async def open_calls(db: AsyncSession, company_id: str, now: datetime,
     return int((await db.execute(q)).scalar_one())
 
 
+async def lock_company(db: AsyncSession, company_id: str) -> None:
+    """The company's capacity lock, held to the end of the transaction:
+    admission counts and inserts under it, so it is atomic per company."""
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                     {"k": f"voice-capacity:{company_id}"})
+
+
 async def at_allocation(db: AsyncSession, company_id: str, now: datetime,
                         exclude_conversation_id: str | None = None) -> bool:
     """The company already holds its allocation of calls: a new one is
@@ -210,7 +228,9 @@ async def _intervals(db: AsyncSession, start: datetime,
     rows = (await db.execute(
         select(AgentConversation.company_id, AgentConversation.started_at, ends)
         .where(AgentConversation.channel == "voice",
-               AgentConversation.started_at < end, ends >= start))).all()
+               AgentConversation.started_at < end, ends >= start,
+               or_(AgentConversation.ended_at.is_(None),
+                   AgentConversation.started_at >= start - timedelta(days=1))))).all()
     return [(c, s, max(s, e)) for c, s, e in rows]
 
 
@@ -295,6 +315,20 @@ async def quota_target(db: AsyncSession, now: datetime) -> int:
     return max(base, forecast, allocated)
 
 
+STALE_REQUEST_AGE = timedelta(days=7)
+
+
+def _aware(ts: datetime) -> datetime:
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
+
+def _move(row: VoiceQuotaRequest, status: str, now: datetime) -> None:
+    """Change a quota request's status, stamped with the run's clock (the
+    7-day rules read updated_at)."""
+    row.status = status
+    row.updated_at = now
+
+
 def support_case_text(applied: int | None, desired: int) -> str:
     """What the operator pastes into an AWS support case (Service Quotas
     console, or Support Center) for a target above the auto-request max."""
@@ -333,23 +367,66 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 select(VoiceQuotaRequest)
                 .where(VoiceQuotaRequest.status.in_(OPEN_QUOTA_REQUEST_STATUSES))
                 .order_by(VoiceQuotaRequest.created_at))).scalars().all()
+            closed: list[VoiceQuotaRequest] = []
+            denied: list[VoiceQuotaRequest] = []
             for row in open_rows:
+                if quota.value >= row.desired:
+                    _move(row, "approved", now)
+                    continue
                 if row.status == "pending" and row.aws_request_id:
                     status = await client.request_status(quota, row.aws_request_id)
-                    if status != "pending":
-                        row.status = status
-                if row.status in OPEN_QUOTA_REQUEST_STATUSES and quota.value >= row.desired:
-                    row.status = "approved"
+                    if status == "pending":
+                        continue  # AWS is still reviewing it
+                    if status in ("approved", "denied"):
+                        _move(row, status, now)
+                        if status == "denied":
+                            denied.append(row)
+                        continue
+                    _move(row, "failed", now)  # AWS no longer knows it
+                    closed.append(row)
+                    continue
+                # A manual row, or a pending one that never got a request id:
+                # nothing will close it, so it must not block requests forever.
+                if row.desired < target:
+                    _move(row, "superseded", now)
+                    closed.append(row)
+                elif _aware(row.created_at) < now - STALE_REQUEST_AGE:
+                    _move(row, "failed", now)
+                    closed.append(row)
             still_open = [r for r in open_rows if r.status in OPEN_QUOTA_REQUEST_STATUSES]
             await db.commit()
+            for row in denied:
+                _mail_operator(
+                    "Voice call quota increase denied",
+                    f"<p>AWS denied raising <b>{_e(settings.VOICE_QUOTA_NAME)}</b> to "
+                    f"{row.desired} (now {quota.value}). It will not be filed again for "
+                    f"{STALE_REQUEST_AGE.days} days. Open an AWS support case with this "
+                    f"text:</p><blockquote>{_e(support_case_text(quota.value, row.desired))}"
+                    "</blockquote>")
+            if closed:
+                items = "".join(f"<li>{r.desired} ({_e(r.status)}, opened "
+                                f"{_aware(r.created_at).date().isoformat()})</li>"
+                                for r in closed)
+                _mail_operator(
+                    "Voice call quota requests closed",
+                    f"<p>These quota requests could no longer complete and were closed "
+                    f"(target now {target}, applied {quota.value}):</p><ul>{items}</ul>")
             out: dict[str, Any] = {"applied": quota.value, "target": target}
             if quota.value >= target:
                 return {**out, "action": "none"}
             if still_open:
                 return {**out, "action": "pending"}
+            recent_denial = (await db.execute(
+                select(VoiceQuotaRequest.id)
+                .where(VoiceQuotaRequest.status == "denied",
+                       VoiceQuotaRequest.updated_at >= now - STALE_REQUEST_AGE)
+                .limit(1))).first()
+            if recent_denial is not None:
+                return {**out, "action": "denied_recently"}
             why = reason or "nightly check"
             if target > settings.VOICE_QUOTA_AUTO_REQUEST_MAX:
-                db.add(VoiceQuotaRequest(desired=target, status="manual", reason=why))
+                db.add(VoiceQuotaRequest(desired=target, status="manual", reason=why,
+                                         created_at=now, updated_at=now))
                 await db.commit()
                 _mail_operator(
                     "Voice call quota needs a support case",
@@ -360,7 +437,8 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 return {**out, "action": "manual"}
             request_id = await client.request_increase(quota, target)
             db.add(VoiceQuotaRequest(desired=target, status="pending",
-                                     aws_request_id=request_id or None, reason=why))
+                                     aws_request_id=request_id or None, reason=why,
+                                     created_at=now, updated_at=now))
             await db.commit()
         _mail_operator(
             "Voice call quota increase requested",
@@ -451,10 +529,16 @@ async def run_daily(db: AsyncSession, now: datetime | None = None,
                               "error": f"{type(e).__name__}: {str(e)[:200]}"})
     cutoff = now.astimezone(timezone.utc).date() - timedelta(
         days=settings.RETENTION_VOICE_CAPACITY_DAYS)
-    with tenant_scope_disabled():
-        await db.execute(delete(VoiceCapacityDaily).where(VoiceCapacityDaily.day < cutoff))
-        await db.execute(delete(VoicePlatformDaily).where(VoicePlatformDaily.day < cutoff))
-        await db.commit()
+    try:
+        with tenant_scope_disabled():
+            await db.execute(delete(VoiceCapacityDaily).where(VoiceCapacityDaily.day < cutoff))
+            await db.execute(delete(VoicePlatformDaily).where(VoicePlatformDaily.day < cutoff))
+            await db.commit()
+    except Exception as e:  # noqa: BLE001 - retried tomorrow
+        logger.exception("voice capacity: retention sweep failed")
+        await db.rollback()
+        out["errors"].append({"step": "retention",
+                              "error": f"{type(e).__name__}: {str(e)[:200]}"})
     out["quota"] = await ensure_quota(db, now, client, "nightly check")
     return out
 
@@ -481,8 +565,10 @@ async def request_capacity(db: AsyncSession, company_id: str, user_id: str | Non
     wanted = sorted(set(location_ids))
     names = dict((await db.execute(
         select(Location.id, Location.name)
+        .join(VoiceNumber, and_(VoiceNumber.location_id == Location.id,
+                                VoiceNumber.company_id == company_id))
         .where(Location.company_id == company_id, Location.id.in_(wanted),
-               active(Location)))).all())
+               active(Location), VoiceNumber.status.in_(VOICE_ON_STATUSES)))).all())
     if not wanted or set(names) != set(wanted):
         raise UnknownLocation("unknown_location")
     req = VoiceCapacityRequest(company_id=company_id, requested_by=user_id,
@@ -524,7 +610,7 @@ async def approve_request(db: AsyncSession, request_id: str, allocation: int | N
         req = await db.get(VoiceCapacityRequest, request_id)
         if req is None or req.status != "pending":
             raise CapacityRequestError(f"no pending capacity request {request_id}")
-        grant = allocation or req.expected_peak
+        grant = allocation if allocation is not None else req.expected_peak
         if grant < 1:
             raise CapacityRequestError("allocation must be at least 1")
         company_id = req.company_id

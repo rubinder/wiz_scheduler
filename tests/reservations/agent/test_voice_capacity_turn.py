@@ -22,6 +22,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 COMPANY_STAFF = "+12125550122"
 
 
+@pytest.fixture
+def voice_on(monkeypatch):
+    """The company default number applies only while voice is on."""
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "VOICE_PROVISIONING_ENABLED", True)
+
+
 async def _allocation(db, n: int, default_number: str | None = None) -> None:
     db.add(VoiceCompanySettings(company_id=COMPANY_ID, voice_call_allocation=n,
                                 default_staff_transfer_number=default_number))
@@ -69,7 +77,8 @@ async def test_below_the_allocation_the_call_is_answered(client, db_session, lin
     assert out["text"] == "For how many?"
 
 
-async def test_company_default_number_fills_a_location_without_one(db_session, line):
+async def test_company_default_number_fills_a_location_without_one(db_session, line,
+                                                                  voice_on):
     await _staff(db_session, None)
     rules, _ = await get_agent_rules(db_session, COMPANY_ID, LOCATION_ID)
     assert rules.staff_transfer_number is None
@@ -82,7 +91,8 @@ async def test_company_default_number_fills_a_location_without_one(db_session, l
     assert rules.staff_transfer_number == STAFF
 
 
-async def test_handoff_uses_the_company_default_number(client, db_session, line, llm):
+async def test_handoff_uses_the_company_default_number(client, db_session, line, llm,
+                                                       voice_on):
     await _staff(db_session, None)
     await _allocation(db_session, 10, COMPANY_STAFF)
     await _post(client, _body(0))
@@ -92,7 +102,7 @@ async def test_handoff_uses_the_company_default_number(client, db_session, line,
 
 
 async def test_spend_cap_busy_line_names_the_company_default(client, db_session, line,
-                                                             llm):
+                                                             llm, voice_on):
     from decimal import Decimal
 
     from backend.reservations.rules import get_rules, save_rules

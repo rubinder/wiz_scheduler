@@ -52,7 +52,7 @@ from backend.services.location_scope import LocationScope
 logger = logging.getLogger(__name__)
 
 
-router =APIRouter(prefix="/reservations", tags=["reservations"])
+router = APIRouter(prefix="/reservations", tags=["reservations"])
 gated = APIRouter(dependencies=[Depends(require_reservations_enabled)])
 
 
@@ -62,6 +62,7 @@ async def read_config(_: User = Depends(require_manager)) -> ReservationsConfigO
     return ReservationsConfigOut(
         enabled=settings.RESERVATIONS_ENABLED,
         mock_provider_allowed=settings.RESERVATIONS_MOCK_PROVIDER_ALLOWED,
+        voice_enabled=settings.VOICE_PROVISIONING_ENABLED,
         conversation_outcomes=list(OUTCOMES))
 
 _ERROR_STATUS: dict[type[booking.ReservationError], int] = {

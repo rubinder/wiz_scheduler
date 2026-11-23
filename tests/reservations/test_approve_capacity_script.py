@@ -22,6 +22,11 @@ def _quiet(monkeypatch):
 
 
 async def _req(db, manager) -> str:
+    from tests.reservations.conftest import subscribe
+    from tests.reservations.test_voice_capacity import _phone_line
+
+    await subscribe(db)
+    await _phone_line(db)
     req = await voice_capacity.request_capacity(db, COMPANY_ID, manager.id, [LOCATION_ID],
                                                 45, None, "", NOW)
     return req.id

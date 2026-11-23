@@ -121,8 +121,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
             db, company_id, location_id, body.contact_id, body.caller,
             source_key_for(body.caller or "anonymous"))
     if created:
-        if await voice_capacity.at_allocation(db, company_id, now,
-                                              exclude_conversation_id=conv.id):
+        if await _at_allocation(db, company_id, conv.id, now):
             # The company holds its allocation of calls (decision 103).
             logger.info("voice_bridge.capacity location=%s", location_id)
             await recording.finish(db, conv, "blocked")
@@ -230,6 +229,24 @@ async def _screen_transfer(db: AsyncSession, location: Location,
         logger.warning("voice_bridge.transfer_cap location=%s", location.id)
         return voice.close(voice.NO_TRANSFER_TEXT, "transfer_cap")
     return reply
+
+
+async def _at_allocation(db: AsyncSession, company_id: str, conv_id: str,
+                         now: datetime) -> bool:
+    """Whether a new call must be refused at the company's allocation
+    (decision 103). Atomic per company: the company's advisory lock is held
+    until this turn commits its new conversation, so two first turns can
+    never both take the last seat. Fails open (answers the call) on any
+    error, as screening does (decision 47); a savepoint keeps the new
+    conversation."""
+    try:
+        async with db.begin_nested():
+            await voice_capacity.lock_company(db, company_id)
+            return await voice_capacity.at_allocation(
+                db, company_id, now, exclude_conversation_id=conv_id)
+    except Exception:
+        logger.exception("voice_bridge.capacity_check_failed company=%s", company_id)
+        return False
 
 
 def _busy(location_id: str, staff_transfer_number: str | None) -> dict[str, Any]:

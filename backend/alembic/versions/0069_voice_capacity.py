@@ -87,6 +87,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_voice_capacity_requests_company_id", "voice_capacity_requests",
                     ["company_id"])
+    op.create_index("uq_voice_capacity_requests_company_pending", "voice_capacity_requests",
+                    ["company_id"], unique=True,
+                    postgresql_where=sa.text("status = 'pending'"))
     for T in COMPANY_TABLES:
         _company_rls(T)
 
@@ -111,7 +114,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=_now()),
         sa.CheckConstraint(
-            "status IN ('pending', 'manual', 'approved', 'denied', 'failed')",
+            "status IN ('pending', 'manual', 'approved', 'denied', 'failed', 'superseded')",
             name="ck_voice_quota_requests_status"),
     )
     for T in PLATFORM_TABLES:

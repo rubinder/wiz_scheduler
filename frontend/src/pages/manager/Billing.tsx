@@ -36,6 +36,7 @@ export default function Billing() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [agent, setAgent] = useState<ReservationAgentStatus | null>(null);
   const [scheduling, setScheduling] = useState<BillingUsage | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -57,7 +58,9 @@ export default function Billing() {
     (async () => {
       let on = false;
       try {
-        on = (await getConfig()).enabled;
+        const config = await getConfig();
+        on = config.enabled;
+        setVoiceEnabled(Boolean(config.voice_enabled));
       } catch {
         on = false;
       }
@@ -272,7 +275,7 @@ export default function Billing() {
         </section>
       )}
 
-      {agent?.answering && !isComped(agent.status) && <CallCapacityCard />}
+      {agent?.answering && !isComped(agent.status) && <CallCapacityCard voiceEnabled={voiceEnabled} />}
     </div>
   );
 }

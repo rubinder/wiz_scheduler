@@ -337,10 +337,11 @@ can run ahead of the phone line to fill the list.
 ### Call capacity (decision 103)
 
 Also gated on `voice_enabled`: an ECS task-role policy
-(`voice_ecs_quotas`) with `servicequotas:GetServiceQuota`,
-`ListServiceQuotas`, `ListRequestedServiceQuotaChangeHistoryByQuota` and
-`cloudwatch:GetMetricStatistics` (none take resource-level permissions, so
-`*`), plus `RequestServiceQuotaIncrease` limited to the `connect` service;
+(`voice_ecs_quotas`) with `servicequotas:GetServiceQuota` and
+`RequestServiceQuotaIncrease` on this account's Amazon Connect quotas
+(`arn:aws:servicequotas:*:<account>:connect/*`), plus `ListServiceQuotas`,
+`ListRequestedServiceQuotaChangeHistoryByQuota` and
+`cloudwatch:GetMetricStatistics`, which take no resource (`*`);
 and a CloudWatch alarm (`voice_concurrent_calls`) on the instance's
 `ConcurrentCallsPercentage` above 80% to the `ops-alerts` SNS topic. The
 app's daily capacity step (`backend/reservations/voice_capacity.py`, inside

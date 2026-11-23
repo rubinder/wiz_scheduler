@@ -117,6 +117,20 @@ async def _call(db, start: datetime, end: datetime | None, *, company_id: str = 
     return conv
 
 
+async def _phone_line(db) -> None:
+    """The test location gets a number: capacity requests need one."""
+    db.add(VoiceNumber(company_id=COMPANY_ID, ownership_group_id=AGENT_OG_ID,
+                       location_id=LOCATION_ID, e164="+12125550199",
+                       status="active", connect_phone_number_id="pn-1"))
+    await db.commit()
+
+
+@pytest_asyncio.fixture
+async def phone_line(db_session, seed_location):
+    await subscribe(db_session)
+    await _phone_line(db_session)
+
+
 def _t(h: int, m: int = 0) -> datetime:
     return D0 + timedelta(hours=h, minutes=m)
 
@@ -253,14 +267,15 @@ async def test_quota_request_status_is_polled(db_session, seed_location, provisi
     assert row.status == "approved"
 
 
-async def test_denied_request_lets_a_new_one_be_filed(db_session, seed_location,
+async def test_denied_request_is_not_refiled_at_once(db_session, seed_location,
                                                       provisioning, mail):
     await _voice_company(db_session, "coother6", "ogother6", "lcother6")
     client = FakeQuotaClient(value=10)
     await voice_capacity.ensure_quota(db_session, NOW, client)
     client.status = "denied"
     out = await voice_capacity.ensure_quota(db_session, NOW, client)
-    assert out["action"] == "requested" and client.requests == [20, 20]
+    # Not filed again within 7 days of a denial (test_voice_capacity_review).
+    assert out["action"] == "denied_recently" and client.requests == [20]
 
 
 async def test_large_target_mails_a_support_case_instead(db_session, seed_location,
@@ -399,7 +414,7 @@ async def test_daily_run_records_shifts_sweeps_and_requests(db_session, seed_loc
 
 # -- capacity requests ----------------------------------------------------------------------
 
-async def test_capacity_request_mails_the_operator_with_peaks(db_session, seed_location,
+async def test_capacity_request_mails_the_operator_with_peaks(phone_line, db_session, seed_location,
                                                               seed_manager, mail):
     await _peak(db_session, DAY, 7)
     req = await voice_capacity.request_capacity(
@@ -410,7 +425,7 @@ async def test_capacity_request_mails_the_operator_with_peaks(db_session, seed_l
     assert "25" in body and "7" in body and req.id in body and "Holiday rush" in body
 
 
-async def test_one_pending_capacity_request_at_a_time(db_session, seed_location,
+async def test_one_pending_capacity_request_at_a_time(phone_line, db_session, seed_location,
                                                       seed_manager, mail):
     await voice_capacity.request_capacity(db_session, COMPANY_ID, seed_manager.id,
                                           [LOCATION_ID], 25, None, "", NOW)
@@ -420,7 +435,7 @@ async def test_one_pending_capacity_request_at_a_time(db_session, seed_location,
 
 
 async def test_capacity_request_refuses_other_locations(db_session, seed_location,
-                                                        seed_manager, mail):
+                                                        seed_manager, mail, phone_line):
     await _voice_company(db_session, "coother9", "ogother9", "lcother9")
     with pytest.raises(voice_capacity.UnknownLocation):
         await voice_capacity.request_capacity(db_session, COMPANY_ID, seed_manager.id,
@@ -450,7 +465,7 @@ async def test_approval_sets_the_allocation_files_the_quota_and_mails(
         await voice_capacity.approve_request(db_session, req.id, None, NOW, client)
 
 
-async def test_approval_can_grant_a_different_number(db_session, seed_location,
+async def test_approval_can_grant_a_different_number(phone_line, db_session, seed_location,
                                                      seed_manager, mail):
     req = await voice_capacity.request_capacity(db_session, COMPANY_ID, seed_manager.id,
                                                 [LOCATION_ID], 60, None, "", NOW)
@@ -460,7 +475,7 @@ async def test_approval_can_grant_a_different_number(db_session, seed_location,
     assert out["quota"].get("disabled") is True  # provisioning off: nothing filed
 
 
-async def test_decline_mails_the_admins(db_session, seed_location, seed_manager, mail):
+async def test_decline_mails_the_admins(phone_line, db_session, seed_location, seed_manager, mail):
     req = await voice_capacity.request_capacity(db_session, COMPANY_ID, seed_manager.id,
                                                 [LOCATION_ID], 60, None, "", NOW)
     await voice_capacity.decline_request(db_session, req.id, NOW)

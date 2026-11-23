@@ -1,5 +1,6 @@
 """Call capacity (decision 103): the AI host billing page's "Call capacity"
-card. Admins only, behind RESERVATIONS_ENABLED. The rules live in
+card. Admins only, behind RESERVATIONS_ENABLED and, since the card is about
+the phone line, VOICE_PROVISIONING_ENABLED (404 while either is off). The rules live in
 reservations.voice_capacity; operator approval is the script
 backend/scripts/approve_capacity_request.py, never an endpoint."""
 
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import settings
 from backend.dependencies import get_db, require_admin
 from backend.models import User
 from backend.reservations import voice_capacity, voice_transfers
@@ -15,8 +17,14 @@ from backend.reservations.flags import require_reservations_enabled
 from backend.schemas.voice_capacity import CapacityOut, CapacityRequestIn, TransferNumberIn
 
 
+def require_voice_enabled() -> None:
+    if not settings.VOICE_PROVISIONING_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
 router = APIRouter(prefix="/reservations/voice-capacity", tags=["reservations"],
-                   dependencies=[Depends(require_reservations_enabled)])
+                   dependencies=[Depends(require_reservations_enabled),
+                                 Depends(require_voice_enabled)])
 
 
 async def _summary(db: AsyncSession, user: User) -> dict:
@@ -52,7 +60,7 @@ async def request_capacity(
         await db.rollback()
         raise HTTPException(status_code=422, detail={
             "code": "unknown_location",
-            "message": "Choose locations of this company"})
+            "message": "Choose locations of this company that have a phone line"})
     return await _summary(db, user)
 
 

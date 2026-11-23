@@ -21,7 +21,8 @@ from typing import Any, Literal, Protocol
 from backend.config import settings
 
 SERVICE_CODE = "connect"
-RequestStatus = Literal["pending", "approved", "denied"]
+# "missing": AWS has no request with that id for the quota.
+RequestStatus = Literal["pending", "approved", "denied", "missing"]
 
 _STATUSES: dict[str, RequestStatus] = {
     "PENDING": "pending", "CASE_OPENED": "pending",
@@ -112,13 +113,19 @@ class AwsQuotaClient:
         return str((out.get("RequestedQuota") or {}).get("Id") or "")
 
     async def request_status(self, quota: AppliedQuota, request_id: str) -> RequestStatus:
-        out = await asyncio.to_thread(
-            self._quotas().list_requested_service_quota_change_history_by_quota,
-            ServiceCode=SERVICE_CODE, QuotaCode=quota.code)
-        for r in out.get("RequestedQuotas") or []:
-            if r.get("Id") == request_id:
-                return _STATUSES.get(str(r.get("Status")), "pending")
-        return "pending"
+        token: str | None = None
+        while True:
+            kw: dict[str, Any] = {"ServiceCode": SERVICE_CODE, "QuotaCode": quota.code}
+            if token:
+                kw["NextToken"] = token
+            out = await asyncio.to_thread(
+                self._quotas().list_requested_service_quota_change_history_by_quota, **kw)
+            for r in out.get("RequestedQuotas") or []:
+                if r.get("Id") == request_id:
+                    return _STATUSES.get(str(r.get("Status")), "pending")
+            token = out.get("NextToken")
+            if not token:
+                return "missing"
 
     async def peak_concurrent_calls(self, day: date) -> int | None:
         start = datetime.combine(day, time(0), tzinfo=timezone.utc)

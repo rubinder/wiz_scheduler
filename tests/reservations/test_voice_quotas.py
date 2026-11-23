@@ -33,8 +33,13 @@ class FakeQuotas:
         return {"RequestedQuota": {"Id": "req-1", "Status": "PENDING"}}
 
     def list_requested_service_quota_change_history_by_quota(self, **kw):
+        """One request per page, to exercise pagination."""
         self.calls.append(("history", kw))
-        return {"RequestedQuotas": self.history}
+        i = int(kw.get("NextToken") or 0)
+        page = {"RequestedQuotas": self.history[i:i + 1]}
+        if i + 1 < len(self.history):
+            page["NextToken"] = str(i + 1)
+        return page
 
 
 class FakeCloudWatch:
@@ -107,13 +112,17 @@ async def test_request_status_is_read_from_the_quota_history(aws, ours):
                                    {"Id": "req-1", "Status": aws}])
     client = AwsQuotaClient(sq, FakeCloudWatch([]))
     assert await client.request_status(AppliedQuota("L-XYZ", 10, None), "req-1") == ours
-    assert sq.calls[-1] == ("history", {"ServiceCode": "connect", "QuotaCode": "L-XYZ"})
+    assert sq.calls[0] == ("history", {"ServiceCode": "connect", "QuotaCode": "L-XYZ"})
+    assert sq.calls[-1] == ("history", {"ServiceCode": "connect", "QuotaCode": "L-XYZ",
+                                        "NextToken": "1"})
 
 
-async def test_unknown_request_id_is_pending():
-    sq = FakeQuotas([[]], history=[])
+async def test_unknown_request_id_is_missing_after_every_page():
+    sq = FakeQuotas([[]], history=[{"Id": "a", "Status": "PENDING"},
+                                   {"Id": "b", "Status": "PENDING"}])
     assert await AwsQuotaClient(sq, FakeCloudWatch([])).request_status(
-        AppliedQuota("L-XYZ", 10, None), "gone") == "pending"
+        AppliedQuota("L-XYZ", 10, None), "gone") == "missing"
+    assert len(sq.calls) == 2
 
 
 async def test_cloudwatch_peak_is_the_day_maximum():

@@ -482,36 +482,33 @@ resource "aws_iam_role_policy" "voice_ecs_connect" {
 }
 
 # --- ECS task permissions for call capacity (backend/services/voice_quotas.py) ---
-# Decision 103. Service Quotas reads and CloudWatch GetMetricStatistics take
-# no resource-level permissions or service conditions, so they are "*"; the
-# one write, RequestServiceQuotaIncrease, is limited to the connect service
-# (servicequotas:service). Quota changes are free and only go up; the AWS
-# Support API is never granted. Unverified against live IAM evaluation: if
-# the request is denied, drop the condition and say so in the README.
+# Decision 103. GetServiceQuota and RequestServiceQuotaIncrease take a quota
+# resource (arn:aws:servicequotas:<region>:<account>:connect/<quota code>), so
+# they are scoped to Amazon Connect quotas in this account. The list calls
+# and CloudWatch GetMetricStatistics take no resource, so they are "*".
+# Quota changes are free and only go up; the AWS Support API is never
+# granted.
 
 data "aws_iam_policy_document" "voice_ecs_quotas" {
   count = var.voice_enabled ? 1 : 0
 
   statement {
-    sid = "ReadQuotasAndCallMetrics"
+    sid = "ConnectQuotas"
     actions = [
       "servicequotas:GetServiceQuota",
+      "servicequotas:RequestServiceQuotaIncrease",
+    ]
+    resources = ["arn:aws:servicequotas:*:${data.aws_caller_identity.current.account_id}:connect/*"]
+  }
+
+  statement {
+    sid = "ListQuotasAndReadCallMetrics"
+    actions = [
       "servicequotas:ListServiceQuotas",
       "servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota",
       "cloudwatch:GetMetricStatistics",
     ]
     resources = ["*"]
-  }
-
-  statement {
-    sid       = "RequestConnectQuotaIncrease"
-    actions   = ["servicequotas:RequestServiceQuotaIncrease"]
-    resources = ["*"]
-    condition {
-      test     = "StringEquals"
-      variable = "servicequotas:service"
-      values   = ["connect"]
-    }
   }
 }
 

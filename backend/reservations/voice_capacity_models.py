@@ -12,7 +12,8 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
-    CheckConstraint, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func,
+    CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint,
+    func, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -22,8 +23,10 @@ from backend.utils.id_gen import generate_short_id
 
 # pending: filed with Service Quotas, waiting; manual: above
 # VOICE_QUOTA_AUTO_REQUEST_MAX, the operator was mailed a support-case text;
-# approved / denied: the outcome; failed: the request call itself failed.
-QUOTA_REQUEST_STATUSES = ("pending", "manual", "approved", "denied", "failed")
+# approved / denied: the outcome; failed: the request call itself failed, AWS
+# no longer knows it, or it stayed open past 7 days; superseded: a manual or
+# id-less row whose value fell below the current target.
+QUOTA_REQUEST_STATUSES = ("pending", "manual", "approved", "denied", "failed", "superseded")
 OPEN_QUOTA_REQUEST_STATUSES = ("pending", "manual")
 CAPACITY_REQUEST_STATUSES = ("pending", "approved", "declined")
 
@@ -122,6 +125,9 @@ class VoiceCapacityRequest(Base):
                         name="ck_voice_capacity_requests_status"),
         CheckConstraint("expected_peak BETWEEN 1 AND 500",
                         name="ck_voice_capacity_requests_expected_peak"),
+        # One pending request per company.
+        Index("uq_voice_capacity_requests_company_pending", "company_id", unique=True,
+              postgresql_where=text("status = 'pending'")),
     )
 
     id: Mapped[str] = mapped_column(String(8), primary_key=True, default=generate_short_id)
