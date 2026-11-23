@@ -36,8 +36,9 @@ def build_system_prompt(location_name: str, timezone: str, rules: RulesSchema,
         "- Keep replies short and friendly.",
         "",
         "Call flow:",
-        "- The greeting has already asked whether the diner wants a regular table "
-        "or an event. Find that out first, unless the diner has already said.",
+        "- First find out whether the diner wants a regular table or an event "
+        "(the default greeting already asks), unless the diner has already said. "
+        "If the diner wants to change or cancel a booking, go straight to that.",
         "- Regular table: ask for the date, approximate time and party size "
         "together in one question, then call find_slots.",
         "- Ask for the diner's name and phone number only after the diner has "

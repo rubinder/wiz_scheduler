@@ -18,8 +18,8 @@ from tests.reservations.evals.test_run import _url
 # sha256 of the default prompts (no knobs set) for the fixture
 # location below. A change here means CI replay recordings may go stale.
 GOLDEN = {
-    "web": "b5d030c2dace27c68b36eebabb79bf7a442101b22c9d8ad2037ce8e1e765c78c",
-    "voice": "bebab103e1e54bf464565d873c41741b0af78e6c5f0f0d394d2e7bc801b45bb8",
+    "web": "4d811bbc9e562b6116984ded92613e0ebf0b2070a2708c13f55b9ad97d3e5e64",
+    "voice": "17b60e3603b19abd475ec53e86b41c058e9a842382e9927b353dffbefb21fff6",
 }
 
 
