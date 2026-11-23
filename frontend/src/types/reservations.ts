@@ -117,6 +117,58 @@ export interface RulesSchema {
   mock_external?: MockExternalSettings;
   /** The greeting says the host is automated (default true). Admin-only, omitted like `provider`. */
   disclose_automated?: boolean;
+  /** Custom conversation flows per channel; null = the default flow (decision 102). Omitted by the rules editor. */
+  flows?: Flows;
+  /** Regular managers an admin allowed to edit `flows`. Admin-only. */
+  flow_editor_ids?: string[];
+}
+
+// ── Conversation flows (decision 102) ──
+
+export type FlowChannel = "web" | "voice";
+export type FlowCollect = "party_size" | "date_time" | "name" | "phone" | "occasion" | "free_text";
+export type FlowStepKind = "ask" | "choice" | "book" | "change_or_cancel" | "say" | "handoff" | "end";
+
+export interface FlowOption {
+  label: string;
+  next: string;
+}
+
+interface FlowStepBase {
+  /** Slug, at most 40 characters. */
+  id: string;
+  /** Editor label. */
+  title: string;
+}
+
+export type FlowStep = FlowStepBase &
+  (
+    | { kind: "ask"; prompt: string; collect: FlowCollect; next: string }
+    | { kind: "choice"; prompt: string; options: FlowOption[] }
+    | { kind: "book"; next: string | null }
+    | { kind: "change_or_cancel" }
+    | { kind: "say"; message: string; next: string }
+    | { kind: "handoff"; reason: string }
+    | { kind: "end"; message: string }
+  );
+
+export interface Flow {
+  version: 1;
+  start: string;
+  steps: FlowStep[];
+}
+
+export interface Flows {
+  web: Flow | null;
+  voice: Flow | null;
+}
+
+/** One `invalid_flow` problem (the server's `problems`, or the editor's mirror). */
+export interface FlowProblem {
+  code: string;
+  step: string | null;
+  field: string | null;
+  channel?: FlowChannel;
 }
 
 export interface RulesOut {

@@ -40,6 +40,8 @@ const KEPT_IN_ENGLISH_ALL = new Set<string>([
   // An example address, not prose
   "team.emailPlaceholder",
   "payrollArchive.emailPlaceholder",
+  // A "{step}: {problem}" pattern, not prose
+  "reservations.flow.problemAt",
 ]);
 
 /** Per-locale strings deliberately left identical to English, reviewed by hand. */

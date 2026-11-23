@@ -74,6 +74,7 @@ describe("manager navigation", () => {
       expect(off.filter(isGroup).map((g) => g.labelKey)).not.toContain("groupReservations");
       expect(paths(off)).not.toContain("/manager/reservations");
       expect(paths(off)).not.toContain("/manager/reservations/conversations");
+      expect(paths(off)).not.toContain("/manager/reservations/flow");
       expect(paths(off)).not.toContain("/manager/reservations/numbers");
       expect(paths(off)).not.toContain("/manager/reservations/insights");
       expect(paths(off)).not.toContain("/manager/billing");
@@ -83,6 +84,7 @@ describe("manager navigation", () => {
           "/manager/reservations",
           "/manager/reservations/floor",
           "/manager/reservations/rules",
+          "/manager/reservations/flow",
           "/manager/reservations/conversations",
           "/manager/reservations/numbers",
           "/manager/reservations/insights",
