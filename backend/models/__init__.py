@@ -64,8 +64,20 @@ from backend.reservations.screening_models import (
     SpamIngestFile,
     SpamNumber,
 )
+from backend.reservations.voice_capacity_models import (
+    VoiceCapacityDaily,
+    VoiceCapacityRequest,
+    VoiceCompanySettings,
+    VoicePlatformDaily,
+    VoiceQuotaRequest,
+)
 
 __all__ = [
+    "VoiceCapacityDaily",
+    "VoiceCapacityRequest",
+    "VoiceCompanySettings",
+    "VoicePlatformDaily",
+    "VoiceQuotaRequest",
     "AgentDailyMetric",
     "MockExternalBooking",
     "MockExternalIdempotency",
