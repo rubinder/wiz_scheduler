@@ -58,6 +58,11 @@ export function getFloorDraft(locationId: string, draftId: string): Promise<Floo
   return apiFetch(`${base(locationId)}/floor/ai-drafts/${draftId}`);
 }
 
+/** The location's newest draft (404 when there is none), to resume one. */
+export function getLatestFloorDraft(locationId: string): Promise<FloorDraftOut> {
+  return apiFetch(`${base(locationId)}/floor/ai-drafts/latest`);
+}
+
 export function getRules(locationId: string): Promise<RulesOut> {
   return apiFetch(`${base(locationId)}/rules`);
 }

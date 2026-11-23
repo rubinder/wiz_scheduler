@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { FloorIn, FloorOut, TableIO } from "../types/reservations";
-import { applyDraft, downscaleSize, draftErrorKey, DRAFT_LIMITS, validateDraftInput } from "./floorDraft";
+import type { FloorDraftOut, FloorIn, FloorOut, TableIO } from "../types/reservations";
+import {
+  applyDraft,
+  downscaleSize,
+  draftApplied,
+  draftChanges,
+  draftErrorKey,
+  DRAFT_LIMITS,
+  markDraftApplied,
+  rememberDraft,
+  rememberedDraft,
+  resumeAction,
+  validateDraftInput,
+} from "./floorDraft";
 import { editorToFloorIn, floorToEditor } from "./reservations";
 
 const table = (label: string, p: Partial<TableIO> = {}): TableIO => ({
@@ -83,6 +95,86 @@ describe("applyDraft", () => {
 
 const img = (size = 1000, type = "image/jpeg") => ({ size, type });
 
+describe("applyDraft does not rebind a booked table by label alone", () => {
+  // The model labels T1..Tn in reading order, which says nothing about which
+  // physical table the restaurant calls T1.
+  const current: FloorOut = {
+    sections: [
+      { id: "secB", key: "secB", name: "Bar", sort_order: 0 },
+      { id: "secP", key: "secP", name: "Patio", sort_order: 1 },
+    ],
+    tables: [
+      table("T1", { id: "tbl1", section_key: "secB", max_seats: 2 }),
+      table("T2", { id: "tbl2", section_key: "secP", max_seats: 6 }),
+      table("T3", { id: "tbl3", max_seats: 4 }),
+      table("T4", { id: "tbl4", max_seats: 4 }),
+    ],
+    combinations: [],
+  };
+  const next: FloorIn = {
+    sections: [{ id: null, key: "b", name: "bar", sort_order: 0 }],
+    tables: [
+      // Same label and section, fewer seats: the same table, kept.
+      table("T1", { section_key: "b", max_seats: 1 }),
+      // Same label, other section, fewer seats: a different table.
+      table("T2", { section_key: "b", max_seats: 2 }),
+      // Same label, no section, at least as many seats: kept.
+      table("T3", { max_seats: 4 }),
+    ],
+    combinations: [],
+  };
+
+  it("keeps an id only when the seats fit or the section matches", () => {
+    const out = editorToFloorIn(applyDraft(floorToEditor(current), next, "ai:1:"));
+    expect(out.tables.map((t) => t.id)).toEqual(["tbl1", null, "tbl3"]);
+  });
+
+  it("gives a replaced table a new uid", () => {
+    const ed = applyDraft(floorToEditor(current), next, "ai:1:");
+    expect(ed.tables[1].uid).not.toBe("tbl2");
+  });
+
+  it("says which tables are kept, replaced and archived", () => {
+    const before = floorToEditor(current);
+    expect(draftChanges(before, applyDraft(before, next, "ai:1:"))).toEqual({
+      kept: ["T1", "T3"],
+      replaced: ["T2"],
+      archived: ["T4"],
+    });
+  });
+});
+
+describe("resuming a draft", () => {
+  const d = (status: FloorDraftOut["status"], result: FloorIn | null = null): FloorDraftOut => ({
+    id: "d1",
+    status,
+    result,
+    warnings: [],
+    confidence: null,
+    cost_usd: null,
+    error_code: null,
+    created_at: "2026-11-22T10:00:00Z",
+    finished_at: null,
+  });
+
+  it("keeps polling a running draft and offers a done one not yet loaded", () => {
+    expect(resumeAction(d("queued"), false)).toBe("poll");
+    expect(resumeAction(d("running"), false)).toBe("poll");
+    expect(resumeAction(d("done", draft), false)).toBe("offer");
+    expect(resumeAction(d("done", draft), true)).toBe("none");
+    expect(resumeAction(d("failed"), false)).toBe("none");
+    expect(resumeAction(null, false)).toBe("none");
+  });
+
+  it("works without sessionStorage", () => {
+    // Node has none; a private window may throw. Neither may break the modal.
+    expect(() => rememberDraft("loc1", "d1")).not.toThrow();
+    expect(rememberedDraft("loc1")).toBeNull();
+    expect(() => markDraftApplied("d1")).not.toThrow();
+    expect(draftApplied("d1")).toBe(false);
+  });
+});
+
 describe("validateDraftInput", () => {
   it("accepts photos and PDFs with captions and notes", () => {
     expect(validateDraftInput([img(), img(2000, "application/pdf")], ["front", ""], "notes")).toBeNull();
@@ -120,6 +212,11 @@ describe("draftErrorKey", () => {
     for (const code of ["refused", "truncated", "unreadable", "model_error", "internal"]) {
       expect(draftErrorKey(code)).toBe("failed");
     }
+    expect(draftErrorKey("too_many_captions")).toBe("too_many_captions");
+    expect(draftErrorKey("too_many_pages")).toBe("too_many_pages");
+    expect(draftErrorKey("too_many_failed_drafts")).toBe("too_many_failed_drafts");
+    expect(draftErrorKey("estimate_unavailable")).toBe("estimate_unavailable");
+    expect(draftErrorKey("length_required")).toBe("generic");
     expect(draftErrorKey("something_new")).toBe("generic");
     expect(draftErrorKey(null)).toBe("generic");
   });

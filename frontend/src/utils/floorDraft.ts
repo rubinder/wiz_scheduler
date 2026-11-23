@@ -1,5 +1,5 @@
 /** AI floor-plan drafts (decision 101): input checks and loading a draft into the editor. */
-import type { FloorIn, SectionIO } from "../types/reservations";
+import type { FloorDraftOut, FloorIn, SectionIO } from "../types/reservations";
 import type { EditorCombination, EditorFloor, EditorTable } from "./reservations";
 
 /**
@@ -56,6 +56,10 @@ export type DraftErrorKey =
   | "billing_on_hold"
   | "daily_cost_cap_exceeded"
   | "draft_in_progress"
+  | "too_many_captions"
+  | "too_many_pages"
+  | "too_many_failed_drafts"
+  | "estimate_unavailable"
   | "timeout"
   | "failed"
   | "generic";
@@ -71,6 +75,10 @@ const SERVER_CODES: Record<string, DraftErrorKey> = {
   billing_on_hold: "billing_on_hold",
   daily_cost_cap_exceeded: "daily_cost_cap_exceeded",
   draft_in_progress: "draft_in_progress",
+  too_many_captions: "too_many_captions",
+  too_many_pages: "too_many_pages",
+  too_many_failed_drafts: "too_many_failed_drafts",
+  estimate_unavailable: "estimate_unavailable",
   timeout: "timeout",
   // The call ran but gave no usable plan; none of these is charged.
   refused: "failed",
@@ -141,11 +149,17 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 /**
  * The editor floor after loading a draft: the draft's sections, tables and
- * combinations replace the current ones. A draft table whose label matches a
- * current table keeps that table's id (and uid), and likewise sections and
- * combinations by name, so saving updates those rows instead of archiving
- * them and creating new ones: their bookings and history stay attached.
- * Nothing is saved; the result is unsaved changes.
+ * combinations replace the current ones. Nothing is saved; the result is
+ * unsaved changes.
+ *
+ * A draft table keeps a current table's id (and uid), so saving updates that
+ * row and its bookings stay attached, only when the label matches AND it is
+ * plausibly the same table: it seats at least as many, or it is in a section
+ * of the same name. The model labels T1..Tn in reading order, so a label
+ * alone would rebind bookings to the wrong physical table. Otherwise the
+ * draft table is new and the current one is archived on save, where
+ * save_floor refuses to archive a table with upcoming bookings (409).
+ * Sections and combinations keep their ids by name.
  */
 export function applyDraft(current: EditorFloor, draft: FloorIn, uidPrefix: string): EditorFloor {
   const usedKeys = new Set<string>();
@@ -163,9 +177,16 @@ export function applyDraft(current: EditorFloor, draft: FloorIn, uidPrefix: stri
     return { id: match?.id ?? null, key, name: match?.name ?? s.name, sort_order: i };
   });
 
+  const sectionName = (sections: SectionIO[], key: string | null) =>
+    key === null ? null : norm(sections.find((x) => x.key === key)?.name ?? "") || null;
   const byLabel = new Map(current.tables.map((t) => [t.label, t]));
   const tables: EditorTable[] = draft.tables.map((t, i) => {
-    const match = byLabel.get(t.label);
+    const existing = byLabel.get(t.label);
+    const sameSection =
+      existing !== undefined &&
+      sectionName(current.sections, existing.section_key) !== null &&
+      sectionName(current.sections, existing.section_key) === sectionName(draft.sections, t.section_key);
+    const match = existing && (t.max_seats >= existing.max_seats || sameSection) ? existing : undefined;
     return {
       ...t,
       uid: match?.uid ?? `${uidPrefix}${i}`,
@@ -189,4 +210,71 @@ export function applyDraft(current: EditorFloor, draft: FloorIn, uidPrefix: stri
   });
 
   return { sections, tables, combinations };
+}
+
+export interface DraftChanges {
+  /** Current tables the draft updates in place. */
+  kept: string[];
+  /** Current tables whose label the draft reuses for a different table. */
+  replaced: string[];
+  /** Current tables the draft leaves out. */
+  archived: string[];
+}
+
+/** What saving `next` (a floor with a draft applied) does to `current`'s tables. */
+export function draftChanges(current: EditorFloor, next: EditorFloor): DraftChanges {
+  const keptIds = new Set(next.tables.flatMap((t) => (t.id ? [t.id] : [])));
+  const nextLabels = new Set(next.tables.map((t) => t.label));
+  const saved = current.tables.filter((t) => t.id);
+  return {
+    kept: saved.filter((t) => keptIds.has(t.id!)).map((t) => t.label),
+    replaced: saved.filter((t) => !keptIds.has(t.id!) && nextLabels.has(t.label)).map((t) => t.label),
+    archived: saved.filter((t) => !keptIds.has(t.id!) && !nextLabels.has(t.label)).map((t) => t.label),
+  };
+}
+
+/** What the modal does with the location's latest draft when it opens. */
+export function resumeAction(draft: FloorDraftOut | null, applied: boolean): "poll" | "offer" | "none" {
+  if (!draft) return "none";
+  if (draft.status === "queued" || draft.status === "running") return "poll";
+  if (draft.status === "done" && draft.result && !applied) return "offer";
+  return "none";
+}
+
+// Per-tab memory of the draft in progress and of drafts already loaded: a
+// convenience only (the server's latest draft is the source of truth), so
+// every access survives storage that is missing or throws.
+const draftKey = (locationId: string) => `floorDraft:${locationId}`;
+const appliedKey = (draftId: string) => `floorDraftApplied:${draftId}`;
+
+export function rememberDraft(locationId: string, draftId: string): void {
+  try {
+    sessionStorage.setItem(draftKey(locationId), draftId);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function rememberedDraft(locationId: string): string | null {
+  try {
+    return sessionStorage.getItem(draftKey(locationId));
+  } catch {
+    return null;
+  }
+}
+
+export function markDraftApplied(draftId: string): void {
+  try {
+    sessionStorage.setItem(appliedKey(draftId), "1");
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function draftApplied(draftId: string): boolean {
+  try {
+    return sessionStorage.getItem(appliedKey(draftId)) === "1";
+  } catch {
+    return false;
+  }
 }

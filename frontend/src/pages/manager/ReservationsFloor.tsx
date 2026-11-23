@@ -8,7 +8,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { Location } from "../../types";
 import type { FloorDraftOut, FloorOut } from "../../types/reservations";
-import { applyDraft } from "../../utils/floorDraft";
+import { applyDraft, draftChanges, markDraftApplied } from "../../utils/floorDraft";
+import type { DraftChanges } from "../../utils/floorDraft";
 import {
   CANVAS,
   clampTable,
@@ -108,7 +109,7 @@ export default function ReservationsFloor() {
   const [saveError, setSaveError] = useState<{ text: string; detail: string } | null>(null);
   const [draftOpen, setDraftOpen] = useState(false);
   /** The AI draft loaded into the editor, until it is saved or the location changes. */
-  const [aiDraft, setAiDraft] = useState<FloorDraftOut | null>(null);
+  const [aiDraft, setAiDraft] = useState<(FloorDraftOut & { changes: DraftChanges }) | null>(null);
   const draftCount = useRef(0);
   const currentLocation = useRef("");
   const newUid = useRef(0);
@@ -291,14 +292,15 @@ export default function ReservationsFloor() {
 
   const onDraft = (d: FloorDraftOut) => {
     setDraftOpen(false);
-    if (!d.result) return;
-    if (floor && floor.tables.length > 0 && !window.confirm(f.ai.replaceConfirm)) return;
+    if (!d.result || !floor) return;
+    if (floor.tables.length > 0 && !window.confirm(f.ai.replaceConfirm)) return;
     draftCount.current += 1;
-    const result = d.result;
-    edit((fl) => applyDraft(fl, result, `ai:${draftCount.current}:`));
+    const next = applyDraft(floor, d.result, `ai:${draftCount.current}:`);
+    edit(() => next);
+    markDraftApplied(d.id);
     setSelected(null);
     setSaveError(null);
-    setAiDraft(d);
+    setAiDraft({ ...d, changes: draftChanges(floor, next) });
   };
 
   const onLocationChange = (id: string) => {
@@ -388,6 +390,19 @@ export default function ReservationsFloor() {
                     new Intl.NumberFormat(lang, { style: "currency", currency: "USD" }).format(aiDraft.cost_usd),
                   )}
               </p>
+              {(
+                [
+                  ["kept", f.ai.kept],
+                  ["replaced", f.ai.replaced],
+                  ["archived", f.ai.archived],
+                ] as const
+              ).map(([k, label]) =>
+                aiDraft.changes[k].length > 0 ? (
+                  <p key={k} className="text-sm">
+                    {label.replace("{labels}", aiDraft.changes[k].join(", "))}
+                  </p>
+                ) : null,
+              )}
               {aiDraft.warnings.length > 0 && (
                 <>
                   <p className="text-sm">{f.ai.warningsHeading}</p>

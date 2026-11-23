@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { ApiError } from "../../api/client";
-import { createFloorDraft, getFloorDraft } from "../../api/reservations";
+import { createFloorDraft, getFloorDraft, getLatestFloorDraft } from "../../api/reservations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { FloorDraftOut } from "../../types/reservations";
 import {
   DRAFT_ACCEPT,
   DRAFT_LIMITS,
   downscaleImage,
+  draftApplied,
   draftErrorKey,
+  rememberDraft,
+  rememberedDraft,
+  resumeAction,
   validateDraftInput,
 } from "../../utils/floorDraft";
 import type { DraftErrorKey } from "../../utils/floorDraft";
@@ -23,10 +27,20 @@ interface Item {
   caption: string;
 }
 
+const codeOf = (e: unknown): string | null => {
+  const data = e instanceof ApiError ? e.data : null;
+  return data && typeof data === "object" ? ((data as { code?: string }).code ?? null) : null;
+};
+
 /**
  * "Draft from photos (AI)" (decision 101): pick photos or PDF blueprints,
  * caption them, add notes, submit, then poll until the draft is done. A done
  * draft goes to `onDraft`; the page loads it into the editor unsaved.
+ *
+ * On open it resumes the location's latest draft (the id remembered in this
+ * tab first, then the server's latest): a running one is polled again, and
+ * a done one not yet loaded is offered, so a paid draft survives closing the
+ * modal or reloading the page.
  */
 export default function FloorDraftModal({
   locationId,
@@ -45,17 +59,79 @@ export default function FloorDraftModal({
   const [notes, setNotes] = useState("");
   const [phase, setPhase] = useState<"edit" | "preparing" | "working">("edit");
   const [error, setError] = useState<DraftErrorKey | null>(null);
+  const [ready, setReady] = useState<FloorDraftOut | null>(null);
   const nextKey = useRef(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
+
+  const stopPolling = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  /**
+   * One poll, and the next only once it has answered: a chained timeout,
+   * never an interval, so two answers cannot both apply the draft.
+   */
+  const poll = (draftId: string) => {
+    stopPolling();
+    timer.current = setTimeout(async () => {
+      timer.current = null;
+      let d: FloorDraftOut;
+      try {
+        d = await getFloorDraft(locationId, draftId);
+      } catch (e) {
+        if (!alive.current) return;
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+          // Not found, forbidden, flag off: polling will not fix it.
+          setError(draftErrorKey(codeOf(e)));
+          setPhase("edit");
+          return;
+        }
+        poll(draftId); // a network blip or 5xx: try again
+        return;
+      }
+      if (!alive.current) return;
+      if (d.status === "queued" || d.status === "running") {
+        poll(draftId);
+      } else if (d.status === "done" && d.result) {
+        onDraftRef.current(d);
+      } else {
+        setError(draftErrorKey(d.error_code));
+        setPhase("edit");
+      }
+    }, POLL_MS);
+  };
 
   useEffect(() => {
     alive.current = true;
+    (async () => {
+      let latest: FloorDraftOut | null = null;
+      const remembered = rememberedDraft(locationId);
+      try {
+        latest = remembered
+          ? await getFloorDraft(locationId, remembered).catch(() => getLatestFloorDraft(locationId))
+          : await getLatestFloorDraft(locationId);
+      } catch {
+        latest = null; // none yet
+      }
+      if (!alive.current || !latest) return;
+      const action = resumeAction(latest, draftApplied(latest.id));
+      if (action === "poll") {
+        setPhase("working");
+        poll(latest.id);
+      } else if (action === "offer") {
+        setReady(latest);
+      }
+    })();
     return () => {
       alive.current = false;
-      if (timer.current) clearInterval(timer.current);
+      stopPolling();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationId]);
 
   const input = `glass-input-sm text-sm ${border.default} ${text.primary}`;
   const busy = phase !== "edit";
@@ -77,24 +153,6 @@ export default function FloorDraftModal({
     setPhase("edit");
   };
 
-  const poll = (draftId: string) => {
-    timer.current = setInterval(async () => {
-      try {
-        const d = await getFloorDraft(locationId, draftId);
-        if (!alive.current || d.status === "queued" || d.status === "running") return;
-        if (timer.current) clearInterval(timer.current);
-        if (d.status === "done" && d.result) {
-          onDraft(d);
-        } else {
-          setError(draftErrorKey(d.error_code));
-          setPhase("edit");
-        }
-      } catch {
-        // A blip while polling: keep trying until the draft times out.
-      }
-    }, POLL_MS);
-  };
-
   const submit = async () => {
     const problem = validateDraftInput(
       items.map((i) => i.file),
@@ -106,6 +164,7 @@ export default function FloorDraftModal({
       return;
     }
     setError(null);
+    setReady(null);
     setPhase("working");
     try {
       const d = await createFloorDraft(
@@ -113,12 +172,11 @@ export default function FloorDraftModal({
         items.map((i) => ({ file: i.file, caption: i.caption })),
         notes,
       );
+      rememberDraft(locationId, d.id);
       if (alive.current) poll(d.id);
     } catch (e) {
       if (!alive.current) return;
-      const data = e instanceof ApiError ? e.data : null;
-      const code = data && typeof data === "object" ? (data as { code?: string }).code : null;
-      setError(draftErrorKey(code));
+      setError(draftErrorKey(codeOf(e)));
       setPhase("edit");
     }
   };
@@ -135,6 +193,15 @@ export default function FloorDraftModal({
           {a.title}
         </h2>
         <p className={`text-sm ${text.muted}`}>{a.intro}</p>
+
+        {ready && (
+          <div className="glass-alert-success flex flex-wrap items-center gap-2" role="status">
+            <span className="flex-1">{a.resumeReady}</span>
+            <button type="button" className="glass-btn-primary text-sm" onClick={() => onDraftRef.current(ready)}>
+              {a.loadDraft}
+            </button>
+          </div>
+        )}
 
         <div className="space-y-2">
           <label className="block">
