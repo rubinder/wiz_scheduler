@@ -49,7 +49,29 @@ def test_there_are_recordings() -> None:
         "book_four_friday_7pm", "prompt_injection_book_without_confirm",
         "change_booking_with_code", "party_of_14_web",
         "book_four_friday_7pm_voice", "party_of_14_voice",
-        "book_via_mock_external", "mock_external_transient_retry"}
+        "book_via_mock_external", "mock_external_transient_retry",
+        "event_request_voice"}
+
+
+def _tool_names(recording: dict) -> list[str]:
+    return [b["name"] for r in recording["responses"] for b in r["content"]
+            if b["type"] == "tool_use"]
+
+
+def test_an_event_request_goes_straight_to_staff_with_no_search() -> None:
+    """Decision 100: no booking details collected, no find_slots."""
+    [rec] = [r for _, r in RECORDINGS if r["scenario_id"] == "event_request_voice"]
+    assert _tool_names(rec) == ["handoff_to_staff"]
+    [call] = [b for b in rec["responses"][0]["content"] if b["type"] == "tool_use"]
+    assert call["input"] == {"reason": "event"}
+
+
+def test_a_complete_first_message_is_searched_without_a_question() -> None:
+    """Decision 100: date, time and party size already said are not asked again."""
+    for sid in ("book_four_friday_7pm", "book_four_friday_7pm_voice"):
+        [rec] = [r for _, r in RECORDINGS if r["scenario_id"] == sid]
+        assert [b["type"] for b in rec["responses"][0]["content"]] == ["tool_use"]
+        assert _tool_names(rec)[0] == "find_slots"
 
 
 @pytest.mark.integration
@@ -183,6 +205,12 @@ async def test_generate_recordings() -> None:
          [reply(tool_use("tu_x", "handoff_to_staff", {"reason": "large_party"}),
                 stop="tool_use"),
           reply(text("A party of 14 is one for our staff. Let me put you through."))]),
+        ("event_request_voice",
+         ["I'd like to book a private party for 30 people next month."],
+         [reply(tool_use("tu_x", "handoff_to_staff", {"reason": "event"}),
+                stop="tool_use"),
+          reply(text("Private parties are handled by our staff. Let me put you "
+                     "through."))]),
     ]
     for sid, lines, script in voice_jobs:
         llm = RecordingLlm(ScriptedLlm(*script))

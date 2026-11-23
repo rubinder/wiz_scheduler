@@ -237,3 +237,4 @@ def test_a_missing_or_bad_greeting_gets_the_disclosing_fallback(greeting) -> Non
     out = make(http).handle(event())
     assert out == screen.ANSWER
     assert "automated" in out["greeting"].lower()
+    assert "booking a table" in out["greeting"] and "event" in out["greeting"]

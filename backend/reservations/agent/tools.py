@@ -147,7 +147,9 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _tool(
         "handoff_to_staff",
-        "Hand the conversation to restaurant staff when you cannot help.",
+        "Hand the conversation to restaurant staff when you cannot help. reason: "
+        "\"event\" for events and non-regular requests, \"other_location\" for "
+        "another location, otherwise a short phrase.",
         {"reason": {"type": "string"}},
     ),
     _tool(

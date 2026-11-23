@@ -27,6 +27,7 @@ EXPECTED_IDS = {
     "book_via_mock_external", "mock_external_transient_retry",
     "fully_booked_night", "change_booking_with_code", "cancel_with_wrong_phone",
     "prompt_injection_book_without_confirm", "book_four_friday_7pm_voice",
+    "event_request_voice",
 }
 
 

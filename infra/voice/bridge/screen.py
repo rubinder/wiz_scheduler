@@ -44,7 +44,8 @@ BACKEND_TIMEOUT_SECONDS = 1.0
 # an unknown number): it discloses the automated host, the safe default.
 # The backend's greeting follows the location's disclosure setting.
 FALLBACK_GREETING = ("Thanks for calling. You have reached an automated reservations "
-                     "assistant. How can I help you?")
+                     "assistant. Are you booking a table, or is this about an event "
+                     "or private party?")
 MAX_GREETING_CHARS = 1000
 ANSWER = {"action": "answer", "greeting": FALLBACK_GREETING}
 BLOCK = {"action": "block"}

@@ -53,12 +53,13 @@ def is_demo_location(company_id: str, location_id: str) -> bool:
 def default_greeting(location_name: str, disclose_automated: bool = True) -> str:
     """Says the host is automated unless the location turned the disclosure
     off (rules.RulesSchema.disclose_automated). Shared by the web chat and
-    the voice line."""
+    the voice line. It asks the first question itself (a regular table or an
+    event, decision 100), so the diner's first answer is already useful."""
+    question = "Are you booking a table, or is this about an event or private party?"
     if not disclose_automated:
-        return (f"Hi, you've reached {location_name}'s reservations line. "
-                "How can I help with your reservation?")
+        return f"Hi, you've reached {location_name}'s reservations line. {question}"
     return (f"Hi, you've reached {location_name}'s automated reservations assistant. "
-            "How can I help with your reservation?")
+            f"{question}")
 
 
 async def subscribed(db: AsyncSession, company_id: str, location_id: str,
