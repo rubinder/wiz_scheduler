@@ -7,6 +7,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from backend.analytics.models import AgentDailyMetric
 from backend.reservations.agent.models import AgentConversation, AgentEvent
+from backend.reservations.floor import FloorIn
+from backend.reservations.floor_ai_models import FloorPlanDraft
 from backend.reservations.models import Reservation
 from backend.reservations.providers.base import ProviderBooking
 from backend.reservations.flows import Flows
@@ -362,3 +364,31 @@ class VoiceNumberOut(BaseModel):
     e164: str | None
     status: Literal["none", "requested", "active", "releasing", "released"]
     release_after: AwareDatetime | None = None
+
+
+class FloorDraftOut(BaseModel):
+    """An AI floor-plan draft (decision 101). `result` is a FloorIn the
+    editor loads as unsaved changes; `cost_usd` is what was debited from AI
+    credits, null until done (and on failure, which is never charged)."""
+
+    id: str
+    status: Literal["queued", "running", "done", "failed"]
+    result: FloorIn | None = None
+    warnings: list[str] = []
+    confidence: Literal["low", "medium", "high"] | None = None
+    cost_usd: float | None = None
+    error_code: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+
+    @classmethod
+    def of(cls, row: FloorPlanDraft) -> "FloorDraftOut":
+        done = row.status == "done"
+        return cls(
+            id=row.id, status=row.status,
+            result=FloorIn.model_validate(row.result) if done and row.result else None,
+            warnings=list(row.warnings or []) if done else [],
+            confidence=row.confidence if done else None,
+            cost_usd=float(row.cost_usd) if done and row.cost_usd is not None else None,
+            error_code=row.error_code, created_at=row.created_at,
+            finished_at=row.finished_at)

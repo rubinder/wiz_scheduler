@@ -38,6 +38,20 @@ export interface FloorIn {
   combinations: CombinationIO[];
 }
 
+/** An AI floor-plan draft (decision 101); `result` loads into the editor unsaved. */
+export interface FloorDraftOut {
+  id: string;
+  status: "queued" | "running" | "done" | "failed";
+  result: FloorIn | null;
+  warnings: string[];
+  confidence: "low" | "medium" | "high" | null;
+  /** What was debited from AI credits; null until done, and on failure. */
+  cost_usd: number | null;
+  error_code: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
 export interface FloorOut {
   sections: SectionIO[];
   tables: TableIO[];

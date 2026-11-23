@@ -1,4 +1,5 @@
 import hmac
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from starlette.responses import JSONResponse
 
 from backend.config import settings
 from backend.logging_config import setup_logging
+from backend.middleware.body_limit import BodyLimit, BodyLimitMiddleware
 from backend.middleware.failure_logging import FailureLoggingMiddleware
 from backend.middleware.metrics import MetricsMiddleware
 from backend.routers import (
@@ -79,6 +81,14 @@ def create_app() -> FastAPI:
             task.cancel()
 
     app = FastAPI(title="WizScheduler API", version="1.0.0", lifespan=lifespan)
+
+    # Upload size limits, from the headers alone, before Starlette parses
+    # (and spools) a multipart body. Innermost of the middleware, so CORS
+    # headers still reach the browser on a 413/411.
+    from backend.reservations import floor_ai
+    app.add_middleware(BodyLimitMiddleware, limits=[BodyLimit(
+        "POST", re.compile(r"/api/v1/reservations/locations/[^/]+/floor/ai-drafts"),
+        lambda: floor_ai.MAX_TOTAL_BYTES + floor_ai.MULTIPART_OVERHEAD_BYTES)])
 
     # Metrics middleware (outermost — times the entire request including all other middleware)
     app.add_middleware(MetricsMiddleware)

@@ -116,7 +116,9 @@ async def get_floor(db: AsyncSession, company_id: str, location_id: str) -> Floo
     )
 
 
-def _validate(floor: FloorIn) -> None:
+def validate_floor(floor: FloorIn) -> None:
+    """Raise FloorInvalid if save_floor would refuse the payload's shape.
+    Writes nothing; floor_ai runs it on a draft before handing it out."""
     labels = [t.label for t in floor.tables]
     if len(set(labels)) != len(labels):
         raise FloorInvalid("duplicate_label", "table labels must be unique")
@@ -179,7 +181,7 @@ async def save_floor(
     flushes made earlier in the same save are not undone.
     """
     now = now or datetime.now(timezone.utc)
-    _validate(floor)
+    validate_floor(floor)
     # Same lock and sweep as every booking write (location before
     # reservations): no booking can land on a table while it is archived,
     # and lapsed holds do not count as upcoming bookings.
