@@ -889,7 +889,8 @@ Decisions made while building without stopping to ask (owner instruction,
     - Admins request capacity on the AI host billing page (locations with a
       phone line, expected peak 1-500, needed-by date, note up to 1,000
       characters), one pending request per company (a partial unique index
-      backs the check); the operator gets the company's measured peaks.
+      backs the check, and a request that loses that race is the same 409);
+      the operator gets the company's measured peaks.
       Approval and decline mail the company's admins. `--allocation 0` is
       refused, never read as "what they asked for".
     - Voice off hides it all (review): `GET /reservations/config` reports

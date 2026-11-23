@@ -359,3 +359,33 @@ async def test_one_pending_request_per_company_is_a_db_constraint(db_session, se
                                             expected_peak=5, note="", status="pending"))
     with pytest.raises(IntegrityError):
         await db_session.commit()
+
+
+async def test_a_racing_pending_request_is_pending_not_a_500(db_session, seed_location,
+                                                              seed_manager, voice_on, mail,
+                                                              monkeypatch):
+    """A competing request committed between the pending check and the
+    insert: the unique index refuses it, and that is CapacityRequestPending."""
+    from backend.reservations.voice_capacity_models import VoiceCapacityRequest
+    from tests.conftest import get_test_session_factory
+
+    await subscribe(db_session)
+    await _number(db_session)
+    real_pending = voice_capacity._pending
+
+    async def pending_then_race(db, company_id):
+        found = await real_pending(db, company_id)
+        async with get_test_session_factory()() as other:
+            other.add(VoiceCapacityRequest(company_id=company_id, location_ids=[LOCATION_ID],
+                                           expected_peak=5, note="", status="pending"))
+            await other.commit()
+        return found
+
+    monkeypatch.setattr(voice_capacity, "_pending", pending_then_race)
+    with pytest.raises(voice_capacity.CapacityRequestPending):
+        await voice_capacity.request_capacity(db_session, COMPANY_ID, seed_manager.id,
+                                              [LOCATION_ID], 20, None, "", NOW)
+    # The session is still usable.
+    n = len((await db_session.execute(select(VoiceCapacityRequest))).scalars().all())
+    assert n == 1
+    assert mail["operator"] == []

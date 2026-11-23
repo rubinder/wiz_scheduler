@@ -33,6 +33,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -578,8 +579,14 @@ async def request_capacity(db: AsyncSession, company_id: str, user_id: str | Non
     req = VoiceCapacityRequest(company_id=company_id, requested_by=user_id,
                                location_ids=wanted, expected_peak=expected_peak,
                                needed_by=needed_by, note=note)
-    db.add(req)
-    await db.flush()
+    try:
+        # A savepoint: a racing request that won the partial unique index
+        # (one pending per company) leaves this session usable.
+        async with db.begin_nested():
+            db.add(req)
+            await db.flush()
+    except IntegrityError:
+        raise CapacityRequestPending("capacity_request_pending") from None
     today = now.astimezone(timezone.utc).date()
     recent = (await db.execute(
         select(VoiceCapacityDaily.day, VoiceCapacityDaily.peak_concurrent,
