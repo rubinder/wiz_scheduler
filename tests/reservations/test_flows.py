@@ -269,3 +269,18 @@ def test_format_and_separator_characters_are_rejected(bad: str) -> None:
     f = _flow()
     _step(f, "when")["prompt"] = bad
     assert "control_chars" in _codes(f)
+
+
+@pytest.mark.parametrize("ok", ["\u0645\u06cc\u200c\u062e\u0648\u0627\u0645",  # Persian ZWNJ
+                                "a\u200db", "a\u200eb", "a\u200fb"])
+def test_joiners_and_direction_marks_are_allowed(ok: str) -> None:
+    f = _flow()
+    _step(f, "when")["prompt"] = ok
+    assert flow_problems(Flow.model_validate(f)) == []
+
+
+@pytest.mark.parametrize("bad", ["a\u2060b", "a\u2066b", "a\u2069b", "a\u202ab"])
+def test_other_format_characters_are_still_rejected(bad: str) -> None:
+    f = _flow()
+    _step(f, "when")["prompt"] = bad
+    assert "control_chars" in _codes(f)

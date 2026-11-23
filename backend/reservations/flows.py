@@ -24,13 +24,17 @@ MAX_LABEL = 80
 MAX_TITLE = 80
 MIN_OPTIONS, MAX_OPTIONS = 2, 6
 STEP_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
-# Controls (Cc), format characters (Cf: bidi overrides, zero-width) and
-# the line and paragraph separators (Zl, Zp, U+2028/U+2029).
+# Controls (Cc), format characters (Cf: bidi overrides and isolates,
+# zero-width space, word joiner, BOM) and the line and paragraph separators
+# (Zl, Zp, U+2028/U+2029). ZWNJ, ZWJ, LRM and RLM are Cf too but are
+# allowed: Persian, Urdu, Arabic and Indic text and ZWJ emoji need them.
 _REJECTED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+_ALLOWED_FORMAT = frozenset("\u200c\u200d\u200e\u200f")
 
 
 def _has_control(text: str) -> bool:
-    return any(unicodedata.category(c) in _REJECTED_CATEGORIES for c in text)
+    return any(unicodedata.category(c) in _REJECTED_CATEGORIES
+               and c not in _ALLOWED_FORMAT for c in text)
 
 Collect = Literal["party_size", "date_time", "name", "phone", "occasion", "free_text"]
 

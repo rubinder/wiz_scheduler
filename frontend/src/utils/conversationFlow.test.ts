@@ -85,6 +85,19 @@ describe("flowProblems (mirror of backend flows.flow_problems)", () => {
     }
   });
 
+  it("allows joiners and direction marks (ZWNJ, ZWJ, LRM, RLM) but no other format characters", () => {
+    for (const ok of ["\u0645\u06cc\u200c\u062e\u0648\u0627\u0645", "a\u200db", "a\u200eb", "a\u200fb"]) {
+      const f = flow();
+      (step(f, "when") as { prompt: string }).prompt = ok;
+      expect(flowProblems(f)).toEqual([]);
+    }
+    for (const bad of ["a\u202eb", "a\u2028b", "a\u2060b", "a\u2066b"]) {
+      const f = flow();
+      (step(f, "when") as { prompt: string }).prompt = bad;
+      expect(codes(f)).toContain("control_chars");
+    }
+  });
+
   it("caps the flow at 30 steps", () => {
     const f = flow();
     for (let i = 0; i < 26; i++) f.steps.push({ id: `x${i}`, title: "", kind: "end", message: "x" });

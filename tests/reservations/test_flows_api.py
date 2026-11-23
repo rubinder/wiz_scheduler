@@ -195,3 +195,23 @@ async def test_an_unassigned_editor_is_dropped_on_the_next_save(
     r = await client.put(URL, json=rules, headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert r.json()["rules"]["flow_editor_ids"] == []
+
+
+async def test_the_flows_route_drops_an_unassigned_editor_too(
+        client, manager_token, regular_token, seed_location, db_session):
+    from sqlalchemy import delete
+
+    from backend.models import ManagerLocation
+
+    r = await client.put(FLOWS_URL, json={"flows": {"web": None, "voice": None},
+                                          "flow_editor_ids": [REGULAR_MANAGER_ID]},
+                         headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    await db_session.execute(delete(ManagerLocation).where(
+        ManagerLocation.manager_id == REGULAR_MANAGER_ID))
+    await db_session.commit()
+    assert (await _rules(client, manager_token))["flow_editor_ids"] == [REGULAR_MANAGER_ID]
+    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None}},
+                         headers=_auth(manager_token))
+    assert r.status_code == 200, r.text
+    assert r.json()["rules"]["flow_editor_ids"] == []

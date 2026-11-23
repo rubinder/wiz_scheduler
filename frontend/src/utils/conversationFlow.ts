@@ -14,9 +14,11 @@ export const MAX_TITLE = 80;
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 6;
 const STEP_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-// Controls (Cc), format characters (Cf: bidi overrides, zero-width) and the
-// line and paragraph separators (Zl, Zp), as the server rejects them.
-const CONTROL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+// Controls (Cc), format characters (Cf: bidi overrides and isolates,
+// zero-width space, word joiner, BOM) and the line and paragraph separators
+// (Zl, Zp), as the server rejects them. ZWNJ, ZWJ, LRM and RLM (U+200C to
+// U+200F) are allowed: Persian, Urdu, Arabic and Indic text and ZWJ emoji need them.
+const CONTROL = /(?![\u200c-\u200f])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const TERMINAL: ReadonlySet<FlowStepKind> = new Set(["book", "handoff", "end", "change_or_cancel"]);
 
 /**
