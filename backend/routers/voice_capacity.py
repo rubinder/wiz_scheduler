@@ -8,16 +8,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import settings
 from backend.dependencies import get_db, require_admin
 from backend.models import User
 from backend.reservations import voice_capacity, voice_transfers
+from backend.reservations.flags import require_reservations_enabled
 from backend.schemas.voice_capacity import CapacityOut, CapacityRequestIn, TransferNumberIn
-
-
-def require_reservations_enabled() -> None:
-    if not settings.RESERVATIONS_ENABLED:
-        raise HTTPException(status_code=404, detail="Not found")
 
 
 router = APIRouter(prefix="/reservations/voice-capacity", tags=["reservations"],
