@@ -467,6 +467,30 @@ async def test_429_after_three_failed_drafts_today(
     assert len(model.calls) == 1
 
 
+@pytest.mark.asyncio
+async def test_drafts_in_flight_count_toward_the_failure_cap(
+    client, db_session, manager_token, seed_location, seed_region, model
+):
+    """Drafts still running may all fail: started at once across locations
+    they must not get past the cap, so they count as failures-to-be."""
+    from backend.models import Location
+
+    await _credits(db_session, 10.0)
+    for name in ("Uptown", "Midtown"):
+        other = Location(company_id=COMPANY_ID, region_id=seed_region.id, name=name,
+                         timezone="America/New_York")
+        db_session.add(other)
+        await db_session.commit()
+        await _row(db_session, location=other.id, status="running")
+    row = await _row(db_session, status="failed")
+    row.error_code = "refused"
+    await db_session.commit()
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 429
+    assert r.json()["detail"]["code"] == "too_many_failed_drafts"
+    assert model.calls == []
+
+
 # --- the model call's deadline -------------------------------------------------
 
 

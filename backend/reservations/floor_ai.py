@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -592,8 +592,9 @@ async def create_draft(
     balance that covers one draft cannot start one per location. Each draft
     reserves its worst case (`estimate_usd`, from count_tokens) or
     FLOOR_PLAN_AI_MIN_CREDITS_USD, whichever is more. After
-    FLOOR_PLAN_AI_MAX_FAILED_PER_DAY uncharged failures today (UTC) the
-    group gets DraftLimited. The caller rolls back on any of them."""
+    FLOOR_PLAN_AI_MAX_FAILED_PER_DAY drafts today (UTC) that failed or are
+    still in flight, the group gets DraftLimited. The caller rolls back on
+    any of them."""
     now = now or datetime.now(timezone.utc)
     og_id = await billing.lock_ownership_group(db, company_id)
     if og_id is None:
@@ -613,13 +614,13 @@ async def create_draft(
     group = FloorPlanDraft.company_id.in_(
         select(Company.id).where(Company.ownership_group_id == og_id))
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    failed_today = (await db.execute(select(func.count()).select_from(FloorPlanDraft).where(
+    # Failed today, plus every draft not finished yet: those in flight may
+    # all fail too, and starting several at once must not get past the cap.
+    may_fail_today = (await db.execute(select(func.count()).select_from(FloorPlanDraft).where(
         group, FloorPlanDraft.created_at >= day_start,
-        or_(FloorPlanDraft.status == FAILED,
-            and_(FloorPlanDraft.status.in_((QUEUED, RUNNING)),
-                 FloorPlanDraft.created_at <= now - DRAFT_TIMEOUT)),
+        FloorPlanDraft.status.in_((FAILED, QUEUED, RUNNING)),
     ))).scalar_one()
-    if failed_today >= settings.FLOOR_PLAN_AI_MAX_FAILED_PER_DAY:
+    if may_fail_today >= settings.FLOOR_PLAN_AI_MAX_FAILED_PER_DAY:
         raise DraftLimited()
     floor_usd = settings.FLOOR_PLAN_AI_MIN_CREDITS_USD
     reserved_elsewhere = (await db.execute(select(
