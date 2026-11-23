@@ -1546,6 +1546,7 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
     )
     from backend.reservations.voice_numbers import release_for_deleted_group
     from backend.analytics.models import AgentDailyMetric
+    from backend.reservations.floor_ai_models import FloorPlanDraft
     from backend.models.feedback_submission import FeedbackSubmission
     from backend.models.special_hours_day import SpecialHoursDay
     from backend.models.activation_event import ActivationEvent
@@ -1593,8 +1594,10 @@ async def delete_og_and_dependents(db: AsyncSession, og: OwnershipGroup) -> None
         #     and locations. mock_external_idempotency (companies) and
         #     mock_external_bookings (companies, locations), #259 step 9.
         #     agent_daily_metrics (companies, locations), #259 step 10.
+        #     floor_plan_drafts (companies, locations; both cascade, deleted
+        #     here explicitly all the same), decision 101.
         await release_for_deleted_group(db, og.id)
-        for model in (AgentDailyMetric, MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
+        for model in (FloorPlanDraft, AgentDailyMetric, MockExternalIdempotency, MockExternalBooking, NumberRule, ScreenedCall, VoiceNumber, VoiceTransferCount, AgentUsage, AgentEvent, AgentConversation,
                       ReservationLookupFailure,
                       ReservationTable, Reservation, TableCombination,
                       DiningTable, FloorSection, ReservationRules):
