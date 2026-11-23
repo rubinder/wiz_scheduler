@@ -35,6 +35,7 @@ import QuickEntry from "./pages/manager/QuickEntry";
 import ReservationsHost from "./pages/manager/ReservationsHost";
 import ReservationsFloor from "./pages/manager/ReservationsFloor";
 import ReservationsRules from "./pages/manager/ReservationsRules";
+import ReservationsFlow from "./pages/manager/ReservationsFlow";
 import ReservationsConversations from "./pages/manager/ReservationsConversations";
 import ReservationsNumbers from "./pages/manager/ReservationsNumbers";
 import ReservationsInsights from "./pages/manager/ReservationsInsights";
@@ -168,6 +169,7 @@ export default function App() {
             <Route path="reservations" element={<ReservationsHost />} />
             <Route path="reservations/floor" element={<ReservationsFloor />} />
             <Route path="reservations/rules" element={<ReservationsRules />} />
+            <Route path="reservations/flow" element={<ReservationsFlow />} />
             <Route path="reservations/conversations" element={<ReservationsConversations />} />
             <Route path="reservations/numbers" element={<ReservationsNumbers />} />
             <Route path="reservations/insights" element={<ReservationsInsights />} />

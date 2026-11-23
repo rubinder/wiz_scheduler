@@ -106,6 +106,11 @@ export const managerNav: NavEntry[] = [
         requiresReservations: true,
       },
       {
+        to: "/manager/reservations/flow",
+        labelKey: "conversationFlow",
+        requiresReservations: true,
+      },
+      {
         to: "/manager/reservations/conversations",
         labelKey: "conversations",
         requiresReservations: true,

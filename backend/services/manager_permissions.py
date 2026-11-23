@@ -240,3 +240,15 @@ async def replace_manager_locations(
     for lid in dict.fromkeys(location_ids):
         db.add(ManagerLocation(manager_id=manager_id, location_id=lid))
     await db.flush()
+
+
+async def regular_manager_ids_at(db: AsyncSession, company_id: str,
+                                 location_id: str) -> set[str]:
+    """The company's regular managers assigned to the location."""
+    rows = await db.execute(
+        select(User.id)
+        .join(ManagerLocation, ManagerLocation.manager_id == User.id)
+        .where(User.company_id == company_id, User.user_role == "manager",
+               User.manager_type == "regular",
+               ManagerLocation.location_id == location_id))
+    return {str(i) for i in rows.scalars().all()}

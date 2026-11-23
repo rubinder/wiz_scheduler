@@ -50,7 +50,7 @@ def test_there_are_recordings() -> None:
         "change_booking_with_code", "party_of_14_web",
         "book_four_friday_7pm_voice", "party_of_14_voice",
         "book_via_mock_external", "mock_external_transient_retry",
-        "event_request_voice"}
+        "event_request_voice", "catering_custom_flow_voice"}
 
 
 def _tool_names(recording: dict) -> list[str]:
@@ -64,6 +64,31 @@ def test_an_event_request_goes_straight_to_staff_with_no_search() -> None:
     assert _tool_names(rec) == ["handoff_to_staff"]
     [call] = [b for b in rec["responses"][0]["content"] if b["type"] == "tool_use"]
     assert call["input"] == {"reason": "event"}
+
+
+def test_a_custom_voice_flow_sends_catering_to_staff() -> None:
+    """Decision 102: the location's voice flow routes catering to a handoff."""
+    [rec] = [r for _, r in RECORDINGS if r["scenario_id"] == "catering_custom_flow_voice"]
+    assert _tool_names(rec) == ["handoff_to_staff"]
+    [call] = [b for b in rec["responses"][0]["content"] if b["type"] == "tool_use"]
+    assert call["input"] == {"reason": "catering"}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_the_custom_voice_flow_reaches_the_model_as_a_script() -> None:
+    """The call's system prompt carries the scenario's voice flow script."""
+    [recording] = [r for _, r in RECORDINGS
+                   if r["scenario_id"] == "catering_custom_flow_voice"]
+    llm = ScriptedLlm(*replay_core(recording).llm.responses)
+    out = await run_scenario(get_test_session_factory(), _one("catering_custom_flow_voice"),
+                             core=AgentCore(llm), diner=replay_diner(recording),
+                             recognizer=ExactRecognizer())
+    assert out.check.failures == []
+    system = llm.requests[0]["system"]
+    assert "Conversation script" in system
+    assert 'handoff_to_staff with reason "catering"' in system
+    assert "Call flow:" not in system
 
 
 def test_a_complete_first_message_is_searched_without_a_question() -> None:
@@ -211,6 +236,11 @@ async def test_generate_recordings() -> None:
                 stop="tool_use"),
           reply(text("Private parties are handled by our staff. Let me put you "
                      "through."))]),
+        ("catering_custom_flow_voice",
+         ["Hi, do you do catering for an office lunch?"],
+         [reply(tool_use("tu_x", "handoff_to_staff", {"reason": "catering"}),
+                stop="tool_use"),
+          reply(text("Catering is handled by our staff. Let me put you through."))]),
     ]
     for sid, lines, script in voice_jobs:
         llm = RecordingLlm(ScriptedLlm(*script))

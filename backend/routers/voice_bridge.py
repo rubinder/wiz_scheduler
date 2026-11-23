@@ -123,7 +123,7 @@ async def voice_screen(
                 Location.id == location_id, Location.company_id == company_id)
             )).scalar_one_or_none()
             if location is not None:
-                greeting = await gate.greeting(db, company_id, location)
+                greeting = await gate.greeting(db, company_id, location, "voice")
         await db.commit()
         return {"action": decision, "reason": reason, "greeting": greeting}
     finally:

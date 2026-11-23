@@ -18,7 +18,8 @@ from backend.reservations import subscription
 from backend.reservations.agent import recording
 from backend.reservations.agent.core import AgentCore
 from backend.reservations.agent.llm import AnthropicLlm
-from backend.reservations.rules import get_rules
+from backend.reservations.flows import opening_text
+from backend.reservations.rules import RulesSchema, get_rules
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +38,34 @@ def get_agent_core() -> AgentCore:
     return _core
 
 
-async def greeting(db: AsyncSession, company_id: str, location: Location) -> str:
+async def greeting(db: AsyncSession, company_id: str, location: Location,
+                   channel: str) -> str:
+    """Custom greeting, else the channel's custom flow opening, else the
+    default. `channel` is "web" or "voice"."""
     rules, _ = await get_rules(db, company_id, location.id)
-    return rules.custom_greeting() or default_greeting(location.name,
-                                                       rules.disclose_automated)
+    return (rules.custom_greeting()
+            or flow_greeting(location.name, rules, channel)
+            or default_greeting(location.name, rules.disclose_automated))
+
+
+def flow_greeting(location_name: str, rules: RulesSchema, channel: str) -> str | None:
+    """With no custom greeting, a custom flow (decision 102) opens with its
+    start step's line after the usual introduction; None otherwise (also for
+    a start step that says nothing, such as a book step)."""
+    flow = rules.flows.for_channel(channel)
+    if flow is None or rules.custom_greeting():
+        return None
+    start = flow.step(flow.start)
+    line = opening_text(start) if start is not None else None
+    if not line:
+        return None
+    return f"{_introduction(location_name, rules.disclose_automated)} {line}"
+
+
+def _introduction(location_name: str, disclose_automated: bool) -> str:
+    if not disclose_automated:
+        return f"Hi, you've reached {location_name}'s reservations line."
+    return f"Hi, you've reached {location_name}'s automated reservations assistant."
 
 
 def is_demo_location(company_id: str, location_id: str) -> bool:
@@ -56,10 +81,7 @@ def default_greeting(location_name: str, disclose_automated: bool = True) -> str
     the voice line. It asks the first question itself (a regular table or an
     event, decision 100), so the diner's first answer is already useful."""
     question = "Are you booking a table, or is this about an event or private party?"
-    if not disclose_automated:
-        return f"Hi, you've reached {location_name}'s reservations line. {question}"
-    return (f"Hi, you've reached {location_name}'s automated reservations assistant. "
-            f"{question}")
+    return f"{_introduction(location_name, disclose_automated)} {question}"
 
 
 async def subscribed(db: AsyncSession, company_id: str, location_id: str,

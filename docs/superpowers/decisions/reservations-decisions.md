@@ -753,6 +753,71 @@ Decisions made while building without stopping to ask (owner instruction,
     costs the manager that plus the edits to fix it, and a failed call
     costs the operator at most a worst-case call, inside the daily cap.
 
+102. **Custom conversation flows: a step graph per location and channel,
+    compiled into the prompt (owner request, 2026-11-22).** The default flow
+    stays decision 100's code; a location with no custom flow gets a
+    byte-identical prompt (the golden hashes in `test_voice_knobs.py` did
+    not change). `RulesSchema.flows = {web, voice}`, each null (default) or
+    `{version: 1, start, steps}` with at most 30 steps of kind `ask`
+    (prompt, collect, next), `choice` (prompt, 2 to 6 options with label
+    and next; the host decides which option the diner meant), `book`
+    (find_slots, hold, Confirm; optional next), `change_or_cancel`, `say`,
+    `handoff` (reason, passed to `handoff_to_staff`) and `end`. "Copy web
+    flow to phone" is an editor action, not a link. `reservations/flows.py`
+    compiles a flow to a "Conversation script" of one line per step in
+    stored order, with step ids as anchors and every restaurant text as a
+    JSON string literal (data, never instructions), so the bytes depend only
+    on the flow. The script goes after the greeting and facts and before
+    the policies; it replaces decision 100's "Call flow" block (the
+    one-location line stays as a policy), and ends with "the fixed policies
+    below win over the conversation script". No flow can drop find_slots
+    first, the Confirm button, lookup verification, privacy, the party-size
+    handoffs, the disclosure rules, English only or the injection note.
+    Greeting: a custom greeting still wins; otherwise a custom flow whose
+    start step is `ask`, `choice` or `say` opens with the usual introduction
+    and that step's line, and the script then says the greeting already
+    said it. Any other start keeps the default greeting.
+    `gate.greeting` now takes the channel for this. Validation runs only
+    when `flows` changes: 422 `invalid_flow` with
+    `problems` of `{channel, code, step, field}` (missing_start,
+    unknown_target, unreachable, no_terminal, duplicate_id, bad_id,
+    too_many_steps, too_long, control_chars, bad_option_count, empty_text).
+    `control_chars` covers Unicode categories Cc, Cf (bidi overrides,
+    zero-width characters) and Zl/Zp (U+2028/U+2029), so an emoji with a
+    zero-width joiner is refused too. Cycles are allowed. The flow page
+    saves through its own route, `PUT /reservations/locations/{id}/flows`
+    (`{flows, flow_editor_ids?}`): it loads the stored rules, replaces only
+    those two fields, checks them, bumps the version and keeps every other
+    field, so a page opened earlier never reverts a colleague's rules edit
+    (it is last-write-wins on the flows themselves). The general rules PUT
+    keeps its behaviour. `flow_editor_ids` (both routes): an id the save
+    adds must be a regular manager of the company assigned to the location
+    (422 `invalid_flow_editor` with `ids`). Stale ids (a manager since
+    unassigned, promoted or removed) are filtered on save, not by hooking
+    every place assignments change (revoke, replace-set, type change,
+    invites, user removal would all need a reservations call): a stored id
+    that no longer qualifies is dropped by the next save of either route,
+    and is still returned by GET until then so the editor can show it for
+    removal. A stale id gives no access meanwhile, since the location scope
+    still applies. Switching a tab to "Use the default flow" sets the custom
+    draft aside, and switching back restores it until the page is left.
+    The editor mirrors these checks
+    (`utils/conversationFlow.ts`, same codes) for inline problems; the
+    server stays the authority. Permissions: admins always; a regular
+    manager only if their id is in the location's `flow_editor_ids`
+    (admin-only, in `ADMIN_ONLY_RULES`, 403 `admin_only`), otherwise
+    403 `flow_edit_not_allowed`. A rules save that omits `flows` or
+    `flow_editor_ids` keeps the stored values, so the rules editor needs no
+    change. No migration: both live in the rules JSON. Page: Reservations >
+    Conversation Flow (`/manager/reservations/flow`), Web and Phone tabs, a
+    list editor and a read-only SVG diagram with a layered layout (no new
+    dependency). The "Start from the default flow" texts are English, as
+    the host is. New eval scenario `catering_custom_flow_voice` (hand-built
+    recording, no live call). Cost if wrong: an operator can write a script
+    that reads badly or loops; the fixed policies still bound what the host
+    can do, the step texts are length-capped, and "Use the default flow"
+    is one click back.
+
 ## Before switching reservations on (owner checklist)
 
 ### Switch-on order

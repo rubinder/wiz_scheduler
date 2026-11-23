@@ -11,6 +11,7 @@ from backend.reservations.floor import FloorIn
 from backend.reservations.floor_ai_models import FloorPlanDraft
 from backend.reservations.models import Reservation
 from backend.reservations.providers.base import ProviderBooking
+from backend.reservations.flows import Flows
 from backend.reservations.rules import RulesSchema
 from backend.reservations.screening import spam_markable
 
@@ -18,6 +19,13 @@ from backend.reservations.screening import spam_markable
 class RulesOut(BaseModel):
     rules: RulesSchema
     version: int
+
+
+class FlowsIn(BaseModel):
+    """PUT .../flows: only the flows, and for an admin the flow editors
+    (omitted: kept). Every other rules field stays as stored."""
+    flows: Flows
+    flow_editor_ids: list[str] | None = None
 
 
 class SlotOut(BaseModel):
