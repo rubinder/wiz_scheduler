@@ -201,6 +201,7 @@ async def create_floor_draft(
         raise HTTPException(status_code=e.status,
                             detail={"code": e.code, "message": e.message})
     except floor_ai.DraftBlocked as e:
+        await db.rollback()
         raise HTTPException(status_code=402,
                             detail={"code": e.code, "message": e.message, **e.extra})
     except floor_ai.DraftInProgress:

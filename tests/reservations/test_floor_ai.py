@@ -322,6 +322,34 @@ async def test_a_timed_out_or_finished_draft_does_not_block(
     assert r.status_code == 202, r.text
 
 
+@pytest.mark.asyncio
+async def test_drafts_running_elsewhere_in_the_group_need_their_own_credit(
+    client, db_session, manager_token, seed_location, seed_region, model, monkeypatch
+):
+    """A balance that covers one draft must not start one per location: the
+    gate counts the group's drafts in flight."""
+    from backend.models import Location
+
+    monkeypatch.setattr(settings, "FLOOR_PLAN_AI_MIN_CREDITS_USD", 1.0)
+    await _credits(db_session, 1.5)
+    other = Location(company_id=COMPANY_ID, region_id=seed_region.id, name="Uptown",
+                     timezone="America/New_York")
+    db_session.add(other)
+    await db_session.commit()
+    await _row(db_session, location=other.id, status="running")
+
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 402, r.text
+    assert r.json()["detail"]["code"] == "ai_credits_required"
+    assert model.calls == []
+
+    og = await _og(db_session)
+    og.ai_credits_usd = 2.0
+    await db_session.commit()
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+
+
 # --- reading uploads ----------------------------------------------------------
 
 

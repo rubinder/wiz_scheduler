@@ -751,6 +751,19 @@ async def deduct_credits_for_schedule_overage(
 # ---------------------------------------------------------------------------
 
 
+async def lock_ownership_group(db: AsyncSession, company_id: str) -> str | None:
+    """Lock the company's ownership group row (SELECT ... FOR UPDATE) for
+    the rest of the transaction and return its id, or None when the company
+    has no group. Lets another context serialize spend decisions per group
+    (AI floor drafts in flight, decision 101) without touching its fields."""
+    og_id = await get_ownership_group_id(db, company_id)
+    if og_id is None:
+        return None
+    await db.execute(
+        select(OwnershipGroup.id).where(OwnershipGroup.id == og_id).with_for_update())
+    return og_id
+
+
 async def check_ai_credits(
     db: AsyncSession,
     company_id: str,

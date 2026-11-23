@@ -24,11 +24,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
-from backend.models import Location
+from backend.models import Company, Location
 from backend.reservations.floor import (
     CombinationIO, FloorIn, FloorInvalid, SectionIO, TableIO, validate_floor,
 )
@@ -213,14 +213,6 @@ async def assert_can_draft(db: AsyncSession, company_id: str) -> None:
             "ai_credits_required",
             "AI credits are needed for an AI floor draft. Buy a credit pack to continue.")
     status = await billing.check_ai_credits(db, company_id)
-    balance = status["purchased_credits_usd"] + status["included_remaining_usd"]
-    if status["can_generate"] and balance < settings.FLOOR_PLAN_AI_MIN_CREDITS_USD:
-        # A draft can cost up to this; a few cents must not buy a full one.
-        raise DraftBlocked(
-            "ai_credits_required",
-            f"An AI floor draft needs at least ${settings.FLOOR_PLAN_AI_MIN_CREDITS_USD:.2f} "
-            "of AI credits. Buy a credit pack to continue.",
-            {"min_credits_usd": settings.FLOOR_PLAN_AI_MIN_CREDITS_USD})
     if not status["can_generate"]:
         if status.get("purchase_required"):
             raise DraftBlocked(
@@ -518,20 +510,46 @@ def postprocess(raw: Any) -> tuple[FloorIn, list[str]]:
 async def create_draft(
     db: AsyncSession, company_id: str, location_id: str, now: datetime | None = None,
 ) -> FloorPlanDraft:
-    """Add a queued draft. One at a time per location: raises DraftInProgress
-    while a queued or running draft is younger than DRAFT_TIMEOUT. The
-    location row lock makes two simultaneous requests take turns."""
+    """Add a queued draft, under the group's and the location's row locks so
+    simultaneous requests take turns (group first, then location).
+
+    One at a time per location: DraftInProgress while a queued or running
+    draft there is younger than DRAFT_TIMEOUT. Across the group, the balance
+    (purchased plus included credit) must cover a worst-case draft for each
+    one in flight plus this one, or DraftBlocked("ai_credits_required"): a
+    balance that covers one draft cannot start one per location. The
+    caller rolls back on either."""
     now = now or datetime.now(timezone.utc)
+    og_id = await billing.lock_ownership_group(db, company_id)
+    if og_id is None:
+        raise DraftBlocked(
+            "ai_credits_required",
+            "AI credits are needed for an AI floor draft. Buy a credit pack to continue.")
     await db.execute(select(Location.id).where(
         Location.id == location_id, Location.company_id == company_id).with_for_update())
+    in_flight = (FloorPlanDraft.status.in_((QUEUED, RUNNING)),
+                 FloorPlanDraft.created_at > now - DRAFT_TIMEOUT)
     busy = (await db.execute(select(FloorPlanDraft.id).where(
         FloorPlanDraft.company_id == company_id,
-        FloorPlanDraft.location_id == location_id,
-        FloorPlanDraft.status.in_((QUEUED, RUNNING)),
-        FloorPlanDraft.created_at > now - DRAFT_TIMEOUT,
+        FloorPlanDraft.location_id == location_id, *in_flight,
     ).limit(1))).scalar_one_or_none()
     if busy is not None:
         raise DraftInProgress(busy)
+    group_in_flight = (await db.execute(select(func.count()).select_from(FloorPlanDraft).where(
+        FloorPlanDraft.company_id.in_(
+            select(Company.id).where(Company.ownership_group_id == og_id)),
+        *in_flight,
+    ))).scalar_one()
+    status = await billing.check_ai_credits(db, company_id)
+    balance = status["purchased_credits_usd"] + status["included_remaining_usd"]
+    needed = settings.FLOOR_PLAN_AI_MIN_CREDITS_USD * (group_in_flight + 1)
+    if balance < needed:
+        # A draft can cost up to the minimum; a few cents must not buy one.
+        raise DraftBlocked(
+            "ai_credits_required",
+            f"An AI floor draft needs ${settings.FLOOR_PLAN_AI_MIN_CREDITS_USD:.2f} of AI "
+            "credits, more while other drafts are running. Buy a credit pack to continue.",
+            {"min_credits_usd": round(needed, 2)})
     row = FloorPlanDraft(company_id=company_id, location_id=location_id,
                          status=QUEUED, warnings=[])
     db.add(row)
