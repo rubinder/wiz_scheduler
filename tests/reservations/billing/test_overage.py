@@ -227,7 +227,7 @@ async def test_billed_over_the_included_amount_becomes_one_invoice_item(og, db_s
         "customer": CUSTOMER, "subscription": AGENT_SUB, "amount": 250, "currency": "usd",
         "description": "AI host usage over the included $5.00 of cost — 2026-11-10",
         "metadata": {"og_id": OG_ID, "period": PERIOD, "kind": KIND, "subscription": AGENT_SUB}}
-    assert made["key"] == f"agent-overage-{OG_ID}-{PERIOD}-250"
+    assert made["key"] == f"agent-overage-{OG_ID}-{AGENT_SUB}-{PERIOD}-250"
     [charge] = await _charges(db_session)
     assert (charge.status, charge.period, Decimal(charge.amount_usd), charge.stripe_object_id,
             charge.stripe_subscription_id) == ("pending", PERIOD, Decimal("2.50"), "ii_1", AGENT_SUB)
@@ -247,7 +247,7 @@ async def test_grown_usage_replaces_the_item(og, db_session, fake, items):
     assert (out["action"], out["overage_usd"]) == ("updated", 3.01)
     assert items["deleted"] == ["ii_1"]
     assert list(items["live"]) == ["ii_2"] and items["live"]["ii_2"]["amount"] == 301
-    assert items["created"][-1]["key"] == f"agent-overage-{OG_ID}-{PERIOD}-301"
+    assert items["created"][-1]["key"] == f"agent-overage-{OG_ID}-{AGENT_SUB}-{PERIOD}-301"
     [charge] = await _charges(db_session)
     assert (charge.stripe_object_id, Decimal(charge.amount_usd), charge.status) == (
         "ii_2", Decimal("3.01"), "pending")
@@ -379,7 +379,7 @@ async def test_the_previous_period_tail_is_trued_up_once(og, db_session, fake, i
     [made] = items["created"]
     assert made["params"]["amount"] == 50 and made["params"]["metadata"]["period"] == prev
     assert made["params"]["description"] == f"AI host usage over the included $5.00 of cost — {prev}"
-    assert made["key"] == f"agent-overage-{OG_ID}-{prev}-trueup-200"
+    assert made["key"] == f"agent-overage-{OG_ID}-{AGENT_SUB}-{prev}-trueup-200"
     assert "true_up" not in await _reconcile(db_session, og)
     assert len(items["created"]) == 1
     owed = sum(Decimal(c.amount_usd) for c in await _charges(db_session) if c.period == prev)
@@ -571,7 +571,7 @@ async def test_a_replayed_key_of_a_deleted_orphan_is_retried(og, db_session, fak
     item is created again under key -r1."""
     await _add_row(db_session)
     await _usage(db_session, "7.50")
-    key = f"agent-overage-{OG_ID}-{PERIOD}-250"
+    key = f"agent-overage-{OG_ID}-{AGENT_SUB}-{PERIOD}-250"
     br._client().v1.invoice_items.create(
         {"customer": CUSTOMER, "subscription": AGENT_SUB, "amount": 250, "currency": "usd",
          "metadata": {"kind": KIND, "period": PERIOD, "subscription": AGENT_SUB}},

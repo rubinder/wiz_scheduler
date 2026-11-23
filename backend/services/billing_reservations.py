@@ -831,7 +831,7 @@ async def _reconcile_current(
     # A failed create leaves the old row deleted (the caller commits on a
     # Stripe error), so nothing claims an item Stripe no longer has.
     item_id = _create_invoice_item(og_id, customer, sub_id, period, cents,
-                                   f"agent-overage-{og_id}-{period}-{cents}", deleted)
+                                   f"agent-overage-{og_id}-{sub_id}-{period}-{cents}", deleted)
     db.add(_new_charge(og_id, sub_id, period, target, item_id))
     await db.flush()
     return {"action": "updated" if pending else "created", "amount_usd": float(target)}
@@ -858,7 +858,7 @@ async def _true_up_previous(
         return None
     _delete_orphans(customer, sub_id, period, {c.stripe_object_id for c in charges}, deleted)
     item_id = _create_invoice_item(og_id, customer, sub_id, period, _cents(delta),
-                                   f"agent-overage-{og_id}-{period}-trueup-{_cents(overage)}",
+                                   f"agent-overage-{og_id}-{sub_id}-{period}-trueup-{_cents(overage)}",
                                    deleted)
     db.add(_new_charge(og_id, sub_id, period, delta, item_id))
     await db.flush()
