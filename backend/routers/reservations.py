@@ -7,7 +7,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,7 @@ from backend.reservations import (
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
+from backend.reservations import floor_ai
 from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
 )
@@ -34,7 +37,7 @@ from backend.reservations.rules import (
 )
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
+    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, FloorDraftOut, InsightsDayOut, InsightsOut, MarkSpamOut,
     NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
@@ -173,6 +176,66 @@ async def write_floor(
             "code": "table_has_bookings", "message": str(e),
             "table_ids": e.table_ids})
     return out
+
+
+@gated.post("/locations/{location_id}/floor/ai-drafts", status_code=202,
+             response_model=FloorDraftOut)
+async def create_floor_draft(
+    location_id: str,
+    background: BackgroundTasks,
+    files: list[UploadFile] | None = File(default=None),
+    captions: list[str] | None = Form(default=None),
+    notes: str = Form(default=""),
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> FloorDraftOut:
+    """Draft a floor from photos and/or blueprints (decision 101). Gates
+    billing, then runs the model after the response; poll the draft."""
+    await _location(db, scope, user, location_id)
+    uploads = files or []
+    caps = captions or []
+    try:
+        if len(caps) > len(uploads):
+            raise floor_ai.DraftInputInvalid(
+                "too_many_captions", 422, "one caption per file at most")
+        if len(uploads) > floor_ai.MAX_FILES:
+            raise floor_ai.DraftInputInvalid(
+                "too_many_files", 422, f"at most {floor_ai.MAX_FILES} files")
+        pairs: list[tuple[bytes, str]] = []
+        for i, up in enumerate(uploads):
+            # Refuse an oversized part before reading it into memory.
+            if up.size is not None and up.size > floor_ai.MAX_PDF_BYTES:
+                raise floor_ai.DraftInputInvalid("file_too_large", 413, "file too large")
+            pairs.append((await up.read(), caps[i] if i < len(caps) else ""))
+        draft_files = floor_ai.validate_inputs(pairs, notes)
+        await floor_ai.assert_can_draft(db, str(user.company_id))
+    except floor_ai.DraftInputInvalid as e:
+        raise HTTPException(status_code=e.status,
+                            detail={"code": e.code, "message": e.message})
+    except floor_ai.DraftBlocked as e:
+        raise HTTPException(status_code=402,
+                            detail={"code": e.code, "message": e.message, **e.extra})
+    row = await floor_ai.create_draft(db, str(user.company_id), location_id)
+    await db.commit()
+    background.add_task(floor_ai.run_draft, row.id, draft_files, notes)
+    return FloorDraftOut.of(row)
+
+
+@gated.get("/locations/{location_id}/floor/ai-drafts/{draft_id}",
+           response_model=FloorDraftOut)
+async def read_floor_draft(
+    location_id: str,
+    draft_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> FloorDraftOut:
+    await _location(db, scope, user, location_id)
+    row = await floor_ai.get_draft(db, str(user.company_id), location_id, draft_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return FloorDraftOut.of(row)
 
 
 @gated.get("/locations/{location_id}/rules", response_model=RulesOut)

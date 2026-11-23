@@ -394,6 +394,16 @@ class Settings(BaseSettings):
     # once per location (more are answered 409 location_busy).
     RESERVATION_AGENT_TURN_COST_BOUND_USD: float = 0.05
     RESERVATION_AGENT_LOCATION_MAX_INFLIGHT: int = 10
+    # AI floor-plan drafts from photos or a blueprint (decision 101). Charged
+    # at cost (markup 1.0) from prepaid AI credits; keep the prices in step
+    # with the model.
+    FLOOR_PLAN_AI_MODEL: str = "claude-opus-5-5"
+    FLOOR_PLAN_AI_INPUT_USD_PER_MTOK: float = 4.0
+    FLOOR_PLAN_AI_OUTPUT_USD_PER_MTOK: float = 20.0
+    FLOOR_PLAN_AI_CACHE_READ_USD_PER_MTOK: float = 0.20
+    FLOOR_PLAN_AI_CACHE_WRITE_USD_PER_MTOK: float = 5.0
+    FLOOR_PLAN_AI_MAX_TOKENS: int = 16000
+    RETENTION_FLOOR_PLAN_DRAFTS_DAYS: int = 7
     # Hard daily spend ceiling per location for a comped group (#259 step
     # 11): its usage is never invoiced, so the operator pays it. The location's
     # daily_spend_cap_usd still applies below it; a manager raising that cap

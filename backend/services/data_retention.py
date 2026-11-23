@@ -25,6 +25,7 @@ from backend.reservations.mock_external_models import (
     MockExternalBooking,
     MockExternalIdempotency,
 )
+from backend.reservations.floor_ai_models import FloorPlanDraft
 from backend.reservations.models import Reservation
 from backend.reservations.screening_models import NumberRule, ScreenedCall
 from backend.services.archive import DISCARDED, delete_past_check_ins
@@ -281,6 +282,14 @@ async def run_data_retention(db: AsyncSession) -> dict:
                 MockExternalIdempotency.created_at < now - timedelta(hours=24))
         )
         summary["old_mock_external_idempotency_deleted"] = result.rowcount
+
+        # 7d-floor. AI floor-plan drafts (decision 101): a proposal the
+        #           editor loads once; kept a week so a manager can come back.
+        result = await db.execute(
+            delete(FloorPlanDraft).where(FloorPlanDraft.created_at < now - timedelta(
+                days=settings.RETENTION_FLOOR_PLAN_DRAFTS_DAYS))
+        )
+        summary["old_floor_plan_drafts_deleted"] = result.rowcount
 
         # 7e. Diner contact on reservations that ended before the same window
         #     is cleared; the row stays for covers analytics. Every status,

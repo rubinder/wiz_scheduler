@@ -167,41 +167,29 @@ async def _reload_after_debit(db: AsyncSession, og: OwnershipGroup, cost_usd: fl
         logger.exception("[BILLING] auto-reload crashed after debit og=%s", og.id)
 
 
-async def check_and_record_usage(
+async def _record_usage(
     db: AsyncSession,
-    company_id: str,
+    og_id: str,
     input_tokens: int,
     output_tokens: int,
-) -> dict:
-    """Record token usage and calculate billing.
-
-    Returns a dict with:
-        - cost_usd: raw cost of this usage
-        - charged_usd: amount charged (0 if within free tier, cost*markup if over)
-        - is_over_included: whether the group has exceeded the free tier
-        - monthly_cost_usd: total cost this month after this usage
-        - monthly_charged_usd: total charged this month after this usage
-        - included_remaining_usd: remaining free credits (0 if exhausted)
-    """
-    og_id = await get_ownership_group_id(db, company_id)
-    if not og_id:
-        return {"cost_usd": 0, "charged_usd": 0, "is_over_included": False,
-                "monthly_cost_usd": 0, "monthly_charged_usd": 0, "included_remaining_usd": settings.INCLUDED_LLM_USD}
-
+    this_cost: float,
+    markup: float,
+) -> tuple[TokenUsage, float]:
+    """Add one call's tokens and raw cost to the month's and the day's
+    aggregates. Returns the month's row and what this call is charged: the
+    part of its cost beyond INCLUDED_LLM_USD, times `markup`."""
     now = datetime.now(timezone.utc)
     usage = await get_monthly_usage(db, og_id)
-
-    this_cost = calculate_cost(input_tokens, output_tokens)
 
     if usage:
         cost_before = usage.cost_usd
         cost_after = cost_before + this_cost
 
         if cost_before >= settings.INCLUDED_LLM_USD:
-            this_charge = round(this_cost * settings.LLM_OVERAGE_MARKUP, 6)
+            this_charge = round(this_cost * markup, 6)
         elif cost_after > settings.INCLUDED_LLM_USD:
             overage = cost_after - settings.INCLUDED_LLM_USD
-            this_charge = round(overage * settings.LLM_OVERAGE_MARKUP, 6)
+            this_charge = round(overage * markup, 6)
         else:
             this_charge = 0.0
 
@@ -214,7 +202,7 @@ async def check_and_record_usage(
     else:
         if this_cost > settings.INCLUDED_LLM_USD:
             overage = this_cost - settings.INCLUDED_LLM_USD
-            this_charge = round(overage * settings.LLM_OVERAGE_MARKUP, 6)
+            this_charge = round(overage * markup, 6)
         else:
             this_charge = 0.0
 
@@ -257,6 +245,34 @@ async def check_and_record_usage(
         daily.total_tokens += input_tokens + output_tokens
         daily.cost_usd += this_cost
         daily.updated_at = now
+
+    return usage, this_charge
+
+
+async def check_and_record_usage(
+    db: AsyncSession,
+    company_id: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> dict:
+    """Record token usage and calculate billing.
+
+    Returns a dict with:
+        - cost_usd: raw cost of this usage
+        - charged_usd: amount charged (0 if within free tier, cost*markup if over)
+        - is_over_included: whether the group has exceeded the free tier
+        - monthly_cost_usd: total cost this month after this usage
+        - monthly_charged_usd: total charged this month after this usage
+        - included_remaining_usd: remaining free credits (0 if exhausted)
+    """
+    og_id = await get_ownership_group_id(db, company_id)
+    if not og_id:
+        return {"cost_usd": 0, "charged_usd": 0, "is_over_included": False,
+                "monthly_cost_usd": 0, "monthly_charged_usd": 0, "included_remaining_usd": settings.INCLUDED_LLM_USD}
+
+    this_cost = calculate_cost(input_tokens, output_tokens)
+    usage, this_charge = await _record_usage(
+        db, og_id, input_tokens, output_tokens, this_cost, settings.LLM_OVERAGE_MARKUP)
 
     if this_charge > 0:
         og_result = await db.execute(
@@ -818,6 +834,53 @@ async def deduct_credits_for_overage(
 
     og.ai_credits_usd = max(0.0, og.ai_credits_usd - charged_usd)
     await db.flush()
+
+
+async def charge_ai_credits_at_cost(
+    db: AsyncSession,
+    company_id: str,
+    cost_usd: float,
+    *,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    feature: str,
+) -> float:
+    """Debit an AI feature's raw model cost from purchased credits, with no
+    markup (decision 101: the floor-plan draft is charged at our API cost).
+
+    The cost counts toward the month's usage and the group's rolling 24-hour
+    Anthropic spend, so the daily cap sees it. Auto-reload runs first, as on
+    every debit path. Returns what was debited (0.0 when the group has none,
+    or the cost falls inside INCLUDED_LLM_USD).
+
+    Never raises: the model has already been paid for, and the gate before
+    the call was the consent point (fail-closed's documented exception). A
+    failure is logged and nothing is debited; the savepoint keeps the
+    caller's session usable.
+    """
+    if cost_usd <= 0:
+        return 0.0
+    try:
+        async with db.begin_nested():
+            og_id = await get_ownership_group_id(db, company_id)
+            if not og_id:
+                return 0.0
+            _, charge = await _record_usage(
+                db, og_id, input_tokens, output_tokens, round(cost_usd, 6), 1.0)
+            if charge > 0:
+                og = (await db.execute(
+                    select(OwnershipGroup).where(OwnershipGroup.id == og_id).with_for_update()
+                )).scalar_one()
+                await _reload_after_debit(db, og, charge)
+                og.ai_credits_usd = max(0.0, float(og.ai_credits_usd) - charge)
+            await db.flush()
+    except Exception:
+        logger.exception("[BILLING] at-cost charge failed company=%s feature=%s cost=%.4f",
+                         company_id, feature, cost_usd)
+        return 0.0
+    logger.info("[BILLING] group=%s feature=%s cost=%.4f charged=%.4f",
+                og_id, feature, cost_usd, charge)
+    return charge
 
 
 # ---------------------------------------------------------------------------
