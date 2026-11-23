@@ -136,7 +136,6 @@ async def test_cloudwatch_without_data_is_none():
 async def test_the_client_can_be_swapped():
     fake = object()
     voice_quotas.set_quota_client(fake)
-    try:
-        assert voice_quotas.get_quota_client() is fake
-    finally:
-        voice_quotas.set_quota_client(None)
+    assert voice_quotas.get_quota_client() is fake
+    voice_quotas.set_quota_client(None)
+    assert isinstance(voice_quotas.get_quota_client(), AwsQuotaClient)

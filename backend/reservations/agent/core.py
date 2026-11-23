@@ -63,7 +63,7 @@ from backend.reservations.providers import (
     Transient,
     provider_for,
 )
-from backend.reservations.rules import RulesSchema, get_rules
+from backend.reservations.rules import RulesSchema, get_agent_rules, get_rules
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ class AgentCore:
                 .execution_options(populate_existing=True)
             )).scalar_one_or_none()
             if conv is not None:
-                rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+                rules, _ = await get_agent_rules(db, conv.company_id, conv.location_id)
                 phone = rules.staff_transfer_number
                 await recording.record_event(db, conv, "error", {"error": "internal"})
                 recording.end_turn(conv)
@@ -275,7 +275,7 @@ class AgentCore:
                                    Location.company_id == conv.company_id)
         )).scalar_one()
         zone = ZoneInfo(loc.timezone)
-        rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+        rules, _ = await get_agent_rules(db, conv.company_id, conv.location_id)
 
         if turn.action is not None:
             out = await self._action(db, conv, turn.action, now, zone)
@@ -469,7 +469,7 @@ class AgentCore:
             try:
                 out, result = await handler(db, conv, now, zone)
             except _ProviderDown:
-                rules, _ = await get_rules(db, conv.company_id, conv.location_id)
+                rules, _ = await get_agent_rules(db, conv.company_id, conv.location_id)
                 out, result = await self._handoff(db, conv, PROVIDER_DOWN, now,
                                                   rules), PROVIDER_DOWN
         await recording.record_event(db, conv, "action", {

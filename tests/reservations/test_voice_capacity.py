@@ -499,3 +499,86 @@ async def test_summary_shows_allocation_peak_and_voice_locations(db_session, see
     assert s["pending_request"]["expected_peak"] == 25
     assert s["default_staff_transfer_number"] is None
     assert s["max_expected_peak"] == 500
+
+
+# -- wiring -------------------------------------------------------------------------------
+
+@pytest.fixture
+def connect(monkeypatch):
+    from backend.services import connect_numbers
+    from tests.reservations.test_voice_numbers import FakeConnect
+
+    fake = FakeConnect()
+    monkeypatch.setattr(settings, "VOICE_PROVISIONING_ENABLED", True)
+    monkeypatch.setattr(settings, "CONNECT_INSTANCE_ARN",
+                        "arn:aws:connect:us-east-1:1:instance/inst-1")
+    monkeypatch.setattr(settings, "CONNECT_CONTACT_FLOW_ID", "flow-1")
+    monkeypatch.setattr(connect_numbers, "_make_client", lambda: fake)
+    connect_numbers.reset_client()
+    yield fake
+    connect_numbers.reset_client()
+
+
+async def test_new_numbers_trigger_the_quota_step(db_session, seed_location, connect,
+                                                  monkeypatch):
+    from backend.reservations import voice_numbers
+
+    calls: list[str] = []
+
+    async def ensure(db, now=None, client=None, reason=""):
+        calls.append(reason)
+        return {"action": "none"}
+
+    monkeypatch.setattr(voice_capacity, "ensure_quota", ensure)
+    await subscribe(db_session)
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert calls == [f"new numbers for group {AGENT_OG_ID}"]
+    # Nothing new: no quota step.
+    await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert len(calls) == 1
+
+
+async def test_quota_step_failure_never_breaks_numbers(db_session, seed_location, connect,
+                                                       monkeypatch):
+    from backend.reservations import voice_numbers
+
+    async def boom(*a, **kw):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(voice_capacity, "ensure_quota", boom)
+    await subscribe(db_session)
+    out = await voice_numbers.ensure_for_group(db_session, AGENT_OG_ID, NOW)
+    assert out["claimed"] == [LOCATION_ID]
+
+
+async def test_daily_script_runs_the_capacity_step_and_mails_errors(monkeypatch):
+    from contextlib import asynccontextmanager
+
+    import backend.database
+    import backend.services.operator_alerts
+    from backend.reservations import voice_numbers
+    from backend.scripts import run_agent_overage_reconcile as script
+    from backend.services import billing_reservations as br
+
+    @asynccontextmanager
+    async def session():
+        yield object()
+
+    async def billing(db):
+        return {"errors": []}
+
+    async def numbers(db):
+        return {"errors": []}
+
+    async def capacity(db):
+        return {"errors": [{"step": "peaks", "error": "down"}], "quota": {}}
+
+    sent = []
+    monkeypatch.setattr(backend.database, "async_session_factory", session)
+    monkeypatch.setattr(br, "reconcile_all_agent_subscriptions", billing)
+    monkeypatch.setattr(voice_numbers, "run_daily", numbers)
+    monkeypatch.setattr(voice_capacity, "run_daily", capacity)
+    monkeypatch.setattr(backend.services.operator_alerts, "_send_operator_email",
+                        lambda subject, body, label: sent.append((subject, body)) or True)
+    await script.main()
+    assert len(sent) == 1 and "peaks" in sent[0][1]

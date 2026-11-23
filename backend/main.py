@@ -46,6 +46,7 @@ from backend.routers import (
     shift_templates,
     special_hours,
     voice_bridge,
+    voice_capacity,
     webhooks,
 )
 
@@ -177,6 +178,7 @@ def create_app() -> FastAPI:
     app.include_router(public.router, prefix=api_prefix)
     app.include_router(public_reservations.router, prefix=api_prefix)
     app.include_router(voice_bridge.router, prefix=api_prefix)
+    app.include_router(voice_capacity.router, prefix=api_prefix)
     app.include_router(payroll_archive.router, prefix=api_prefix)
 
     # ── Daily background task: storage snapshots ──

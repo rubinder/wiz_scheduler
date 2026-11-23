@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import settings
 from backend.dependencies import bind_rls_context
 from backend.models import Location
-from backend.reservations import voice_numbers, voice_transfers
+from backend.reservations import voice_capacity, voice_numbers, voice_transfers
 from backend.reservations.agent import gate, recording, voice, voice_cost
 from backend.reservations.agent.core import AgentCore, TurnInput
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import get_rules
+from backend.reservations.rules import get_agent_rules
 from backend.schemas.voice import VoiceTurnIn
 from backend.services.archive import active
 from backend.services.rate_limit import (
@@ -121,9 +121,20 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
             db, company_id, location_id, body.contact_id, body.caller,
             source_key_for(body.caller or "anonymous"))
     if created:
+        if await voice_capacity.at_allocation(db, company_id, now,
+                                              exclude_conversation_id=conv.id):
+            # The company holds its allocation of calls (decision 103).
+            logger.info("voice_bridge.capacity location=%s", location_id)
+            await recording.finish(db, conv, "blocked")
+            rules, _ = await get_agent_rules(db, company_id, location_id)
+            reply = await _screen_transfer(
+                db, location, voice.capacity_busy(rules.staff_transfer_number), now)
+            await recording.remember_reply(db, conv, body.seq, reply)
+            await db.commit()
+            return reply
         if await gate.cap_reached(db, company_id, location, now):
             await recording.finish(db, conv, "blocked")
-            rules, _ = await get_rules(db, company_id, location_id)
+            rules, _ = await get_agent_rules(db, company_id, location_id)
             reply = _busy(location_id, rules.staff_transfer_number)
             await recording.remember_reply(db, conv, body.seq, reply)
             await db.commit()
@@ -144,7 +155,7 @@ async def _turn(db: AsyncSession, core: AgentCore, body: VoiceTurnIn,
     # Read once, before the claim: nothing after it reads rules or may raise
     # on a rules read.
     try:
-        rules, _ = await get_rules(db, company_id, location_id)
+        rules, _ = await get_agent_rules(db, company_id, location_id)
         confirm_style = rules.voice.voice_confirm_style
         staff_transfer_number: str | None = rules.staff_transfer_number
     except Exception:

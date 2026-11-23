@@ -45,7 +45,7 @@ from backend.config import settings
 from backend.models.company import Company
 from backend.models.location import Location
 from backend.reservations.agent.models import AgentConversation
-from backend.reservations.rules import RulesSchema, get_rules
+from backend.reservations.rules import RulesSchema, get_agent_rules, get_rules
 from backend.reservations.subscription_models import (
     COMPED,
     PRODUCT,
@@ -299,7 +299,7 @@ async def cap_reached(
 
 async def busy_text(db: AsyncSession, company_id: str, location_id: str) -> str:
     """The closed-chat reply while the cap is reached."""
-    rules, _ = await get_rules(db, company_id, location_id)
+    rules, _ = await get_agent_rules(db, company_id, location_id)
     phone = rules.staff_transfer_number
     if phone:
         return BUSY_TEXT[:-1] + f" at {phone}."
