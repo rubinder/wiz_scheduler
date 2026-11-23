@@ -7,7 +7,9 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,7 @@ from backend.reservations import (
 from backend.reservations.agent.models import OUTCOMES
 from backend.reservations.providers import mock_external
 from backend.reservations.availability import find_slots
+from backend.reservations import floor_ai
 from backend.reservations.floor import (
     FloorIn, FloorInvalid, FloorOut, TableHasBookings, get_floor, save_floor,
 )
@@ -34,7 +37,7 @@ from backend.reservations.rules import (
 )
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, ConversationOut, DinerDataOut,
-    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, InsightsDayOut, InsightsOut, MarkSpamOut,
+    DinerCodeEraseOut, DinerCodeIn, DinerEraseOut, DinerPhoneIn, FloorDraftOut, InsightsDayOut, InsightsOut, MarkSpamOut,
     NumberRuleIn, NumberRuleOut, NumberRulePatch,
     ReservationOut, ReservationPatch, ReservationsConfigOut, RulesOut,
     ScreeningStatsOut, SlotOut, StatusIn, VoiceNumberOut, WalkInIn,
@@ -173,6 +176,86 @@ async def write_floor(
             "code": "table_has_bookings", "message": str(e),
             "table_ids": e.table_ids})
     return out
+
+
+@gated.post("/locations/{location_id}/floor/ai-drafts", status_code=202,
+             response_model=FloorDraftOut)
+async def create_floor_draft(
+    location_id: str,
+    background: BackgroundTasks,
+    files: list[UploadFile] | None = File(default=None),
+    captions: list[str] | None = Form(default=None),
+    notes: str = Form(default=""),
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> FloorDraftOut:
+    """Draft a floor from photos and/or blueprints (decision 101). Gates
+    billing, then runs the model after the response; poll the draft."""
+    await _location(db, scope, user, location_id)
+    try:
+        draft_files = await floor_ai.read_uploads(files or [], captions or [], notes)
+        await floor_ai.assert_can_draft(db, str(user.company_id))
+        # Counted before any lock is taken: it is a network call.
+        input_tokens = await floor_ai.count_input_tokens(draft_files, notes)
+        row = await floor_ai.create_draft(
+            db, str(user.company_id), location_id, floor_ai.worst_case_usd(input_tokens))
+    except floor_ai.DraftInputInvalid as e:
+        raise HTTPException(status_code=e.status,
+                            detail={"code": e.code, "message": e.message})
+    except floor_ai.DraftBlocked as e:
+        await db.rollback()
+        raise HTTPException(status_code=402,
+                            detail={"code": e.code, "message": e.message, **e.extra})
+    except floor_ai.DraftEstimateUnavailable:
+        raise HTTPException(status_code=503, detail={
+            "code": "estimate_unavailable",
+            "message": "The draft's cost could not be estimated. Try again shortly."})
+    except floor_ai.DraftLimited:
+        await db.rollback()
+        raise HTTPException(status_code=429, detail={
+            "code": "too_many_failed_drafts",
+            "message": "Too many AI drafts failed today. Try again tomorrow."})
+    except floor_ai.DraftInProgress:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "code": "draft_in_progress",
+            "message": "An AI draft for this location is still running."})
+    await db.commit()
+    background.add_task(floor_ai.run_draft, row.id, draft_files, notes, input_tokens)
+    return FloorDraftOut.of(row)
+
+
+# Declared before /{draft_id}, which would otherwise match "latest".
+@gated.get("/locations/{location_id}/floor/ai-drafts/latest", response_model=FloorDraftOut)
+async def read_latest_floor_draft(
+    location_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> FloorDraftOut:
+    """The location's newest draft, so a closed modal or a reload can resume it."""
+    await _location(db, scope, user, location_id)
+    row = await floor_ai.get_latest_draft(db, str(user.company_id), location_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return FloorDraftOut.of(row)
+
+
+@gated.get("/locations/{location_id}/floor/ai-drafts/{draft_id}",
+           response_model=FloorDraftOut)
+async def read_floor_draft(
+    location_id: str,
+    draft_id: str,
+    user: User = Depends(require_manager),
+    db: AsyncSession = Depends(get_db),
+    scope: LocationScope = Depends(get_location_scope),
+) -> FloorDraftOut:
+    await _location(db, scope, user, location_id)
+    row = await floor_ai.get_draft(db, str(user.company_id), location_id, draft_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return FloorDraftOut.of(row)
 
 
 @gated.get("/locations/{location_id}/rules", response_model=RulesOut)

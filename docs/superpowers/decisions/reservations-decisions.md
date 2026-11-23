@@ -646,6 +646,112 @@ Decisions made while building without stopping to ask (owner instruction,
     wrong: a diner who wanted a table and says "party" loosely may be sent to
     staff; the handoff is one call away from a booking, and the staff line
     is where an event belongs anyway.
+101. **AI floor-plan draft from photos or a blueprint (owner, 2026-11-22).**
+    A manager who can edit the floor uploads 1-10 photos (JPEG, PNG, WEBP,
+    5 MB each) and/or PDF blueprints (20 MB each), 30 MB in all, with an
+    optional caption per file (300 characters) and notes (2000), and
+    `claude-opus-5-5` (adaptive thinking, effort medium, structured JSON
+    output, `max_tokens` 16000, streamed) proposes sections, tables,
+    combinations, warnings and a confidence. Decided:
+    - **A draft, never saved by the AI.** The editor loads it as unsaved
+      changes ("AI draft: review and save") and the manager saves with the
+      ordinary PUT, and can edit and save again any time. If the editor has
+      tables, the page confirms before replacing them. A draft table keeps
+      an existing table's id (saving then updates that row and its bookings
+      stay attached) only when the label matches AND it is plausibly the
+      same table: it seats at least as many, or it sits in a section of the
+      same name. The model labels T1..Tn in reading order, so a label alone
+      would rebind bookings to the wrong physical table (review). Otherwise
+      the draft table is new and the old one is archived on save, where
+      `save_floor`'s 409 `table_has_bookings` protects booked tables. The
+      banner lists the tables updated in place, replaced and archived.
+      Sections and combinations keep their ids by name.
+    - **Always saveable.** `floor_ai.postprocess` snaps to 0.5, keeps each
+      drawn (rotated) table on the 40 x 25 canvas, suffixes duplicate
+      labels (cut to fit the 20-character label limit), orders seats into 1 <= min <= max <= 30, keeps at most 200
+      tables and 20 sections, drops unknown sections and any combination
+      `floor.validate_floor` (the check `save_floor` runs, now public)
+      refuses, each with a warning, then runs `validate_floor` on the whole
+      draft.
+    - **Asynchronous.** `POST /reservations/locations/{id}/floor/ai-drafts`
+      (multipart) checks, gates and adds a `floor_plan_drafts` row (0068,
+      company RLS like 0065, both foreign keys cascade), returns 202, and
+      runs the model after the response (FastAPI background task, own
+      session). `GET .../ai-drafts/{draft_id}` polls, company and location
+      scoped; the modal polls every 2 s with a chained timeout (never an
+      interval, so a draft cannot be applied twice) and stops on any 4xx.
+      `GET .../ai-drafts/latest` returns the location's newest draft: on
+      open the modal resumes it (the id kept in sessionStorage first), polls
+      a running one and offers a done one not yet loaded, so a paid draft
+      survives closing the modal or reloading. A row still queued or running
+      after 5 minutes reads as failed/`timeout` (a deploy or crash loses the
+      job; nothing retries it). The model call itself is bounded by
+      `asyncio.wait_for` 30 s inside that, and the SDK client does not
+      retry, so nothing finishes after the in-flight check freed the slot;
+      a result arriving late anyway is discarded and not charged. Rows are deleted after
+      `RETENTION_FLOOR_PLAN_DRAFTS_DAYS` (7) by the retention sweep.
+    - **Nothing identifying is kept.** Files, captions and notes live in
+      memory for the call only, never in S3 or the database; Starlette may
+      spool a large multipart part to a temporary file that is deleted when
+      the request ends. The row holds the proposed floor and the model's
+      warnings. Images, PDF text, captions and notes are data, never
+      instructions (system prompt).
+    - **Charged at cost from prepaid AI credits.** Before any row or call
+      the exact request is counted with `messages.count_tokens` (free; a
+      failed count is 503 `estimate_unavailable`, fail closed) and its worst
+      case is input plus a full `max_tokens` of output at the FLOOR_PLAN
+      prices. The draft reserves that, or `FLOOR_PLAN_AI_MIN_CREDITS_USD`
+      ($1.00) if more, in `reserved_usd`. No ownership group, or a balance
+      (purchased plus included credit) below this reservation plus what the
+      group's drafts in flight reserve -> 402 `ai_credits_required` with
+      `estimate_usd` in the body; billing on hold -> 402
+      `billing_on_hold`; the group's 24 h Anthropic spend at
+      `OG_ANTHROPIC_DAILY_CAP_USD` -> 402 `daily_cost_cap_exceeded`. One
+      draft at a time per location -> 409 `draft_in_progress`. At most
+      `FLOOR_PLAN_AI_MAX_FAILED_PER_DAY` (3) drafts per group per UTC day
+      that failed or are still in flight (they may all fail) -> 429
+      `too_many_failed_drafts`. The group
+      row (`billing.lock_ownership_group`), then the location row, are
+      locked while checking, so simultaneous requests take turns. A
+      successful draft is debited its actual cost (usage x
+      `FLOOR_PLAN_AI_*_USD_PER_MTOK`, markup 1.0) through
+      `billing.charge_ai_credits_at_cost`, which never raises and counts
+      toward the month's usage and the 24 h spend; the row and the banner
+      show the charge. A refused, truncated, unreadable or timed-out call
+      is not charged, but its raw cost goes into the 24 h spend
+      (`billing.record_uncharged_ai_cost`) so the daily cap bounds what
+      failed calls cost the operator. A call that raised or ran out of time
+      reports no usage, so its counted input cost is recorded instead.
+    - **Bounds (security review).** Starlette parses and spools a whole
+      multipart body before any dependency, even auth, runs, so
+      `middleware/body_limit.BodyLimitMiddleware` refuses the ai-drafts POST
+      from its headers alone: no Content-Length (chunked) -> 411
+      `length_required`, over 30 MB plus 1 MB of multipart overhead -> 413.
+      The route's reader then refuses a file on its declared size against
+      its type's limit, and the running total, before reading it whole, and
+      totals the bytes read too. PDFs are capped at 50 pages in total (422
+      `too_many_pages`), counted from their page objects because no PDF
+      library is installed; a PDF whose pages sit in compressed object
+      streams counts low, and count_tokens still prices it. The API
+      rejects `maxItems`/`maxLength` in a JSON-output schema, so the output
+      bounds are in the prompt (at most 10 warnings, 20 sections, 200
+      tables) and enforced in post-processing; `max_tokens` caps the worst
+      case at $0.32 of output.
+    - **No refusal fallback model.** A server-side fallback would bill at
+      another model's prices, which the at-cost charge would misstate; a
+      refusal fails the draft uncharged instead.
+    - **Smaller uploads.** The modal re-encodes photos in the browser to a
+      1568 px long edge (JPEG, quality 0.85; smaller photos and PDFs
+      untouched, and the original is kept if re-encoding is not smaller).
+      Claude downsizes larger images anyway, so this loses nothing, avoids
+      most 413s on phone photos and lowers the token cost. The server
+      limits are unchanged.
+    - **Credits link.** On 402 `ai_credits_required` the modal links admins
+      to the Schedule page, the one place the credit-pack purchase flow
+      lives; a regular manager sees the ask-an-admin note.
+    Cost if wrong: a draft typically costs $0.10-0.40 of credits; a bad draft
+    costs the manager that plus the edits to fix it, and a failed call
+    costs the operator at most a worst-case call, inside the daily cap.
 
 ## Before switching reservations on (owner checklist)
 
