@@ -14,18 +14,15 @@ the privileges 0050's default privileges gave it, plus a policy that
 matches no row (every table keeps an app_role policy), so no request reads
 or writes them.
 
-Numbered 0069 because 0068 (floor_plan_drafts) was in flight on another
-branch; renumber if that lands first.
-
 Revision ID: 0069
-Revises: 0067
+Revises: 0068
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "0069"
-down_revision = "0067"
+down_revision = "0068"
 branch_labels = None
 depends_on = None
 

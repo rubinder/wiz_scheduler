@@ -616,79 +616,6 @@ Decisions made while building without stopping to ask (owner instruction,
     two-minute calls at $0.074, at today's prices).
     It is an estimate for customers, not a quota. Cost if wrong: real calls
     run longer or shorter and the number is off; it never caps anything.
-103. **Voice call capacity: a step-wise Connect quota, per-company
-    allocations, measured peaks (owner, 2026-11-22).**
-    `reservations/voice_capacity.py`, AWS behind `services/voice_quotas.py`
-    (an anti-corruption layer like `archive_storage`; tests swap a fake,
-    `tests/conftest.py` installs one that refuses every call).
-    - AWS quotas only go up through the API and cost nothing; "down" applies
-      to our own allocations only. The AWS Support API needs a paid plan, so
-      it is never called: a target above `VOICE_QUOTA_AUTO_REQUEST_MAX` (200)
-      gets an operator email with a support-case text instead (row status
-      `manual`).
-    - Target = max(`VOICE_QUOTA_BASE_CALLS` 10 + `VOICE_QUOTA_CALLS_PER_COMPANY`
-      10 x companies with voice on, ceil(30-day platform peak x
-      `VOICE_QUOTA_FORECAST_MULTIPLIER` 1.5), sum of those companies'
-      allocations). "Voice on" = a number `requested` or `active` under an
-      answering, non-comped subscription. The quota is found by
-      `VOICE_QUOTA_NAME` ("Concurrent active calls per instance") through
-      `list_service_quotas(ServiceCode="connect")`, preferring the entry
-      whose context is our instance; never a hard-coded code.
-    - `ensure_quota` runs nightly (the daily AI host run, after voice
-      numbers) and whenever `voice_numbers.ensure_for_group` provisions new
-      numbers (its own session; a failure never breaks numbers). An open
-      request (`pending` or `manual`) suppresses a new one; pending ones are
-      polled through `ListRequestedServiceQuotaChangeHistoryByQuota`; any
-      open row is closed as `approved` once the applied value reaches it.
-      Every failure mails the operator the exact number to request and never
-      raises. All of it is a no-op while `VOICE_PROVISIONING_ENABLED` is off.
-    - Peaks: per company and UTC day, the most voice conversations open at
-      once (sweep over `started_at`..`ended_at`; an open one ends at its
-      last event, or is an instant), and the call count, in
-      `voice_capacity_daily`; the platform's own overlap (not the sum of
-      company peaks) and CloudWatch's `ConcurrentCalls` maximum in
-      `voice_platform_daily`. Touching calls count as overlapping (capacity
-      errs high). Counts only, no diner identifiers; kept
-      `RETENTION_VOICE_CAPACITY_DAYS` (400).
-    - Allocation lives in a reservations-owned table,
-      `voice_company_settings` (no row = `VOICE_DEFAULT_COMPANY_ALLOCATION`
-      10), not on `companies`: it keeps AI host settings out of Identity's
-      table, needs no backfill, and cascades with the company. The voice
-      bridge refuses a NEW call when the company already has that many open
-      voice conversations with a turn in the last `VOICE_CALL_IDLE_SECONDS`
-      (180; Connect never tells us about a hang-up, so an idle open call is
-      taken as gone): the caller hears "busy, let me get someone to help"
-      and is transferred to staff (screened like any transfer), or hears the
-      busy close without a staff number. Outcome `blocked`, not metered. Two
-      first turns racing can both pass (a soft cap; the AWS quota is the
-      hard one).
-    - Allocations change only by operator approval
-      (`python -m backend.scripts.approve_capacity_request <id>
-      [--allocation N | --decline]`, run as a one-off ECS task; there is no
-      operator endpoint in the app) or the nightly down-shift: 30-day peak
-      below 50% of an allocation above the default lowers it to
-      max(default, ceil(peak x 1.5)) and mails the company's admins. An
-      allocation changed in the last 30 days is left alone, so a fresh
-      approval is not undone the next night.
-    - Admins request capacity on the AI host billing page (locations,
-      expected peak 1-500, needed-by date, note up to 1,000 characters), one
-      pending request per company; the operator gets the company's measured
-      peaks. Approval and decline mail the company's admins.
-    - One operator for many locations: `voice_company_settings.
-      default_staff_transfer_number` (admin-only, E.164, the same
-      `voice_transfers.number_problem` check) is used by every location
-      without its own `staff_transfer_number`, through
-      `rules.get_agent_rules` on every AI host path that reads the number
-      (core handoffs, the handoff tool, the voice bridge, the busy texts).
-      The rules editor still reads `get_rules`, so the default is never
-      copied into a location. A shared multi-location main line is out of
-      scope (follow-up).
-    - Migration 0069 (`down_revision` 0067) because 0068 (floor plan drafts)
-      was in flight; renumber if it lands first.
-    Cost if wrong: the quota lags a sudden spike for a day (the CloudWatch
-    80% alarm and the next run catch it), or a company is refused calls at
-    its allocation while the platform had room; the operator approves more.
-
 100. **The call opens with "table or event", then date, time and party
     together; events go to staff (owner, 2026-11-22).** The default greeting
     now asks the first question itself: "Hi, you've reached {name}'s
@@ -824,6 +751,77 @@ Decisions made while building without stopping to ask (owner instruction,
     Cost if wrong: a draft typically costs $0.10-0.40 of credits; a bad draft
     costs the manager that plus the edits to fix it, and a failed call
     costs the operator at most a worst-case call, inside the daily cap.
+103. **Voice call capacity: a step-wise Connect quota, per-company
+    allocations, measured peaks (owner, 2026-11-22).**
+    `reservations/voice_capacity.py`, AWS behind `services/voice_quotas.py`
+    (an anti-corruption layer like `archive_storage`; tests swap a fake,
+    `tests/conftest.py` installs one that refuses every call).
+    - AWS quotas only go up through the API and cost nothing; "down" applies
+      to our own allocations only. The AWS Support API needs a paid plan, so
+      it is never called: a target above `VOICE_QUOTA_AUTO_REQUEST_MAX` (200)
+      gets an operator email with a support-case text instead (row status
+      `manual`).
+    - Target = max(`VOICE_QUOTA_BASE_CALLS` 10 + `VOICE_QUOTA_CALLS_PER_COMPANY`
+      10 x companies with voice on, ceil(30-day platform peak x
+      `VOICE_QUOTA_FORECAST_MULTIPLIER` 1.5), sum of those companies'
+      allocations). "Voice on" = a number `requested` or `active` under an
+      answering, non-comped subscription. The quota is found by
+      `VOICE_QUOTA_NAME` ("Concurrent active calls per instance") through
+      `list_service_quotas(ServiceCode="connect")`, preferring the entry
+      whose context is our instance; never a hard-coded code.
+    - `ensure_quota` runs nightly (the daily AI host run, after voice
+      numbers) and whenever `voice_numbers.ensure_for_group` provisions new
+      numbers (its own session; a failure never breaks numbers). An open
+      request (`pending` or `manual`) suppresses a new one; pending ones are
+      polled through `ListRequestedServiceQuotaChangeHistoryByQuota`; any
+      open row is closed as `approved` once the applied value reaches it.
+      Every failure mails the operator the exact number to request and never
+      raises. All of it is a no-op while `VOICE_PROVISIONING_ENABLED` is off.
+    - Peaks: per company and UTC day, the most voice conversations open at
+      once (sweep over `started_at`..`ended_at`; an open one ends at its
+      last event, or is an instant), and the call count, in
+      `voice_capacity_daily`; the platform's own overlap (not the sum of
+      company peaks) and CloudWatch's `ConcurrentCalls` maximum in
+      `voice_platform_daily`. Touching calls count as overlapping (capacity
+      errs high). Counts only, no diner identifiers; kept
+      `RETENTION_VOICE_CAPACITY_DAYS` (400).
+    - Allocation lives in a reservations-owned table,
+      `voice_company_settings` (no row = `VOICE_DEFAULT_COMPANY_ALLOCATION`
+      10), not on `companies`: it keeps AI host settings out of Identity's
+      table, needs no backfill, and cascades with the company. The voice
+      bridge refuses a NEW call when the company already has that many open
+      voice conversations with a turn in the last `VOICE_CALL_IDLE_SECONDS`
+      (180; Connect never tells us about a hang-up, so an idle open call is
+      taken as gone): the caller hears "busy, let me get someone to help"
+      and is transferred to staff (screened like any transfer), or hears the
+      busy close without a staff number. Outcome `blocked`, not metered. Two
+      first turns racing can both pass (a soft cap; the AWS quota is the
+      hard one).
+    - Allocations change only by operator approval
+      (`python -m backend.scripts.approve_capacity_request <id>
+      [--allocation N | --decline]`, run as a one-off ECS task; there is no
+      operator endpoint in the app) or the nightly down-shift: 30-day peak
+      below 50% of an allocation above the default lowers it to
+      max(default, ceil(peak x 1.5)) and mails the company's admins. An
+      allocation changed in the last 30 days is left alone, so a fresh
+      approval is not undone the next night.
+    - Admins request capacity on the AI host billing page (locations,
+      expected peak 1-500, needed-by date, note up to 1,000 characters), one
+      pending request per company; the operator gets the company's measured
+      peaks. Approval and decline mail the company's admins.
+    - One operator for many locations: `voice_company_settings.
+      default_staff_transfer_number` (admin-only, E.164, the same
+      `voice_transfers.number_problem` check) is used by every location
+      without its own `staff_transfer_number`, through
+      `rules.get_agent_rules` on every AI host path that reads the number
+      (core handoffs, the handoff tool, the voice bridge, the busy texts).
+      The rules editor still reads `get_rules`, so the default is never
+      copied into a location. A shared multi-location main line is out of
+      scope (follow-up).
+    - Migration 0069 follows 0068 (floor plan drafts, decision 101).
+    Cost if wrong: the quota lags a sudden spike for a day (the CloudWatch
+    80% alarm and the next run catch it), or a company is refused calls at
+    its allocation while the platform had room; the operator approves more.
 
 102. **Custom conversation flows: a step graph per location and channel,
     compiled into the prompt (owner request, 2026-11-22).** The default flow
