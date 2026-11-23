@@ -160,6 +160,21 @@ async def test_the_default_greetings_say_automated():
     assert "automated" not in off.lower() and "Luigi's" in off
 
 
+async def test_the_default_greetings_ask_table_or_event_first():
+    """Decision 100: the greeting asks the first question itself."""
+    from backend.reservations.agent.gate import default_greeting
+    assert default_greeting("Luigi") == (
+        "Hi, you've reached Luigi's automated reservations assistant. Are you "
+        "booking a table, or is this about an event or private party?")
+    assert default_greeting("Luigi", False) == (
+        "Hi, you've reached Luigi's reservations line. Are you booking a "
+        "table, or is this about an event or private party?")
+    # The default still satisfies the disclosure rule a custom one is held to.
+    disclosing = RulesSchema.model_validate(
+        {"persona": {"greeting": default_greeting("Luigi")}, "disclose_automated": True})
+    assert not missing_disclosure(disclosing)
+
+
 async def test_stored_rules_with_an_old_greeting_still_read(db_session, seed_location):
     """Validation is on write only: rules stored before the disclosure rule
     keep reading (the greeting falls back to the default when rendered)."""
