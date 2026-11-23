@@ -193,30 +193,21 @@ async def create_floor_draft(
     """Draft a floor from photos and/or blueprints (decision 101). Gates
     billing, then runs the model after the response; poll the draft."""
     await _location(db, scope, user, location_id)
-    uploads = files or []
-    caps = captions or []
     try:
-        if len(caps) > len(uploads):
-            raise floor_ai.DraftInputInvalid(
-                "too_many_captions", 422, "one caption per file at most")
-        if len(uploads) > floor_ai.MAX_FILES:
-            raise floor_ai.DraftInputInvalid(
-                "too_many_files", 422, f"at most {floor_ai.MAX_FILES} files")
-        pairs: list[tuple[bytes, str]] = []
-        for i, up in enumerate(uploads):
-            # Refuse an oversized part before reading it into memory.
-            if up.size is not None and up.size > floor_ai.MAX_PDF_BYTES:
-                raise floor_ai.DraftInputInvalid("file_too_large", 413, "file too large")
-            pairs.append((await up.read(), caps[i] if i < len(caps) else ""))
-        draft_files = floor_ai.validate_inputs(pairs, notes)
+        draft_files = await floor_ai.read_uploads(files or [], captions or [], notes)
         await floor_ai.assert_can_draft(db, str(user.company_id))
+        row = await floor_ai.create_draft(db, str(user.company_id), location_id)
     except floor_ai.DraftInputInvalid as e:
         raise HTTPException(status_code=e.status,
                             detail={"code": e.code, "message": e.message})
     except floor_ai.DraftBlocked as e:
         raise HTTPException(status_code=402,
                             detail={"code": e.code, "message": e.message, **e.extra})
-    row = await floor_ai.create_draft(db, str(user.company_id), location_id)
+    except floor_ai.DraftInProgress:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "code": "draft_in_progress",
+            "message": "An AI draft for this location is still running."})
     await db.commit()
     background.add_task(floor_ai.run_draft, row.id, draft_files, notes)
     return FloorDraftOut.of(row)

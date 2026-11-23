@@ -167,6 +167,42 @@ async def _reload_after_debit(db: AsyncSession, og: OwnershipGroup, cost_usd: fl
         logger.exception("[BILLING] auto-reload crashed after debit og=%s", og.id)
 
 
+async def _add_daily_cost(
+    db: AsyncSession,
+    og_id: str,
+    input_tokens: int,
+    output_tokens: int,
+    this_cost: float,
+    now: datetime,
+) -> None:
+    """The per-day aggregate, so the daily circuit breaker (#43) has a
+    rolling-24h figure to query. The monthly aggregate (_record_usage) is
+    the source of truth for billing; daily exists purely for the cap."""
+    today = now.date()
+    daily = (await db.execute(
+        select(TokenUsageDaily).where(
+            TokenUsageDaily.ownership_group_id == og_id,
+            TokenUsageDaily.usage_date == today,
+        )
+    )).scalar_one_or_none()
+    if daily is None:
+        daily = TokenUsageDaily(
+            ownership_group_id=og_id,
+            usage_date=today,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            cost_usd=this_cost,
+        )
+        db.add(daily)
+    else:
+        daily.input_tokens += input_tokens
+        daily.output_tokens += output_tokens
+        daily.total_tokens += input_tokens + output_tokens
+        daily.cost_usd += this_cost
+        daily.updated_at = now
+
+
 async def _record_usage(
     db: AsyncSession,
     og_id: str,
@@ -218,33 +254,7 @@ async def _record_usage(
         )
         db.add(usage)
 
-    # Mirror into the per-day aggregate so the daily circuit breaker
-    # (#43) has a rolling-24h figure to query. The monthly aggregate
-    # above is the source of truth for billing; daily exists purely for
-    # the cap query.
-    today = now.date()
-    daily = (await db.execute(
-        select(TokenUsageDaily).where(
-            TokenUsageDaily.ownership_group_id == og_id,
-            TokenUsageDaily.usage_date == today,
-        )
-    )).scalar_one_or_none()
-    if daily is None:
-        daily = TokenUsageDaily(
-            ownership_group_id=og_id,
-            usage_date=today,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-            cost_usd=this_cost,
-        )
-        db.add(daily)
-    else:
-        daily.input_tokens += input_tokens
-        daily.output_tokens += output_tokens
-        daily.total_tokens += input_tokens + output_tokens
-        daily.cost_usd += this_cost
-        daily.updated_at = now
+    await _add_daily_cost(db, og_id, input_tokens, output_tokens, this_cost, now)
 
     return usage, this_charge
 
@@ -881,6 +891,38 @@ async def charge_ai_credits_at_cost(
     logger.info("[BILLING] group=%s feature=%s cost=%.4f charged=%.4f",
                 og_id, feature, cost_usd, charge)
     return charge
+
+
+async def record_uncharged_ai_cost(
+    db: AsyncSession,
+    company_id: str,
+    cost_usd: float,
+    *,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    feature: str,
+) -> None:
+    """Count the raw cost of a model call the customer is not charged for (a
+    refused, truncated or unreadable AI floor draft, decision 101) toward the
+    group's rolling 24-hour Anthropic spend, so OG_ANTHROPIC_DAILY_CAP_USD
+    still bounds what failed calls can cost the operator. Touches neither the
+    monthly usage nor the credit balance. Never raises."""
+    if cost_usd <= 0:
+        return
+    try:
+        async with db.begin_nested():
+            og_id = await get_ownership_group_id(db, company_id)
+            if not og_id:
+                return
+            await _add_daily_cost(db, og_id, input_tokens, output_tokens,
+                                  round(cost_usd, 6), datetime.now(timezone.utc))
+            await db.flush()
+    except Exception:
+        logger.exception("[BILLING] uncharged cost not recorded company=%s feature=%s cost=%.4f",
+                         company_id, feature, cost_usd)
+        return
+    logger.info("[BILLING] company=%s feature=%s uncharged_cost=%.4f",
+                company_id, feature, cost_usd)
 
 
 # ---------------------------------------------------------------------------

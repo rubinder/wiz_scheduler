@@ -196,7 +196,16 @@ async def test_a_failed_call_is_not_charged(client, db_session, manager_token,
     assert body["error_code"] == code
     assert body["result"] is None and body["cost_usd"] is None
     assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)
-    assert (await db_session.execute(select(TokenUsageDaily))).first() is None
+    # Not charged, but a call that returned usage cost us: the daily cap
+    # counts it. A call that raised has no usage to count.
+    daily = (await db_session.execute(select(TokenUsageDaily).execution_options(
+        populate_existing=True))).scalar_one_or_none()
+    if code == "model_error":
+        assert daily is None
+    else:
+        assert daily is not None and daily.cost_usd == pytest.approx(COST)
+    monthly = (await db_session.execute(select(TokenUsage))).scalar_one_or_none()
+    assert monthly is None or monthly.charged_usd == 0
 
 
 # --- billing gate -----------------------------------------------------------
@@ -239,6 +248,152 @@ async def test_402_over_the_daily_cost_cap(client, db_session, manager_token,
     assert r.status_code == 402
     assert r.json()["detail"]["code"] == "daily_cost_cap_exceeded"
     assert model.calls == []
+
+
+@pytest.mark.asyncio
+async def test_402_without_an_ownership_group(client, db_session, manager_token,
+                                              seed_location, model):
+    """No group means no credits to debit: refuse rather than run free."""
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 402
+    assert r.json()["detail"]["code"] == "ai_credits_required"
+    assert model.calls == []
+
+
+@pytest.mark.asyncio
+async def test_402_below_the_worst_case_draft_cost(client, db_session, manager_token,
+                                                   seed_location, model, monkeypatch):
+    """A cent of credit must not buy a dollar of model time: the balance must
+    cover a worst-case draft. The debit itself stays at actual cost."""
+    monkeypatch.setattr(settings, "FLOOR_PLAN_AI_MIN_CREDITS_USD", 1.0)
+    await _credits(db_session, 0.99)
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 402
+    assert r.json()["detail"]["code"] == "ai_credits_required"
+    assert model.calls == []
+
+    og = await _og(db_session)
+    og.ai_credits_usd = 1.0
+    await db_session.commit()
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+    assert (await _og(db_session)).ai_credits_usd == pytest.approx(1.0 - COST)
+
+
+@pytest.mark.asyncio
+async def test_included_allowance_counts_toward_the_minimum(
+    client, db_session, manager_token, seed_location, model, monkeypatch
+):
+    monkeypatch.setattr(settings, "FLOOR_PLAN_AI_MIN_CREDITS_USD", 1.0)
+    monkeypatch.setattr(settings, "INCLUDED_LLM_USD", 0.6)
+    await _credits(db_session, 0.5)
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+
+
+def test_the_minimum_covers_a_worst_case_call():
+    worst_output = (settings.FLOOR_PLAN_AI_MAX_TOKENS
+                    * settings.FLOOR_PLAN_AI_OUTPUT_USD_PER_MTOK / 1_000_000)
+    assert settings.FLOOR_PLAN_AI_MIN_CREDITS_USD > worst_output
+
+
+# --- one draft at a time ----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_409_while_a_draft_is_in_progress(client, db_session, manager_token,
+                                                seed_location, model):
+    await _credits(db_session, 10.0)
+    await _row(db_session, status="running")
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "draft_in_progress"
+    assert model.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_timed_out_or_finished_draft_does_not_block(
+    client, db_session, manager_token, seed_location, model
+):
+    await _credits(db_session, 10.0)
+    await _row(db_session, status="running", age=timedelta(minutes=6))
+    await _row(db_session, status="done")
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+
+
+# --- reading uploads ----------------------------------------------------------
+
+
+class FakeUpload:
+    """An UploadFile stand-in that records how much was read."""
+
+    def __init__(self, data: bytes, size: int | None = None) -> None:
+        self.data, self.size, self.pos, self.read_sizes = data, size, 0, []
+
+    async def read(self, n: int = -1) -> bytes:
+        self.read_sizes.append(n)
+        end = len(self.data) if n < 0 else self.pos + n
+        chunk, self.pos = self.data[self.pos:end], min(end, len(self.data))
+        return chunk
+
+    async def seek(self, offset: int) -> None:
+        self.pos = offset
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_file_is_refused_before_it_is_read(monkeypatch):
+    monkeypatch.setattr(floor_ai, "MAX_IMAGE_BYTES", 100)
+    big = FakeUpload(JPEG + b"\x00" * 200, size=268)
+    with pytest.raises(floor_ai.DraftInputInvalid) as e:
+        await floor_ai.read_uploads([big], [], "")
+    assert e.value.code == "file_too_large" and e.value.status == 413
+    # Only the few bytes that identify the type were read.
+    assert -1 not in big.read_sizes
+
+
+@pytest.mark.asyncio
+async def test_the_total_is_checked_before_reading_the_next_file(monkeypatch):
+    monkeypatch.setattr(floor_ai, "MAX_TOTAL_BYTES", 100)
+    first = FakeUpload(JPEG, size=len(JPEG))
+    second = FakeUpload(JPEG, size=len(JPEG))
+    with pytest.raises(floor_ai.DraftInputInvalid) as e:
+        await floor_ai.read_uploads([first, second], [], "")
+    assert e.value.code == "file_too_large"
+    assert -1 not in second.read_sizes
+
+
+@pytest.mark.asyncio
+async def test_bytes_read_count_when_the_size_is_not_declared(monkeypatch):
+    monkeypatch.setattr(floor_ai, "MAX_TOTAL_BYTES", 100)
+    first = FakeUpload(JPEG)
+    second = FakeUpload(JPEG)
+    with pytest.raises(floor_ai.DraftInputInvalid) as e:
+        await floor_ai.read_uploads([first, second], [], "")
+    assert e.value.code == "file_too_large"
+
+
+@pytest.mark.asyncio
+async def test_uploads_become_draft_files_with_their_captions():
+    files = await floor_ai.read_uploads(
+        [FakeUpload(PNG, size=len(PNG)), FakeUpload(PDF, size=len(PDF))], ["Patio"], "n")
+    assert [(f.media_type, f.caption) for f in files] == [
+        ("image/png", "Patio"), ("application/pdf", "")]
+    assert files[0].data == PNG
+
+
+def test_the_prompt_bounds_the_output():
+    """The API rejects maxItems/maxLength in a JSON-output schema, so the
+    bounds are stated in the prompt and enforced in postprocess."""
+    assert "at most 10 warnings" in floor_ai.SYSTEM_PROMPT
+    floor, warnings = floor_ai.postprocess({
+        "sections": [{"key": f"s{i}", "name": "x" * 500} for i in range(80)],
+        "tables": [], "combinations": [],
+        "warnings": ["w" * 5000] * 100, "confidence": "low"})
+    assert len(warnings) <= floor_ai.MAX_MODEL_WARNINGS + 1
+    assert all(len(w) <= floor_ai.MAX_WARNING_CHARS for w in warnings)
+    assert len(floor.sections) <= floor_ai.MAX_SECTIONS
+    assert all(len(s.name) <= floor_ai.MAX_NAME_CHARS for s in floor.sections)
 
 
 # --- input limits -----------------------------------------------------------
@@ -376,6 +531,8 @@ async def test_a_late_result_after_timeout_is_not_charged(db_session, seed_locat
         FloorPlanDraft.id == row.id).execution_options(populate_existing=True))).scalar_one()
     assert fresh.status == "failed" and fresh.error_code == "timeout"
     assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)
+    daily = (await db_session.execute(select(TokenUsageDaily))).scalar_one()
+    assert daily.cost_usd == pytest.approx(COST)
 
 
 # --- retention --------------------------------------------------------------

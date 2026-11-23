@@ -403,6 +403,11 @@ class Settings(BaseSettings):
     FLOOR_PLAN_AI_CACHE_READ_USD_PER_MTOK: float = 0.20
     FLOOR_PLAN_AI_CACHE_WRITE_USD_PER_MTOK: float = 5.0
     FLOOR_PLAN_AI_MAX_TOKENS: int = 16000
+    # The balance (purchased credits plus any included allowance) a draft
+    # needs to start: a worst-case call, about 170k input tokens for ten
+    # images or a long blueprint ($0.68) plus FLOOR_PLAN_AI_MAX_TOKENS of
+    # output ($0.32). The debit is still the actual cost.
+    FLOOR_PLAN_AI_MIN_CREDITS_USD: float = 1.00
     RETENTION_FLOOR_PLAN_DRAFTS_DAYS: int = 7
     # Hard daily spend ceiling per location for a comped group (#259 step
     # 11): its usage is never invoiced, so the operator pays it. The location's
