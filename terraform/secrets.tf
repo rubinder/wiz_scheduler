@@ -165,8 +165,8 @@ resource "aws_secretsmanager_secret_version" "stripe_webhook_secret" {
 # X-Origin-Verify (frontend.tf). Once the backend also gets it as
 # PUBLIC_ORIGIN_SECRET, the public reservation routes 404 without it, so only
 # CloudFront reaches them and per-viewer rate limits can trust the viewer
-# address. Phase 1 (this) only sends the header; phase 2 wires it into ECS,
-# so CloudFront is already sending it everywhere before anything enforces it.
+# address. It shipped in two applies (header first, then ECS) so CloudFront
+# was sending it before anything enforced it.
 # Rotate: put-secret-value, apply (CloudFront picks the new value up), then
 # redeploy the service.
 resource "aws_secretsmanager_secret" "public_origin_secret" {
