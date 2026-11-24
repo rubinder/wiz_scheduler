@@ -939,8 +939,10 @@ Decisions made while building without stopping to ask (owner instruction,
 
 - Step 5 (subscription, spend caps, per-company opt-in) must ship first;
   otherwise every active location gets a public chat on the operator's bill.
-- Set `PUBLIC_ORIGIN_SECRET` and the matching CloudFront origin header
-  (decision 28), or restrict the load balancer to CloudFront (decision 25).
+- ~~Set `PUBLIC_ORIGIN_SECRET` and the matching CloudFront origin header
+  (decision 28).~~ Done 2026-11-24 in Terraform: a generated Secrets Manager
+  secret, sent by CloudFront as `X-Origin-Verify` (PR #297) and then given
+  to ECS (the PR after it).
 - Legal: privacy policy / DPA wording for diner data (spec section 11).
 - Set each location's staff transfer number.
 - Run the evaluation suite (step 4) live once and record the baseline.

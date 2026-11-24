@@ -1,5 +1,5 @@
-"""Reservations decision 28 (Ruling O), phase 1: CloudFront sends the origin
-secret to the ALB; the backend does not enforce it yet."""
+"""Reservations decision 28 (Ruling O), CloudFront sends the origin secret to
+the ALB and the backend gets it as PUBLIC_ORIGIN_SECRET."""
 
 import re
 from pathlib import Path
@@ -31,3 +31,10 @@ def test_extra_alert_email_is_sensitive_and_from_a_secret():
     deploy = (TF.parent / ".github" / "workflows" / "deploy.yml").read_text()
     assert deploy.count("TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}") == 2
     assert "@gmail.com" not in deploy
+
+
+def test_backend_gets_the_secret_and_may_read_it():
+    text = (TF / "ecs.tf").read_text()
+    assert re.search(r'name\s+= "PUBLIC_ORIGIN_SECRET"\s+valueFrom = aws_secretsmanager_secret.public_origin_secret.arn', text)
+    grant = re.search(r'resources = concat\(\[(.*?)\], aws_secretsmanager_secret.voice_bridge', text, re.S).group(1)
+    assert "aws_secretsmanager_secret.public_origin_secret.arn" in grant

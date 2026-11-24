@@ -82,6 +82,7 @@ data "aws_iam_policy_document" "secrets_access" {
       aws_secretsmanager_secret.stripe_webhook_secret.arn,
       aws_secretsmanager_secret.demo_seed_password.arn,
       aws_secretsmanager_secret.checkin_qr_secret.arn,
+      aws_secretsmanager_secret.public_origin_secret.arn,
     ], aws_secretsmanager_secret.voice_bridge[*].arn)
   }
 }
@@ -175,6 +176,13 @@ resource "aws_ecs_task_definition" "app" {
           # codes while this is unset or still the Terraform placeholder.
           name      = "CHECKIN_QR_SECRET"
           valueFrom = aws_secretsmanager_secret.checkin_qr_secret.arn
+        },
+        {
+          # Reservations decision 28 (Ruling O): CloudFront sends this as
+          # X-Origin-Verify (frontend.tf); public reservation routes 404
+          # without it, so per-viewer rate limits can trust the viewer.
+          name      = "PUBLIC_ORIGIN_SECRET"
+          valueFrom = aws_secretsmanager_secret.public_origin_secret.arn
         },
         ], [
         # Voice channel (voice.tf): only when voice_enabled, so with voice
