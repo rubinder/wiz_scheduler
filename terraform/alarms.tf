@@ -36,6 +36,16 @@ resource "aws_sns_topic_subscription" "ops_alerts_email" {
   endpoint  = var.ops_alert_email
 }
 
+# A second inbox for the same alerts. The address is sensitive (it comes from
+# a GitHub secret and the plan is posted on public PRs), so only the yes/no is
+# unwrapped for count.
+resource "aws_sns_topic_subscription" "ops_alerts_extra_email" {
+  count     = nonsensitive(var.ops_alert_extra_email == "") ? 0 : 1
+  topic_arn = aws_sns_topic.ops_alerts.arn
+  protocol  = "email"
+  endpoint  = var.ops_alert_extra_email
+}
+
 # -----------------------------------------------------------------------------
 # (C) ALB 4XX surge
 #

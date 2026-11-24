@@ -168,6 +168,13 @@ variable "ops_alert_email" {
   default     = ""
 }
 
+variable "ops_alert_extra_email" {
+  description = "Optional second address subscribed to the ops SNS topic. Set from a GitHub secret (the repo is public), never committed. AWS sends a confirmation link on first apply."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "rls_enforce" {
   description = "Run authenticated requests as app_role under row-level security (#183)"
   type        = bool
