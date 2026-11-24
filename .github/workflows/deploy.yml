@@ -227,6 +227,8 @@ jobs:
           # CloudWatch alarm notifications (#49) and the billing operator
           # alert (backend/services/operator_alerts.py) both go here.
           TF_VAR_ops_alert_email: "admin@suggestival.com"
+          # Second alert inbox; a secret because the repo is public.
+          TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
@@ -321,6 +323,8 @@ jobs:
           # CloudWatch alarm notifications (#49) and the billing operator
           # alert (backend/services/operator_alerts.py) both go here.
           TF_VAR_ops_alert_email: "admin@suggestival.com"
+          # Second alert inbox; a secret because the repo is public.
+          TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 

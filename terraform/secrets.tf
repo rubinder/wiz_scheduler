@@ -159,3 +159,34 @@ resource "aws_secretsmanager_secret_version" "stripe_webhook_secret" {
     ignore_changes = [secret_string]
   }
 }
+
+# --- Public origin secret (reservations decision 28, Ruling O) ---------------
+# CloudFront adds it to every request it forwards to the ALB as
+# X-Origin-Verify (frontend.tf). Once the backend also gets it as
+# PUBLIC_ORIGIN_SECRET, the public reservation routes 404 without it, so only
+# CloudFront reaches them and per-viewer rate limits can trust the viewer
+# address. Phase 1 (this) only sends the header; phase 2 wires it into ECS,
+# so CloudFront is already sending it everywhere before anything enforces it.
+# Rotate: put-secret-value, apply (CloudFront picks the new value up), then
+# redeploy the service.
+resource "aws_secretsmanager_secret" "public_origin_secret" {
+  name                    = "${var.app_name}/${var.environment}/PUBLIC_ORIGIN_SECRET"
+  description             = "Header value CloudFront adds so the backend can tell CloudFront traffic from direct ALB traffic"
+  recovery_window_in_days = 7
+
+  tags = { Name = "${var.app_name}-public-origin-secret" }
+}
+
+data "aws_secretsmanager_random_password" "public_origin_secret" {
+  password_length     = 48
+  exclude_punctuation = true
+}
+
+resource "aws_secretsmanager_secret_version" "public_origin_secret" {
+  secret_id     = aws_secretsmanager_secret.public_origin_secret.id
+  secret_string = data.aws_secretsmanager_random_password.public_origin_secret.random_password
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}

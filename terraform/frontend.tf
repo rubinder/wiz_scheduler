@@ -180,6 +180,12 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_id   = "alb-api"
     domain_name = var.domain_name != "" ? "alb.${var.domain_name}" : aws_lb.main.dns_name
 
+    # Reservations decision 28: proves the request came through CloudFront.
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = aws_secretsmanager_secret_version.public_origin_secret.secret_string
+    }
+
     custom_origin_config {
       http_port              = 80
       https_port             = 443
