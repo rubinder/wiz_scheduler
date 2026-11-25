@@ -52,6 +52,9 @@ jobs:
               - 'terraform/**'
               # The voice bridge Lambda's code ships through terraform apply.
               - 'infra/voice/**'
+              # The TF_VAR_* values live in this file, so changing one must
+              # plan and apply even when terraform/ itself is untouched.
+              - '.github/workflows/deploy.yml'
             # Anything that changes the image or the task definition it runs
             # under. terraform/** is here because an env-var change only
             # reaches the service through a new deploy (#139).
