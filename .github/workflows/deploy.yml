@@ -52,6 +52,9 @@ jobs:
               - 'terraform/**'
               # The voice bridge Lambda's code ships through terraform apply.
               - 'infra/voice/**'
+              # The TF_VAR_* values live in this file, so changing one must
+              # plan and apply even when terraform/ itself is untouched.
+              - '.github/workflows/deploy.yml'
             # Anything that changes the image or the task definition it runs
             # under. terraform/** is here because an env-var change only
             # reaches the service through a new deploy (#139).
@@ -230,6 +233,10 @@ jobs:
           # Second alert inbox; a secret because the repo is public.
           TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
+          # Voice step 1 of 3 (terraform/README.md "Turning voice on"):
+          # instance, bot, Lambdas, secret, budget. No numbers are claimed
+          # until voice_provisioning_enabled.
+          TF_VAR_voice_enabled: "true"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -326,6 +333,10 @@ jobs:
           # Second alert inbox; a secret because the repo is public.
           TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
+          # Voice step 1 of 3 (terraform/README.md "Turning voice on"):
+          # instance, bot, Lambdas, secret, budget. No numbers are claimed
+          # until voice_provisioning_enabled.
+          TF_VAR_voice_enabled: "true"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
