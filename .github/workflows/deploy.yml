@@ -230,6 +230,10 @@ jobs:
           # Second alert inbox; a secret because the repo is public.
           TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
+          # Voice step 1 of 3 (terraform/README.md "Turning voice on"):
+          # instance, bot, Lambdas, secret, budget. No numbers are claimed
+          # until voice_provisioning_enabled.
+          TF_VAR_voice_enabled: "true"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -326,6 +330,10 @@ jobs:
           # Second alert inbox; a secret because the repo is public.
           TF_VAR_ops_alert_extra_email: ${{ secrets.OPS_ALERT_EXTRA_EMAIL }}
           TF_VAR_voice_bridge_zip: ${{ github.workspace }}/build/voice_bridge.zip
+          # Voice step 1 of 3 (terraform/README.md "Turning voice on"):
+          # instance, bot, Lambdas, secret, budget. No numbers are claimed
+          # until voice_provisioning_enabled.
+          TF_VAR_voice_enabled: "true"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
