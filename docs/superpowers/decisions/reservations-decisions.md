@@ -1083,3 +1083,17 @@ Setup steps are in `analytics/README.md` and the analytics lake section of
 - Run `analytics/apply_views.sh` as the `wizscheduler-analytics-reader` role
   (assumed with MFA), then query each view once in the
   `wizscheduler-analytics` workgroup.
+
+### Voice switched on (2026-11-26)
+
+The owner asked to switch voice on. Done in Terraform over PRs #299 to #304:
+instance, Lex bot (published by `voice/publish_lex_bot.sh`, alias `live`),
+bridge and screening Lambdas, contact flow (validated against live Connect;
+starts with `UpdateFlowLoggingBehavior` Disabled), then
+`voice_provisioning_enabled`. Fixes found on the way: CI needed
+`iam:PassRole` on the voice roles (applied by hand once: CI cannot edit its
+own policy), Lex slot prompt attempts and slot priorities, two contact-flow
+validation errors, and terraform jobs now run when `deploy.yml` changes.
+The quota is named "Concurrent active calls per instance" (L-12AB7C57, 10
+at switch-on), as `VOICE_QUOTA_NAME` expects.
+
