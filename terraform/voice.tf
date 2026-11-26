@@ -344,6 +344,19 @@ resource "aws_lexv2models_intent" "voice_host_turn" {
   fulfillment_code_hook {
     enabled = true
   }
+
+  # Lex owns these: slot priorities need the slot ids, which exist only after
+  # the slots (created after this intent), so voice/publish_lex_bot.sh sets
+  # them (the locale does not build without them); the other two are
+  # defaults Lex adds itself. Left managed here, every apply would strip them
+  # and the next build would fail.
+  lifecycle {
+    ignore_changes = [
+      slot_priority,
+      initial_response_setting,
+      fulfillment_code_hook[0].post_fulfillment_status_specification,
+    ]
+  }
 }
 
 resource "aws_lexv2models_slot" "voice" {

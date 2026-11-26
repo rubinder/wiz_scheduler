@@ -4,7 +4,9 @@
 # The aws provider 5.x cannot do these, so terraform/voice.tf leaves them here:
 #   1. turn on the dialog and fulfillment code hooks of the built-in
 #      FallbackIntent (Lex creates it with the locale; terraform cannot adopt it);
-#   2. build the en_US locale and wait for it;
+#   2. give the HostTurn slots a priority (Lex will not build the locale
+#      without one; terraform cannot set it, as the slots come after the
+#      intent), build the en_US locale and wait for it;
 #   3. publish a bot version from DRAFT;
 #   4. create (or point) the "live" alias at that version with the bridge
 #      Lambda as its en_US code hook;
@@ -17,7 +19,7 @@
 # Run after the first `terraform apply -var voice_enabled=true`, from
 # terraform/ with the same AWS credentials:
 #   ./voice/publish_lex_bot.sh
-# Needs only the aws CLI v2 (no jq).
+# Needs the aws CLI v2 and python3 (no jq).
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-wizscheduler}"
@@ -47,7 +49,28 @@ aws lexv2-models update-intent --bot-id "$bot_id" --bot-version DRAFT \
   --dialog-code-hook enabled=true \
   --fulfillment-code-hook enabled=true >/dev/null
 
-echo "2/5 build $LOCALE"
+echo "2/5 slot priorities, build $LOCALE"
+host_id=$(aws lexv2-models list-intents --bot-id "$bot_id" --bot-version DRAFT \
+  --locale-id "$LOCALE" \
+  --filters "name=IntentName,values=HostTurn,operator=EQ" \
+  --query 'intentSummaries[0].intentId' --output text)
+slot_ids=$(aws lexv2-models list-slots --bot-id "$bot_id" --bot-version DRAFT \
+  --locale-id "$LOCALE" --intent-id "$host_id" \
+  --query 'sort_by(slotSummaries, &slotName)[].slotId' --output text)
+# update-intent replaces the whole intent, so send back what describe-intent
+# returned (minus read-only fields) with slotPriorities added. python3 only
+# for the JSON edit (no jq on the owner's Mac).
+intent_json=$(aws lexv2-models describe-intent --bot-id "$bot_id" --bot-version DRAFT \
+  --locale-id "$LOCALE" --intent-id "$host_id" --output json)
+update_json=$(SLOT_IDS="$slot_ids" python3 -c '
+import json, os, sys
+d = json.load(sys.stdin)
+for k in ("creationDateTime", "lastUpdatedDateTime", "ResponseMetadata"):
+    d.pop(k, None)
+d["slotPriorities"] = [{"priority": i + 1, "slotId": s}
+                       for i, s in enumerate(os.environ["SLOT_IDS"].split())]
+print(json.dumps(d))' <<<"$intent_json")
+aws lexv2-models update-intent --cli-input-json "$update_json" >/dev/null
 aws lexv2-models build-bot-locale --bot-id "$bot_id" --bot-version DRAFT \
   --locale-id "$LOCALE" >/dev/null
 aws lexv2-models wait bot-locale-built --bot-id "$bot_id" --bot-version DRAFT \

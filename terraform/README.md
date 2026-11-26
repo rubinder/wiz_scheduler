@@ -363,16 +363,24 @@ locale is built. Those steps live in `voice/publish_lex_bot.sh`, between two
 applies:
 
 1. Add `TF_VAR_voice_enabled: "true"` to both terraform jobs in
-   `.github/workflows/deploy.yml` and merge. This creates the instance, bot,
+   `.github/workflows/deploy.yml` and merge. The `wizscheduler-cicd` user
+   needs `iam:PassRole` on the `wizscheduler-voice-*` roles (`cicd.tf`,
+   `PassVoiceRoles`); it cannot edit its own policy, so the first time an
+   admin applies that policy version by hand. This creates the instance, bot,
    Lambda, secret (seeded with a random value, so nothing to set by hand)
    and budget, and redeploys the service with `VOICE_BRIDGE_SECRET`.
 2. From `terraform/`, with admin credentials: `./voice/publish_lex_bot.sh`.
-   It enables the FallbackIntent code hooks, builds `en_US`, publishes a
+   It enables the FallbackIntent code hooks, sets the HostTurn slot
+   priorities (Lex will not build without them, and terraform cannot set
+   them: `voice.tf` ignores them on the intent), builds `en_US`, publishes a
    version, points alias `live` at it with the bridge Lambda as code hook,
    associates the alias with Connect, and prints the alias ARN. Re-run it
    after any change to the bot, intent or slots (Connect keeps using the
    old version until then).
-3. Add `TF_VAR_voice_lex_bot_alias_arn: "<that ARN>"` to both jobs and merge.
+3. Store that ARN as the `VOICE_LEX_BOT_ALIAS_ARN` GitHub secret (it carries
+   the account id; the repo is public). Both jobs pass it as
+   `TF_VAR_voice_lex_bot_alias_arn`; merge a change that triggers the
+   terraform jobs.
    This creates the contact flow (`voice/contact_flow.json.tftpl`) and sets
    `CONNECT_CONTACT_FLOW_ID` in the task.
 4. Open the flow once in the Connect console (Routing -> Flows) and check it
