@@ -237,6 +237,9 @@ jobs:
           # instance, bot, Lambdas, secret, budget. No numbers are claimed
           # until voice_provisioning_enabled.
           TF_VAR_voice_enabled: "true"
+          # Voice step 2 of 3: printed by terraform/voice/publish_lex_bot.sh, held as a secret;
+          # creates the contact flow and sets CONNECT_CONTACT_FLOW_ID.
+          TF_VAR_voice_lex_bot_alias_arn: ${{ secrets.VOICE_LEX_BOT_ALIAS_ARN }}
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -337,6 +340,9 @@ jobs:
           # instance, bot, Lambdas, secret, budget. No numbers are claimed
           # until voice_provisioning_enabled.
           TF_VAR_voice_enabled: "true"
+          # Voice step 2 of 3: printed by terraform/voice/publish_lex_bot.sh, held as a secret;
+          # creates the contact flow and sets CONNECT_CONTACT_FLOW_ID.
+          TF_VAR_voice_lex_bot_alias_arn: ${{ secrets.VOICE_LEX_BOT_ALIAS_ARN }}
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
