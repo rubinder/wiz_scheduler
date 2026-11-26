@@ -123,16 +123,19 @@ ${jsonencode({
     },
     {
       # Both the success and error branches land here: transfer only when
-      # the bridge's Close set transfer_to.
+      # the bridge's Close set transfer_to. Connect rejects an empty operand,
+      # so match the "+" every E.164 number starts with (the backend only
+      # hands over numbers voice_transfers.number_problem accepts); anything
+      # else, including no attribute, disconnects.
       Identifier = "check-transfer"
       Type       = "Compare"
       Parameters = { ComparisonValue = "$.Lex.SessionAttributes.transfer_to" }
       Transitions = {
-        NextAction = "transfer"
+        NextAction = "disconnect"
         Conditions = [
-          { NextAction = "disconnect", Condition = { Operator = "Equals", Operands = [""] } },
+          { NextAction = "transfer", Condition = { Operator = "TextStartsWith", Operands = ["+"] } },
         ]
-        Errors = [{ NextAction = "transfer", ErrorType = "NoMatchingCondition" }]
+        Errors = [{ NextAction = "disconnect", ErrorType = "NoMatchingCondition" }]
       }
     },
     {
@@ -145,9 +148,10 @@ ${jsonencode({
       }
       Transitions = {
         NextAction = "disconnect"
+        # With ContinueFlowExecution "False" the contact leaves this flow on
+        # transfer, so Connect allows only NoMatchingError here (CallFailed and
+        # ConnectionTimeLimitExceeded are rejected by validation).
         Errors = [
-          { NextAction = "disconnect", ErrorType = "CallFailed" },
-          { NextAction = "disconnect", ErrorType = "ConnectionTimeLimitExceeded" },
           { NextAction = "disconnect", ErrorType = "NoMatchingError" },
         ]
       }
