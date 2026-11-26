@@ -240,6 +240,9 @@ jobs:
           # Voice step 2 of 3: printed by terraform/voice/publish_lex_bot.sh, held as a secret;
           # creates the contact flow and sets CONNECT_CONTACT_FLOW_ID.
           TF_VAR_voice_lex_bot_alias_arn: ${{ secrets.VOICE_LEX_BOT_ALIAS_ARN }}
+          # Voice step 3 of 3: the app claims a number per location of each
+          # paying (not comped) AI host subscriber; each is billed daily.
+          TF_VAR_voice_provisioning_enabled: "true"
         run: terraform plan -no-color -input=false -lock-timeout=5m
 
       - name: Comment plan on PR
@@ -343,6 +346,9 @@ jobs:
           # Voice step 2 of 3: printed by terraform/voice/publish_lex_bot.sh, held as a secret;
           # creates the contact flow and sets CONNECT_CONTACT_FLOW_ID.
           TF_VAR_voice_lex_bot_alias_arn: ${{ secrets.VOICE_LEX_BOT_ALIAS_ARN }}
+          # Voice step 3 of 3: the app claims a number per location of each
+          # paying (not comped) AI host subscriber; each is billed daily.
+          TF_VAR_voice_provisioning_enabled: "true"
         run: terraform apply -auto-approve -input=false -no-color -lock-timeout=5m
 
   deploy-backend:
