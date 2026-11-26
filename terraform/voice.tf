@@ -373,6 +373,43 @@ resource "aws_lexv2models_slot" "voice" {
           }
         }
       }
+
+      # Lex fills these in with its defaults (one per attempt: Initial plus
+      # one per retry). Left out, the aws provider fails the apply with
+      # "inconsistent result after apply" (set length 0 -> 2), so they are
+      # spelled out here exactly as Lex returns them.
+      dynamic "prompt_attempts_specification" {
+        for_each = ["Initial", "Retry1"]
+        content {
+          map_block_key   = prompt_attempts_specification.value
+          allow_interrupt = true
+
+          allowed_input_types {
+            allow_audio_input = true
+            allow_dtmf_input  = true
+          }
+
+          audio_and_dtmf_input_specification {
+            start_timeout_ms = 4000
+
+            audio_specification {
+              end_timeout_ms = 640
+              max_length_ms  = 15000
+            }
+
+            dtmf_specification {
+              deletion_character = "*"
+              end_character      = "#"
+              end_timeout_ms     = 5000
+              max_length         = 513
+            }
+          }
+
+          text_input_specification {
+            start_timeout_ms = 30000
+          }
+        }
+      }
     }
   }
 }
