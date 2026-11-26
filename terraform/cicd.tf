@@ -217,6 +217,18 @@ data "aws_iam_policy_document" "cicd_iam" {
     ]
   }
 
+  # Voice (voice.tf): terraform-apply hands the bridge Lambda role to Lambda
+  # and the bot role to Lex. Here (customer-managed) rather than the inline
+  # PassRole statement above, which sits near the 2048-byte inline limit;
+  # a name pattern because the roles exist only when voice_enabled.
+  statement {
+    sid     = "PassVoiceRoles"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::*:role/${var.app_name}-voice-*",
+    ]
+  }
+
   # Read-only on the full IAM policy catalog so terraform can resolve managed
   # policy ARNs (PowerUserAccess, AmazonECSTaskExecutionRolePolicy, etc).
   statement {
