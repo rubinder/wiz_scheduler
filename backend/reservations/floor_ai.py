@@ -112,7 +112,9 @@ class ModelRejectedInput(Exception):
 # Everything else (429, 5xx, auth, timeouts, connection errors) is an outage.
 CONTENT_STATUSES = (413, 422)
 _CONTENT_400 = re.compile(
-    r"\b(image|images|pdf|document|file|files|media type|base64)\b", re.IGNORECASE)
+    r"\b(image|images|pdf|document|file|files|media type|base64)\b"
+    # A dense PDF can exceed the model's context: still the upload's fault.
+    r"|prompt is too long", re.IGNORECASE)
 _NOT_CONTENT_400 = re.compile(r"credit|billing|balance|api key|permission", re.IGNORECASE)
 UPLOAD_REJECTED_MESSAGE = (
     "The AI could not read one of these files. Try other photos or PDFs.")
@@ -488,7 +490,7 @@ async def count_input_tokens(files: list[DraftFile], notes: str) -> int:
         logger.warning("floor_ai.count_rejected: %s", exc.api_message)
         raise DraftInputInvalid("upload_rejected", 422, UPLOAD_REJECTED_MESSAGE) from exc
     except Exception as exc:
-        logger.warning("floor_ai.count_failed: %s", api_error_message(exc), exc_info=True)
+        logger.error("floor_ai.count_failed: %s", api_error_message(exc), exc_info=True)
         raise DraftEstimateUnavailable() from exc
 
 
@@ -777,8 +779,8 @@ async def run_draft(
                 logger.warning("floor_ai.rejected draft=%s: %s", draft_id, exc.api_message)
                 error = "upload_rejected"
             except Exception as exc:
-                logger.warning("floor_ai.model_error draft=%s: %s", draft_id,
-                               api_error_message(exc), exc_info=True)
+                logger.error("floor_ai.model_error draft=%s: %s", draft_id,
+                             api_error_message(exc), exc_info=True)
                 error = "model_error"
             floor, warnings, confidence = None, [], None
             if reply is not None:

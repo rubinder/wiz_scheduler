@@ -1076,6 +1076,7 @@ async def test_a_draft_call_the_api_refuses_fails_as_upload_rejected_uncharged(
     "image exceeds 5 MB maximum: 6291456 bytes > 5242880 bytes",
     "The PDF specified was not valid.",
     "Image does not match the provided media type image/jpeg",
+    "prompt is too long: 250000 tokens > 200000 maximum",
 ])
 @pytest.mark.asyncio
 async def test_a_400_about_the_files_is_rejected_input(message):
@@ -1106,7 +1107,7 @@ async def test_503_and_no_charge_when_a_400_is_ours(
     assert (await db_session.execute(select(FloorPlanDraft))).first() is None
     assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)
     assert any(message in rec.getMessage() for rec in caplog.records
-               if rec.levelname == "WARNING")
+               if rec.levelname == "ERROR")
 
 
 @pytest.mark.asyncio
