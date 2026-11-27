@@ -122,6 +122,13 @@ async def test_the_web_chat_greeting_opens_with_the_flows_first_question(
 FLOWS_URL = f"/api/v1/reservations/locations/{LOCATION_ID}/flows"
 
 
+async def _put_flows(client, json: dict, headers: dict):
+    """PUT /flows from a fresh copy: the flows_version the page just loaded."""
+    version = (await client.get(URL, headers=headers)).json()["flows_version"]
+    return await client.put(FLOWS_URL, json={"flows_version": version, **json},
+                            headers=headers)
+
+
 async def test_the_flows_route_keeps_rules_a_colleague_changed_meanwhile(
         client, manager_token, seed_location):
     h = _auth(manager_token)
@@ -129,7 +136,7 @@ async def test_the_flows_route_keeps_rules_a_colleague_changed_meanwhile(
     changed = {**opened, "closures": ["2030-01-01"],
                "persona": {**opened["persona"], "greeting": "Hi, automated host here"}}
     assert (await client.put(URL, json=changed, headers=h)).status_code == 200
-    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None}}, headers=h)
+    r = await _put_flows(client, json={"flows": {"web": _flow(), "voice": None}}, headers=h)
     assert r.status_code == 200, r.text
     assert r.json()["version"] == 2
     got = await _rules(client, manager_token)
@@ -141,21 +148,21 @@ async def test_the_flows_route_keeps_rules_a_colleague_changed_meanwhile(
 async def test_the_flows_route_checks_permissions_and_the_flow(
         client, manager_token, regular_token, seed_location):
     body = {"flows": {"web": _flow()}}
-    r = await client.put(FLOWS_URL, json=body, headers=_auth(regular_token))
+    r = await _put_flows(client, json=body, headers=_auth(regular_token))
     assert r.status_code == 403 and r.json()["detail"]["code"] == "flow_edit_not_allowed"
-    r = await client.put(FLOWS_URL, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
+    r = await _put_flows(client, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
                          headers=_auth(regular_token))
     assert r.status_code == 403 and r.json()["detail"]["code"] == "admin_only"
-    r = await client.put(FLOWS_URL, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
+    r = await _put_flows(client, json={**body, "flow_editor_ids": [REGULAR_MANAGER_ID]},
                          headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     # The admin omits the list on the next save: it is kept.
-    r = await client.put(FLOWS_URL, json={"flows": {"voice": _flow()}},
+    r = await _put_flows(client, json={"flows": {"voice": _flow()}},
                          headers=_auth(manager_token))
     assert r.json()["rules"]["flow_editor_ids"] == [REGULAR_MANAGER_ID]
-    r = await client.put(FLOWS_URL, json=body, headers=_auth(regular_token))
+    r = await _put_flows(client, json=body, headers=_auth(regular_token))
     assert r.status_code == 200, r.text
-    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(start="nope")}},
+    r = await _put_flows(client, json={"flows": {"web": _flow(start="nope")}},
                          headers=_auth(regular_token))
     assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_flow"
 
@@ -170,7 +177,7 @@ async def test_flow_editors_must_be_regular_managers_of_the_location(
     rules = await _rules(client, manager_token)
     for bad in (["nosuchid"], [MANAGER_USER_ID]):  # unknown; an admin
         body = ({**rules, "flow_editor_ids": bad} if url == URL
-                else {"flows": rules["flows"], "flow_editor_ids": bad})
+                else {"flows": rules["flows"], "flow_editor_ids": bad, "flows_version": 0})
         r = await client.put(url, json=body, headers=_auth(manager_token))
         assert r.status_code == 422, (url, bad)
         assert r.json()["detail"]["code"] == "invalid_flow_editor"
@@ -203,7 +210,7 @@ async def test_the_flows_route_drops_an_unassigned_editor_too(
 
     from backend.models import ManagerLocation
 
-    r = await client.put(FLOWS_URL, json={"flows": {"web": None, "voice": None},
+    r = await _put_flows(client, json={"flows": {"web": None, "voice": None},
                                           "flow_editor_ids": [REGULAR_MANAGER_ID]},
                          headers=_auth(manager_token))
     assert r.status_code == 200, r.text
@@ -211,7 +218,90 @@ async def test_the_flows_route_drops_an_unassigned_editor_too(
         ManagerLocation.manager_id == REGULAR_MANAGER_ID))
     await db_session.commit()
     assert (await _rules(client, manager_token))["flow_editor_ids"] == [REGULAR_MANAGER_ID]
-    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None}},
+    r = await _put_flows(client, json={"flows": {"web": _flow(), "voice": None}},
                          headers=_auth(manager_token))
     assert r.status_code == 200, r.text
     assert r.json()["rules"]["flow_editor_ids"] == []
+
+
+# ── stale saves (optimistic concurrency on the flows) ──
+
+async def _flows_version(client, token) -> int:
+    return (await client.get(URL, headers=_auth(token))).json()["flows_version"]
+
+
+async def test_a_save_from_a_stale_copy_of_the_flows_is_409(client, manager_token,
+                                                            seed_location):
+    h = _auth(manager_token)
+    loaded = await _flows_version(client, manager_token)  # both tabs open here
+    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None},
+                                          "flows_version": loaded}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["flows_version"] == loaded + 1
+    # The second tab still holds the copy it loaded.
+    r = await client.put(FLOWS_URL, json={"flows": {"web": None, "voice": _flow()},
+                                          "flows_version": loaded}, headers=h)
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "flow_conflict"
+    got = await _rules(client, manager_token)
+    assert got["flows"]["web"]["start"] == "greet" and got["flows"]["voice"] is None
+
+
+async def test_a_save_from_the_current_copy_saves_and_bumps_the_version(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    v = await _flows_version(client, manager_token)
+    for i in range(2):
+        r = await client.put(FLOWS_URL, json={"flows": {"web": _flow() if i else None,
+                                                        "voice": _flow()},
+                                              "flows_version": v}, headers=h)
+        assert r.status_code == 200, r.text
+        assert r.json()["flows_version"] == v + 1
+        v = r.json()["flows_version"]
+    assert await _flows_version(client, manager_token) == v
+
+
+async def test_a_colleagues_rules_edit_is_not_a_flow_conflict(client, manager_token,
+                                                              seed_location):
+    """Only a change to the flows (or their editors) makes a copy stale: the
+    flow page still saves over a colleague's hours or greeting edit."""
+    h = _auth(manager_token)
+    opened = await _rules(client, manager_token)
+    loaded = await _flows_version(client, manager_token)
+    assert (await client.put(URL, json={**opened, "closures": ["2030-01-01"]},
+                             headers=h)).status_code == 200
+    assert await _flows_version(client, manager_token) == loaded
+    r = await client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None},
+                                          "flows_version": loaded}, headers=h)
+    assert r.status_code == 200, r.text
+
+
+async def test_a_rules_save_that_changes_the_flows_bumps_their_version(
+        client, manager_token, seed_location):
+    h = _auth(manager_token)
+    rules = await _rules(client, manager_token)
+    loaded = await _flows_version(client, manager_token)
+    r = await client.put(URL, json={**rules, "flows": {"web": _flow()}}, headers=h)
+    assert r.status_code == 200 and r.json()["flows_version"] == loaded + 1
+    r = await client.put(FLOWS_URL, json={"flows": {"web": None, "voice": None},
+                                          "flows_version": loaded}, headers=h)
+    assert r.status_code == 409
+
+
+async def test_the_flows_version_is_required(client, manager_token, seed_location):
+    r = await client.put(FLOWS_URL, json={"flows": {"web": None, "voice": None}},
+                         headers=_auth(manager_token))
+    assert r.status_code == 422
+
+
+async def test_two_racing_saves_from_one_copy_save_once(isolated_client, manager_token,
+                                                        seed_location):
+    import asyncio
+
+    h = _auth(manager_token)
+    loaded = (await isolated_client.get(URL, headers=h)).json()["flows_version"]
+    a, b = await asyncio.gather(*(
+        isolated_client.put(FLOWS_URL, json={"flows": {"web": _flow(), "voice": None},
+                                             "flows_version": loaded}, headers=h)
+        for _ in range(2)))
+    assert sorted((a.status_code, b.status_code)) == [200, 409], (a.text, b.text)

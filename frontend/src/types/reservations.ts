@@ -181,6 +181,8 @@ export interface Flows {
 export interface FlowsIn {
   flows: Flows;
   flow_editor_ids?: string[];
+  /** The flows_version the page loaded; a stale one is 409 flow_conflict. */
+  flows_version: number;
 }
 
 /** One `invalid_flow` problem (the server's `problems`, or the editor's mirror). */
@@ -194,6 +196,8 @@ export interface FlowProblem {
 export interface RulesOut {
   rules: RulesSchema;
   version: number;
+  /** Bumped only when the flows or their editors change. */
+  flows_version: number;
 }
 
 export interface SlotOut {

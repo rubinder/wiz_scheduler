@@ -143,6 +143,12 @@ class ReservationRules(Base):
     version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=text("1")
     )
+    # Bumped only when the flows or their editors change: the flow page's
+    # stale-save check (decision 104), so a colleague's hours edit is not a
+    # flow conflict.
+    flows_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),

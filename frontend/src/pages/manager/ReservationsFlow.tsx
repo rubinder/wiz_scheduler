@@ -4,6 +4,7 @@ import { ApiError } from "../../api/client";
 import { listLocations } from "../../api/locations";
 import { listManagers } from "../../api/managers";
 import { getConfig, getRules, saveFlows } from "../../api/reservations";
+import FlowConflictNotice from "../../components/reservations/FlowConflictNotice";
 import FlowDiagram from "../../components/reservations/FlowDiagram";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -17,7 +18,7 @@ import type {
   FlowStepKind,
   RulesSchema,
 } from "../../types/reservations";
-import { flowProblems, flowReducer, stepLabel } from "../../utils/conversationFlow";
+import { flowProblems, flowReducer, isFlowConflict, stepLabel } from "../../utils/conversationFlow";
 import type { FlowAction } from "../../utils/conversationFlow";
 import { border, text } from "../../theme";
 
@@ -60,6 +61,11 @@ export default function ReservationsFlow() {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [remote, setRemote] = useState<FlowProblem[]>([]);
+  // The flows_version loaded: sent with every save. A stale one is refused
+  // (409 flow_conflict); the editor keeps the unsaved edits until Reload.
+  const [flowsVersion, setFlowsVersion] = useState(0);
+  const [conflict, setConflict] = useState(false);
+  const [reloads, setReloads] = useState(0);
   const currentLocation = useRef("");
 
   useEffect(() => {
@@ -95,10 +101,12 @@ export default function ReservationsFlow() {
     setSaveError("");
     setRemote([]);
     setLoadError("");
+    setConflict(false);
     getRules(locationId)
       .then((out) => {
         if (cancelled) return;
         setRules(out.rules);
+        setFlowsVersion(out.flows_version);
         dispatch({ type: "load", state: out.rules.flows ?? { web: null, voice: null } });
         setEditors(out.rules.flow_editor_ids ?? []);
       })
@@ -109,7 +117,7 @@ export default function ReservationsFlow() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId]);
+  }, [locationId, reloads]);
 
   const canEdit = isAdmin || (!!user && !!rules && (rules.flow_editor_ids ?? []).includes(user.id));
   const flow = flows[channel];
@@ -146,17 +154,23 @@ export default function ReservationsFlow() {
     setSaved(false);
     // Only the flows (and the editors, for an admin): the server keeps every
     // other rules field as stored, so a colleague's rules edit is never undone.
-    const body = { flows: { web: flows.web, voice: flows.voice }, ...(isAdmin ? { flow_editor_ids: editors } : {}) };
+    const body = {
+      flows: { web: flows.web, voice: flows.voice },
+      flows_version: flowsVersion,
+      ...(isAdmin ? { flow_editor_ids: editors } : {}),
+    };
     try {
       const out = await saveFlows(forLocation, body);
       if (currentLocation.current !== forLocation) return;
       setRules(out.rules);
+      setFlowsVersion(out.flows_version);
       setEditors(out.rules.flow_editor_ids ?? []);
       setSaved(true);
     } catch (e) {
       if (currentLocation.current !== forLocation) return;
       const found = serverProblems(e);
       if (found) setRemote(found);
+      else if (e instanceof ApiError && isFlowConflict(e.status, e.data)) setConflict(true);
       else if (e instanceof ApiError && e.status === 403) setSaveError(f.readOnly);
       else setSaveError(r.errors.generic);
     } finally {
@@ -519,7 +533,7 @@ export default function ReservationsFlow() {
             <button
               type="button"
               className="glass-btn-primary"
-              disabled={saving || !canEdit || local.length > 0}
+              disabled={saving || !canEdit || local.length > 0 || conflict}
               onClick={onSave}
             >
               {saving ? r.common.saving : r.common.save}
@@ -531,6 +545,9 @@ export default function ReservationsFlow() {
               </span>
             )}
           </div>
+          {conflict && (
+            <FlowConflictNotice message={f.conflict} reloadLabel={f.reload} onReload={() => setReloads((n) => n + 1)} />
+          )}
         </>
       )}
     </div>
