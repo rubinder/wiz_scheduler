@@ -1630,6 +1630,7 @@ const vi = {
           too_many_pages: "Các tệp PDF có quá nhiều trang: tổng cộng tối đa 50.",
           too_many_failed_drafts: "Hôm nay có quá nhiều bản nháp AI thất bại hoặc vẫn đang chạy. Hãy thử lại vào ngày mai.",
           estimate_unavailable: "Chưa thể ước tính chi phí bản nháp lúc này. Hãy thử lại sau ít phút.",
+          upload_rejected: "AI không đọc được một trong các tệp này. Bạn không bị tính phí. Hãy thử ảnh hoặc PDF khác.",
           timeout: "Bản nháp chạy quá lâu nên đã dừng. Bạn không bị tính phí. Hãy thử lại.",
           failed: "AI không thể tạo sơ đồ từ các tệp này. Bạn không bị tính phí. Hãy thử ảnh rõ hơn hoặc thêm ghi chú.",
           generic: "Đã xảy ra lỗi với bản nháp AI. Hãy thử lại.",
@@ -1963,6 +1964,8 @@ const vi = {
       noEditors: "Địa điểm này không có quản lý thường.",
       staleEditor: "{name} không còn là quản lý thường của địa điểm này. Bỏ chọn để xóa.",
       readOnly: "Chỉ quản trị viên, hoặc quản lý được quản trị viên cho phép, mới có thể sửa luồng của địa điểm này.",
+      conflict: "Người khác đã lưu luồng này. Hãy tải lại để xem thay đổi của họ.",
+      reload: "Tải lại",
       problemsTitle: "Hãy sửa những điều này trước khi lưu:",
       kinds: {
         ask: "Đặt câu hỏi",

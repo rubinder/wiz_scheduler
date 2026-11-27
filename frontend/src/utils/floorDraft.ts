@@ -60,6 +60,7 @@ export type DraftErrorKey =
   | "too_many_pages"
   | "too_many_failed_drafts"
   | "estimate_unavailable"
+  | "upload_rejected"
   | "timeout"
   | "failed"
   | "generic";
@@ -79,6 +80,8 @@ const SERVER_CODES: Record<string, DraftErrorKey> = {
   too_many_pages: "too_many_pages",
   too_many_failed_drafts: "too_many_failed_drafts",
   estimate_unavailable: "estimate_unavailable",
+  // The API refused a file: at the request (422) or as a failed draft.
+  upload_rejected: "upload_rejected",
   timeout: "timeout",
   // The call ran but gave no usable plan; none of these is charged.
   refused: "failed",

@@ -1630,6 +1630,7 @@ const trLang = {
           too_many_pages: "PDF'lerde çok fazla sayfa var: toplamda en fazla 50.",
           too_many_failed_drafts: "Bugün çok fazla YZ taslağı başarısız oldu veya hâlâ çalışıyor. Yarın tekrar deneyin.",
           estimate_unavailable: "Taslağın maliyeti şu anda tahmin edilemedi. Biraz sonra tekrar deneyin.",
+          upload_rejected: "Yapay zekâ bu dosyalardan birini okuyamadı. Sizden ücret alınmadı. Başka fotoğraflar veya PDF'ler deneyin.",
           timeout: "Taslak çok uzun sürdü ve durduruldu. Ücret alınmadı. Tekrar deneyin.",
           failed: "YZ bu dosyalardan bir salon planı oluşturamadı. Ücret alınmadı. Daha net fotoğraflar deneyin veya not ekleyin.",
           generic: "YZ taslağında bir sorun oluştu. Tekrar deneyin.",
@@ -1963,6 +1964,8 @@ const trLang = {
       noEditors: "Bu konumun normal yöneticisi yok.",
       staleEditor: "{name} artık bu konumun normal yöneticisi değil. Kaldırmak için işareti kaldırın.",
       readOnly: "Bu konumun akışlarını yalnızca bir admin ya da adminin izin verdiği bir yönetici düzenleyebilir.",
+      conflict: "Bu akışı başka biri kaydetti. Değişiklikleri görmek için yeniden yükleyin.",
+      reload: "Yeniden yükle",
       problemsTitle: "Kaydetmeden önce bunları düzeltin:",
       kinds: {
         ask: "Soru sor",

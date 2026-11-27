@@ -1630,6 +1630,7 @@ const pt = {
           too_many_pages: "Os PDFs têm páginas demais: no máximo 50 no total.",
           too_many_failed_drafts: "Muitos rascunhos de IA falharam ou ainda estão em andamento hoje. Tente novamente amanhã.",
           estimate_unavailable: "Não foi possível estimar o custo do rascunho agora. Tente novamente em instantes.",
+          upload_rejected: "A IA não conseguiu ler um destes arquivos. Você não foi cobrado. Tente outras fotos ou PDFs.",
           timeout: "O rascunho demorou demais e foi interrompido. Nada foi cobrado. Tente novamente.",
           failed: "A IA não conseguiu criar uma planta com esses arquivos. Nada foi cobrado. Tente fotos mais nítidas ou adicione observações.",
           generic: "Algo deu errado com o rascunho da IA. Tente novamente.",
@@ -1963,6 +1964,8 @@ const pt = {
       noEditors: "Este local não tem gerentes regulares.",
       staleEditor: "{name} já não é gerente regular deste local. Desmarque para remover.",
       readOnly: "Só um administrador, ou um gerente autorizado por um administrador, pode editar os fluxos deste local.",
+      conflict: "Outra pessoa salvou este fluxo. Recarregue para ver as alterações.",
+      reload: "Recarregar",
       problemsTitle: "Corrija isto antes de guardar:",
       kinds: {
         ask: "Fazer uma pergunta",

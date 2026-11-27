@@ -216,6 +216,8 @@ describe("draftErrorKey", () => {
     expect(draftErrorKey("too_many_pages")).toBe("too_many_pages");
     expect(draftErrorKey("too_many_failed_drafts")).toBe("too_many_failed_drafts");
     expect(draftErrorKey("estimate_unavailable")).toBe("estimate_unavailable");
+    // A file the API refused: at the request (422) and as a failed draft.
+    expect(draftErrorKey("upload_rejected")).toBe("upload_rejected");
     expect(draftErrorKey("length_required")).toBe("generic");
     expect(draftErrorKey("something_new")).toBe("generic");
     expect(draftErrorKey(null)).toBe("generic");

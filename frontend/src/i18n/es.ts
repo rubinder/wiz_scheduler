@@ -1630,6 +1630,7 @@ const es = {
           too_many_pages: "Los PDF tienen demasiadas páginas: máximo 50 en total.",
           too_many_failed_drafts: "Hoy fallaron o siguen en curso demasiados borradores de IA. Inténtalo mañana.",
           estimate_unavailable: "No se pudo estimar el costo del borrador en este momento. Inténtalo en un rato.",
+          upload_rejected: "La IA no pudo leer uno de estos archivos. No se te cobró nada. Prueba con otras fotos o PDF.",
           timeout: "El borrador tardó demasiado y se detuvo. No se te cobró nada. Inténtalo de nuevo.",
           failed: "La IA no pudo crear un plano con estos archivos. No se te cobró nada. Prueba con fotos más claras o añade notas.",
           generic: "Algo salió mal con el borrador de la IA. Inténtalo de nuevo.",
@@ -1963,6 +1964,8 @@ const es = {
       noEditors: "Esta ubicación no tiene gerentes regulares.",
       staleEditor: "{name} ya no es gerente regular de esta ubicación. Desmarca para quitarlo.",
       readOnly: "Solo un administrador, o un gerente autorizado por un administrador, puede editar los flujos de esta ubicación.",
+      conflict: "Otra persona guardó este flujo. Recarga para ver sus cambios.",
+      reload: "Recargar",
       problemsTitle: "Corrige esto antes de guardar:",
       kinds: {
         ask: "Hacer una pregunta",

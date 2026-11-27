@@ -1630,6 +1630,7 @@ const de = {
           too_many_pages: "Die PDFs haben zu viele Seiten: höchstens 50 insgesamt.",
           too_many_failed_drafts: "Heute sind zu viele KI-Entwürfe fehlgeschlagen oder laufen noch. Versuchen Sie es morgen erneut.",
           estimate_unavailable: "Die Kosten des Entwurfs konnten gerade nicht geschätzt werden. Versuchen Sie es gleich erneut.",
+          upload_rejected: "Die KI konnte eine dieser Dateien nicht lesen. Ihnen wurde nichts berechnet. Versuchen Sie andere Fotos oder PDFs.",
           timeout: "Der Entwurf hat zu lange gedauert und wurde abgebrochen. Es wurde nichts berechnet. Versuchen Sie es erneut.",
           failed: "Die KI konnte aus diesen Dateien keinen Raumplan erstellen. Es wurde nichts berechnet. Versuchen Sie deutlichere Fotos oder fügen Sie Hinweise hinzu.",
           generic: "Beim KI-Entwurf ist etwas schiefgelaufen. Versuchen Sie es erneut.",
@@ -1963,6 +1964,8 @@ const de = {
       noEditors: "Dieser Standort hat keine regulären Manager.",
       staleEditor: "{name} ist kein regulärer Manager dieses Standorts mehr. Zum Entfernen abwählen.",
       readOnly: "Nur ein Admin oder ein von einem Admin erlaubter Manager kann die Abläufe dieses Standorts bearbeiten.",
+      conflict: "Jemand anderes hat diesen Ablauf gespeichert. Laden Sie neu, um die Änderungen zu sehen.",
+      reload: "Neu laden",
       problemsTitle: "Vor dem Speichern beheben:",
       kinds: {
         ask: "Frage stellen",
