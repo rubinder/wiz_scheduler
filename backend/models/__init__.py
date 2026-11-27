@@ -66,6 +66,7 @@ from backend.reservations.screening_models import (
 )
 from backend.reservations.voice_capacity_models import (
     VoiceCapacityDaily,
+    VoiceCapacityNotice,
     VoiceCapacityRequest,
     VoiceCompanySettings,
     VoicePlatformDaily,
@@ -78,6 +79,7 @@ __all__ = [
     "VoiceCompanySettings",
     "VoicePlatformDaily",
     "VoiceQuotaRequest",
+    "VoiceCapacityNotice",
     "AgentDailyMetric",
     "MockExternalBooking",
     "MockExternalIdempotency",

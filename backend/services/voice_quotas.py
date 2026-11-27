@@ -32,6 +32,11 @@ _STATUSES: dict[str, RequestStatus] = {
 }
 
 
+class QuotaRequestAlreadyOpen(Exception):
+    """AWS already holds an open increase request for this quota (it takes
+    one at a time): the raise is still pending upstream."""
+
+
 @dataclass(frozen=True)
 class AppliedQuota:
     """The quota as it applies to our instance: its code (for requests), the
@@ -44,7 +49,10 @@ class AppliedQuota:
 class QuotaClient(Protocol):
     async def applied_quota(self) -> AppliedQuota | None: ...
 
-    async def request_increase(self, quota: AppliedQuota, desired: int) -> str: ...
+    async def request_increase(self, quota: AppliedQuota, desired: int) -> str:
+        """The new request's id. QuotaRequestAlreadyOpen when AWS already
+        holds an open request for the quota."""
+        ...
 
     async def request_status(self, quota: AppliedQuota, request_id: str) -> RequestStatus: ...
 
@@ -109,7 +117,13 @@ class AwsQuotaClient:
                               "DesiredValue": float(desired)}
         if quota.context_id:
             kw["ContextId"] = quota.context_id
-        out = await asyncio.to_thread(self._quotas().request_service_quota_increase, **kw)
+        try:
+            out = await asyncio.to_thread(self._quotas().request_service_quota_increase, **kw)
+        except Exception as exc:
+            code = (getattr(exc, "response", None) or {}).get("Error", {}).get("Code")
+            if code == "ResourceAlreadyExistsException":
+                raise QuotaRequestAlreadyOpen() from exc
+            raise
         return str((out.get("RequestedQuota") or {}).get("Id") or "")
 
     async def request_status(self, quota: AppliedQuota, request_id: str) -> RequestStatus:

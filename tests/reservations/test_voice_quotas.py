@@ -142,6 +142,35 @@ async def test_cloudwatch_without_data_is_none():
         date(2026, 11, 20)) is None
 
 
+class _RefusingQuotas(FakeQuotas):
+    def __init__(self, code: str):
+        super().__init__([[]])
+        self.code = code
+
+    def request_service_quota_increase(self, **kw):
+        from botocore.exceptions import ClientError
+
+        raise ClientError({"Error": {"Code": self.code, "Message": "x"}},
+                          "RequestServiceQuotaIncrease")
+
+
+async def test_an_already_open_request_is_named_not_raised_raw():
+    """AWS refuses a second open request for one quota: that is 'still
+    pending upstream', a domain error, not a boto3 one."""
+    client = AwsQuotaClient(_RefusingQuotas("ResourceAlreadyExistsException"),
+                            FakeCloudWatch([]))
+    with pytest.raises(voice_quotas.QuotaRequestAlreadyOpen):
+        await client.request_increase(AppliedQuota("L-XYZ", 10, None), 20)
+
+
+async def test_other_request_errors_still_raise():
+    from botocore.exceptions import ClientError
+
+    client = AwsQuotaClient(_RefusingQuotas("AccessDeniedException"), FakeCloudWatch([]))
+    with pytest.raises(ClientError):
+        await client.request_increase(AppliedQuota("L-XYZ", 10, None), 20)
+
+
 async def test_the_client_can_be_swapped():
     fake = object()
     voice_quotas.set_quota_client(fake)

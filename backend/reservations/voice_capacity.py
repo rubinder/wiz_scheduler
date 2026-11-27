@@ -26,6 +26,7 @@ is mailed instead). Peaks hold counts only, never a diner identifier.
 
 from __future__ import annotations
 
+import hashlib
 import html
 import logging
 import math
@@ -33,6 +34,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
@@ -43,13 +45,15 @@ from backend.reservations.agent.models import AgentConversation, AgentEvent
 from backend.reservations.subscription import ANSWERING_STATUSES
 from backend.reservations.subscription_models import COMPED, ReservationSubscription
 from backend.reservations.voice_capacity_models import (
-    OPEN_QUOTA_REQUEST_STATUSES, VoiceCapacityDaily, VoiceCapacityRequest,
+    OPEN_QUOTA_REQUEST_STATUSES, VoiceCapacityDaily, VoiceCapacityNotice, VoiceCapacityRequest,
     VoiceCompanySettings, VoicePlatformDaily, VoiceQuotaRequest,
 )
 from backend.reservations.voice_number_models import VoiceNumber
 from backend.services import connect_numbers
 from backend.services.archive import active
-from backend.services.voice_quotas import QuotaClient, get_quota_client
+from backend.services.voice_quotas import (
+    QuotaClient, QuotaRequestAlreadyOpen, get_quota_client,
+)
 from backend.tenant import tenant_scope_disabled
 
 logger = logging.getLogger(__name__)
@@ -93,21 +97,69 @@ def _send(to: list[str], subject: str, body_html: str) -> None:
         logger.exception("voice capacity email failed")
 
 
-# (UTC day, subject, body) already mailed by this process: the same alert
-# goes once a day, however many runs or checkouts repeat it.
-_sent_today: set[tuple[str, str, str]] = set()
+NOTICE_RETENTION_DAYS = 30
 
 
 def _mail_operator(subject: str, body_html: str) -> None:
+    """Undeduplicated; never raises. Alerts go through _mail_operator_once."""
     from backend.services.operator_alerts import _send_operator_email
 
-    key = (datetime.now(timezone.utc).date().isoformat(), subject, body_html)
-    if key in _sent_today:
-        return
-    if len(_sent_today) > 1000:
-        _sent_today.clear()
-    _sent_today.add(key)
     _send_operator_email(f"[WizScheduler] {subject}", body_html, "voice_capacity")
+
+
+def _notice_day(now: datetime) -> date:
+    return now.astimezone(timezone.utc).date()
+
+
+async def _claim_notice(db: AsyncSession, kind: str, subject_id: str,
+                        now: datetime) -> bool:
+    """True when this call is the first today (UTC) for (kind, subject_id),
+    in any process: INSERT ... ON CONFLICT DO NOTHING, committed before the
+    send, so a racing process blocks on the key and then inserts nothing.
+    Commits the session; callers have already committed their own work. A
+    database failure claims (an extra email beats a lost alert)."""
+    try:
+        with tenant_scope_disabled():
+            result = await db.execute(
+                pg_insert(VoiceCapacityNotice)
+                .values(kind=kind, subject_id=subject_id[:64], day=_notice_day(now))
+                .on_conflict_do_nothing(index_elements=["kind", "subject_id", "day"]))
+            await db.commit()
+        return result.rowcount == 1
+    except Exception:  # noqa: BLE001 - never raise from a notice
+        logger.exception("voice capacity: notice claim failed (%s)", kind)
+        try:
+            await db.rollback()
+        except Exception:  # noqa: BLE001
+            logger.exception("voice capacity: rollback failed")
+        return True
+
+
+async def _mail_operator_once(db: AsyncSession, kind: str, subject_id: str,
+                              subject: str, body_html: str, now: datetime) -> None:
+    """The operator email for (kind, subject_id), at most once a UTC day
+    across processes. Never raises; a failed send is not retried today."""
+    if not await _claim_notice(db, kind, subject_id, now):
+        return
+    try:
+        _mail_operator(subject, body_html)
+    except Exception:  # noqa: BLE001
+        logger.exception("voice capacity: operator email failed (%s)", kind)
+
+
+async def _mail_admins_once(db: AsyncSession, kind: str, subject_id: str, company_id: str,
+                            subject: str, body_html: str, now: datetime) -> None:
+    """_mail_admins, at most once a UTC day per (kind, subject_id). Never raises."""
+    if not await _claim_notice(db, kind, subject_id, now):
+        return
+    try:
+        await _mail_admins(db, company_id, subject, body_html)
+    except Exception:  # noqa: BLE001
+        logger.exception("voice capacity: admin email failed (%s)", kind)
+
+
+def _digest(*parts: str) -> str:
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
 
 
 async def _mail_admins(db: AsyncSession, company_id: str, subject: str,
@@ -361,11 +413,12 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
         target = await quota_target(db, now)
         quota = await client.applied_quota()
         if quota is None:
-            _mail_operator(
-                "Voice call quota not found",
+            await _mail_operator_once(
+                db, "quota_not_found", "platform", "Voice call quota not found",
                 f"<p>Service Quotas has no Amazon Connect quota named "
                 f"<b>{_e(settings.VOICE_QUOTA_NAME)}</b>. Request "
-                f"<b>{target}</b> concurrent calls by hand, and check VOICE_QUOTA_NAME.</p>")
+                f"<b>{target}</b> concurrent calls by hand, and check VOICE_QUOTA_NAME.</p>",
+                now)
             return {"error": "quota_not_found", "target": target}
         with tenant_scope_disabled():
             open_rows = (await db.execute(
@@ -374,6 +427,8 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 .order_by(VoiceQuotaRequest.created_at))).scalars().all()
             closed: list[VoiceQuotaRequest] = []
             denied: list[VoiceQuotaRequest] = []
+            stale: list[VoiceQuotaRequest] = []
+            stale_before = now - timedelta(days=settings.VOICE_QUOTA_REQUEST_STALE_DAYS)
             for row in open_rows:
                 if quota.value >= row.desired:
                     _move(row, "approved", now)
@@ -381,7 +436,12 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 if row.status == "pending" and row.aws_request_id:
                     status = await client.request_status(quota, row.aws_request_id)
                     if status == "pending":
-                        continue  # AWS is still reviewing it
+                        # AWS is still reviewing it; past the stale age it is
+                        # no longer polled, so it cannot block a raise forever.
+                        if _aware(row.created_at) < stale_before:
+                            _move(row, "stale", now)
+                            stale.append(row)
+                        continue
                     if status in ("approved", "denied"):
                         _move(row, status, now)
                         if status == "denied":
@@ -401,26 +461,41 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
             still_open = [r for r in open_rows if r.status in OPEN_QUOTA_REQUEST_STATUSES]
             await db.commit()
             for row in denied:
-                _mail_operator(
-                    "Voice call quota increase denied",
+                await _mail_operator_once(
+                    db, "quota_denied", row.id, "Voice call quota increase denied",
                     f"<p>AWS denied raising <b>{_e(settings.VOICE_QUOTA_NAME)}</b> to "
                     f"{row.desired} (now {quota.value}). It will not be filed again for "
                     f"{STALE_REQUEST_AGE.days} days. Open an AWS support case with this "
                     f"text:</p><blockquote>{_e(support_case_text(quota.value, row.desired))}"
-                    "</blockquote>")
+                    "</blockquote>", now)
+            for row in stale:
+                await _mail_operator_once(
+                    db, "quota_request_stale", row.id, "Voice call quota request stale",
+                    f"<p>AWS has kept the request to raise "
+                    f"<b>{_e(settings.VOICE_QUOTA_NAME)}</b> to <b>{row.desired}</b> pending "
+                    f"since {_aware(row.created_at).date().isoformat()} (AWS request id "
+                    f"<b>{_e(row.aws_request_id)}</b>; target now {target}, applied "
+                    f"{quota.value}). It is no longer polled. Check it in the Service Quotas "
+                    "console; the next run may file a new request if the target still "
+                    "needs one.</p>", now)
             if closed:
                 items = "".join(f"<li>{r.desired} ({_e(r.status)}, opened "
                                 f"{_aware(r.created_at).date().isoformat()})</li>"
                                 for r in closed)
-                _mail_operator(
+                await _mail_operator_once(
+                    db, "quota_closed", _digest(*sorted(r.id for r in closed)),
                     "Voice call quota requests closed",
                     f"<p>These quota requests could no longer complete and were closed "
-                    f"(target now {target}, applied {quota.value}):</p><ul>{items}</ul>")
+                    f"(target now {target}, applied {quota.value}):</p><ul>{items}</ul>", now)
             out: dict[str, Any] = {"applied": quota.value, "target": target}
             if quota.value >= target:
                 return {**out, "action": "none"}
             if still_open:
                 return {**out, "action": "pending"}
+            if stale:
+                # One step per run: the operator hears of it first, and the
+                # next run files afresh if the target still needs it.
+                return {**out, "action": "stale"}
             recent_denial = (await db.execute(
                 select(VoiceQuotaRequest.id)
                 .where(VoiceQuotaRequest.status == "denied",
@@ -433,23 +508,36 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 db.add(VoiceQuotaRequest(desired=target, status="manual", reason=why,
                                          created_at=now, updated_at=now))
                 await db.commit()
-                _mail_operator(
-                    "Voice call quota needs a support case",
+                await _mail_operator_once(
+                    db, "quota_manual", str(target), "Voice call quota needs a support case",
                     f"<p>The AI host needs <b>{target}</b> concurrent calls (now "
                     f"{quota.value}), above the {settings.VOICE_QUOTA_AUTO_REQUEST_MAX} "
                     "we file automatically. Open an AWS support case with this text:</p>"
-                    f"<blockquote>{_e(support_case_text(quota.value, target))}</blockquote>")
+                    f"<blockquote>{_e(support_case_text(quota.value, target))}</blockquote>",
+                    now)
                 return {**out, "action": "manual"}
-            request_id = await client.request_increase(quota, target)
+            try:
+                request_id = await client.request_increase(quota, target)
+            except QuotaRequestAlreadyOpen:
+                # AWS holds an open request we no longer poll (a stale one):
+                # still pending upstream. An id-less pending row holds it
+                # open, so this is not retried nightly; it is superseded or
+                # closed after STALE_REQUEST_AGE like any id-less row.
+                db.add(VoiceQuotaRequest(desired=target, status="pending",
+                                         reason=f"{why}; already open at AWS",
+                                         created_at=now, updated_at=now))
+                await db.commit()
+                return {**out, "action": "pending_upstream"}
             db.add(VoiceQuotaRequest(desired=target, status="pending",
                                      aws_request_id=request_id or None, reason=why,
                                      created_at=now, updated_at=now))
             await db.commit()
-        _mail_operator(
+        await _mail_operator_once(
+            db, "quota_requested", request_id or str(target),
             "Voice call quota increase requested",
             f"<p>Requested Amazon Connect <b>{_e(settings.VOICE_QUOTA_NAME)}</b> "
             f"from {quota.value} to <b>{target}</b> ({_e(why)}). Request id "
-            f"{_e(request_id)}. Nothing to do unless AWS asks for details.</p>")
+            f"{_e(request_id)}. Nothing to do unless AWS asks for details.</p>", now)
         return {**out, "action": "requested", "request_id": request_id}
     except Exception as e:  # noqa: BLE001 - never raise; the operator is told
         logger.exception("voice capacity: quota step failed")
@@ -458,11 +546,11 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
         except Exception:  # noqa: BLE001
             logger.exception("voice capacity: rollback failed")
         wanted = "the target (could not compute it)" if target is None else str(target)
-        _mail_operator(
-            "Voice call quota step failed",
+        await _mail_operator_once(
+            db, "quota_step_failed", str(target), "Voice call quota step failed",
             f"<p>The voice call quota step failed ({_e(type(e).__name__)}). Request "
             f"Amazon Connect <b>{_e(settings.VOICE_QUOTA_NAME)}</b> = <b>{wanted}</b> "
-            "in the Service Quotas console.</p>")
+            "in the Service Quotas console.</p>", now)
         return {"error": f"{type(e).__name__}: {str(e)[:200]}", "target": target}
 
 
@@ -498,12 +586,13 @@ async def down_shift(db: AsyncSession, now: datetime) -> list[dict]:
             row.allocation_changed_at = now
         await db.commit()
         for c in changed:
-            await _mail_admins(
-                db, c["company"], "Your AI host call capacity was adjusted",
+            await _mail_admins_once(
+                db, "admin_down_shift", c["company"], c["company"],
+                "Your AI host call capacity was adjusted",
                 f"<p>Your AI host phone line was reserved for {c['from']} simultaneous "
                 f"calls, and the busiest moment in the last {PEAK_WINDOW_DAYS} days used "
                 f"fewer than half. It now holds <b>{c['to']}</b>. If you expect a busier "
-                "period, request more capacity on the AI host billing page.</p>")
+                "period, request more capacity on the AI host billing page.</p>", now)
     return changed
 
 
@@ -538,6 +627,8 @@ async def run_daily(db: AsyncSession, now: datetime | None = None,
         with tenant_scope_disabled():
             await db.execute(delete(VoiceCapacityDaily).where(VoiceCapacityDaily.day < cutoff))
             await db.execute(delete(VoicePlatformDaily).where(VoicePlatformDaily.day < cutoff))
+            await db.execute(delete(VoiceCapacityNotice).where(
+                VoiceCapacityNotice.day < _notice_day(now) - timedelta(days=NOTICE_RETENTION_DAYS)))
             await db.commit()
     except Exception as e:  # noqa: BLE001 - retried tomorrow
         logger.exception("voice capacity: retention sweep failed")
@@ -597,6 +688,9 @@ async def request_capacity(db: AsyncSession, company_id: str, user_id: str | Non
     allocation = await allocation_for(db, company_id)
     await db.commit()
     peak = max((p for _, p, _ in recent), default=0)
+    # A plain send: this runs in a request (app_role cannot reach the
+    # platform notice table), and the one-pending-per-company insert above
+    # already makes it once per request.
     days = "".join(f"<li>{d.isoformat()}: {p} at once, {c} calls</li>" for d, p, c in recent[:14])
     _mail_operator(
         "AI host capacity request",
@@ -629,9 +723,10 @@ async def approve_request(db: AsyncSession, request_id: str, allocation: int | N
         req.status, req.granted_allocation, req.decided_at = "approved", grant, now
         await db.commit()
     quota = await ensure_quota(db, now, client, f"capacity request {request_id}")
-    await _mail_admins(
-        db, company_id, "Your AI host call capacity request was approved",
-        f"<p>Your AI host phone line can now take <b>{grant}</b> simultaneous calls.</p>")
+    await _mail_admins_once(
+        db, "admin_request_approved", request_id, company_id,
+        "Your AI host call capacity request was approved",
+        f"<p>Your AI host phone line can now take <b>{grant}</b> simultaneous calls.</p>", now)
     return {"request": request_id, "company": company_id, "allocation": grant,
             "quota": quota}
 
@@ -647,10 +742,11 @@ async def decline_request(db: AsyncSession, request_id: str,
         company_id = req.company_id
         await db.commit()
     allocation = await allocation_for(db, company_id)
-    await _mail_admins(
-        db, company_id, "Your AI host call capacity request",
+    await _mail_admins_once(
+        db, "admin_request_declined", request_id, company_id,
+        "Your AI host call capacity request",
         f"<p>We could not raise your AI host phone capacity this time; it stays at "
-        f"{allocation} simultaneous calls. Reply to this email to talk it through.</p>")
+        f"{allocation} simultaneous calls. Reply to this email to talk it through.</p>", now)
     return {"request": request_id, "company": company_id, "declined": True}
 
 

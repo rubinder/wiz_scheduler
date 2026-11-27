@@ -849,7 +849,7 @@ Decisions made while building without stopping to ask (owner instruction,
       nothing is filed again for 7 days after a denial (action
       `denied_recently`). Every failure mails the operator the exact number
       to request and never raises; the same operator mail goes at most once
-      a UTC day per process. A failed retention sweep or a crashed capacity
+      a UTC day (across processes since decision 104). A failed retention sweep or a crashed capacity
       run is reported in the daily "needs a look" mail, never a crash. All
       of it is a no-op while `VOICE_PROVISIONING_ENABLED` is off.
     - Peaks: per company and UTC day, the most voice conversations open at
@@ -913,6 +913,79 @@ Decisions made while building without stopping to ask (owner instruction,
     Cost if wrong: the quota lags a sudden spike for a day (the CloudWatch
     80% alarm and the next run catch it), or a company is refused calls at
     its allocation while the platform had room; the operator approves more.
+
+104. **Four AI host follow-ups: refused floor-draft files, stale flow saves,
+    capacity email dedupe, stale quota requests (agent, 2026-11-27).**
+    - Floor-plan AI (decision 101): an Anthropic 400, 413 or 422 on
+      `count_tokens` or the create call is the manager's to fix, not an
+      outage. `AnthropicFloorDraftModel` (the anti-corruption layer) turns
+      those statuses into `ModelRejectedInput`; at the request it is
+      **422 `upload_rejected`** with our own message ("could not read one
+      of these files ... try other photos or PDFs", never the API's text),
+      and in the background job the draft fails with error code
+      `upload_rejected`. Neither path writes a row before the refusal (the
+      count runs before `create_draft`, as the 503 path does), so nothing is
+      reserved or charged; a refused create call frees its reservation by
+      leaving the in-flight states, records **no** uncharged cost (the API
+      bills nothing for a refused request) and still counts toward the
+      failed-drafts-per-day cap. **429 stays 503** `estimate_unavailable`:
+      it is our account's rate limit, not the manager's request, and "try
+      again shortly" is the right advice. 401/403/404 (our key or model id)
+      and 5xx, timeouts and connection errors stay 503. The modal maps the
+      code in all 19 locales.
+    - Conversation flows (decision 102): the rules PUT had no version check
+      to reuse, and checking the rules `version` would make every colleague
+      hours or greeting edit a false flow conflict (the flow route was built
+      to keep those, decision 102). So `reservation_rules.flows_version`
+      (migration 0070, existing rows 0) is bumped by `save_rules` only when
+      `flows` or `flow_editor_ids` change, from either route. `PUT .../flows`
+      requires the `flows_version` the page loaded (a page from before this
+      change gets a 422 and must reload, which is the safe outcome) and
+      checks it under `pg_advisory_xact_lock('reservation-rules:' ||
+      location_id)`: a mismatch is **409 `flow_conflict`**, nothing written.
+      An advisory lock, not the location row, so bookings never wait on a
+      flow save. The rules PUT takes the same lock before it reads the
+      fields it keeps, so a flow save can no longer land between that read
+      and its write and be silently reverted. The page shows "Someone else
+      saved this flow. Reload to see their changes." with Reload, keeps the
+      unsaved edits until Reload, and disables Save meanwhile.
+    - Capacity emails (decision 103): the per-process `_sent_today` set is
+      gone. `voice_capacity_notices` (migration 0071), keyed (kind,
+      subject_id, UTC day), is claimed with `INSERT ... ON CONFLICT DO
+      NOTHING` and committed before the send, so a racing process blocks on
+      the key and then sends nothing. A new table rather than an existing
+      one: none had that key. Platform data, owner-only like
+      `voice_quota_requests` (a no-row app_role policy), pruned after 30
+      days in the daily step's retention sweep. Subjects are internal ids
+      (`platform`, a quota request id, the target, a company id, a digest
+      of closed request ids), never a diner identifier or phone number.
+      Admin mails (down-shift, approval, decline) go through it too. The
+      admin's capacity request mail does not: it runs in a request as
+      app_role, which cannot reach the table, and the one-pending-per-company
+      insert already makes it once per request. A failed send never raises
+      and is not retried that day (an alert repeats the next day if the
+      condition still holds); a failed claim sends anyway (an extra email
+      beats a lost alert).
+    - Stale quota requests: an AWS request still `pending` (PENDING,
+      CASE_OPENED) after `VOICE_QUOTA_REQUEST_STALE_DAYS` (14) is polled
+      one last time, then marked **`stale`** (a new status in the
+      `ck_voice_quota_requests_status` check, migration 0071; downgrade maps
+      it to `failed`) and no longer polled. The operator is mailed once
+      (kind `quota_request_stale`, the row id) with the AWS request id and
+      the target, and asked to check the Service Quotas console. That run
+      files nothing (action `stale`), so the operator hears first; the next
+      run files again if the target still needs it. AWS takes one open
+      request per quota: `ResourceAlreadyExistsException` becomes
+      `QuotaRequestAlreadyOpen` in `services/voice_quotas.py` and is
+      "still pending upstream" (action `pending_upstream`), not a failure:
+      an id-less `pending` row records it, so it is not retried nightly,
+      and it is superseded or closed after 7 days like any id-less row, so
+      at worst one request call and one closed-rows email a week.
+    Cost if wrong: a refused file that a retry would have read now asks the
+    manager for other files; a manager who loaded the flow page before a
+    colleague's flow save reloads and loses their unsaved edits; a capacity
+    email lost to a failed send waits a day; an operator gets a stale-request
+    email for a request AWS was about to decide.
 
 ## Before switching reservations on (owner checklist)
 
