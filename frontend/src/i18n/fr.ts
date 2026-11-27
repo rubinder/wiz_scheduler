@@ -1630,6 +1630,7 @@ const fr = {
           too_many_pages: "Les PDF comptent trop de pages : 50 au maximum au total.",
           too_many_failed_drafts: "Trop de brouillons IA ont échoué ou sont encore en cours aujourd’hui. Réessayez demain.",
           estimate_unavailable: "Le coût du brouillon n’a pas pu être estimé pour le moment. Réessayez dans un instant.",
+          upload_rejected: "L’IA n’a pas pu lire l’un de ces fichiers. Rien ne vous a été facturé. Essayez d’autres photos ou PDF.",
           timeout: "Le brouillon a pris trop de temps et a été arrêté. Rien n’a été facturé. Réessayez.",
           failed: "L’IA n’a pas pu créer de plan à partir de ces fichiers. Rien n’a été facturé. Essayez des photos plus nettes ou ajoutez des notes.",
           generic: "Un problème est survenu avec le brouillon IA. Réessayez.",
@@ -1963,6 +1964,8 @@ const fr = {
       noEditors: "Cet établissement n'a pas de responsable standard.",
       staleEditor: "{name} n'est plus responsable standard de cet établissement. Décochez pour le retirer.",
       readOnly: "Seul un administrateur, ou un responsable autorisé par un administrateur, peut modifier les déroulés de cet établissement.",
+      conflict: "Quelqu’un d’autre a enregistré ce parcours. Rechargez pour voir ses modifications.",
+      reload: "Recharger",
       problemsTitle: "Corrigez ceci avant d'enregistrer :",
       kinds: {
         ask: "Poser une question",

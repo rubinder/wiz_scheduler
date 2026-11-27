@@ -1630,6 +1630,7 @@ const pcm = {
           too_many_pages: "Di PDFs get too many pages: e no suppose pass 50 for all of dem.",
           too_many_failed_drafts: "Too many AI drafts don fail or still dey run today. Try again tomorrow.",
           estimate_unavailable: "We no fit estimate how much di draft go cost now. Try again small time.",
+          upload_rejected: "Di AI no fit read one of dis files. We no charge you. Try oda photos or PDFs.",
           timeout: "Di draft take too long so we stop am. We no collect money. Try again.",
           failed: "Di AI no fit make floor plan from dis files. We no collect money. Try clearer photo or add notes.",
           generic: "Something spoil for di AI draft. Try again.",
@@ -1963,6 +1964,8 @@ const pcm = {
       noEditors: "Dis place no get regular manager.",
       staleEditor: "{name} no be regular manager for dis place again. Comot di tick to remove am.",
       readOnly: "Na only admin, or manager wey admin allow, fit edit dis place flows.",
+      conflict: "Another person don save dis flow. Reload make you see wetin dem change.",
+      reload: "Reload am",
       problemsTitle: "Fix dis ones before you save:",
       kinds: {
         ask: "Ask question",

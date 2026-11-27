@@ -35,7 +35,8 @@ from backend.reservations.queries import (
     list_pending_approvals, table_labels,
 )
 from backend.reservations.rules import (
-    DISCLOSURE_MESSAGE, RulesSchema, get_rules, missing_disclosure, save_rules, stored_fields,
+    DISCLOSURE_MESSAGE, FlowsConflict, RulesSchema, check_flows_version, flows_version,
+    get_rules, lock_rules, missing_disclosure, save_rules, stored_fields,
 )
 from backend.schemas.reservations import (
     BookingIn, ConversationDetailOut, FlowsIn, ConversationOut, DinerDataOut,
@@ -267,7 +268,8 @@ async def read_rules(
     await _location(db, scope, user, location_id)
     rules, version = await get_rules(db, str(user.company_id), location_id)
     rules = await subscription.rules_as_shown(db, str(user.company_id), rules)
-    return RulesOut(rules=rules, version=version)
+    return RulesOut(rules=rules, version=version,
+                    flows_version=await flows_version(db, str(user.company_id), location_id))
 
 
 # Rules fields only an admin may change (403 admin_only for a regular
@@ -323,6 +325,9 @@ async def write_rules(
     # client that predates them must not reset them) and the admin-only
     # booking provider fields (a regular manager's editor does not send them).
     # The conversation flows likewise: the rules editor does not send them.
+    # Under the rules lock, so a flow save cannot land between this read and
+    # the write below and be reverted by it.
+    await lock_rules(db, location_id)
     stored = await stored_fields(db, str(user.company_id), location_id,
                                  ("voice", "flows") + ADMIN_ONLY_RULES)
     kept = {k: v for k, v in stored.items() if k not in body.model_fields_set}
@@ -352,8 +357,9 @@ async def write_rules(
         raise HTTPException(status_code=422, detail={
             "code": "comped_cap_limit", "message": str(e), "ceiling_usd": e.ceiling})
     version = await save_rules(db, str(user.company_id), location_id, body)
+    flows_now = await flows_version(db, str(user.company_id), location_id)
     await db.commit()
-    return RulesOut(rules=body, version=version)
+    return RulesOut(rules=body, version=version, flows_version=flows_now)
 
 
 @gated.put("/locations/{location_id}/flows", response_model=RulesOut)
@@ -365,8 +371,18 @@ async def write_flows(
     scope: LocationScope = Depends(get_location_scope),
 ) -> RulesOut:
     """Only the flows and flow editors: every other stored rules field is
-    kept, so the flow page never reverts a colleague's rules edit."""
+    kept, so the flow page never reverts a colleague's rules edit. A save
+    from a copy whose flows changed since it was loaded is 409 flow_conflict
+    (decision 104)."""
     await _location(db, scope, user, location_id)
+    await lock_rules(db, location_id)
+    try:
+        await check_flows_version(db, str(user.company_id), location_id, body.flows_version)
+    except FlowsConflict:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "code": "flow_conflict",
+            "message": "Someone else saved this flow. Reload to see their changes."})
     rules, _ = await get_rules(db, str(user.company_id), location_id)
     editors = rules.flow_editor_ids if body.flow_editor_ids is None else body.flow_editor_ids
     if editors != rules.flow_editor_ids and not is_admin_manager(user):
@@ -376,9 +392,10 @@ async def write_flows(
                                         rules.flow_editor_ids, body.flows, editors)
     rules = rules.model_copy(update={"flows": body.flows, "flow_editor_ids": editors})
     version = await save_rules(db, str(user.company_id), location_id, rules)
+    flows_now = await flows_version(db, str(user.company_id), location_id)
     await db.commit()
     rules = await subscription.rules_as_shown(db, str(user.company_id), rules)
-    return RulesOut(rules=rules, version=version)
+    return RulesOut(rules=rules, version=version, flows_version=flows_now)
 
 
 @gated.get("/locations/{location_id}/slots", response_model=list[SlotOut])

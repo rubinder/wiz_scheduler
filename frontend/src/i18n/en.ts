@@ -1638,6 +1638,7 @@ const en = {
           too_many_pages: "The PDFs have too many pages: at most 50 in total.",
           too_many_failed_drafts: "Too many AI drafts failed or are still running today. Try again tomorrow.",
           estimate_unavailable: "The draft's cost could not be estimated just now. Try again shortly.",
+          upload_rejected: "The AI could not read one of these files. You were not charged. Try other photos or PDFs.",
           timeout: "The draft took too long and was stopped. You were not charged. Try again.",
           failed: "The AI could not draft a floor plan from these files. You were not charged. Try clearer photos or add notes.",
           generic: "Something went wrong with the AI draft. Try again.",
@@ -1971,6 +1972,8 @@ const en = {
       noEditors: "This location has no regular managers.",
       staleEditor: "{name} is no longer a regular manager of this location. Uncheck to remove.",
       readOnly: "Only an admin, or a manager an admin allowed, can edit this location's flows.",
+      conflict: "Someone else saved this flow. Reload to see their changes.",
+      reload: "Reload",
       problemsTitle: "Fix these before saving:",
       kinds: {
         ask: "Ask a question",

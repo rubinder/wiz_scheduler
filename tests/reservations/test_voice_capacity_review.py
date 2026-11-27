@@ -263,16 +263,18 @@ async def test_webhook_mode_skips_the_quota_step(db_session, seed_location, monk
         connect_numbers.reset_client()
 
 
-async def test_the_same_operator_mail_goes_once_a_day(monkeypatch):
+async def test_the_same_operator_mail_goes_once_a_day(db_session, monkeypatch):
+    """Keyed in Postgres since decision 104 (test_voice_capacity_notices has
+    the cross-process race); the subject line is the operator's prefix."""
     import backend.services.operator_alerts as alerts
 
     sent = []
     monkeypatch.setattr(alerts, "_send_operator_email",
                         lambda subject, body, label: sent.append(subject) or True)
-    voice_capacity._sent_today.clear()
-    voice_capacity._mail_operator("Same", "<p>x</p>")
-    voice_capacity._mail_operator("Same", "<p>x</p>")
-    voice_capacity._mail_operator("Other", "<p>x</p>")
+    once = voice_capacity._mail_operator_once
+    await once(db_session, "quota_manual", "300", "Same", "<p>x</p>", NOW)
+    await once(db_session, "quota_manual", "300", "Same", "<p>x</p>", NOW)
+    await once(db_session, "quota_not_found", "platform", "Other", "<p>x</p>", NOW)
     assert sent == ["[WizScheduler] Same", "[WizScheduler] Other"]
 
 

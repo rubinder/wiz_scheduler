@@ -95,6 +95,31 @@ class DraftEstimateUnavailable(Exception):
     """The request could not be counted, so its cost is unknown (503)."""
 
 
+class ModelRejectedInput(Exception):
+    """The API refused the files themselves: an image or PDF it cannot read,
+    or one too large. The manager's to fix with other files, not an outage;
+    the API bills nothing for it. `api_message` is the API's own text, for
+    the log only."""
+
+    def __init__(self, api_message: str = "") -> None:
+        super().__init__(api_message)
+        self.api_message = api_message
+
+
+# 413 and 422 are always about the request's content. A 400
+# (invalid_request_error) is too only when its message names the files: a
+# low credit balance or a bad parameter is also a 400, and is our outage.
+# Everything else (429, 5xx, auth, timeouts, connection errors) is an outage.
+CONTENT_STATUSES = (413, 422)
+_CONTENT_400 = re.compile(
+    r"\b(image|images|pdf|document|file|files|media type|base64)\b"
+    # A dense PDF can exceed the model's context: still the upload's fault.
+    r"|prompt is too long", re.IGNORECASE)
+_NOT_CONTENT_400 = re.compile(r"credit|billing|balance|api key|permission", re.IGNORECASE)
+UPLOAD_REJECTED_MESSAGE = (
+    "The AI could not read one of these files. Try other photos or PDFs.")
+
+
 class DraftBlocked(Exception):
     """The billing gate said no (402). `extra` goes into the response detail."""
 
@@ -350,9 +375,35 @@ def _usage(usage: Any) -> dict[str, int]:
     }
 
 
+def api_error_message(exc: BaseException) -> str:
+    """The API's own error message (from the parsed body, else the SDK's
+    text), for logs; never file content."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and isinstance(err.get("message"), str):
+            return err["message"][:500]
+    return str(getattr(exc, "message", None) or exc)[:500]
+
+
+def _rejected(exc: Exception) -> bool:
+    """The API refused the files, not our account or our parameters."""
+    import anthropic
+
+    if not isinstance(exc, anthropic.APIStatusError):
+        return False
+    if exc.status_code in CONTENT_STATUSES:
+        return True
+    if exc.status_code != 400:
+        return False
+    message = api_error_message(exc)
+    return bool(_CONTENT_400.search(message)) and not _NOT_CONTENT_400.search(message)
+
+
 class AnthropicFloorDraftModel:
-    """Messages API client for drafts. SDK errors propagate; `run_draft`
-    turns them into a failed, uncharged draft."""
+    """Messages API client for drafts. Refused files (`_rejected`) raise
+    ModelRejectedInput; other SDK errors propagate. `run_draft` turns
+    either into a failed, uncharged draft."""
 
     def __init__(self) -> None:
         self._client: Any = None
@@ -377,20 +428,30 @@ class AnthropicFloorDraftModel:
 
     async def count_tokens(self, *, system: str, content: list[dict[str, Any]]) -> int:
         """Input tokens of exactly the request `draft` sends (free)."""
-        counted = await self._sdk().messages.count_tokens(
-            **self._request(system, content), timeout=60.0)
+        try:
+            counted = await self._sdk().messages.count_tokens(
+                **self._request(system, content), timeout=60.0)
+        except Exception as exc:
+            if _rejected(exc):
+                raise ModelRejectedInput(api_error_message(exc)) from exc
+            raise
         return int(counted.input_tokens)
 
     async def draft(self, *, system: str, content: list[dict[str, Any]]) -> ModelReply:
         # No server-side refusal fallback: a fallback model bills at its own
         # prices, which the at-cost charge would misstate. A refusal fails
         # the draft uncharged instead.
-        async with self._sdk().messages.stream(
-            **self._request(system, content),
-            max_tokens=settings.FLOOR_PLAN_AI_MAX_TOKENS,
-            timeout=MODEL_DEADLINE_S,
-        ) as stream:
-            message = await stream.get_final_message()
+        try:
+            async with self._sdk().messages.stream(
+                **self._request(system, content),
+                max_tokens=settings.FLOOR_PLAN_AI_MAX_TOKENS,
+                timeout=MODEL_DEADLINE_S,
+            ) as stream:
+                message = await stream.get_final_message()
+        except Exception as exc:
+            if _rejected(exc):
+                raise ModelRejectedInput(api_error_message(exc)) from exc
+            raise
         text = "".join(b.text for b in message.content if getattr(b, "type", "") == "text")
         return ModelReply(stop_reason=str(message.stop_reason), text=text,
                           usage=_usage(message.usage))
@@ -420,12 +481,16 @@ def worst_case_usd(input_tokens: int) -> float:
 
 async def count_input_tokens(files: list[DraftFile], notes: str) -> int:
     """Input tokens of the exact request. Raises DraftEstimateUnavailable:
-    without a count the cost is unknown, and the gate fails closed."""
+    without a count the cost is unknown, and the gate fails closed. A request
+    the API refuses is DraftInputInvalid("upload_rejected", 422) instead."""
     try:
         return await draft_model().count_tokens(system=SYSTEM_PROMPT,
                                                 content=build_content(files, notes))
+    except ModelRejectedInput as exc:
+        logger.warning("floor_ai.count_rejected: %s", exc.api_message)
+        raise DraftInputInvalid("upload_rejected", 422, UPLOAD_REJECTED_MESSAGE) from exc
     except Exception as exc:
-        logger.exception("floor_ai.count_failed")
+        logger.error("floor_ai.count_failed: %s", api_error_message(exc), exc_info=True)
         raise DraftEstimateUnavailable() from exc
 
 
@@ -710,8 +775,12 @@ async def run_draft(
             except asyncio.TimeoutError:
                 logger.warning("floor_ai.deadline draft=%s", draft_id)
                 error = "timeout"
-            except Exception:
-                logger.exception("floor_ai.model_error draft=%s", draft_id)
+            except ModelRejectedInput as exc:
+                logger.warning("floor_ai.rejected draft=%s: %s", draft_id, exc.api_message)
+                error = "upload_rejected"
+            except Exception as exc:
+                logger.error("floor_ai.model_error draft=%s: %s", draft_id,
+                             api_error_message(exc), exc_info=True)
                 error = "model_error"
             floor, warnings, confidence = None, [], None
             if reply is not None:
@@ -739,7 +808,11 @@ async def run_draft(
                 row.status, row.error_code = FAILED, error or "unreadable"
                 # Not charged, but the call cost us: the daily cap counts it.
                 # A call that raised or ran out of time reports no usage, so
-                # the counted input stands in for it.
+                # the counted input stands in for it. A refused request cost
+                # nothing, so there is nothing to count.
+                if error == "upload_rejected":
+                    await db.commit()
+                    return
                 if reply is not None:
                     cost, used_in = draft_cost_usd(reply.usage), reply.usage.get("input_tokens", 0)
                     used_out = reply.usage.get("output_tokens", 0)

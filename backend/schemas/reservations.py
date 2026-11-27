@@ -19,13 +19,18 @@ from backend.reservations.screening import spam_markable
 class RulesOut(BaseModel):
     rules: RulesSchema
     version: int
+    # The flows' own version: what PUT .../flows sends back (decision 104).
+    flows_version: int
 
 
 class FlowsIn(BaseModel):
     """PUT .../flows: only the flows, and for an admin the flow editors
-    (omitted: kept). Every other rules field stays as stored."""
+    (omitted: kept). Every other rules field stays as stored.
+    `flows_version` is the one the page loaded: a mismatch is 409
+    flow_conflict, never a silent overwrite of a colleague's flow."""
     flows: Flows
     flow_editor_ids: list[str] | None = None
+    flows_version: int = Field(ge=0)
 
 
 class SlotOut(BaseModel):

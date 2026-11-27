@@ -335,6 +335,10 @@ class Settings(BaseSettings):
     VOICE_DEFAULT_COMPANY_ALLOCATION: int = 10
     VOICE_QUOTA_NAME: str = "Concurrent active calls per instance"
     VOICE_CALL_IDLE_SECONDS: int = 180
+    # An AWS quota request still pending after this many days is marked
+    # stale and the operator mailed once; the next run may file again
+    # (decision 104).
+    VOICE_QUOTA_REQUEST_STALE_DAYS: int = 14
     RETENTION_VOICE_CAPACITY_DAYS: int = 400
     # Call screening (#259 step 7): a caller is blocked as spam once the FTC
     # complaint list has at least SPAM_MIN_REPORTS reports of the number over

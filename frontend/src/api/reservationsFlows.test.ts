@@ -21,12 +21,12 @@ describe("saveFlows", () => {
 
   it("puts only the flows and editors to the location's flows route", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ rules: {}, version: 3 }), {
+      new Response(JSON.stringify({ rules: {}, version: 3, flows_version: 2 }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
-    const body = { flows: { web: null, voice: null }, flow_editor_ids: ["abcd1234"] };
+    const body = { flows: { web: null, voice: null }, flow_editor_ids: ["abcd1234"], flows_version: 2 };
     await saveFlows("loc12345", body);
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toMatch(/\/reservations\/locations\/loc12345\/flows$/);

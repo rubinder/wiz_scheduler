@@ -1630,6 +1630,7 @@ const zh = {
           too_many_pages: "PDF 页数过多：总计最多 50 页。",
           too_many_failed_drafts: "今天失败或仍在运行的 AI 草稿过多。请明天再试。",
           estimate_unavailable: "暂时无法估算草稿费用。请稍后再试。",
+          upload_rejected: "AI 无法读取其中一个文件。未向您收费。请尝试其他照片或 PDF。",
           timeout: "草稿耗时过长，已停止。未向您收费。请重试。",
           failed: "AI 无法根据这些文件生成平面图。未向您收费。请尝试更清晰的照片或添加备注。",
           generic: "AI 草稿出现问题，请重试。",
@@ -1963,6 +1964,8 @@ const zh = {
       noEditors: "本门店没有普通经理。",
       staleEditor: "{name} 已不再是本门店的普通经理。取消勾选即可移除。",
       readOnly: "只有管理员或经管理员允许的经理才能编辑本门店的流程。",
+      conflict: "其他人已保存此流程。请重新加载以查看其更改。",
+      reload: "重新加载",
       problemsTitle: "保存前请修正以下问题：",
       kinds: {
         ask: "提问",

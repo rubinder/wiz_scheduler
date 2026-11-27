@@ -1630,6 +1630,7 @@ const ind = {
           too_many_pages: "PDF memiliki terlalu banyak halaman: paling banyak 50 secara total.",
           too_many_failed_drafts: "Terlalu banyak draf AI yang gagal atau masih berjalan hari ini. Coba lagi besok.",
           estimate_unavailable: "Biaya draf belum dapat diperkirakan saat ini. Coba lagi sebentar lagi.",
+          upload_rejected: "AI tidak dapat membaca salah satu file ini. Anda tidak dikenai biaya. Coba foto atau PDF lain.",
           timeout: "Draf terlalu lama dan dihentikan. Anda tidak ditagih. Coba lagi.",
           failed: "AI tidak dapat membuat denah dari file ini. Anda tidak ditagih. Coba foto yang lebih jelas atau tambahkan catatan.",
           generic: "Terjadi kesalahan pada draf AI. Coba lagi.",
@@ -1963,6 +1964,8 @@ const ind = {
       noEditors: "Lokasi ini tidak punya manajer reguler.",
       staleEditor: "{name} bukan lagi manajer reguler di lokasi ini. Hapus centang untuk menghapus.",
       readOnly: "Hanya admin, atau manajer yang diizinkan admin, yang dapat mengedit alur lokasi ini.",
+      conflict: "Orang lain sudah menyimpan alur ini. Muat ulang untuk melihat perubahannya.",
+      reload: "Muat ulang",
       problemsTitle: "Perbaiki ini sebelum menyimpan:",
       kinds: {
         ask: "Ajukan pertanyaan",

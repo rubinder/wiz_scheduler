@@ -21,6 +21,13 @@ const STEP_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const CONTROL = /(?![\u200c-\u200f])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const TERMINAL: ReadonlySet<FlowStepKind> = new Set(["book", "handoff", "end", "change_or_cancel"]);
 
+/** A save the server refused because the flows changed since they were loaded (409 flow_conflict). */
+export function isFlowConflict(status: number, data: unknown): boolean {
+  return (
+    status === 409 && typeof data === "object" && data !== null && (data as { code?: unknown }).code === "flow_conflict"
+  );
+}
+
 /**
  * Decision 100's default flow as an editable custom flow. The texts are what
  * the host says, so they are English like the host (it replies in English only).

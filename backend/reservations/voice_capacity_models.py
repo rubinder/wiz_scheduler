@@ -25,9 +25,13 @@ from backend.utils.id_gen import generate_short_id
 # VOICE_QUOTA_AUTO_REQUEST_MAX, the operator was mailed a support-case text;
 # approved / denied: the outcome; failed: the request call itself failed, AWS
 # no longer knows it, or it stayed open past 7 days; superseded: a manual or
-# id-less row whose value fell below the current target.
-QUOTA_REQUEST_STATUSES = ("pending", "manual", "approved", "denied", "failed", "superseded")
-OPEN_QUOTA_REQUEST_STATUSES = ("pending", "manual")
+# id-less row whose value fell below the current target; stale: AWS kept it
+# pending past VOICE_QUOTA_REQUEST_STALE_DAYS, no longer polled;
+# pending_upstream: AWS refused a new filing because one is already open there
+# (no id of ours), held open for 7 days (decision 104).
+QUOTA_REQUEST_STATUSES = ("pending", "manual", "approved", "denied", "failed", "superseded",
+                          "stale", "pending_upstream")
+OPEN_QUOTA_REQUEST_STATUSES = ("pending", "manual", "pending_upstream")
 CAPACITY_REQUEST_STATUSES = ("pending", "approved", "declined")
 
 
@@ -114,6 +118,22 @@ class VoiceQuotaRequest(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
         onupdate=func.now())
+
+
+class VoiceCapacityNotice(Base):
+    """One capacity email sent (operator or admins): at most one per kind,
+    subject and UTC day across every process, claimed with INSERT ... ON
+    CONFLICT DO NOTHING before the send (decision 104). The subject is an
+    internal id (a quota request, a company, "platform"), never a diner
+    identifier or phone number. Platform data, kept 30 days."""
+
+    __tablename__ = "voice_capacity_notices"
+
+    kind: Mapped[str] = mapped_column(String(40), primary_key=True)
+    subject_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class VoiceCapacityRequest(Base):

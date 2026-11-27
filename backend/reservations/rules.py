@@ -7,7 +7,7 @@ from pydantic import (
     BaseModel, Field, TypeAdapter, ValidationError, ValidationInfo, field_validator,
     model_validator,
 )
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.reservations.flows import Flows
@@ -256,22 +256,58 @@ async def get_agent_rules(
     return rules, version
 
 
+class FlowsConflict(Exception):
+    """The flows changed since the copy being saved was loaded (409)."""
+
+
+_FLOW_FIELDS = ("flows", "flow_editor_ids")
+
+
+async def lock_rules(db: AsyncSession, location_id: str) -> None:
+    """The location's rules-write lock, held to the end of the transaction.
+    Taken before reading what a save keeps or compares, so two saves run one
+    after the other. An advisory lock, so bookings (which lock the location
+    row) never wait on it."""
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                     {"k": f"reservation-rules:{location_id}"})
+
+
+async def flows_version(db: AsyncSession, company_id: str, location_id: str) -> int:
+    """The flows' own version (0 before the first save)."""
+    row = await _row(db, company_id, location_id)
+    return row.flows_version if row is not None else 0
+
+
+async def check_flows_version(
+    db: AsyncSession, company_id: str, location_id: str, loaded: int
+) -> None:
+    """FlowsConflict unless the stored flows are still the copy loaded at
+    `loaded`. Call under lock_rules."""
+    if await flows_version(db, company_id, location_id) != loaded:
+        raise FlowsConflict()
+
+
 async def save_rules(
     db: AsyncSession, company_id: str, location_id: str, rules: RulesSchema
 ) -> int:
-    """Upsert the rules and bump the version. Does not commit."""
+    """Upsert the rules and bump the version, and the flows_version when the
+    flows or their editors changed. Does not commit."""
     payload = rules.model_dump(mode="json")
     now = datetime.now(timezone.utc)
+    stored = await stored_fields(db, company_id, location_id, _FLOW_FIELDS)
+    flows_changed = any(stored[k] != getattr(rules, k) for k in _FLOW_FIELDS)
     row = await _row(db, company_id, location_id)
     if row is None:
         row = ReservationRules(
             company_id=company_id, location_id=location_id, rules=payload,
-            version=1, updated_at=now,
+            version=1, flows_version=1 if flows_changed else 0, updated_at=now,
         )
         db.add(row)
     else:
         row.rules = payload
         row.version += 1
+        if flows_changed:
+            row.flows_version += 1
         row.updated_at = now
     await db.flush()
     return row.version
