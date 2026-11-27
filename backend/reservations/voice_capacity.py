@@ -100,11 +100,12 @@ def _send(to: list[str], subject: str, body_html: str) -> None:
 NOTICE_RETENTION_DAYS = 30
 
 
-def _mail_operator(subject: str, body_html: str) -> None:
-    """Undeduplicated; never raises. Alerts go through _mail_operator_once."""
+def _mail_operator(subject: str, body_html: str) -> bool:
+    """Undeduplicated; never raises. True only when the provider accepted
+    it. Alerts go through _mail_operator_once."""
     from backend.services.operator_alerts import _send_operator_email
 
-    _send_operator_email(f"[WizScheduler] {subject}", body_html, "voice_capacity")
+    return _send_operator_email(f"[WizScheduler] {subject}", body_html, "voice_capacity")
 
 
 def _notice_day(now: datetime) -> date:
@@ -138,13 +139,35 @@ async def _claim_notice(db: AsyncSession, kind: str, subject_id: str,
 async def _mail_operator_once(db: AsyncSession, kind: str, subject_id: str,
                               subject: str, body_html: str, now: datetime) -> None:
     """The operator email for (kind, subject_id), at most once a UTC day
-    across processes. Never raises; a failed send is not retried today."""
+    across processes. Never raises. A send that did not go out frees the
+    key again, so the next call (a later run) retries it."""
     if not await _claim_notice(db, kind, subject_id, now):
         return
     try:
-        _mail_operator(subject, body_html)
+        sent = _mail_operator(subject, body_html)
     except Exception:  # noqa: BLE001
         logger.exception("voice capacity: operator email failed (%s)", kind)
+        sent = False
+    if sent is False:
+        await _release_notice(db, kind, subject_id, now)
+
+
+async def _release_notice(db: AsyncSession, kind: str, subject_id: str,
+                          now: datetime) -> None:
+    """Undo a claim whose send failed. Never raises."""
+    try:
+        with tenant_scope_disabled():
+            await db.execute(delete(VoiceCapacityNotice).where(
+                VoiceCapacityNotice.kind == kind,
+                VoiceCapacityNotice.subject_id == subject_id[:64],
+                VoiceCapacityNotice.day == _notice_day(now)))
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("voice capacity: notice release failed (%s)", kind)
+        try:
+            await db.rollback()
+        except Exception:  # noqa: BLE001
+            logger.exception("voice capacity: rollback failed")
 
 
 async def _mail_admins_once(db: AsyncSession, kind: str, subject_id: str, company_id: str,
@@ -428,6 +451,7 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
             closed: list[VoiceQuotaRequest] = []
             denied: list[VoiceQuotaRequest] = []
             stale: list[VoiceQuotaRequest] = []
+            upstream: list[VoiceQuotaRequest] = []
             stale_before = now - timedelta(days=settings.VOICE_QUOTA_REQUEST_STALE_DAYS)
             for row in open_rows:
                 if quota.value >= row.desired:
@@ -450,14 +474,17 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                     _move(row, "failed", now)  # AWS no longer knows it
                     closed.append(row)
                     continue
-                # A manual row, or a pending one that never got a request id:
-                # nothing will close it, so it must not block requests forever.
+                # A manual row, a pending one that never got a request id, or
+                # one AWS said is already open: nothing will close it, so it
+                # must not block requests forever. A pending_upstream row is
+                # still open at AWS, so the operator is told that instead.
+                bucket = upstream if row.status == "pending_upstream" else closed
                 if row.desired < target:
                     _move(row, "superseded", now)
-                    closed.append(row)
+                    bucket.append(row)
                 elif _aware(row.created_at) < now - STALE_REQUEST_AGE:
                     _move(row, "failed", now)
-                    closed.append(row)
+                    bucket.append(row)
             still_open = [r for r in open_rows if r.status in OPEN_QUOTA_REQUEST_STATUSES]
             await db.commit()
             for row in denied:
@@ -487,6 +514,17 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                     "Voice call quota requests closed",
                     f"<p>These quota requests could no longer complete and were closed "
                     f"(target now {target}, applied {quota.value}):</p><ul>{items}</ul>", now)
+            if upstream:
+                items = "".join(f"<li>{r.desired} (AWS said already open on "
+                                f"{_aware(r.created_at).date().isoformat()})</li>"
+                                for r in upstream)
+                await _mail_operator_once(
+                    db, "quota_upstream_open", _digest(*sorted(r.id for r in upstream)),
+                    "Voice call quota request still open at AWS",
+                    f"<p>A quota increase request for <b>{_e(settings.VOICE_QUOTA_NAME)}</b> "
+                    f"is still open at AWS, so we could not file a new one (target now "
+                    f"{target}, applied {quota.value}):</p><ul>{items}</ul><p>Check the "
+                    "Service Quotas console. We will try to file again.</p>", now)
             out: dict[str, Any] = {"applied": quota.value, "target": target}
             if quota.value >= target:
                 return {**out, "action": "none"}
@@ -520,10 +558,11 @@ async def ensure_quota(db: AsyncSession, now: datetime | None = None,
                 request_id = await client.request_increase(quota, target)
             except QuotaRequestAlreadyOpen:
                 # AWS holds an open request we no longer poll (a stale one):
-                # still pending upstream. An id-less pending row holds it
-                # open, so this is not retried nightly; it is superseded or
-                # closed after STALE_REQUEST_AGE like any id-less row.
-                db.add(VoiceQuotaRequest(desired=target, status="pending",
+                # still pending upstream. A pending_upstream row holds it
+                # open, so this is not retried nightly; after
+                # STALE_REQUEST_AGE it stops blocking and the operator is
+                # told it is still open at AWS.
+                db.add(VoiceQuotaRequest(desired=target, status="pending_upstream",
                                          reason=f"{why}; already open at AWS",
                                          created_at=now, updated_at=now))
                 await db.commit()

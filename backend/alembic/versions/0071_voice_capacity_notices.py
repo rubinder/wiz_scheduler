@@ -8,8 +8,9 @@ the owner only, a no-row app_role policy, analysts may read. No company
 column: a subject is an internal id, never a diner identifier or phone
 number. Pruned after 30 days by the daily capacity step.
 
-voice_quota_requests.status gains 'stale': AWS kept the request pending past
-VOICE_QUOTA_REQUEST_STALE_DAYS, so it is no longer polled.
+voice_quota_requests.status gains 'stale' (AWS kept the request pending past
+VOICE_QUOTA_REQUEST_STALE_DAYS, so it is no longer polled) and
+'pending_upstream' (AWS refused a new filing because one is already open).
 
 Revision ID: 0071
 Revises: 0070
@@ -53,12 +54,13 @@ def upgrade() -> None:
         CREATE POLICY analytics_read_all_{T} ON {T}
             FOR SELECT TO analytics_role USING (true);
     """)
-    _status_check(STATUSES + ("stale",))
+    _status_check(STATUSES + ("stale", "pending_upstream"))
 
 
 def downgrade() -> None:
-    # A stale request is one AWS never closed; 'failed' is the nearest
-    # status the older code knows.
-    op.execute("UPDATE voice_quota_requests SET status = 'failed' WHERE status = 'stale'")
+    # Neither is a request the older code can follow: 'failed' is the
+    # nearest status it knows.
+    op.execute("UPDATE voice_quota_requests SET status = 'failed' "
+               "WHERE status IN ('stale', 'pending_upstream')")
     _status_check(STATUSES)
     op.drop_table(T)

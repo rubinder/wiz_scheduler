@@ -26,10 +26,12 @@ from backend.utils.id_gen import generate_short_id
 # approved / denied: the outcome; failed: the request call itself failed, AWS
 # no longer knows it, or it stayed open past 7 days; superseded: a manual or
 # id-less row whose value fell below the current target; stale: AWS kept it
-# pending past VOICE_QUOTA_REQUEST_STALE_DAYS, no longer polled (decision 104).
+# pending past VOICE_QUOTA_REQUEST_STALE_DAYS, no longer polled;
+# pending_upstream: AWS refused a new filing because one is already open there
+# (no id of ours), held open for 7 days (decision 104).
 QUOTA_REQUEST_STATUSES = ("pending", "manual", "approved", "denied", "failed", "superseded",
-                          "stale")
-OPEN_QUOTA_REQUEST_STATUSES = ("pending", "manual")
+                          "stale", "pending_upstream")
+OPEN_QUOTA_REQUEST_STATUSES = ("pending", "manual", "pending_upstream")
 CAPACITY_REQUEST_STATUSES = ("pending", "approved", "declined")
 
 

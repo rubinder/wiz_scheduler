@@ -938,19 +938,27 @@ def test_cost_uses_the_floor_plan_prices():
 # --- a request the API refuses (4xx) ------------------------------------------
 
 
-def _api_error(status: int, message: str = "raw api text: image could not be processed"):
-    """The SDK's error for an HTTP status, as the real client raises it."""
+def _api_error(status: int, message: str = "raw api text: Could not process image"):
+    """The SDK's error for an HTTP status, as the real client raises it: the
+    parsed error body, and a message of "Error code: N - {body}"."""
     import anthropic
     import httpx
 
     request = httpx.Request("POST", "https://api.anthropic.com/v1/messages/count_tokens")
     response = httpx.Response(status, request=request)
+    body = {"type": "error", "error": {"type": "invalid_request_error", "message": message}}
+    text = f"Error code: {status} - {body}"
     for cls in (anthropic.BadRequestError, anthropic.RequestTooLargeError,
                 anthropic.UnprocessableEntityError, anthropic.RateLimitError,
                 anthropic.InternalServerError):
         if getattr(cls, "status_code", None) == status:
-            return cls(message, response=response, body=None)
-    return anthropic.APIStatusError(message, response=response, body=None)
+            return cls(text, response=response, body=body)
+    return anthropic.APIStatusError(text, response=response, body=body)
+
+
+CREDIT_400 = ("Your credit balance is too low to access the Anthropic API. Please go to "
+              "Plans & Billing to upgrade or purchase credits.")
+PARAM_400 = "thinking.type: Input should be 'enabled' or 'disabled'"
 
 
 def _timeout_error():
@@ -1058,3 +1066,90 @@ async def test_a_draft_call_the_api_refuses_fails_as_upload_rejected_uncharged(
     model.reply = _reply()
     r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
     assert r.status_code == 202, r.text
+
+
+# --- a 400 about our account or our request is an outage, not the files ----
+
+
+@pytest.mark.parametrize("message", [
+    "Could not process image",
+    "image exceeds 5 MB maximum: 6291456 bytes > 5242880 bytes",
+    "The PDF specified was not valid.",
+    "Image does not match the provided media type image/jpeg",
+])
+@pytest.mark.asyncio
+async def test_a_400_about_the_files_is_rejected_input(message):
+    with pytest.raises(floor_ai.ModelRejectedInput):
+        await _sdk_model(_api_error(400, message)).count_tokens(system="s", content=[])
+
+
+@pytest.mark.parametrize("message", [CREDIT_400, PARAM_400])
+@pytest.mark.asyncio
+async def test_a_400_about_billing_or_parameters_is_not_rejected_input(message):
+    with pytest.raises(Exception) as caught:
+        await _sdk_model(_api_error(400, message)).count_tokens(system="s", content=[])
+    assert not isinstance(caught.value, floor_ai.ModelRejectedInput)
+
+
+@pytest.mark.parametrize("message", [CREDIT_400, PARAM_400])
+@pytest.mark.asyncio
+async def test_503_and_no_charge_when_a_400_is_ours(
+    client, db_session, manager_token, seed_location, monkeypatch, caplog, message
+):
+    """A credit outage must not read as every manager's files being bad."""
+    await _credits(db_session, 10.0)
+    monkeypatch.setattr(floor_ai, "draft_model", lambda: _sdk_model(_api_error(400, message)))
+    with caplog.at_level("WARNING", logger="backend.reservations.floor_ai"):
+        r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 503, r.text
+    assert r.json()["detail"]["code"] == "estimate_unavailable"
+    assert (await db_session.execute(select(FloorPlanDraft))).first() is None
+    assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)
+    assert any(message in rec.getMessage() for rec in caplog.records
+               if rec.levelname == "WARNING")
+
+
+@pytest.mark.asyncio
+async def test_the_rejected_path_logs_the_api_message(
+    client, db_session, manager_token, seed_location, monkeypatch, caplog
+):
+    await _credits(db_session, 10.0)
+    monkeypatch.setattr(floor_ai, "draft_model",
+                        lambda: _sdk_model(_api_error(400, "Could not process image")))
+    with caplog.at_level("WARNING", logger="backend.reservations.floor_ai"):
+        r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 422
+    assert any("Could not process image" in rec.getMessage() for rec in caplog.records
+               if rec.levelname == "WARNING")
+
+
+class _CountsThenRefuses:
+    """Counts fine; the draft call goes through the real ACL over an SDK
+    client that raises `error`."""
+
+    def __init__(self, error: Exception) -> None:
+        self.acl = _sdk_model(error)
+
+    async def count_tokens(self, *, system, content):
+        return COUNTED
+
+    async def draft(self, *, system, content):
+        return await self.acl.draft(system=system, content=content)
+
+
+@pytest.mark.parametrize("message, code", [
+    (CREDIT_400, "model_error"), ("Could not process image", "upload_rejected")])
+@pytest.mark.asyncio
+async def test_a_400_on_the_draft_call_is_classified_by_its_message(
+    client, db_session, manager_token, seed_location, monkeypatch, message, code
+):
+    await _credits(db_session, 10.0)
+    fake = _CountsThenRefuses(_api_error(400, message))
+    monkeypatch.setattr(floor_ai, "draft_model", lambda: fake)
+    r = await _post(client, manager_token, _files(("a.jpg", JPEG, "image/jpeg")))
+    assert r.status_code == 202, r.text
+    body = (await client.get(
+        f"{BASE}/locations/{LOCATION_ID}/floor/ai-drafts/{r.json()['id']}",
+        headers=_auth(manager_token))).json()
+    assert body["status"] == "failed" and body["error_code"] == code
+    assert (await _og(db_session)).ai_credits_usd == pytest.approx(10.0)

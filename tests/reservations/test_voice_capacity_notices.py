@@ -21,8 +21,11 @@ pytestmark = [pytest.mark.integration]
 def sent(monkeypatch) -> list[tuple[str, str]]:
     """What reached the mail edge (after any dedupe)."""
     out: list[tuple[str, str]] = []
-    monkeypatch.setattr(voice_capacity, "_mail_operator",
-                        lambda subject, body: out.append((subject, body)))
+    def operator(subject: str, body: str) -> bool:
+        out.append((subject, body))
+        return True
+
+    monkeypatch.setattr(voice_capacity, "_mail_operator", operator)
 
     async def admins(db, company_id, subject, body):
         out.append((subject, body))
@@ -70,6 +73,36 @@ async def test_admin_mail_is_deduplicated_too(db_session, seed_location, sent):
         await once(db_session, "admin_down_shift", "co000001", "co000001",
                    "Adjusted", "<p>x</p>", NOW)
     assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failed_send_frees_the_key_so_a_later_run_sends(db_session, monkeypatch):
+    """One-time notices (a denial, a stale request) would otherwise be lost
+    for good when the mail provider is down."""
+    results = [False, True]
+    attempts: list[str] = []
+
+    def flaky(subject: str, body: str) -> bool:
+        attempts.append(subject)
+        return results.pop(0) if results else True
+
+    monkeypatch.setattr(voice_capacity, "_mail_operator", flaky)
+    once = voice_capacity._mail_operator_once
+    await once(db_session, "quota_denied", "req00009", "Denied", "<p>x</p>", NOW)
+    assert (await db_session.execute(select(VoiceCapacityNotice))).first() is None
+    await once(db_session, "quota_denied", "req00009", "Denied", "<p>x</p>", NOW)
+    await once(db_session, "quota_denied", "req00009", "Denied", "<p>x</p>", NOW)
+    assert attempts == ["Denied", "Denied"]  # failed, sent, then deduplicated
+
+
+@pytest.mark.asyncio
+async def test_the_operator_send_reports_whether_it_went(monkeypatch):
+    import backend.services.operator_alerts as alerts
+
+    monkeypatch.setattr(alerts, "_send_operator_email", lambda s, b, label: False)
+    assert voice_capacity._mail_operator("S", "<p>x</p>") is False
+    monkeypatch.setattr(alerts, "_send_operator_email", lambda s, b, label: True)
+    assert voice_capacity._mail_operator("S", "<p>x</p>") is True
 
 
 @pytest.mark.asyncio
@@ -170,11 +203,21 @@ async def test_aws_already_holding_an_open_request_is_pending_upstream(
     out = await voice_capacity.ensure_quota(db_session, NOW, client)
     assert out["action"] == "pending_upstream" and client.requests == [20]
     row = (await db_session.execute(select(VoiceQuotaRequest))).scalar_one()
-    assert (row.status, row.aws_request_id) == ("pending", None)
+    assert (row.status, row.aws_request_id) == ("pending_upstream", None)
     assert sent == []  # not a failure: nothing to tell the operator yet
     # It is not filed again the next night: the row holds it open.
     out = await voice_capacity.ensure_quota(db_session, NOW + timedelta(days=1), client)
     assert out["action"] == "pending" and client.requests == [20]
+
+    # After 7 days it stops blocking a new filing, and the operator is told
+    # the request is still open at AWS, not that it "could no longer complete".
+    await voice_capacity.ensure_quota(db_session, NOW + timedelta(days=8), client)
+    assert client.requests == [20, 20]
+    assert len(sent) == 1
+    subject, body = sent[0]
+    assert "still open at AWS" in body and "Service Quotas console" in body
+    assert "could no longer complete" not in body
+    assert "closed" not in subject.lower()
 
 
 def test_the_stale_threshold_is_two_weeks():

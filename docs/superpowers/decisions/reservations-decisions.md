@@ -916,10 +916,18 @@ Decisions made while building without stopping to ask (owner instruction,
 
 104. **Four AI host follow-ups: refused floor-draft files, stale flow saves,
     capacity email dedupe, stale quota requests (agent, 2026-11-27).**
-    - Floor-plan AI (decision 101): an Anthropic 400, 413 or 422 on
-      `count_tokens` or the create call is the manager's to fix, not an
-      outage. `AnthropicFloorDraftModel` (the anti-corruption layer) turns
-      those statuses into `ModelRejectedInput`; at the request it is
+    - Floor-plan AI (decision 101): an Anthropic error on `count_tokens` or
+      the create call that is about the files is the manager's to fix, not an
+      outage. `AnthropicFloorDraftModel` (the anti-corruption layer) decides:
+      413 and 422 always are; a 400 (`invalid_request_error`) is only when
+      the API's message names the content (image, PDF, document, file,
+      media type, base64) and says nothing of credit, billing, balance, the
+      API key or permissions (review). Anthropic also answers 400 for "Your
+      credit balance is too low" and for a bad parameter after an SDK or
+      model change; those are our outage, so they stay 503 / `model_error`
+      and never count against the manager as unreadable files. Both paths
+      log the API's own message (never file content) at warning level. The
+      content case becomes `ModelRejectedInput`; at the request it is
       **422 `upload_rejected`** with our own message ("could not read one
       of these files ... try other photos or PDFs", never the API's text),
       and in the background job the draft fails with error code
@@ -962,10 +970,18 @@ Decisions made while building without stopping to ask (owner instruction,
       Admin mails (down-shift, approval, decline) go through it too. The
       admin's capacity request mail does not: it runs in a request as
       app_role, which cannot reach the table, and the one-pending-per-company
-      insert already makes it once per request. A failed send never raises
-      and is not retried that day (an alert repeats the next day if the
-      condition still holds); a failed claim sends anyway (an extra email
-      beats a lost alert).
+      insert already makes it once per request. A send never raises. One
+      that did not go out (the operator send reports False, or raised)
+      deletes its claim again (review), so the next call for that key
+      retries it: a recurring alert (quota not found, the step failed, a
+      manual target) goes out on the next run. A one-time status-change
+      notice (`quota_denied`, `quota_request_stale`, `quota_closed`,
+      `quota_requested`) is mailed only by the run that changed the status,
+      so if that send fails it is not resent; the `[OPERATOR] ... email
+      failed` log line is the only trace. A durable outbox would close that
+      gap and is left as a follow-up. A failed claim sends anyway (an extra
+      email beats a lost alert). Admin mails do not report delivery, so
+      their claim always stands.
     - Stale quota requests: an AWS request still `pending` (PENDING,
       CASE_OPENED) after `VOICE_QUOTA_REQUEST_STALE_DAYS` (14) is polled
       one last time, then marked **`stale`** (a new status in the
@@ -977,15 +993,23 @@ Decisions made while building without stopping to ask (owner instruction,
       run files again if the target still needs it. AWS takes one open
       request per quota: `ResourceAlreadyExistsException` becomes
       `QuotaRequestAlreadyOpen` in `services/voice_quotas.py` and is
-      "still pending upstream" (action `pending_upstream`), not a failure:
-      an id-less `pending` row records it, so it is not retried nightly,
-      and it is superseded or closed after 7 days like any id-less row, so
-      at worst one request call and one closed-rows email a week.
-    Cost if wrong: a refused file that a retry would have read now asks the
-    manager for other files; a manager who loaded the flow page before a
-    colleague's flow save reloads and loses their unsaved edits; a capacity
-    email lost to a failed send waits a day; an operator gets a stale-request
-    email for a request AWS was about to decide.
+      "still pending upstream" (action `pending_upstream`), not a failure.
+      A row with its own status `pending_upstream` (open, no AWS id; also in
+      the 0071 check) records it, so it is not retried nightly. After 7 days
+      (or once its value is below the target) it stops blocking a new
+      filing. It does not go into the "could no longer complete and were
+      closed" email (review): the operator gets its own notice, "a quota
+      increase request is still open at AWS, check the Service Quotas
+      console" (kind `quota_upstream_open`). At worst that is one request
+      call and one such email a week.
+    Cost if wrong: a 400 about the files that names none of our content
+    words reads as an outage (503, "try again shortly") instead of
+    `upload_rejected`; a manager who loaded the flow page before a
+    colleague's flow save reloads and loses their unsaved edits; a one-time
+    capacity notice (a denial, a stale or closed request, a filed request)
+    whose send fails is lost for good, with only a log line, while a
+    recurring alert is retried on the next run; an operator gets a
+    stale-request email for a request AWS was about to decide.
 
 ## Before switching reservations on (owner checklist)
 

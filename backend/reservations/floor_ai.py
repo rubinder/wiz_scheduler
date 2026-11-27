@@ -96,14 +96,24 @@ class DraftEstimateUnavailable(Exception):
 
 
 class ModelRejectedInput(Exception):
-    """The API refused the request itself (HTTP 400, 413 or 422): a file it
-    cannot read, or a PDF it will not take. The manager's to fix with other
-    files, not an outage; the API bills nothing for it."""
+    """The API refused the files themselves: an image or PDF it cannot read,
+    or one too large. The manager's to fix with other files, not an outage;
+    the API bills nothing for it. `api_message` is the API's own text, for
+    the log only."""
+
+    def __init__(self, api_message: str = "") -> None:
+        super().__init__(api_message)
+        self.api_message = api_message
 
 
-# The API statuses that mean "this request", not "this service": everything
-# else (429, 5xx, auth, timeouts, connection errors) stays an outage.
-REJECTED_STATUSES = (400, 413, 422)
+# 413 and 422 are always about the request's content. A 400
+# (invalid_request_error) is too only when its message names the files: a
+# low credit balance or a bad parameter is also a 400, and is our outage.
+# Everything else (429, 5xx, auth, timeouts, connection errors) is an outage.
+CONTENT_STATUSES = (413, 422)
+_CONTENT_400 = re.compile(
+    r"\b(image|images|pdf|document|file|files|media type|base64)\b", re.IGNORECASE)
+_NOT_CONTENT_400 = re.compile(r"credit|billing|balance|api key|permission", re.IGNORECASE)
 UPLOAD_REJECTED_MESSAGE = (
     "The AI could not read one of these files. Try other photos or PDFs.")
 
@@ -363,15 +373,34 @@ def _usage(usage: Any) -> dict[str, int]:
     }
 
 
+def api_error_message(exc: BaseException) -> str:
+    """The API's own error message (from the parsed body, else the SDK's
+    text), for logs; never file content."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and isinstance(err.get("message"), str):
+            return err["message"][:500]
+    return str(getattr(exc, "message", None) or exc)[:500]
+
+
 def _rejected(exc: Exception) -> bool:
+    """The API refused the files, not our account or our parameters."""
     import anthropic
 
-    return isinstance(exc, anthropic.APIStatusError) and exc.status_code in REJECTED_STATUSES
+    if not isinstance(exc, anthropic.APIStatusError):
+        return False
+    if exc.status_code in CONTENT_STATUSES:
+        return True
+    if exc.status_code != 400:
+        return False
+    message = api_error_message(exc)
+    return bool(_CONTENT_400.search(message)) and not _NOT_CONTENT_400.search(message)
 
 
 class AnthropicFloorDraftModel:
-    """Messages API client for drafts. A refused request (REJECTED_STATUSES)
-    raises ModelRejectedInput; other SDK errors propagate. `run_draft` turns
+    """Messages API client for drafts. Refused files (`_rejected`) raise
+    ModelRejectedInput; other SDK errors propagate. `run_draft` turns
     either into a failed, uncharged draft."""
 
     def __init__(self) -> None:
@@ -402,7 +431,7 @@ class AnthropicFloorDraftModel:
                 **self._request(system, content), timeout=60.0)
         except Exception as exc:
             if _rejected(exc):
-                raise ModelRejectedInput() from exc
+                raise ModelRejectedInput(api_error_message(exc)) from exc
             raise
         return int(counted.input_tokens)
 
@@ -419,7 +448,7 @@ class AnthropicFloorDraftModel:
                 message = await stream.get_final_message()
         except Exception as exc:
             if _rejected(exc):
-                raise ModelRejectedInput() from exc
+                raise ModelRejectedInput(api_error_message(exc)) from exc
             raise
         text = "".join(b.text for b in message.content if getattr(b, "type", "") == "text")
         return ModelReply(stop_reason=str(message.stop_reason), text=text,
@@ -456,10 +485,10 @@ async def count_input_tokens(files: list[DraftFile], notes: str) -> int:
         return await draft_model().count_tokens(system=SYSTEM_PROMPT,
                                                 content=build_content(files, notes))
     except ModelRejectedInput as exc:
-        logger.warning("floor_ai.count_rejected")
+        logger.warning("floor_ai.count_rejected: %s", exc.api_message)
         raise DraftInputInvalid("upload_rejected", 422, UPLOAD_REJECTED_MESSAGE) from exc
     except Exception as exc:
-        logger.exception("floor_ai.count_failed")
+        logger.warning("floor_ai.count_failed: %s", api_error_message(exc), exc_info=True)
         raise DraftEstimateUnavailable() from exc
 
 
@@ -744,11 +773,12 @@ async def run_draft(
             except asyncio.TimeoutError:
                 logger.warning("floor_ai.deadline draft=%s", draft_id)
                 error = "timeout"
-            except ModelRejectedInput:
-                logger.warning("floor_ai.rejected draft=%s", draft_id)
+            except ModelRejectedInput as exc:
+                logger.warning("floor_ai.rejected draft=%s: %s", draft_id, exc.api_message)
                 error = "upload_rejected"
-            except Exception:
-                logger.exception("floor_ai.model_error draft=%s", draft_id)
+            except Exception as exc:
+                logger.warning("floor_ai.model_error draft=%s: %s", draft_id,
+                               api_error_message(exc), exc_info=True)
                 error = "model_error"
             floor, warnings, confidence = None, [], None
             if reply is not None:
